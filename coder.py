@@ -24,7 +24,9 @@ _default_breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 class Coder:
     def __init__(self, api_key=None, model=None, temperature=0.3, max_tokens=4096,
                  provider=None, personality_style=None,
-                 service_tier=None, inference_geo=None, fast_mode=False):
+                 service_tier=None, inference_geo=None, fast_mode=False,
+                 cache_mode="off", model_preflight=False, mcp_servers=None,
+                 mcp_tools=None, extra_betas=None):
         self.config = Config()
         self.api_key = api_key or self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
         self.model = model or self.config.get("model") or "claude-sonnet-5"
@@ -46,6 +48,13 @@ class Coder:
         # research-preview feature restricted to certain Opus models and
         # billed at a premium rate. See claude_models.py FAST_MODE_SUPPORTED.
         self.fast_mode = fast_mode
+        if cache_mode not in {"off", "automatic"}:
+            raise ValueError("cache_mode must be 'off' or 'automatic'")
+        self.cache_mode = cache_mode
+        self.model_preflight = model_preflight
+        self.mcp_servers = list(mcp_servers or [])
+        self.mcp_tools = list(mcp_tools or [])
+        self.extra_betas = list(extra_betas or [])
 
     def generate(self, prompt, system=None, file_content=None, history=None):
         """Generate a response from the AI model."""
@@ -54,6 +63,9 @@ class Coder:
             return "[ERROR] No API key configured. Set ANTHROPIC_API_KEY or run --setup."
 
         logger.info("generate_start", extra={"model": self.model, "prompt_chars": len(prompt or "")})
+        if self.model_preflight:
+            from claude_model_preflight import ModelCapabilityResolver
+            ModelCapabilityResolver(self.api_key).resolve(self.model)
         messages = list(history or [])
 
         user_content = prompt
@@ -91,12 +103,19 @@ class Coder:
             payload["inference_geo"] = self.inference_geo
         if self.fast_mode:
             payload["speed"] = "fast"
+        if self.cache_mode == "automatic":
+            payload["cache_control"] = {"type": "ephemeral"}
+        if self.mcp_servers:
+            payload["mcp_servers"] = self.mcp_servers
+            payload["tools"] = self.mcp_tools
 
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
+        if self.extra_betas:
+            headers["anthropic-beta"] = ",".join(sorted(set(self.extra_betas)))
 
         @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_default_breaker)
         def _call():
