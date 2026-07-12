@@ -95,6 +95,17 @@ def build_parser():
     g.add_argument("--fast-mode", action="store_true", dest="fast_mode",
                    help="Research-preview reduced-latency mode (speed:\"fast\"); "
                         "currently Opus-only and billed at a premium rate")
+    g.add_argument("--cache-mode", choices=["off", "automatic"], default="off",
+                   help="Enable opt-in automatic prompt caching for normal chat requests")
+    g.add_argument("--model-preflight", action="store_true",
+                   help="Verify model availability through /v1/models before sending a request")
+    g.add_argument("--mcp-remote", metavar="HTTPS_URL",
+                   help="Connect an allowlisted remote MCP server for this request (not ZDR eligible)")
+    g.add_argument("--mcp-server-name", default="remote-mcp")
+    g.add_argument("--mcp-tool", action="append", default=[],
+                   help="Explicit remote MCP tool allowlist entry; repeat for multiple tools")
+    g.add_argument("--mcp-token-env", default=None,
+                   help="Environment variable containing the remote MCP OAuth bearer token")
     g.add_argument("--health-check", action="store_true", dest="health_check",
                    help="Run liveness/readiness checks and exit (config, API key, "
                         "disk-writable); prints JSON, exit code 0=healthy 1=unhealthy")
@@ -1362,7 +1373,8 @@ def main():
 
     if args.tui:
         from tui import run_tui
-        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
+        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""),
+                cache_mode=args.cache_mode)
         return
 
     # ── API key required ──
@@ -1884,10 +1896,19 @@ def main():
 
     if args.prompt or args.file:
         from coder import Coder
+        mcp_servers = mcp_tools = extra_betas = None
+        if args.mcp_remote:
+            from claude_mcp_connector import build_remote_mcp
+            mcp_servers, mcp_tools, extra_betas = build_remote_mcp(
+                args.mcp_server_name, args.mcp_remote, args.mcp_tool, args.mcp_token_env
+            )
+            print("[WARN] Remote MCP connector is not eligible for Zero Data Retention.", file=sys.stderr)
         c = Coder(api_key=key, model=model,
                   temperature=args.temperature, max_tokens=args.max_tokens,
                   service_tier=args.service_tier, inference_geo=args.inference_geo,
                   fast_mode=args.fast_mode,
+                  cache_mode=args.cache_mode, model_preflight=args.model_preflight,
+                  mcp_servers=mcp_servers, mcp_tools=mcp_tools, extra_betas=extra_betas,
                   # Previously never sourced from a CLI flag at all — see
                   # the Skills & Agents arg group comment above.
                   personality_style=args.personality)
