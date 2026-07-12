@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Env / secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Test / coverage / lint / type-check caches
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+
+# Local app state (mirrors what the CLI writes under the user's home;
+# harmless if it ever ends up in-repo during local testing)
+.ai-coder/
+.ai-coder-config.json
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
