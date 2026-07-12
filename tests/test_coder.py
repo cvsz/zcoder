@@ -67,6 +67,17 @@ def test_generate_no_sampling_params_for_sonnet5():
     assert "temperature" not in captured["payload"]
 
 
+def test_generate_automatic_cache_adds_top_level_control():
+    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5", cache_mode="automatic")
+    captured = {}
+    def fake_urlopen(req, timeout=None):
+        captured["payload"] = json.loads(req.data.decode())
+        return _fake_response({"content": [{"type": "text", "text": "ok"}]})
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        c.generate("hi")
+    assert captured["payload"]["cache_control"] == {"type": "ephemeral"}
+
+
 def test_generate_401_does_not_retry():
     c = Coder(api_key="sk-ant-bad", model="claude-sonnet-5")
     call_count = {"n": 0}

@@ -146,10 +146,11 @@ class ZCoderTUI(App):
         ("ctrl+t", "toggle_dark", "Toggle theme"),
     ]
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, cache_mode: str = "off"):
         super().__init__()
         self.api_key = api_key or Config().get("api_key")
         self.history: list = []
+        self.cache_mode = cache_mode
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -250,7 +251,8 @@ class ZCoderTUI(App):
                 full_text = self._stream_reply(prompt, model, system, temperature, history_snapshot, reply_widget)
             else:
                 from coder import Coder
-                coder = Coder(api_key=self.api_key, model=model, temperature=temperature)
+                coder = Coder(api_key=self.api_key, model=model, temperature=temperature,
+                              cache_mode=self.cache_mode)
                 full_text = coder.generate(prompt, system=system, history=history_snapshot)
                 self.call_from_thread(reply_widget.update_text, full_text)
         except Exception as e:  # keep the TUI alive on any generation failure
@@ -302,9 +304,9 @@ class ZCoderTUI(App):
         return full_text
 
 
-def run_tui(api_key: Optional[str] = None) -> None:
+def run_tui(api_key: Optional[str] = None, cache_mode: str = "off") -> None:
     """Entry point used by main.py's --tui flag."""
-    ZCoderTUI(api_key=api_key).run()
+    ZCoderTUI(api_key=api_key, cache_mode=cache_mode).run()
 
 
 if __name__ == "__main__":  # pragma: no cover
