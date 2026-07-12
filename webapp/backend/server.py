@@ -84,6 +84,7 @@ class ChatRequest(BaseModel):
     agent: Optional[str] = None
     skill: Optional[str] = None
     api_key: Optional[str] = None
+    cache_mode: str = "off"
 
     @field_validator("prompt")
     @classmethod
@@ -107,6 +108,13 @@ class ChatRequest(BaseModel):
     def _max_tokens_range(cls, v: int) -> int:
         if not (1 <= v <= 64_000):
             raise ValueError("max_tokens must be between 1 and 64,000")
+        return v
+
+    @field_validator("cache_mode")
+    @classmethod
+    def _cache_mode(cls, v: str) -> str:
+        if v not in {"off", "automatic"}:
+            raise ValueError("cache_mode must be 'off' or 'automatic'")
         return v
 
 
@@ -261,6 +269,7 @@ def chat(req: ChatRequest, request: Request):
         temperature=req.temperature,
         max_tokens=req.max_tokens,
         personality_style=req.personality,
+        cache_mode=req.cache_mode,
     )
     reply = coder.generate(req.prompt, system=system, history=history)
 
