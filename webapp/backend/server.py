@@ -20,13 +20,15 @@ Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +47,7 @@ from skills import SkillManager                           # noqa: E402
 from main import VERSION, AGENT_SYSTEM_PROMPTS            # noqa: E402
 from claude_models import MODEL_CATALOG                   # noqa: E402
 from logging_config import get_logger                     # noqa: E402
+from claude_files import FilesAPI, MAX_FILE_SIZE_BYTES     # noqa: E402
 
 logger = get_logger("webapp.server")
 
@@ -122,6 +125,50 @@ class ChatResponse(BaseModel):
     session_id: str
     response: str
     model: str
+
+
+@app.post("/api/files/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    api_key: Optional[str] = Form(None),
+    model: str = Form("claude-sonnet-5"),
+):
+    """Upload a browser-selected file through the same FilesAPI as the CLI.
+
+    The browser stream is written in bounded chunks so the console never
+    buffers a potentially 500 MB file in RAM. The temporary copy is deleted
+    regardless of the upstream API result.
+    """
+    key = api_key or Config().get("api_key")
+    if not key:
+        raise HTTPException(400, "No API key configured. Set one via /api/config or provide api_key.")
+    filename = Path(file.filename or "").name
+    if not filename or filename != file.filename:
+        raise HTTPException(400, "A filename is required")
+
+    suffix = Path(filename).suffix
+    temp_path = None
+    total = 0
+    try:
+        with tempfile.NamedTemporaryFile(prefix="zcoder-upload-", suffix=suffix, delete=False) as tmp:
+            temp_path = tmp.name
+            while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > MAX_FILE_SIZE_BYTES:
+                    raise HTTPException(413, "File exceeds the 500 MB upload limit")
+                tmp.write(chunk)
+        # FilesAPI validates the filename before networking. Rename the
+        # temporary file only for the upload call so the displayed filename
+        # is the browser-selected basename, never the server temp name.
+        upload_path = Path(temp_path).with_name(filename)
+        os.replace(temp_path, upload_path)
+        temp_path = str(upload_path)
+        result = FilesAPI(api_key=key, model=model).upload(temp_path)
+        return {key: result.get(key) for key in ("id", "filename", "size", "created_at", "downloadable")}
+    finally:
+        await file.close()
+        if temp_path:
+            Path(temp_path).unlink(missing_ok=True)
 
 
 # --- minimal per-IP rate limiting -----------------------------------------
