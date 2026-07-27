@@ -42,8 +42,14 @@ CLI flags:
   --agent-dream-sessions IDS    Comma-separated session IDs to fold into
                                  the dream, alongside the memory store
   --agent-dream-instructions T  Optional steering text for the dream
-  --agent-dream-list            List non-archived dreams in the workspace
-  --agent-dream-get ID           Retrieve one dream's status/output
+                                 (max 4,096 chars)
+  --agent-dream-list             List dreams in the workspace, newest
+                                  first (--agent-dream-list-include-archived,
+                                  --agent-dream-list-limit/-page to paginate)
+  --agent-dream-get ID            Retrieve one dream's status, token usage,
+                                   session_id, and output_store_id
+  --agent-dream-cancel ID         Cancel a pending/running dream (v1.35.0)
+  --agent-dream-archive ID        Archive a terminal-state dream (v1.35.0)
   --agent-outcome DESC          With --agent-managed-run: define an outcome
                                  (rubric-graded self-correction loop)
                                  instead of a single plain task (v1.20.0,
@@ -541,6 +547,55 @@ MEMORY_STORE_BETA = "agent-memory-2026-07-22"
 # second, differently-worded grep for "curat|reflect.*session|memory.*
 # consolidat" also came up empty before this was written up as a gap.
 DREAMING_BETA = "dreaming-2026-04-21"
+
+# Dreaming's supported-models list (v1.35.0) — per
+# platform.claude.com/docs/en/managed-agents/dreams#limits and the July 10,
+# 2026 release note ("Dreams (research preview) now supports Claude Fable 5
+# and Claude Sonnet 5. See Supported models."), checked 2026-07-26. This
+# was flagged as a real, confirmed-but-deferred finding as far back as the
+# v1.23.0 audit cycle (CHECKLIST.md: "Deliberately out of scope: Dreaming's
+# July 10 Fable 5/Sonnet 5 expansion — Managed Agents concern, not a
+# per-model-module concern") — deferred each time because it belongs here,
+# in the Dreaming code itself, not in any of the per-model client modules
+# that kept correctly declining to own it. This cycle is the first
+# Dreaming-focused audit since the expansion shipped, so it's the first
+# one positioned to actually close it.
+DREAMING_SUPPORTED_MODELS = {
+    "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6",
+    "claude-fable-5", "claude-sonnet-5",
+}
+
+# Limits#instructions-length: 4,096 characters. Not re-enforced server-side
+# validation (the platform is the source of truth for the 400), just a
+# client-side heads-up before an async job is queued only to fail later.
+DREAMING_INSTRUCTIONS_MAX_CHARS = 4096
+
+
+def validate_dreaming_model(model_id: str) -> Optional[str]:
+    """Return None if `model_id` is a supported Dreaming pipeline model, or
+    a warning string if it isn't. Not a hard block — the platform itself is
+    the source of truth for whether a request 400s — but every other
+    per-model validator in this project (Opus 5 effort/thinking, Sonnet 5
+    sampling params, mid-conversation tool changes) warns rather than
+    silently proceeding, so this matches that convention."""
+    if model_id in DREAMING_SUPPORTED_MODELS:
+        return None
+    return (f"{model_id} is not in claude_agents_sdk.DREAMING_SUPPORTED_MODELS "
+            f"({', '.join(sorted(DREAMING_SUPPORTED_MODELS))}) — the dreaming "
+            f"pipeline may reject this model with a 400.")
+
+
+def validate_dreaming_instructions(instructions: Optional[str]) -> Optional[str]:
+    """Return None if `instructions` is unset or within the documented
+    4,096-character limit, or a warning string if it's over. Same
+    not-a-hard-block convention as validate_dreaming_model() — the
+    platform enforces the real limit, this just surfaces it before an
+    async job gets queued only to fail minutes later."""
+    if not instructions or len(instructions) <= DREAMING_INSTRUCTIONS_MAX_CHARS:
+        return None
+    return (f"dreaming instructions are {len(instructions)} chars, over the "
+            f"documented {DREAMING_INSTRUCTIONS_MAX_CHARS}-char limit — the "
+            f"platform will likely reject this with a 400.")
 
 # Vaults & credentials (v1.21.0, public beta) — per
 # platform.claude.com/docs/en/managed-agents/vaults (checked 2026-07-08):
@@ -1089,19 +1144,36 @@ class ManagedAgentsClient:
         store is never modified — the dream produces a separate output store
         you can review, adopt, or discard. Returns immediately with
         status "pending"; poll get_dream() until status is a terminal state
-        (completed/failed/canceled)."""
+        (completed/failed/canceled).
+
+        `model` is sent to the API as a plain string (e.g. "claude-opus-4-8"),
+        matching the documented `client.beta.dreams.create(model=...)` shape
+        — fixed in v1.35.0, previously sent as `{"id": model}`, which doesn't
+        match any documented or tested request shape and would have been
+        rejected or silently misinterpreted server-side. No test had asserted
+        on the `model` kwarg specifically, which is how this went unnoticed
+        since v1.20.0."""
         inputs = [{"type": "memory_store", "memory_store_id": memory_store_id}]
         if session_ids:
             inputs.append({"type": "sessions", "session_ids": session_ids})
         dream = self.client.beta.dreams.create(
-            inputs=inputs, model={"id": model}, instructions=instructions,
+            inputs=inputs, model=model, instructions=instructions,
             betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
         return {"id": dream.id, "status": dream.status}
 
     def get_dream(self, dream_id: str) -> dict:
         """Retrieve a dream's current status and, once complete, the
-        output_store_id of the curated memory store it produced."""
+        output_store_id of the curated memory store it produced.
+
+        Also surfaces `usage` (input/output/cache tokens — the documented
+        "Track progress" polling loop prints `dream.usage.input_tokens` on
+        every poll), `session_id` (the underlying session executing the
+        pipeline once `status` is "running" — stream its events per
+        "Watch the pipeline run" to observe the dream in real time), and
+        `archived_at` (set once archive_dream() has been called). All three
+        were dropped by the original v1.20.0 implementation, which only
+        extracted id/status/output_store_id/error."""
         dream = self.client.beta.dreams.retrieve(
             dream_id, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
@@ -1109,15 +1181,36 @@ class ManagedAgentsClient:
         for output in getattr(dream, "outputs", None) or []:
             if getattr(output, "type", None) == "memory_store":
                 output_store_id = output.memory_store_id
-        return {"id": dream.id, "status": dream.status, "output_store_id": output_store_id,
-                "error": getattr(dream, "error", None)}
+        usage = getattr(dream, "usage", None)
+        return {
+            "id": dream.id,
+            "status": dream.status,
+            "output_store_id": output_store_id,
+            "error": getattr(dream, "error", None),
+            "session_id": getattr(dream, "session_id", None),
+            "archived_at": getattr(dream, "archived_at", None),
+            "usage": {
+                "input_tokens": getattr(usage, "input_tokens", 0),
+                "output_tokens": getattr(usage, "output_tokens", 0),
+                "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+                "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
+            } if usage is not None else None,
+        }
 
-    def list_dreams(self, include_archived: bool = False) -> list:
-        """List non-archived dreams in the workspace, newest first."""
-        page = self.client.beta.dreams.list(
-            include_archived=include_archived, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
-        )
-        return [{"id": d.id, "status": d.status} for d in page]
+    def list_dreams(self, include_archived: bool = False, limit: int = 20,
+                     page: Optional[str] = None) -> list:
+        """List dreams in the workspace, newest first. `limit` defaults to
+        20 (platform max 100); pass the `page` cursor from a previous call
+        to continue paginating — both added in v1.35.0, matching
+        `client.beta.dreams.list(limit=...)`'s documented signature (the
+        original v1.20.0 implementation always fetched the platform's
+        default page with no way to see more than the first one)."""
+        kwargs = {"include_archived": include_archived, "limit": limit,
+                  "betas": [MANAGED_AGENTS_BETA, DREAMING_BETA]}
+        if page is not None:
+            kwargs["page"] = page
+        page_result = self.client.beta.dreams.list(**kwargs)
+        return [{"id": d.id, "status": d.status} for d in page_result]
 
     def cancel_dream(self, dream_id: str) -> dict:
         """Move a pending/running dream to canceled immediately."""
@@ -1125,6 +1218,24 @@ class ManagedAgentsClient:
             dream_id, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
         return {"id": dream.id, "status": dream.status}
+
+    def archive_dream(self, dream_id: str) -> dict:
+        """Archive a dream that has reached a terminal state (completed/
+        failed/canceled): sets `archived_at`, excludes it from default
+        list_dreams() results, but leaves it readable by id. Idempotent on
+        an already-archived dream; a 400 if the dream is still pending or
+        running (cancel it first). Added in v1.35.0 — genuinely absent
+        before this cycle: `create_dream`/`get_dream`/`list_dreams`/
+        `cancel_dream` all shipped in v1.20.0, but nothing wrapped
+        `client.beta.dreams.archive`, and archived dreams' output memory
+        stores were otherwise only reachable by manually remembering the
+        id. Does not touch the dream's output memory store — manage that
+        separately via the Memory Stores API."""
+        dream = self.client.beta.dreams.archive(
+            dream_id, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
+        )
+        return {"id": dream.id, "status": dream.status,
+                "archived_at": getattr(dream, "archived_at", None)}
 
     # ── Scheduled deployments (v1.21.0, public beta) ─────────────────────
     def create_scheduled_deployment(self, agent_id: str, environment_id: str,
@@ -1498,7 +1609,16 @@ def cmd_agent_dream(store_id: str, api_key: str, model: str = "claude-opus-4-8",
                     session_ids: Optional[list] = None, instructions: Optional[str] = None) -> dict:
     """Start a Dreaming pass over a memory store (research preview) and
     print the pending dream's id — dreams run asynchronously, poll with
-    --agent-dream-get to check status/output_store_id."""
+    --agent-dream-get to check status/output_store_id. Prints (but does
+    not block on) a warning if `model` isn't in DREAMING_SUPPORTED_MODELS
+    or `instructions` is over the documented length limit — added in
+    v1.35.0, matching the --mid-conv-tool-check print style."""
+    model_warning = validate_dreaming_model(model)
+    if model_warning:
+        print(f"\033[93m⚠ {model_warning}\033[0m")
+    instructions_warning = validate_dreaming_instructions(instructions)
+    if instructions_warning:
+        print(f"\033[93m⚠ {instructions_warning}\033[0m")
     mac = ManagedAgentsClient(api_key)
     dream = mac.create_dream(store_id, session_ids=session_ids, model=model, instructions=instructions)
     print(f"\033[92m✓ dream started\033[0m  id={dream['id']}  status={dream['status']}")
@@ -1507,24 +1627,61 @@ def cmd_agent_dream(store_id: str, api_key: str, model: str = "claude-opus-4-8",
 
 
 def cmd_agent_dream_get(dream_id: str, api_key: str) -> dict:
+    """Retrieve one dream's status and print it, plus (v1.35.0) token
+    usage so far, the underlying session_id once running (stream its
+    events to watch the pipeline live), and archived_at if archived."""
     mac = ManagedAgentsClient(api_key)
     dream = mac.get_dream(dream_id)
     print(f"dream {dream['id']}: status={dream['status']}")
     if dream.get("output_store_id"):
         print(f"  output_store_id={dream['output_store_id']}")
+    if dream.get("session_id"):
+        print(f"  session_id={dream['session_id']}  (stream its events to watch the dream run)")
+    usage = dream.get("usage")
+    if usage:
+        print(f"  usage: input={usage['input_tokens']} output={usage['output_tokens']} "
+              f"cache_creation={usage['cache_creation_input_tokens']} "
+              f"cache_read={usage['cache_read_input_tokens']}")
+    if dream.get("archived_at"):
+        print(f"  archived_at={dream['archived_at']}")
     if dream.get("error"):
         print(f"  \033[91merror: {dream['error']}\033[0m")
     return dream
 
 
-def cmd_agent_dream_list(api_key: str) -> list:
+def cmd_agent_dream_list(api_key: str, include_archived: bool = False,
+                         limit: int = 20, page: Optional[str] = None) -> list:
+    """List dreams, newest first. `limit`/`page` (v1.35.0) paginate
+    through more than the platform's default first page; `include_archived`
+    was already supported at the client layer but had no CLI flag until
+    now."""
     mac = ManagedAgentsClient(api_key)
-    dreams = mac.list_dreams()
+    dreams = mac.list_dreams(include_archived=include_archived, limit=limit, page=page)
     for d in dreams:
         print(f"  {d['id']}  status={d['status']}")
     if not dreams:
         print("  (no dreams found)")
     return dreams
+
+
+def cmd_agent_dream_cancel(dream_id: str, api_key: str) -> dict:
+    """Cancel a pending/running dream (v1.35.0) — ManagedAgentsClient.
+    cancel_dream() shipped in v1.20.0 but had no CLI command or flag
+    wired to it at all, so it was unreachable outside a Python REPL."""
+    mac = ManagedAgentsClient(api_key)
+    dream = mac.cancel_dream(dream_id)
+    print(f"\033[93m⚠ dream canceled\033[0m  id={dream['id']}  status={dream['status']}")
+    return dream
+
+
+def cmd_agent_dream_archive(dream_id: str, api_key: str) -> dict:
+    """Archive a terminal-state dream (v1.35.0, new) — excludes it from
+    default --agent-dream-list results without deleting it or its output
+    memory store; still readable by id afterward."""
+    mac = ManagedAgentsClient(api_key)
+    dream = mac.archive_dream(dream_id)
+    print(f"\033[92m✓ dream archived\033[0m  id={dream['id']}  archived_at={dream['archived_at']}")
+    return dream
 
 
 def cmd_agent_schedule_create(agent_id: str, environment_id: str, cron_expression: str,

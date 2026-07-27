@@ -209,7 +209,7 @@ def check_retired_tool_version(tool_type: str) -> Optional[dict]:
     return RETIRED_TOOL_VERSIONS.get(tool_type)
 
 
-
+def computer_use_tool_for_model(model: str, width: int = 1024, height: int = 768):
     """Return (tool_descriptor, beta_header_or_None) for the computer_use
     tool version this model actually supports. Defaults to the newer
     2025-11-24 pairing; falls back to 2025-01-24 for the older model IDs
@@ -260,6 +260,52 @@ TASK_BUDGET_MODELS = {
 # just docstring bullets before this pass. Both gate on the same beta header
 # per the public cookbook / engineering announcement.
 ADVANCED_TOOL_USE_BETA = "advanced-tool-use-2025-11-20"
+
+# Mid-conversation tool changes (beta, added 2026-07-01 per the release
+# notes checked 2026-07-26): add or remove tools between turns of a
+# conversation while preserving the prompt cache. Supported on Claude
+# Fable 5, Claude Mythos 5, Claude Opus 4.8, and Claude Opus 5 only —
+# genuinely absent from this codebase before this check (grepped for
+# `mid-conversation-tool-changes|mid_conversation_tool`: zero matches).
+MID_CONVERSATION_TOOL_CHANGES_BETA = "mid-conversation-tool-changes-2026-07-01"
+
+MID_CONVERSATION_TOOL_CHANGES_SUPPORTED = {
+    "claude-fable-5", "claude-mythos-5", "claude-opus-4-8", "claude-opus-5",
+}
+
+
+def validate_mid_conversation_tool_change(model_id: str) -> Optional[str]:
+    """Return None if `model_id` supports mid-conversation tool changes
+    (safe to send the beta header and vary `tools` between turns), or a
+    warning string if it doesn't. Not a hard block — the platform itself
+    is the source of truth for whether a request 400s — but every other
+    per-model validator in this project (Opus 5 effort/thinking, Sonnet 5
+    service_tier, Haiku 4.5 thinking shape) warns rather than silently
+    proceeding, so this matches that convention."""
+    if model_id in MID_CONVERSATION_TOOL_CHANGES_SUPPORTED:
+        return None
+    return (f"{model_id} is not in claude_tools.MID_CONVERSATION_TOOL_CHANGES_SUPPORTED "
+            f"(Fable 5, Mythos 5, Opus 4.8, Opus 5 only) — changing `tools` between "
+            f"turns on this model may not preserve the prompt cache the way it does "
+            f"on those four.")
+
+
+def with_mid_conversation_tool_changes(headers: dict, model_id: str) -> dict:
+    """Return `headers` with MID_CONVERSATION_TOOL_CHANGES_BETA appended
+    to any existing `anthropic-beta` value, only when `model_id` supports
+    the feature. Leaves `headers` untouched (and returns it unmodified)
+    for unsupported models — callers should surface
+    `validate_mid_conversation_tool_change()`'s warning instead of relying
+    on this function to fail loudly."""
+    if model_id not in MID_CONVERSATION_TOOL_CHANGES_SUPPORTED:
+        return headers
+    existing = headers.get("anthropic-beta", "")
+    parts = [p for p in existing.split(",") if p] if existing else []
+    if MID_CONVERSATION_TOOL_CHANGES_BETA not in parts:
+        parts.append(MID_CONVERSATION_TOOL_CHANGES_BETA)
+    headers = dict(headers)
+    headers["anthropic-beta"] = ",".join(parts)
+    return headers
 
 
 def build_context_management(
@@ -662,7 +708,12 @@ class ToolCoder:
             if name not in SERVER_TOOLS:
                 raise ValueError(f"Unknown server tool: {name}. Available: {list(SERVER_TOOLS)}")
             if name == "computer_use":
-                tool, beta = computer_use_tool_for_model(self.model)
+                _cu_defaults = SERVER_TOOLS["computer_use"]
+                tool, beta = computer_use_tool_for_model(
+                    self.model,
+                    width=_cu_defaults["display_width_px"],
+                    height=_cu_defaults["display_height_px"],
+                )
                 tools.append(tool)
                 if beta:
                     betas.append(beta)

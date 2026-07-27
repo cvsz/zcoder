@@ -82,6 +82,13 @@ MYTHOS5_MODEL_ID = "claude-mythos-5"
 # switching models) instead of paying that cost twice.
 FALLBACK_CREDIT_BETA_HEADER = "fallback-credit-2026-06-01"
 
+# Added 2026-07-24: `fallbacks` also accepts the literal string "default"
+# instead of an explicit model list, applying Anthropic's own recommended
+# fallback models by refusal category. Per the July 24, 2026 release note,
+# this mode specifically requires this beta header (an explicit list does
+# not, per the 2026-07-04 check above FALLBACK_CREDIT_BETA_HEADER).
+SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER = "server-side-fallback-2026-07-01"
+
 # The stop_details.category values Anthropic actually documents for a Fable 5
 # refusal. `category` (and `explanation`) can legitimately be null even when
 # stop_reason == "refusal" — that's a documented, permanent state, not a bug.
@@ -143,16 +150,19 @@ class Fable5Client:
 
     def __init__(self, api_key: str, model: str = FABLE5_MODEL_ID,
                  fallback_model: str = "claude-opus-4-8", max_tokens: int = 4096,
-                 fallback_chain: Optional[list] = None):
+                 fallback_chain=None):
         self.api_key = api_key
         self.model = model
         self.fallback_model = fallback_model
         self.max_tokens = max_tokens
         # Server-side fallback (`fallbacks` param, beta, checked against
-        # platform.claude.com/docs 2026-07-04). Up to 3 models total,
-        # including the primary `self.model` — do not repeat the primary
-        # in this list. When set, this replaces (not supplements) the
-        # manual client-side retry path in call_with_fallback().
+        # platform.claude.com/docs 2026-07-04, "default" mode added
+        # 2026-07-24). Either the literal string "default" (Anthropic's own
+        # recommended fallback models by refusal category) or a list of up
+        # to 3 models total, including the primary `self.model` — do not
+        # repeat the primary in a list. When set, this replaces (not
+        # supplements) the manual client-side retry path in
+        # call_with_fallback().
         self.fallback_chain = fallback_chain
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
@@ -205,6 +215,12 @@ class Fable5Client:
         if self.fallback_chain and not is_fallback_retry and model is None:
             payload["fallbacks"] = self.fallback_chain
         extra_headers = {"anthropic-beta": FALLBACK_CREDIT_BETA_HEADER} if is_fallback_retry else None
+        if self.fallback_chain == "default" and not is_fallback_retry and model is None:
+            # "default" mode needs its own beta header; an explicit list
+            # doesn't. is_fallback_retry can't also be true here (fallback
+            # retries never carry `fallbacks` at all — see the comment
+            # above), so no header conflict to resolve.
+            extra_headers = {"anthropic-beta": SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER}
         return self._post(payload, extra_headers=extra_headers)
 
     def call_with_fallback(self, prompt: str, system: Optional[str] = None,
@@ -340,14 +356,20 @@ def cmd_fable5_call(prompt: str, api_key: str, fallback_model: str = "claude-opu
     return result
 
 
-def parse_fallback_chain(raw: Optional[str]) -> Optional[list]:
-    """Parse the --fable5-fallback-chain CLI value ('MODEL1,MODEL2') into a
-    list, enforcing the documented max of 3 models total (including the
-    primary, which the caller adds separately — so this list itself must be
-    at most 2 entries for the common case of one primary + this chain, or
-    up to 3 if the primary model is not repeated here)."""
+def parse_fallback_chain(raw: Optional[str]):
+    """Parse the --fable5-fallback-chain CLI value into either the literal
+    string "default" (Anthropic's own recommended fallback models by
+    refusal category, added 2026-07-24 — requires
+    SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER) or a list parsed from
+    'MODEL1,MODEL2', enforcing the documented max of 3 models total
+    (including the primary, which the caller adds separately — so this
+    list itself must be at most 2 entries for the common case of one
+    primary + this chain, or up to 3 if the primary model is not repeated
+    here). Returns None, "default", or a list."""
     if not raw:
         return None
+    if raw.strip().lower() == "default":
+        return "default"
     chain = [m.strip() for m in raw.split(",") if m.strip()]
     if len(chain) > 3:
         raise ValueError(

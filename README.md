@@ -1,5 +1,131 @@
-# AI Model Coder CLI — v1.29.0 "TUI + Web console upgrade"
+# AI Model Coder CLI — v1.38.0 "Claude Enterprise User Management API"
 All Claude API Features + Claude Code / Agent SDK + Cowork + Plugins
+
+## New in v1.38.0 — Claude Enterprise User Management API
+
+Re-fetched Anthropic's release notes and found a genuine, previously
+unimplemented feature: the Claude Enterprise (claude.ai) User Management
+API, which went beta on July 14, 2026. Confirmed absent before this
+cycle — a grep for `ce-user-management|rbac_group|rbac_role` across the
+whole tree came back empty. Added full client + CLI coverage for
+Members, Invites, Groups, and read-only Custom Roles in
+`claude_admin_api.py`: 19 new `AdminApiClient` methods and 15 new CLI
+flags. Member/invite endpoints take no beta header (same
+`/organizations/{users,invites}` paths Claude Console orgs already use);
+Group/Role endpoints require the new `ce-user-management-2026-07-13`
+header, verified end-to-end against a mocked request capture (exact
+URLs, methods, and bodies match the docs). 30 new tests in
+`tests/test_claude_admin_api.py`. Everything else checked this cycle —
+mid-conversation tool changes on Opus 5, server-side fallback `"default"`
+mode, API key `expires_at`, the `agent-memory-2026-07-22` header, and the
+Opus 4.7 fast-mode removal — was already correctly implemented. Full
+write-up: `docs/51_upgrade_v1.38.0_ce_user_management.md`.
+
+```bash
+# List / look up organization members
+python main.py --members-list --admin-api-key sk-ant-admin-...
+python main.py --members-list --members-email jane@example.com
+
+# Invite someone, optionally assigning groups on acceptance
+python main.py --invite-create jane@example.com managed \
+  --invite-rbac-groups rbac_group_01Ab,rbac_group_02Cd
+
+# Groups and custom roles (beta header sent automatically)
+python main.py --group-create Engineering
+python main.py --group-member-add rbac_group_01Ab user_01Cd
+python main.py --roles-list
+```
+
+## New in v1.32.0 — Claude Opus 5, fast-mode enforcement, fallbacks "default"
+
+Re-fetched Anthropic's release notes directly and found Claude Opus 5
+(launched 2026-07-24) missing from the model catalog, plus a real bug:
+`--fast-mode` sent `speed:"fast"` for any model with no validation at
+all, even though Opus 4.7's fast mode now hard-errors. See
+`docs/44_upgrade_v1.32.0_release_validation.md`.
+
+```bash
+# Claude Opus 5 -- 1M context, 128k max output, thinking on by default
+python main.py --model claude-opus-5 -p "your prompt"
+
+# --fast-mode now validates against the model before sending the request:
+# Opus 5 / Opus 4.8 -- works as expected
+python main.py --model claude-opus-5 --fast-mode -p "your prompt"
+# Opus 4.7 -- fails locally with a clear message instead of a 400
+python main.py --model claude-opus-4-7 --fast-mode -p "your prompt"
+
+# fallbacks "default" mode -- Anthropic's own recommended fallback
+# models by refusal category, instead of naming them yourself
+python main.py --fable5 "your prompt" --fable5-fallback-chain default
+```
+
+## New in v1.31.0 — four fully-built modules had zero CLI access until now
+
+A wiring audit (not a docs re-audit — see
+`docs/43_upgrade_v1.31.0_cli_wiring_audit.md`) found `claude_github.py`,
+`claude_router.py`, `claude_prompt_optimizer.py`, and `claude_metrics.py`
+fully implemented and fully untested-from-the-CLI since v1.9.1 — no flag
+in `main.py` ever called into them.
+
+```bash
+# GitHub integration
+python main.py --gh-review-pr anthropics/claude-code/42
+python main.py --gh-triage-issues anthropics/claude-code --gh-max-items 10
+python main.py --gh-summarise-commits anthropics/claude-code
+python main.py --gh-pr-description anthropics/claude-code/42
+# --gh-token TOKEN, or set GITHUB_TOKEN
+
+# Multi-agent router — classifies your prompt and forwards it to whichever
+# built-in specialist agent fits best (or fans out to all of them with
+# --route-parallel and synthesises the best answer)
+python main.py --route "why is this query slow" --route-explain
+python main.py --route-list
+
+# Prompt optimizer & A/B tester
+python main.py --optimize "make me a todo app"
+python main.py --score-prompt "make me a todo app"
+python main.py --ab-test --prompt "variant A" --ab-prompt-b "variant B" \
+    --ab-task "summarize a support ticket"
+python main.py --prompt-lib-add --prompt "my reusable system prompt" --tag my-tag
+python main.py --prompt-lib-list
+python main.py --prompt-lib-get my-tag
+
+# Local usage metrics — populated automatically by every streamed call;
+# these flags are what finally makes the log readable
+python main.py --metrics-show --metrics-today
+python main.py --metrics-export usage.json
+python main.py --metrics-clear
+```
+
+## New in v1.30.0 — --thinking was 400-erroring on 5 of 9 catalog models; fixed
+
+A docs re-audit against `platform.claude.com/docs`'s extended-thinking
+and adaptive-thinking pages found `--thinking` always sent the manual
+`thinking.type="enabled"` + `budget_tokens` shape — a **400 error** on
+Claude Opus 4.8, Opus 4.7, Sonnet 5, Fable 5, Mythos 5, and Mythos
+Preview, and deprecated on Opus 4.6/Sonnet 4.6. `claude_thinking.py`
+now auto-selects the correct mode per model: real adaptive thinking
+(`thinking.type="adaptive"` + top-level `output_config.effort`, GA, no
+beta header) where supported, legacy manual `budget_tokens` where
+that's the only option. A new `--effort-legacy-budget` flag forces the
+old path where it still works and refuses cleanly (no wasted API call)
+where it doesn't.
+
+Also fixed: the extended-thinking usage summary was reading a
+nonexistent field and always printing `thinking=0`; and
+`claude_structured.py` no longer sends the now-unnecessary
+`structured-outputs-2025-11-13` beta header (structured outputs went
+GA January 29, 2026).
+
+```bash
+python main.py -p "prove this theorem" --thinking --model claude-sonnet-5
+# auto-selects adaptive thinking + effort=high, no 400
+
+python main.py -p "..." --thinking --effort-legacy-budget --model claude-opus-4-5
+# forces the manual budget_tokens path where it's the only option anyway
+```
+
+See `docs/42_upgrade_v1.30.0.md` for the full audit.
 
 ## New in v1.29.0 — Textual TUI + web console streaming/sessions/theme upgrade
 
@@ -106,6 +232,165 @@ python main.py --agent-env-self-hosted my-ci-sandbox
 # queue forever instead of failing outright
 python main.py --agent-env-work-stats env_01AbCDefGhIjKlMnOpQrStUv
 ```
+
+## New in v1.37.0 — Opus 4.1 deprecation tracking; usage-tier & Workbench items confirmed non-gaps
+
+Implemented all three items v1.36.0 had deferred. Added a proper
+`DEPRECATED_MODELS` registry (distinct from `RETIRED_MODELS`) so an
+announced-but-not-yet-retired model like Claude Opus 4.1 has somewhere
+correct to live; wired it into `--model-info`, `--check-deprecated`, and
+`--upgrade-all`. Usage-tier consolidation and the Workbench/experimental
+prompt tools retirement were re-verified (not just re-asserted) as
+genuine non-gaps with no code path affected. First dedicated test file
+for `claude_models.py`. Full write-up:
+`docs/49_upgrade_v1.37.0_deferred_items.md`.
+
+## New in v1.36.0 — Mid-system model-gate regression, cross-file doc bookkeeping
+
+**Finding (🔴 P0, regression):** `claude_cache.py`'s `MID_SYSTEM_SUPPORTED_MODELS`
+had been stuck at `{"claude-opus-4-8"}` since the feature's v1.18.0 launch.
+The July 15, 2026 release notes corrected the platform's own earlier
+availability note to add Claude Fable 5 and Claude Mythos 5 — this module
+had baked in exactly the stale note and silently rejected valid Fable 5 /
+Mythos 5 calls ever since. Fixed; set is now `{"claude-fable-5",
+"claude-mythos-5", "claude-opus-4-8"}`, matching current docs (still
+excludes Sonnet 5 and Opus 5, confirmed unchanged).
+
+Also closes out v1.35.0's incomplete cross-file bookkeeping: `pyproject.toml`
+and this README's headline were never bumped past v1.34.0 even though the
+Dreaming audit cycle's code and CHANGELOG entry shipped, and the
+`docs/47_upgrade_v1.35.0_dreaming_audit.md` file its own CHANGELOG entry
+pointed to didn't exist. Backfilled below.
+
+Full write-up: `docs/48_upgrade_v1.36.0_mid_system_gate_fix.md`.
+
+## New in v1.35.0 — Dreaming audit: model-support expansion, missing archive, unreachable cancel
+
+First Dreaming-focused audit cycle since it was originally closed in
+v1.20.0. Fixed a `create_dream()` request-shape bug shipped unnoticed
+since v1.20.0, expanded `DREAMING_SUPPORTED_MODELS` (Fable 5, Sonnet 5),
+added the missing `archive_dream()` and wired up the already-existing but
+CLI-unreachable `cancel_dream()`, and restored `usage`/`session_id`/
+`archived_at` to `get_dream()`'s response. 19 new/changed tests (92 in
+`tests/test_claude_agents_sdk.py`, all passing). Full write-up:
+`docs/47_upgrade_v1.35.0_dreaming_audit.md`.
+
+## New in v1.34.0 — Re-validation: Opus, Sonnet, Haiku, Fable, Mythos
+
+Targeted re-audit of the five per-model modules against a fresh release-
+notes fetch. Model catalog and existing validators re-confirmed correct.
+Two real gaps closed: mid-conversation tool changes beta (Fable 5,
+Mythos 5, Opus 4.8, Opus 5 — `claude_tools.py`, `--mid-conv-tool-check`)
+and Sonnet 5's strict non-default-sampling-parameter rejection
+(`claude_sonnet5.py`'s `validate_sampling_params()`). 10 new tests.
+
+## New in v1.33.0 — Deep per-model modules: Opus 5, Sonnet 5, Haiku 4.5
+
+Dedicated modules for the three current-tier models that previously
+only had a catalog row: `claude_opus5.py` (client-side effort/thinking
+validation, `xhigh` effort budgets, unconfirmed data-residency flag),
+`claude_sonnet5.py` (date-based promo-pricing calculator, service-tier
+unsupported/inference-geo-supported flags), `claude_haiku45.py`
+(extended-thinking-only request shape, dateless model-ID alias
+resolution). `--opus5*`, `--sonnet5*`, `--haiku45*` flag groups. 30 new
+tests.
+
+## New in v1.32.0 — Claude Opus 5, fast-mode enforcement, fallbacks "default"
+
+Claude Opus 5 added to `MODEL_CATALOG`. `validate_fast_mode()` now
+actually gates `--fast-mode` against `FAST_MODE_REMOVED_ERROR`/
+`FAST_MODE_REMOVED_SILENT` instead of sending it unconditionally.
+`fallbacks` gained a `"default"` string mode alongside the existing
+list mode.
+
+## New in v1.31.0 — CLI-to-API wiring audit
+
+Found four fully-built, fully-tested modules whose `cmd_*` functions
+were never reachable from `main.py` (GitHub, Router, Prompt Optimizer,
+Metrics). Wired all of them into argparse; added
+`tests/test_cli_wiring.py` as a standing regression check so a
+fully-built-but-unwired module can't happen silently again.
+
+## New in v1.30.0 — Extended thinking / adaptive-thinking routing fix
+
+`claude_thinking.py` was sending `thinking.type: "enabled"` +
+`budget_tokens` unconditionally, a hard 400 on every model that
+requires adaptive thinking (Opus 4.8, Opus 4.7, Sonnet 5, Fable 5,
+Mythos 5, Mythos Preview). Added per-model routing so each model gets
+the request shape it actually accepts.
+
+## New in v1.29.0 — Textual TUI + web console upgrade
+
+`tui.py` (new): a full Textual-based terminal UI (`--tui`), reusing
+`Coder`, `PersonalityManager`, `SkillManager`, and `MODEL_CATALOG`
+unchanged. Web console (added v1.28.0) gained streaming, session
+persistence, and theme support.
+
+## New in v1.28.0 — Web console + Files-API fix
+
+New `webapp/` (FastAPI backend + frontend) for browser-based access.
+Fixed `claude_code_exec.py`'s `execute()`, which was attaching
+code-execution file inputs with a `document` block instead of the
+`container_upload` block the sandbox's filesystem actually requires.
+
+## New in v1.27.0 — Memory store regression fix + memory/memory-store CRUD
+
+Fixed a P0 regression: `create_memory_store()`/`list_memories()` were
+sending both `managed-agents-2026-04-01` and `agent-memory-2026-07-22`
+beta headers, a combination the platform now rejects with a 400 on
+memory endpoints. Also closed memory store management
+(`retrieve`/`update`/`list`/`archive`/`delete`) and memory CRUD
+(`retrieve`/`create`/`update`/`delete`), left unbuilt since v1.19.0/
+v1.24.0. Memory *versions* (`list`/`retrieve`/`redact`) deliberately
+deferred — no concrete use case yet.
+
+## New in v1.26.0 — Managed Agents self-hosted sandboxes
+
+`client.beta.environments.create(config={"type": "self_hosted"})` plus
+the `EnvironmentWorker` polling pattern, as an alternative to
+Anthropic's cloud sandbox for Managed Agents tool execution.
+`--agent-env-self-hosted`, `--agent-worker-poll`.
+
+## New in v1.25.0 — Extended thinking `display: "omitted"` + CMEK audit
+
+`--thinking-display omitted` skips receiving/streaming thinking content
+a caller doesn't render, while preserving the `signature` for
+multi-turn continuity (billing unchanged). Confirmed CMEK
+`external_keys` Admin API endpoints exist on standard Claude Platform;
+added read-only `--admin-cmek-list`.
+
+## New in v1.24.0 — Server tool version bumps: code_execution, web_search, web_fetch
+
+`claude_tools.py` and `claude_search.py`'s tool-version constants
+bumped to `code_execution_20260521`, `web_search_20260318`,
+`web_fetch_20260318` (the latter three versions behind before this
+cycle in `claude_search.py`). Added the opt-in `response_inclusion`
+parameter.
+
+## New in v1.23.0 — Workload Identity Federation (WIF)
+
+`claude_wif.py` (new): keyless auth via short-lived OIDC JWT exchange
+(`POST /v1/oauth/token`, RFC 7523 jwt-bearer grant) — AWS IAM, Google
+Cloud, GitHub Actions, Kubernetes, Entra ID, Okta, SPIFFE, or any
+standards-compliant OIDC issuer. Auto-detects configuration from the
+five standard `ANTHROPIC_FEDERATION_*`/`ANTHROPIC_IDENTITY_*`
+environment variables. `--wif-info`, `--wif-token`.
+
+## New in v1.22.0 — Session overrides, vault injection location, event deltas
+
+`--agent-override-json`/`--agent-override-model`/`--agent-override-system`,
+`--agent-vault-injection-location`, `--agent-stream-deltas`, and a
+`code_execution` tool version bump to `code_execution_20260120`
+(`--code-exec-version`).
+
+## New in v1.21.0 — Vaults, Scheduled deployments, native Multiagent orchestration
+
+Closes the native Multiagent orchestration item deferred at v1.20.0.
+Also adds Managed Agents Vaults & credentials
+(`--agent-vault-create`/`-add-credential`/`-list`, `--agent-vault`),
+Scheduled deployments (`--agent-schedule-create`/`-list`/`-cancel`),
+and Outcomes' file-based rubric form
+(`--agent-outcome-rubric-upload`/`-file`).
 
 ## New in v1.20.0 — Dreaming, Outcomes, Webhooks (Managed Agents)
 

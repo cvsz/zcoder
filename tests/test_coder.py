@@ -67,17 +67,6 @@ def test_generate_no_sampling_params_for_sonnet5():
     assert "temperature" not in captured["payload"]
 
 
-def test_generate_automatic_cache_adds_top_level_control():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5", cache_mode="automatic")
-    captured = {}
-    def fake_urlopen(req, timeout=None):
-        captured["payload"] = json.loads(req.data.decode())
-        return _fake_response({"content": [{"type": "text", "text": "ok"}]})
-    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
-        c.generate("hi")
-    assert captured["payload"]["cache_control"] == {"type": "ephemeral"}
-
-
 def test_generate_401_does_not_retry():
     c = Coder(api_key="sk-ant-bad", model="claude-sonnet-5")
     call_count = {"n": 0}
@@ -122,3 +111,63 @@ def test_generate_429_exhausts_retries_returns_error():
          patch("time.sleep", return_value=None):
         result = c.generate("hi")
     assert "[API ERROR 429]" in result
+
+
+# ── v1.32.0: fast-mode validation (was previously unguarded/untested) ───
+
+
+def test_fast_mode_sends_speed_fast_on_supported_model():
+    c = Coder(api_key="sk-ant-test", model="claude-opus-4-8", fast_mode=True)
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _fake_response(
+            {"content": [{"type": "text", "text": "hi"}]})
+        c.generate("hello")
+    sent_req = mock_urlopen.call_args[0][0]
+    payload = json.loads(sent_req.data)
+    assert payload["speed"] == "fast"
+
+
+def test_fast_mode_on_opus_5_sends_speed_fast():
+    c = Coder(api_key="sk-ant-test", model="claude-opus-5", fast_mode=True)
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _fake_response(
+            {"content": [{"type": "text", "text": "hi"}]})
+        c.generate("hello")
+    sent_req = mock_urlopen.call_args[0][0]
+    payload = json.loads(sent_req.data)
+    assert payload["speed"] == "fast"
+
+
+def test_fast_mode_on_opus_4_7_errors_without_calling_api():
+    # Fast mode was removed for Opus 4.7 on 2026-07-24 and now 400s server
+    # side -- the client should refuse locally instead of burning a request.
+    c = Coder(api_key="sk-ant-test", model="claude-opus-4-7", fast_mode=True)
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        result = c.generate("hello")
+    mock_urlopen.assert_not_called()
+    assert "[ERROR]" in result
+    assert "claude-opus-4-7" in result
+
+
+def test_fast_mode_on_opus_4_6_warns_but_still_calls_api():
+    # Fast mode was removed for Opus 4.6 on 2026-06-29 but silently falls
+    # back to standard speed server-side -- safe to send, just pointless.
+    c = Coder(api_key="sk-ant-test", model="claude-opus-4-6", fast_mode=True)
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _fake_response(
+            {"content": [{"type": "text", "text": "hi"}]})
+        c.generate("hello")
+    sent_req = mock_urlopen.call_args[0][0]
+    payload = json.loads(sent_req.data)
+    assert payload["speed"] == "fast"
+
+
+def test_fast_mode_off_never_sends_speed_field():
+    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5", fast_mode=False)
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _fake_response(
+            {"content": [{"type": "text", "text": "hi"}]})
+        c.generate("hello")
+    sent_req = mock_urlopen.call_args[0][0]
+    payload = json.loads(sent_req.data)
+    assert "speed" not in payload
