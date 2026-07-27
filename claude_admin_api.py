@@ -1,6 +1,6 @@
 """
-claude_admin_api.py — Admin API: Usage & Cost, API keys, Spend Limits, Rate Limits, Claude Code Analytics
-AI Model Coder CLI v1.24.0
+claude_admin_api.py — Admin API: Usage & Cost, API keys, Spend Limits, Rate Limits, Claude Code Analytics, User Management
+AI Model Coder CLI v1.38.0
 
 Thin Admin API wrappers, combined into one module since all require the
 same auth (an Admin API key, prefix sk-ant-admin..., created in the
@@ -39,6 +39,20 @@ everywhere else in this CLI, and these calls will 401 with a normal key).
      being rate-limited; this one *reads what the configured limits
      are* before you ever hit them.
 
+  5. Claude Enterprise User Management API (v1.38.0, beta) — Members,
+     Invites, Groups, and read-only Custom Roles for a Claude Enterprise
+     (claude.ai) organization. Member/invite endpoints are the same
+     /organizations/{users,invites} paths section 2's API-key-management
+     already uses for Claude Console orgs — no beta header needed there.
+     Groups (/rbac_groups) and Custom Roles (/rbac_roles) are Enterprise-
+     only and require the ce-user-management-2026-07-13 beta header;
+     omitting it 404s rather than degrading. The API can only assign the
+     "user"/"managed" roles — owner/membership_admin/primary_owner stay
+     Console-managed, same as key creation in section 2 being N/A by
+     design. Requires an Admin API key with read:members / write:members
+     (members, invites) or read:rbac_groups / write:rbac_groups (groups);
+     custom-role reads use read:members too.
+
 CLI flags:
   --usage-report                 Print a usage report table (token counts)
   --usage-report-start DATE       Start date (YYYY-MM-DD), default: 30 days ago
@@ -64,16 +78,43 @@ CLI flags:
   --rate-limits-workspace ID      Print one workspace's rate limit overrides (with inherited org_limit)
   --claude-code-usage-report      Print daily per-user Claude Code productivity metrics (v1.24.0)
   --claude-code-usage-report-start DATE  Date (YYYY-MM-DD) for --claude-code-usage-report, default: yesterday
+  --members-list [--members-email E]     List/lookup organization members (Claude Enterprise)
+  --member-get USER_ID                   Get one member by ID
+  --member-role-set USER_ID ROLE         Set a member's role (user/managed)
+  --member-remove USER_ID                Remove a member
+  --invite-create EMAIL ROLE [--invite-rbac-groups G1,G2]  Invite someone (role: user/managed)
+  --invites-list                         List organization invites
+  --invite-withdraw INVITE_ID            Withdraw a pending invite
+  --groups-list                          List the enterprise's groups (beta header)
+  --group-create NAME                    Create a group
+  --group-delete GROUP_ID                Delete a group
+  --group-members-list GROUP_ID          List a group's members
+  --group-member-add GROUP_ID USER_ID    Add an org member to a group
+  --group-member-remove GROUP_ID USER_ID Remove a member from a group
+  --roles-list                           List custom roles (read-only)
+  --role-permissions-list ROLE_ID        List one custom role's permissions
 """
 
 import json
 import urllib.request
 import urllib.error
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 ADMIN_BASE = "https://api.anthropic.com/v1/organizations"
+
+# Claude Enterprise (claude.ai) User Management API (v1.38.0) — beta for all
+# Claude Enterprise organizations. Per platform.claude.com/docs/en/manage-claude/
+# user-management (checked 2026-07-27): member and invite endpoints are the
+# *same* /v1/organizations/{users,invites} endpoints Claude Console orgs use
+# (no beta header needed there — this file's existing API-key-management
+# section above is exactly this for Console orgs). Group and custom-role
+# endpoints (/rbac_groups, /rbac_roles) are Claude-Enterprise-only and require
+# this beta header; omitting it on those returns 404, not a degraded response.
+# Confirmed genuinely absent from this codebase before this cycle: grepped for
+# "ce-user-management|rbac_group|rbac_role|list_members" — zero matches.
+CE_USER_MANAGEMENT_BETA = "ce-user-management-2026-07-13"
 
 
 class AdminApiError(Exception):
@@ -92,20 +133,23 @@ class AdminApiClient:
     def __init__(self, admin_api_key: str):
         self.admin_api_key = admin_api_key
 
-    def _headers(self) -> dict:
-        return {
+    def _headers(self, beta: Optional[str] = None) -> dict:
+        headers = {
             "Content-Type": "application/json",
             "x-api-key": self.admin_api_key,
             "anthropic-version": "2023-06-01",
         }
+        if beta:
+            headers["anthropic-beta"] = beta
+        return headers
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict:
+    def _get(self, path: str, params: Optional[dict] = None, beta: Optional[str] = None) -> dict:
         url = f"{ADMIN_BASE}{path}"
         if params:
             url += "?" + urllib.parse.urlencode(
                 {k: v for k, v in params.items() if v is not None}, doseq=True,
             )
-        req = urllib.request.Request(url, headers=self._headers(), method="GET")
+        req = urllib.request.Request(url, headers=self._headers(beta=beta), method="GET")
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read().decode())
@@ -114,10 +158,10 @@ class AdminApiClient:
         except Exception as e:
             return {"error": str(e)}
 
-    def _post(self, path: str, payload: dict) -> dict:
+    def _post(self, path: str, payload: dict, beta: Optional[str] = None) -> dict:
         req = urllib.request.Request(
             f"{ADMIN_BASE}{path}", data=json.dumps(payload).encode(),
-            headers=self._headers(), method="POST",
+            headers=self._headers(beta=beta), method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
@@ -127,8 +171,8 @@ class AdminApiClient:
         except Exception as e:
             return {"error": str(e)}
 
-    def _delete(self, path: str) -> dict:
-        req = urllib.request.Request(f"{ADMIN_BASE}{path}", headers=self._headers(), method="DELETE")
+    def _delete(self, path: str, beta: Optional[str] = None) -> dict:
+        req = urllib.request.Request(f"{ADMIN_BASE}{path}", headers=self._headers(beta=beta), method="DELETE")
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 body = r.read().decode()
@@ -318,9 +362,115 @@ class AdminApiClient:
         (org_limit) for the same limiter."""
         return self._get(f"/workspaces/{workspace_id}/rate_limits")
 
+    # ── Claude Enterprise User Management API (v1.38.0, beta) ────────────
+    #
+    # Members and invites take no beta header (same endpoints Console orgs
+    # already use above). Groups and custom roles require
+    # CE_USER_MANAGEMENT_BETA and exist only for Claude Enterprise. The API
+    # can only assign the "user"/"managed" roles — owner/membership_admin/
+    # primary_owner are Console-managed and out of scope by design, same as
+    # --admin-create-key above being N/A by design.
+
+    def list_members(self, limit: int = 20, email: Optional[str] = None,
+                     before_id: Optional[str] = None, after_id: Optional[str] = None) -> dict:
+        """GET /organizations/users. `email` filters to one member
+        (case-insensitive, tolerates common address variants per the
+        docs) instead of paging the whole roster."""
+        return self._get("/users", params={
+            "limit": limit, "email": email, "before_id": before_id, "after_id": after_id,
+        })
+
+    def get_member(self, user_id: str) -> dict:
+        return self._get(f"/users/{user_id}")
+
+    def update_member_role(self, user_id: str, role: str) -> dict:
+        """role must be "user" or "managed" — administrative roles
+        (owner/membership_admin/primary_owner) 400 here by design, same
+        restriction the docs describe for invite creation below."""
+        return self._post(f"/users/{user_id}", {"role": role})
+
+    def remove_member(self, user_id: str) -> dict:
+        return self._delete(f"/users/{user_id}")
+
+    def create_invite(self, email: str, role: str,
+                      rbac_group_ids: Optional[list] = None) -> dict:
+        """role must be "user" or "managed". `rbac_group_ids`, when
+        given, additionally requires the caller's key to carry
+        write:rbac_groups (group assignment can grant that group's
+        role permissions) — the API enforces this, not this client."""
+        payload = {"email": email, "role": role}
+        if rbac_group_ids:
+            payload["rbac_group_ids"] = rbac_group_ids
+        return self._post("/invites", payload)
+
+    def list_invites(self, limit: int = 20, before_id: Optional[str] = None,
+                     after_id: Optional[str] = None) -> dict:
+        """No status filter — the response mixes pending/accepted/expired;
+        filter client-side on `status` if you only want one state."""
+        return self._get("/invites", params={
+            "limit": limit, "before_id": before_id, "after_id": after_id,
+        })
+
+    def get_invite(self, invite_id: str) -> dict:
+        return self._get(f"/invites/{invite_id}")
+
+    def withdraw_invite(self, invite_id: str) -> dict:
+        """Only a pending invite can be withdrawn — accepted/expired
+        both 400 per the docs; this client doesn't pre-check status,
+        the API is the source of truth."""
+        return self._delete(f"/invites/{invite_id}")
+
+    def list_groups(self, limit: int = 20, page: Optional[str] = None) -> dict:
+        return self._get("/rbac_groups", params={"limit": limit, "page": page},
+                         beta=CE_USER_MANAGEMENT_BETA)
+
+    def get_group(self, group_id: str) -> dict:
+        return self._get(f"/rbac_groups/{group_id}", beta=CE_USER_MANAGEMENT_BETA)
+
+    def create_group(self, name: str) -> dict:
+        return self._post("/rbac_groups", {"name": name}, beta=CE_USER_MANAGEMENT_BETA)
+
+    def rename_group(self, group_id: str, name: str) -> dict:
+        """`name` is the only field this endpoint can change."""
+        return self._post(f"/rbac_groups/{group_id}", {"name": name}, beta=CE_USER_MANAGEMENT_BETA)
+
+    def delete_group(self, group_id: str) -> dict:
+        """Members keep their organization membership; they just lose
+        the permissions the group's attached roles granted."""
+        return self._delete(f"/rbac_groups/{group_id}", beta=CE_USER_MANAGEMENT_BETA)
+
+    def list_group_members(self, group_id: str, limit: int = 100,
+                           page: Optional[str] = None) -> dict:
+        return self._get(f"/rbac_groups/{group_id}/members", params={"limit": limit, "page": page},
+                         beta=CE_USER_MANAGEMENT_BETA)
+
+    def add_group_member(self, group_id: str, user_id: str) -> dict:
+        """The user must already be an organization member (404
+        otherwise). To assign groups to someone who hasn't joined yet,
+        use rbac_group_ids on create_invite() instead."""
+        return self._post(f"/rbac_groups/{group_id}/members", {"user_id": user_id},
+                          beta=CE_USER_MANAGEMENT_BETA)
+
+    def remove_group_member(self, group_id: str, user_id: str) -> dict:
+        return self._delete(f"/rbac_groups/{group_id}/members/{user_id}", beta=CE_USER_MANAGEMENT_BETA)
+
+    def list_roles(self, limit: int = 20, page: Optional[str] = None) -> dict:
+        """Custom roles are read-only through the API — defined in
+        claude.ai organization settings, not writable here."""
+        return self._get("/rbac_roles", params={"limit": limit, "page": page},
+                         beta=CE_USER_MANAGEMENT_BETA)
+
+    def get_role(self, role_id: str) -> dict:
+        return self._get(f"/rbac_roles/{role_id}", beta=CE_USER_MANAGEMENT_BETA)
+
+    def list_role_permissions(self, role_id: str, limit: int = 20,
+                              page: Optional[str] = None) -> dict:
+        return self._get(f"/rbac_roles/{role_id}/permissions", params={"limit": limit, "page": page},
+                         beta=CE_USER_MANAGEMENT_BETA)
+
 
 def _default_date_range() -> tuple:
-    end = datetime.utcnow().date()
+    end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=30)
     return start.isoformat(), end.isoformat()
 
@@ -634,5 +784,250 @@ def cmd_rate_limits_workspace(workspace_id: str, admin_api_key: str):
         for limiter in group.get("limits", []):
             print(f"    {limiter.get('type', '?'):<24} "
                  f"value={limiter.get('value', '?'):<12} org_limit={limiter.get('org_limit', '?')}")
+    print()
+    return data
+
+# ── Claude Enterprise User Management API (v1.38.0, beta) ───────────────
+
+_CE_HINT = "This API also requires a Claude Enterprise (claude.ai) organization."
+
+
+def cmd_members_list(admin_api_key: str, limit: int = 20, email: Optional[str] = None):
+    client = AdminApiClient(admin_api_key)
+    data = client.list_members(limit=limit, email=email)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to list members: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+
+    print("\n\033[94mOrganization members\033[0m\n")
+    rows = data.get("data", [])
+    if not rows:
+        print("  (no members found" + (f" matching {email}" if email else "") + ")")
+    for m in rows:
+        print(f"  {m.get('id', '?'):<28} {m.get('email', '?'):<32} "
+             f"role={m.get('role', '?'):<16} added={m.get('added_at', '?')}")
+    if data.get("has_more"):
+        print(f"  ... more available, last_id={data.get('last_id', '?')}")
+    print()
+    return data
+
+
+def cmd_member_get(user_id: str, admin_api_key: str):
+    client = AdminApiClient(admin_api_key)
+    data = client.get_member(user_id)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to get member {user_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\n\033[94mMember {user_id}\033[0m")
+    print(f"  email: {data.get('email', '?')}")
+    print(f"  name:  {data.get('name', '?')}")
+    print(f"  role:  {data.get('role', '?')}")
+    print(f"  added: {data.get('added_at', '?')}\n")
+    return data
+
+
+def cmd_member_role_set(user_id: str, role: str, admin_api_key: str):
+    """role must be "user" or "managed" — the API 400s on anything else,
+    including the administrative roles, which can only be assigned in
+    claude.ai organization settings."""
+    client = AdminApiClient(admin_api_key)
+    data = client.update_member_role(user_id, role)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to update role for {user_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ {user_id} role set to {data.get('role', role)}\033[0m")
+    return data
+
+
+def cmd_member_remove(user_id: str, admin_api_key: str):
+    client = AdminApiClient(admin_api_key)
+    data = client.remove_member(user_id)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to remove member {user_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Removed member {user_id}\033[0m (seat, if any, returned to the pool)")
+    return data
+
+
+def cmd_invite_create(email: str, role: str, admin_api_key: str,
+                      rbac_group_ids: Optional[list] = None):
+    client = AdminApiClient(admin_api_key)
+    data = client.create_invite(email, role, rbac_group_ids=rbac_group_ids)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to invite {email}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Invited {email} as {data.get('role', role)}\033[0m "
+         f"(id={data.get('id', '?')}, expires={data.get('expires_at', '?')})")
+    return data
+
+
+def cmd_invites_list(admin_api_key: str, limit: int = 20):
+    client = AdminApiClient(admin_api_key)
+    data = client.list_invites(limit=limit)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to list invites: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print("\n\033[94mOrganization invites\033[0m\n")
+    rows = data.get("data", [])
+    if not rows:
+        print("  (no invites found)")
+    for inv in rows:
+        print(f"  {inv.get('id', '?'):<28} {inv.get('email', '?'):<32} "
+             f"role={inv.get('role', '?'):<10} status={inv.get('status', '?')}")
+    print()
+    return data
+
+
+def cmd_invite_withdraw(invite_id: str, admin_api_key: str):
+    """Only a pending invite can be withdrawn — accepted/expired both
+    400 server-side."""
+    client = AdminApiClient(admin_api_key)
+    data = client.withdraw_invite(invite_id)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to withdraw invite {invite_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Withdrew invite {invite_id}\033[0m")
+    return data
+
+
+def cmd_groups_list(admin_api_key: str, limit: int = 20):
+    client = AdminApiClient(admin_api_key)
+    data = client.list_groups(limit=limit)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to list groups: {data['error']}\033[0m")
+        if data.get("status") == 404:
+            print(f"\033[93m  A 404 here usually means the {CE_USER_MANAGEMENT_BETA} beta "
+                 f"header wasn't accepted — confirm this is a Claude Enterprise "
+                 f"organization.\033[0m")
+        else:
+            _wrong_key_hint(data, _CE_HINT)
+        return None
+    print("\n\033[94mEnterprise groups\033[0m\n")
+    rows = data.get("data", [])
+    if not rows:
+        print("  (no groups found)")
+    for g in rows:
+        print(f"  {g.get('id', '?'):<32} {g.get('name', '?'):<24} "
+             f"source={g.get('source_type', '?'):<8} roles={len(g.get('roles') or [])}")
+    print()
+    return data
+
+
+def cmd_group_create(name: str, admin_api_key: str):
+    client = AdminApiClient(admin_api_key)
+    data = client.create_group(name)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to create group {name!r}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Created group {data.get('name', name)}\033[0m (id={data.get('id', '?')})")
+    return data
+
+
+def cmd_group_delete(group_id: str, admin_api_key: str):
+    """Members keep organization membership; they just lose the
+    permissions this group's attached roles granted. SCIM-provisioned
+    groups can't be deleted through the API — the request returns 400."""
+    client = AdminApiClient(admin_api_key)
+    data = client.delete_group(group_id)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to delete group {group_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Deleted group {group_id}\033[0m")
+    return data
+
+
+def cmd_group_members_list(group_id: str, admin_api_key: str, limit: int = 100):
+    client = AdminApiClient(admin_api_key)
+    data = client.list_group_members(group_id, limit=limit)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to list members of group {group_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\n\033[94mGroup {group_id} — members\033[0m\n")
+    rows = data.get("data", [])
+    if not rows:
+        print("  (no members in this group)")
+    for m in rows:
+        print(f"  {m.get('user_id', '?'):<28} {m.get('email', '?')}")
+    print()
+    return data
+
+
+def cmd_group_member_add(group_id: str, user_id: str, admin_api_key: str):
+    """The user must already be an organization member (404 otherwise).
+    To assign groups to someone who hasn't joined yet, invite them with
+    --invite-create's rbac_group_ids instead."""
+    client = AdminApiClient(admin_api_key)
+    data = client.add_group_member(group_id, user_id)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to add {user_id} to group {group_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Added {data.get('email', user_id)} to group {group_id}\033[0m")
+    return data
+
+
+def cmd_group_member_remove(group_id: str, user_id: str, admin_api_key: str):
+    client = AdminApiClient(admin_api_key)
+    data = client.remove_group_member(group_id, user_id)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to remove {user_id} from group {group_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\033[92m✓ Removed {user_id} from group {group_id}\033[0m")
+    return data
+
+
+def cmd_roles_list(admin_api_key: str, limit: int = 20):
+    """Custom roles are read-only through the API — created/edited in
+    claude.ai organization settings, not here."""
+    client = AdminApiClient(admin_api_key)
+    data = client.list_roles(limit=limit)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to list roles: {data['error']}\033[0m")
+        if data.get("status") == 404:
+            print(f"\033[93m  A 404 here usually means the {CE_USER_MANAGEMENT_BETA} beta "
+                 f"header wasn't accepted — confirm this is a Claude Enterprise "
+                 f"organization.\033[0m")
+        else:
+            _wrong_key_hint(data, _CE_HINT)
+        return None
+    print("\n\033[94mCustom roles\033[0m\n")
+    rows = data.get("data", [])
+    if not rows:
+        print("  (no custom roles found)")
+    for r in rows:
+        print(f"  {r.get('id', '?'):<32} {r.get('name', '?')}")
+    print()
+    return data
+
+
+def cmd_role_permissions_list(role_id: str, admin_api_key: str, limit: int = 20):
+    client = AdminApiClient(admin_api_key)
+    data = client.list_role_permissions(role_id, limit=limit)
+    if "error" in data:
+        print(f"\033[91m✗ Failed to list permissions for role {role_id}: {data['error']}\033[0m")
+        _wrong_key_hint(data, _CE_HINT)
+        return None
+    print(f"\n\033[94mRole {role_id} — permissions\033[0m\n")
+    rows = data.get("data", [])
+    if not rows:
+        print("  (no permissions found — role may only grant features not enabled "
+             "for this organization)")
+    for p in rows:
+        resource = p.get("resource", {})
+        r_type = resource.get("type", "?")
+        r_detail = (resource.get("connector_id") or resource.get("tool_name")
+                   or resource.get("organization_id") or "")
+        print(f"  {r_type:<16} {r_detail:<28} action={p.get('action', '?')}")
     print()
     return data

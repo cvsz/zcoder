@@ -318,6 +318,24 @@ def test_create_dream_sends_expected_inputs_and_betas(agents_sdk):
     assert result == {"id": "drm_1", "status": "pending"}
 
 
+def test_create_dream_sends_model_as_plain_string(agents_sdk):
+    """v1.35.0 regression test: create_dream() previously sent
+    model={"id": model} — a shape that matches no documented request
+    (the dream *response* nests model as {"id": ...}, but the *request*
+    parameter shown in platform.claude.com/docs/en/managed-agents/dreams
+    is a plain string, model="claude-opus-4-8"). No prior test asserted
+    on the model kwarg at all, which is how this went unnoticed since
+    v1.20.0."""
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.dreams.create.return_value = MagicMock(id="drm_3", status="pending")
+
+    client.create_dream("store_1", model="claude-sonnet-4-6")
+
+    _, kwargs = client.client.beta.dreams.create.call_args
+    assert kwargs["model"] == "claude-sonnet-4-6"
+    assert isinstance(kwargs["model"], str)
+
+
 def test_create_dream_without_sessions_omits_sessions_input(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     client.client.beta.dreams.create.return_value = MagicMock(id="drm_2", status="pending")
@@ -331,23 +349,61 @@ def test_create_dream_without_sessions_omits_sessions_input(agents_sdk):
 def test_get_dream_extracts_output_store_id(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     fake_output = MagicMock(type="memory_store", memory_store_id="store_curated")
-    fake_dream = MagicMock(id="drm_1", status="completed", outputs=[fake_output], error=None)
+    fake_usage = MagicMock(input_tokens=100, output_tokens=20,
+                            cache_creation_input_tokens=0, cache_read_input_tokens=50)
+    fake_dream = MagicMock(id="drm_1", status="completed", outputs=[fake_output], error=None,
+                            session_id="sesn_dream_1", archived_at=None, usage=fake_usage)
     client.client.beta.dreams.retrieve.return_value = fake_dream
 
     result = client.get_dream("drm_1")
 
-    assert result == {"id": "drm_1", "status": "completed",
-                       "output_store_id": "store_curated", "error": None}
+    assert result["id"] == "drm_1"
+    assert result["status"] == "completed"
+    assert result["output_store_id"] == "store_curated"
+    assert result["error"] is None
 
 
 def test_get_dream_handles_no_outputs_yet(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    fake_dream = MagicMock(id="drm_1", status="pending", outputs=[], error=None)
+    fake_dream = MagicMock(id="drm_1", status="pending", outputs=[], error=None,
+                            session_id=None, archived_at=None, usage=None)
     client.client.beta.dreams.retrieve.return_value = fake_dream
 
     result = client.get_dream("drm_1")
 
     assert result["output_store_id"] is None
+
+
+def test_get_dream_surfaces_usage_session_id_and_archived_at(agents_sdk):
+    """v1.35.0: get_dream() previously dropped usage/session_id/
+    archived_at entirely, even though the documented 'Track progress'
+    polling loop reads dream.usage.input_tokens on every poll."""
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    fake_usage = MagicMock(input_tokens=1500, output_tokens=300,
+                            cache_creation_input_tokens=200, cache_read_input_tokens=900)
+    fake_dream = MagicMock(id="drm_2", status="running", outputs=[], error=None,
+                            session_id="sesn_dream_2", archived_at=None, usage=fake_usage)
+    client.client.beta.dreams.retrieve.return_value = fake_dream
+
+    result = client.get_dream("drm_2")
+
+    assert result["session_id"] == "sesn_dream_2"
+    assert result["archived_at"] is None
+    assert result["usage"] == {
+        "input_tokens": 1500, "output_tokens": 300,
+        "cache_creation_input_tokens": 200, "cache_read_input_tokens": 900,
+    }
+
+
+def test_get_dream_handles_missing_usage(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    fake_dream = MagicMock(id="drm_3", status="pending", outputs=[], error=None,
+                            session_id=None, archived_at=None, usage=None)
+    client.client.beta.dreams.retrieve.return_value = fake_dream
+
+    result = client.get_dream("drm_3")
+
+    assert result["usage"] is None
 
 
 def test_list_dreams_returns_id_and_status(agents_sdk):
@@ -363,6 +419,32 @@ def test_list_dreams_returns_id_and_status(agents_sdk):
                        {"id": "drm_2", "status": "pending"}]
 
 
+def test_list_dreams_defaults_limit_20_no_page(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.dreams.list.return_value = []
+
+    client.list_dreams()
+
+    _, kwargs = client.client.beta.dreams.list.call_args
+    assert kwargs["limit"] == 20
+    assert "page" not in kwargs
+
+
+def test_list_dreams_passes_custom_limit_and_page(agents_sdk):
+    """v1.35.0: list_dreams() previously had no way to paginate past the
+    platform's default first page — limit/page now match
+    client.beta.dreams.list(limit=...)'s documented signature."""
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.dreams.list.return_value = []
+
+    client.list_dreams(include_archived=True, limit=100, page="cursor_abc")
+
+    _, kwargs = client.client.beta.dreams.list.call_args
+    assert kwargs["include_archived"] is True
+    assert kwargs["limit"] == 100
+    assert kwargs["page"] == "cursor_abc"
+
+
 def test_cancel_dream(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     client.client.beta.dreams.cancel.return_value = MagicMock(id="drm_1", status="canceled")
@@ -370,6 +452,21 @@ def test_cancel_dream(agents_sdk):
     result = client.cancel_dream("drm_1")
 
     assert result == {"id": "drm_1", "status": "canceled"}
+
+
+def test_archive_dream(agents_sdk):
+    """v1.35.0: archive_dream() is new — genuinely absent before this
+    cycle even though create/get/list/cancel all shipped in v1.20.0."""
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.dreams.archive.return_value = MagicMock(
+        id="drm_1", status="completed", archived_at="2026-07-26T00:00:00Z")
+
+    result = client.archive_dream("drm_1")
+
+    _, kwargs = client.client.beta.dreams.archive.call_args
+    assert kwargs["betas"] == [agents_sdk.MANAGED_AGENTS_BETA, agents_sdk.DREAMING_BETA]
+    assert result == {"id": "drm_1", "status": "completed",
+                       "archived_at": "2026-07-26T00:00:00Z"}
 
 
 def test_cmd_agent_dream_prints_and_returns(agents_sdk, monkeypatch, capsys):
@@ -393,6 +490,116 @@ def test_cmd_agent_dream_list_handles_empty(agents_sdk, monkeypatch, capsys):
 
     assert result == []
     assert "no dreams found" in capsys.readouterr().out
+
+
+def test_cmd_agent_dream_list_passes_pagination_through(agents_sdk, monkeypatch):
+    mac = MagicMock()
+    mac.list_dreams.return_value = []
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_dream_list(api_key="sk-test", include_archived=True,
+                                    limit=100, page="cursor_1")
+
+    mac.list_dreams.assert_called_once_with(include_archived=True, limit=100, page="cursor_1")
+
+
+# ── v1.35.0: Dreaming audit (model validation, archive, cancel wiring,
+#    usage/session_id surfacing) ─────────────────────────────────────────
+
+
+def test_validate_dreaming_model_supported_returns_none(agents_sdk):
+    assert agents_sdk.validate_dreaming_model("claude-opus-4-8") is None
+    assert agents_sdk.validate_dreaming_model("claude-sonnet-4-6") is None
+
+
+def test_validate_dreaming_model_expansion_fable5_sonnet5(agents_sdk):
+    """Per the July 10, 2026 release note ('Dreams (research preview) now
+    supports Claude Fable 5 and Claude Sonnet 5'), checked 2026-07-26."""
+    assert agents_sdk.validate_dreaming_model("claude-fable-5") is None
+    assert agents_sdk.validate_dreaming_model("claude-sonnet-5") is None
+
+
+def test_validate_dreaming_model_unsupported_warns(agents_sdk):
+    warning = agents_sdk.validate_dreaming_model("claude-haiku-4-5-20251001")
+    assert warning is not None
+    assert "claude-haiku-4-5-20251001" in warning
+
+
+def test_validate_dreaming_instructions_within_limit(agents_sdk):
+    assert agents_sdk.validate_dreaming_instructions(None) is None
+    assert agents_sdk.validate_dreaming_instructions("short") is None
+    assert agents_sdk.validate_dreaming_instructions("x" * 4096) is None
+
+
+def test_validate_dreaming_instructions_over_limit_warns(agents_sdk):
+    warning = agents_sdk.validate_dreaming_instructions("x" * 4097)
+    assert warning is not None
+    assert "4097" in warning
+
+
+def test_cmd_agent_dream_warns_on_unsupported_model(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.create_dream.return_value = {"id": "drm_1", "status": "pending"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_dream("store_1", api_key="sk-test", model="claude-haiku-4-5-20251001")
+
+    out = capsys.readouterr().out
+    assert "not in claude_agents_sdk.DREAMING_SUPPORTED_MODELS" in out
+
+
+def test_cmd_agent_dream_no_warning_for_supported_model(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.create_dream.return_value = {"id": "drm_1", "status": "pending"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_dream("store_1", api_key="sk-test", model="claude-sonnet-5")
+
+    assert "DREAMING_SUPPORTED_MODELS" not in capsys.readouterr().out
+
+
+def test_cmd_agent_dream_get_prints_usage_and_session_id(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.get_dream.return_value = {
+        "id": "drm_1", "status": "running", "output_store_id": None, "error": None,
+        "session_id": "sesn_dream_1", "archived_at": None,
+        "usage": {"input_tokens": 10, "output_tokens": 2,
+                  "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+    }
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_dream_get("drm_1", api_key="sk-test")
+
+    out = capsys.readouterr().out
+    assert "sesn_dream_1" in out
+    assert "input=10" in out
+
+
+def test_cmd_agent_dream_cancel_prints_and_returns(agents_sdk, monkeypatch, capsys):
+    """v1.35.0: cancel_dream() existed at the client layer since v1.20.0
+    but had no CLI command wrapping it at all until now."""
+    mac = MagicMock()
+    mac.cancel_dream.return_value = {"id": "drm_1", "status": "canceled"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    result = agents_sdk.cmd_agent_dream_cancel("drm_1", api_key="sk-test")
+
+    mac.cancel_dream.assert_called_once_with("drm_1")
+    assert result == {"id": "drm_1", "status": "canceled"}
+    assert "drm_1" in capsys.readouterr().out
+
+
+def test_cmd_agent_dream_archive_prints_and_returns(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.archive_dream.return_value = {"id": "drm_1", "status": "completed",
+                                      "archived_at": "2026-07-26T00:00:00Z"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    result = agents_sdk.cmd_agent_dream_archive("drm_1", api_key="sk-test")
+
+    mac.archive_dream.assert_called_once_with("drm_1")
+    assert result["archived_at"] == "2026-07-26T00:00:00Z"
+    assert "drm_1" in capsys.readouterr().out
 
 
 # ── v1.20.0: Outcomes (public beta) ─────────────────────────────────────

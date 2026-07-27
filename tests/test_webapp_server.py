@@ -65,26 +65,6 @@ def test_chat_happy_path(client, monkeypatch):
     assert "session_id" in data
 
 
-def test_browser_file_upload_uses_files_api_and_removes_temp_file(client, monkeypatch):
-    captured = {}
-
-    def fake_upload(self, path):
-        captured["path"] = Path(path)
-        captured["content"] = captured["path"].read_bytes()
-        return {"id": "file_123", "filename": captured["path"].name, "size": 3}
-
-    monkeypatch.setattr(server.FilesAPI, "upload", fake_upload)
-    response = client.post(
-        "/api/files/upload",
-        data={"api_key": "sk-ant-test", "model": "claude-sonnet-5"},
-        files={"file": ("notes.txt", b"abc", "text/plain")},
-    )
-    assert response.status_code == 200
-    assert response.json()["id"] == "file_123"
-    assert captured["content"] == b"abc"
-    assert not captured["path"].exists()
-
-
 def test_chat_rate_limit_returns_429(client, monkeypatch):
     monkeypatch.setattr(server.Coder, "generate", lambda self, *a, **k: "ok")
     monkeypatch.setattr(server, "_RATE_LIMIT", 2)

@@ -1,15 +1,22 @@
 # CHECKLIST.md
 
-**zcoder v1.16.0 — Roadmap Execution Checklist**
-Derived from `ROADMAP.md` Part 2 (Gap Audit vs. `platform.claude.com/docs`, checked 2026-07-04).
+**zcoder v1.36.0 — Roadmap Execution Checklist**
+Derived from `ROADMAP.md` Part 2 (Gap Audit vs. `platform.claude.com/docs`,
+originally checked 2026-07-04, kept current through the v1.33.0 cycle
+checked 2026-07-26). Cycles v1.34.0–v1.36.0 aren't backfilled into the
+form-style sections below — see `CHANGELOG.md` and their respective
+`docs/*_upgrade_*.md` writeups instead.
 
-Six confirmed gaps, ranked by priority. Check off each sub-task as it lands;
-a priority group is only "done" when every box under it is checked **and**
-the shared Definition of Done at the bottom passes.
+Every gap-audit cycle from v1.15.0 through v1.33.0 is represented below,
+in order. Check off each sub-task as it lands; a priority group is only
+"done" when every box under it is checked **and** the shared Definition
+of Done at the bottom passes.
 
-All six items are now done — the sixth (Compliance API) was deliberately
-held back in v1.15.0 pending a concrete request, which has since arrived
-(see the P2 — Compliance API section below and `docs/30_upgrade_v1.16.0.md`).
+This file previously stopped being updated after the v1.20.0 cycle even
+though the project kept shipping audit cycles through v1.33.0; the
+sections below for v1.21.0 through v1.33.0 backfill that gap from
+`ROADMAP.md`, `CHANGELOG.md`, and the corresponding `docs/*` writeups so
+this file is a complete index again, not just current through 2026-07-08.
 
 ---
 
@@ -238,6 +245,141 @@ held back in v1.15.0 pending a concrete request, which has since arrived
 > Summary section for the full reasoning and exit condition. Matches how
 > the Compliance API gap was handled between v1.15.0 and v1.16.0.
 
+## 🟡 P2 — Managed Agents native Multiagent orchestration ✅ DONE (v1.21.0)
+
+> Closes the item deferred at v1.20.0. `build_multiagent_config()` +
+> `--agent-review-multiagent` in `claude_agents_sdk.py`.
+
+- [x] Vaults & credentials: `--agent-vault-create`, `-add-credential`, `-list`, `--agent-vault`
+- [x] Scheduled deployments: `--agent-schedule-create`, `-list`, `-cancel`
+- [x] Native Multiagent orchestration: `build_multiagent_config`, `--agent-review-multiagent`
+- [x] Outcomes file-based rubric: `--agent-outcome-rubric-upload`, `-file`
+- [x] Tests added (`tests/test_claude_agents_sdk.py`)
+
+## 🟡 P2 — Managed Agents session overrides, vault injection location, event deltas ✅ DONE (v1.22.0)
+
+- [x] `--agent-override-json`, `--agent-override-model`, `--agent-override-system`
+- [x] `--agent-vault-injection-location`
+- [x] `--agent-stream-deltas`
+- [x] `code_execution` tool version bump to `code_execution_20260120` (`--code-exec-version`)
+- [x] Tests added
+
+## 🔴 P0 — Workload Identity Federation (WIF) ✅ DONE (v1.23.0)
+
+> Genuinely absent — confirmed with two differently-worded greps
+> (`workload identity|OIDC|oidc|federation`, then
+> `short-lived|token_exchange|id_token`).
+
+- [x] `claude_wif.py` (new): `WIFClient` auto-detects config from
+      `ANTHROPIC_FEDERATION_RULE_ID`/`ANTHROPIC_ORGANIZATION_ID`/
+      `ANTHROPIC_SERVICE_ACCOUNT_ID`/`ANTHROPIC_WORKSPACE_ID`/
+      `ANTHROPIC_IDENTITY_TOKEN_FILE`(or `_TOKEN`)
+- [x] JWT-bearer exchange against `POST /v1/oauth/token`, auto-refresh before expiry
+- [x] CLI: `--wif-info`, `--wif-token`
+- [x] Tests added (`tests/test_claude_wif.py`)
+
+## 🟠 P1 — Server tool version drift: code_execution, web_search, web_fetch ✅ DONE (v1.24.0)
+
+- [x] `claude_tools.SERVER_TOOLS` bumped: `code_execution_20260521`, `web_search_20260318`, `web_fetch_20260318`
+- [x] `claude_search.py`'s separate `WEB_SEARCH_TOOL`/`WEB_FETCH_TOOL` constants brought in sync (had never been bumped)
+- [x] `response_inclusion` parameter wired as opt-in
+- [x] Confirmed non-gap: Claude Enterprise Analytics API real but deliberately unbuilt
+
+## 🟠 P1 — Extended thinking `display: "omitted"` ✅ DONE (v1.25.0)
+
+- [x] `claude_thinking.py` config builders accept `display="omitted"`
+- [x] `--thinking-display omitted`
+- [x] Confirmed CMEK `external_keys` Admin API surface; read-only `--admin-cmek-list` added
+
+## 🟠 P1 — Managed Agents self-hosted sandboxes ✅ DONE (v1.26.0)
+
+- [x] `client.beta.environments.create(config={"type": "self_hosted"})` wrapper
+- [x] `EnvironmentWorker` polling pattern
+- [x] CLI: `--agent-env-self-hosted`, `--agent-worker-poll`
+- [x] Tests added
+
+## 🔴 P0 bug fix + 🟠 P1 — Memory store beta-header regression, memory/memory-store CRUD ✅ DONE (v1.27.0)
+
+- [x] Fixed: `create_memory_store()`/`list_memories()` no longer send both
+      `managed-agents-2026-04-01` and `agent-memory-2026-07-22` (400 on combination)
+- [x] Memory store management: `retrieve`/`update`/`list`/`archive`/`delete`
+- [x] Memory CRUD: `retrieve`/`create`/`update`/`delete`
+- [x] Deliberately deferred: memory *versions* (`list`/`retrieve`/`redact`) — no concrete use case yet
+
+## 🔴 P0 — Files API: wrong content-block type for code execution ✅ DONE (v1.28.0)
+
+- [x] `claude_code_exec.py` now attaches `file_ids` with `container_upload`, not `document`
+- [x] New `webapp/` (FastAPI backend + frontend) for browser-based access
+
+## Feature deep-dive — Textual TUI + web console upgrade ✅ DONE (v1.29.0)
+
+- [x] `tui.py` (new): Textual-based terminal UI, `--tui`
+- [x] Web console gained streaming, session persistence, theme support
+- [x] Not a gap-audit cycle — no new Anthropic API surface
+
+## 🔴 P0 — Extended/adaptive thinking routing broken on 6 of 9 catalog models ✅ DONE (v1.30.0)
+
+- [x] `claude_thinking.py` routes each model to the request shape it accepts
+      (adaptive vs. extended) instead of sending `enabled`+`budget_tokens` unconditionally
+- [x] Fixed models: Opus 4.8, Opus 4.7, Sonnet 5, Fable 5, Mythos 5, Mythos Preview
+
+## 🟠 P1 — CLI-to-API wiring audit: GitHub, Router, Prompt Optimizer, Metrics ✅ DONE (v1.31.0)
+
+- [x] Found and wired 4 fully-built, fully-tested modules with zero `main.py` reachability
+- [x] Added `tests/test_cli_wiring.py` as a standing regression check
+
+## 🔴 P0 bug fix + 🟡 P2 — Claude Opus 5, fast-mode enforcement, fallbacks "default" ✅ DONE (v1.32.0)
+
+- [x] `claude-opus-5` added to `MODEL_CATALOG`
+- [x] `validate_fast_mode()` wired into `Coder.generate()` (previously defined but never called)
+- [x] `fallbacks` `"default"` string mode added alongside existing list mode
+- [x] Tests added (`tests/test_coder.py`, `tests/test_claude_fable5.py`)
+
+## 🟡 P2 — Deep per-model modules: Claude Opus 5, Sonnet 5, Haiku 4.5 ✅ DONE (v1.33.0)
+
+> Every current-tier model previously lived only as a `MODEL_CATALOG`
+> row; `claude_fable5.py`/`claude_mythos5.py` were the only per-model
+> modules. See `docs/45_upgrade_v1.33.0_current_tier_deep_modules.md`.
+
+- [x] `claude_opus5.py` (new): `validate_effort_thinking()` client-side
+      guard, `OPUS5_EFFORT_BUDGETS` with the `xhigh` rung,
+      unconfirmed-data-residency flag for `--opus5-geo`
+- [x] `claude_sonnet5.py` (new): `current_pricing()` date-based promo
+      calculator, service-tier-unsupported / inference-geo-supported flags
+- [x] `claude_haiku45.py` (new): `build_thinking_param()` always builds
+      the extended (not adaptive) shape; dateless alias resolution
+- [x] All three wired into `main.py`; 30 new tests
+      (`tests/test_claude_opus5.py`, `tests/test_claude_sonnet5.py`, `tests/test_claude_haiku45.py`)
+- [x] Deliberately out of scope: `claude_models.EFFORT_BUDGETS` not patched
+      with `xhigh` (wider blast radius); `--upgrade-all` not extended to
+      target Sonnet 5/Haiku 4.5 (product decision, not implied by the ask)
+
+## 🟠 P1 / 🟡 P2 — Re-validation cycle: Opus, Sonnet, Haiku, Fable, Mythos ✅ DONE (v1.34.0)
+
+> Targeted re-audit requested for the five per-model modules against a
+> fresh release-notes fetch (2026-07-26). See
+> `docs/46_upgrade_v1.34.0_model_revalidation.md`.
+
+- [x] Re-confirmed `MODEL_CATALOG`, fast-mode sets, and existing
+      Opus 5/Haiku 4.5/Fable 5/Mythos 5 validators all still correct
+- [x] Finding 1: mid-conversation tool changes beta
+      (`mid-conversation-tool-changes-2026-07-01`; Fable 5, Mythos 5,
+      Opus 4.8, Opus 5 only) was entirely missing — added
+      `MID_CONVERSATION_TOOL_CHANGES_SUPPORTED`,
+      `validate_mid_conversation_tool_change()`,
+      `with_mid_conversation_tool_changes()` to `claude_tools.py`;
+      `--mid-conv-tool-check MODEL_ID` wired into `main.py`
+- [x] Finding 2: Sonnet 5's strict non-default sampling-parameter
+      rejection (temperature/top_p/top_k) was unguarded — added
+      `validate_sampling_params()`; `Sonnet5Client.call()` now
+      rejects these client-side before building a request
+- [x] Deliberately out of scope: Dreaming's July 10 Fable 5/Sonnet 5
+      expansion (Managed Agents concern, not a per-model-module
+      concern); Fable 5/Mythos 5 prefill/manual-thinking guards (no
+      live code path exposes either parameter yet)
+- [x] 10 new tests (`tests/test_claude_tools.py` +5,
+      `tests/test_claude_sonnet5.py` +5); full suite (506) passes
+
 ---
 
 ## Definition of Done (applies to every P0/P1/P2 item above)
@@ -268,4 +410,18 @@ held back in v1.15.0 pending a concrete request, which has since arrived
 | 🟠 P1 | Managed Agents Dreaming | ✅ Done (`claude_agents_sdk.py`, v1.20.0) |
 | 🟠 P1 | Managed Agents Outcomes | ✅ Done (`claude_agents_sdk.py`, v1.20.0) |
 | 🟡 P2 | Managed Agents Webhooks | ✅ Done (`claude_agents_sdk.py`, v1.20.0) |
-| 🟡 P2 | Managed Agents native Multiagent orchestration | ⏸ Deferred (v1.20.0) — real gap, no concrete use case yet |
+| 🟡 P2 | Managed Agents native Multiagent orchestration | ✅ Done (v1.21.0) — closes the v1.20.0 deferral |
+| 🟡 P2 | Managed Agents Vaults & credentials, Scheduled deployments, Outcomes file rubric | ✅ Done (v1.21.0) |
+| 🟡 P2 | Managed Agents session overrides, vault injection location, event deltas | ✅ Done (v1.22.0) |
+| 🔴 P0 | Workload Identity Federation (WIF) | ✅ Done (`claude_wif.py`, v1.23.0) |
+| 🟠 P1 | Server tool version drift (code_execution/web_search/web_fetch) | ✅ Done (v1.24.0) |
+| 🟠 P1 | Extended thinking `display: "omitted"`, CMEK `external_keys` | ✅ Done (v1.25.0) |
+| 🟠 P1 | Managed Agents self-hosted sandboxes | ✅ Done (v1.26.0) |
+| 🔴 P0 | Memory store beta-header regression + memory/memory-store CRUD | ✅ Done (v1.27.0) — memory *versions* deferred |
+| 🔴 P0 | Files API `container_upload` fix + web console | ✅ Done (v1.28.0) |
+| — | Textual TUI + web console streaming/sessions/theme (feature deep-dive) | ✅ Done (v1.29.0) |
+| 🔴 P0 | Extended/adaptive thinking routing broken on 6 of 9 models | ✅ Done (v1.30.0) |
+| 🟠 P1 | CLI-to-API wiring audit (GitHub, Router, Prompt Optimizer, Metrics) | ✅ Done (v1.31.0) |
+| 🔴 P0 | Claude Opus 5 model-catalog gap + fast-mode enforcement bug + fallbacks "default" | ✅ Done (v1.32.0) |
+| 🟡 P2 | Deep per-model modules: Opus 5, Sonnet 5, Haiku 4.5 | ✅ Done (v1.33.0) |
+| 🟠 P1 / 🟡 P2 | Re-validation: Opus, Sonnet, Haiku, Fable, Mythos (mid-conv tool changes, Sonnet 5 sampling guard) | ✅ Done (v1.34.0) |

@@ -1,6 +1,6 @@
 """
 claude_cache.py — Prompt Caching
-AI Model Coder CLI v1.18.0
+AI Model Coder CLI v1.36.0
 
 Cache stable prompt prefixes (system prompts, documents, tool definitions)
 to cut input token costs up to 90% and latency up to 85%.
@@ -10,7 +10,7 @@ Features:
   • 5-minute TTL (default) and 1-hour TTL caching
   • Cache pre-warming (max_tokens=0 dry-run)
   • Cache diagnostics (beta) — hit/miss reporting with cause (`cache_miss_reason`)
-  • Mid-conversation system messages (Opus 4.8 only) — add/update system
+  • Mid-conversation system messages (Fable 5, Mythos 5, Opus 4.8) — add/update system
     instructions partway through a conversation without invalidating the
     cached prefix that came before them (v1.18.0)
   • Multi-turn conversation caching
@@ -30,8 +30,8 @@ CLI flags:
                             module since v1.10.x, this flag was the only
                             missing piece — nothing in main.py ever set
                             diagnose=True, so it was unreachable from the CLI
-  --cache-mid-system TEXT  Append a mid-conversation system message (Opus
-                            4.8 only) instead of touching the top-level
+  --cache-mid-system TEXT  Append a mid-conversation system message (Fable 5,
+                            Mythos 5, Opus 4.8 only) instead of touching the top-level
                             `system` field — see build_mid_system_message()
 
 Mid-conversation system messages vs. the top-level `system` field:
@@ -61,14 +61,17 @@ from resilience import CircuitBreaker, retry, urlopen_json
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-# ── Mid-conversation system messages (v1.18.0) ──────────────────────────────
+# ── Mid-conversation system messages (v1.18.0; model gate corrected v1.36.0) ─
 # Per platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages
-# (checked 2026-07-08): available on the Claude API, Claude Platform on AWS,
-# and Microsoft Foundry; NOT on Amazon Bedrock or Google Cloud. Opus 4.8
-# only, no beta header required. zcoder only talks to the direct Claude API,
-# so the AWS/Foundry-vs-Bedrock/Google-Cloud split isn't relevant here, but
-# the model gate is.
-MID_SYSTEM_SUPPORTED_MODELS = {"claude-opus-4-8"}
+# (re-checked 2026-07-26): available on Claude Fable 5, Claude Mythos 5, and
+# Claude Opus 4.8, on the Claude API, Amazon Bedrock, and Google Cloud; no
+# beta header required. The July 15, 2026 release notes explicitly flagged
+# this as a *correction* to an earlier availability note that said Opus 4.8
+# only — this module had baked in exactly that stale note at v1.18.0 launch
+# and was never revisited, so it silently rejected Fable 5 / Mythos 5 calls
+# that the platform has accepted since launch. Not supported on Claude
+# Sonnet 5 or Claude Opus 5 (use the top-level `system` field instead).
+MID_SYSTEM_SUPPORTED_MODELS = {"claude-fable-5", "claude-mythos-5", "claude-opus-4-8"}
 
 
 class SystemMessagePlacementError(ValueError):
@@ -251,7 +254,8 @@ class CachingCoder:
         (build_mid_system_message()) to `history` before the new user
         turn — updates Claude's instructions without touching the
         top-level `system` field, so it doesn't invalidate the cached
-        prefix. Opus 4.8 only (MID_SYSTEM_SUPPORTED_MODELS); raises
+        prefix. Fable 5, Mythos 5, Opus 4.8 only (MID_SYSTEM_SUPPORTED_MODELS);
+        raises
         ValueError on an unsupported model, and
         SystemMessagePlacementError if the resulting `messages` array
         would violate the documented placement rules (e.g. mid_system
@@ -393,7 +397,8 @@ class CachingCoder:
         placement rule (system message immediately follows a user turn,
         and is the last entry in `messages` when the request goes out,
         which satisfies "last entry or followed by an assistant turn").
-        Requires self.model in MID_SYSTEM_SUPPORTED_MODELS (Opus 4.8);
+        Requires self.model in MID_SYSTEM_SUPPORTED_MODELS (Fable 5, Mythos 5,
+        Opus 4.8);
         raises ValueError otherwise.
         """
         if mid_system_updates and self.model not in MID_SYSTEM_SUPPORTED_MODELS:
@@ -506,7 +511,8 @@ def cmd_cache_multi_turn(turns: list[str], api_key: str, model: str,
     Run a multi-turn cached conversation. If mid_system is given, it's
     inserted as a mid-conversation system message immediately after
     turns[mid_system_after] (0-based) — see multi_turn_cached() and
-    Mid-conversation system messages (Opus 4.8 only) in the module
+    Mid-conversation system messages (Fable 5, Mythos 5, Opus 4.8 only) in the
+    module
     docstring. Requires at least 2 turns so there's an assistant reply
     downstream of the injected instruction to demonstrate the effect.
     """
