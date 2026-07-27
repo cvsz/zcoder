@@ -6,6 +6,293 @@ high-level index. Two project lineages (`ai-coder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## v1.37.0 — Closing out v1.36.0's three deferred items
+
+Full detail in `docs/49_upgrade_v1.37.0_deferred_items.md`.
+
+**Opus 4.1 deprecation (implemented):** added `DEPRECATED_MODELS` — a new
+registry distinct from `RETIRED_MODELS` for "announced retirement, still
+callable today" (`claude-opus-4-1-20250805`, retiring 2026-08-05). Wired
+into `check_deprecated()`, `cmd_model_info()` (new ⚠ warning alongside the
+existing ✗ retired warning), `cmd_check_deprecated()` (file/dir scanner
+now flags deprecated hits separately from retired ones), and
+`_upgrade_source_ids()` (`--upgrade-all` now rewrites deprecated IDs too).
+New `tests/test_claude_models_deprecation.py` (8 tests) — `claude_models.py`
+had no dedicated test file before this cycle.
+
+**Usage tier consolidation (confirmed non-gap):** re-verified rather than
+re-asserted. No hardcoded old tier numbering anywhere in the tree, and
+the already-shipped `--rate-limits`/`--rate-limits-workspace` (v1.23.0)
+read whatever the Rate Limits API returns with no hardcoded values — the
+June 26 tier rename/limit-raise applies automatically.
+
+**Workbench / experimental prompt tools retirement (confirmed non-gap):**
+zcoder never called `/v1/experimental/{generate,improve,templatize}_prompt`
+— no client, flag, or test to remove. Deliberately not adding new support
+three weeks before those endpoints stop working.
+
+485 tests passing, no regressions.
+
+## v1.36.0 — Mid-system model-gate regression, cross-file doc bookkeeping
+
+Full detail in `docs/48_upgrade_v1.36.0_mid_system_gate_fix.md`.
+
+**Finding 1 (🔴 P0, regression):** `claude_cache.py`'s
+`MID_SYSTEM_SUPPORTED_MODELS` had been `{"claude-opus-4-8"}` since the
+mid-conversation-system-messages feature launched in v1.18.0. The July 15,
+2026 release notes corrected the platform's own earlier availability note
+to add Claude Fable 5 and Claude Mythos 5 — this module had frozen in the
+pre-correction state and silently rejected valid Fable 5/Mythos 5 calls
+ever since. Fixed; still confirmed unsupported: Sonnet 5 and Opus 5 (the
+*tool-changes* variant does support Opus 5 — different feature, different
+model set, already correct). 3 new/changed tests.
+
+**Finding 2 (bookkeeping):** v1.35.0 shipped with working code and an
+accurate `CHANGELOG.md` entry, but `pyproject.toml`'s version, the
+referenced `docs/47_*.md` writeup, and this README's headline never
+actually landed. Backfilled all three.
+
+Also re-confirmed as non-gaps: Opus 5 catalog/fast-mode/effort-thinking
+validation, MCP tunnels' `/v1/tunnels` surface, and mid-conversation *tool*
+changes' Opus 5 inclusion. Deferred with reasoning: Opus 4.1's announced
+retirement (never in `MODEL_CATALOG` to begin with) and two Console-only
+surface changes (usage-tier consolidation, Workbench retirement).
+
+477 tests passing, no regressions.
+
+## v1.35.0 — Dreaming audit: model-support expansion, missing archive, unreachable cancel
+
+Full detail in `docs/47_upgrade_v1.35.0_dreaming_audit.md`. First
+Dreaming-focused audit cycle since it was originally closed in v1.20.0.
+
+**Finding 1 (🔴 P0, bug):** `create_dream()` sent `model={"id": model}`
+instead of the documented plain string `model=model` — no existing test
+asserted on the `model` kwarg, so this shipped in v1.20.0 unnoticed for
+15 versions. Fixed, with a regression test that would have caught it.
+
+**Finding 2 (🟠 P1):** Dreaming's supported-model set expanded to include
+Claude Fable 5 and Claude Sonnet 5 (July 10, 2026 release note) —
+confirmed real and still current, previously flagged and correctly
+deferred by v1.23.0 and v1.34.0 as out of scope for per-model-module
+cycles. Added `DREAMING_SUPPORTED_MODELS` and `validate_dreaming_model()`.
+
+**Finding 3 (🟠 P1):** `archive_dream()` was entirely missing despite
+create/get/list/cancel all shipping together in v1.20.0. Added
+`ManagedAgentsClient.archive_dream()`, `cmd_agent_dream_archive()`,
+`--agent-dream-archive`.
+
+**Finding 4 (🟡 P2):** `cancel_dream()` existed at the client layer since
+v1.20.0 but had zero CLI wiring. Added `cmd_agent_dream_cancel()`,
+`--agent-dream-cancel`.
+
+**Finding 5 (🟡 P2):** `get_dream()` dropped `usage`, `session_id`, and
+`archived_at` from the response even though the documented polling
+pattern depends on `usage`. Now surfaces all three.
+
+Also added: `list_dreams()` pagination (`limit`/`page`, matching the
+documented signature) plus `--agent-dream-list-limit/-page/
+-include-archived`; `instructions` 4,096-char soft limit via
+`validate_dreaming_instructions()`. 19 new/changed tests in
+`tests/test_claude_agents_sdk.py` (92 total, all passing).
+
+## v1.34.0 — Re-validation cycle: Opus, Sonnet, Haiku, Fable, Mythos
+
+Full detail in `docs/46_upgrade_v1.34.0_model_revalidation.md`. Targeted
+re-audit of the five per-model modules against a fresh fetch of the
+release notes overview (2026-07-26; nothing newer than July 24, 2026
+exists yet). Model catalog, fast-mode sets, and existing per-model
+validators all re-confirmed correct.
+
+**Finding 1 (🟠 P1):** Mid-conversation tool changes (beta,
+`mid-conversation-tool-changes-2026-07-01`) — supported on Fable 5,
+Mythos 5, Opus 4.8, and Opus 5 only — was entirely missing from the
+codebase. Added `MID_CONVERSATION_TOOL_CHANGES_SUPPORTED`,
+`validate_mid_conversation_tool_change()`, and
+`with_mid_conversation_tool_changes()` to `claude_tools.py`; wired
+`--mid-conv-tool-check MODEL_ID` into `main.py`.
+
+**Finding 2 (🟡 P2):** Sonnet 5 returns a 400 on any non-default
+`temperature`/`top_p`/`top_k` — stricter than other current-tier
+models. `claude_sonnet5.py` didn't expose or guard these parameters at
+all. Added `validate_sampling_params()`; `Sonnet5Client.call()` now
+accepts and rejects them client-side before building a request.
+
+10 new tests; full suite (506) passes with no regressions.
+
+## v1.33.0 — Dedicated deep-detail modules: Opus 5, Sonnet 5, Haiku 4.5
+
+Full detail in `docs/45_upgrade_v1.33.0_current_tier_deep_modules.md`.
+
+`claude_fable5.py` / `claude_mythos5.py` were the only per-model modules
+in the project — every current-tier model (Opus 5, Sonnet 5, Haiku 4.5)
+lived only as a short row in `claude_models.MODEL_CATALOG`. That's fine
+as an index, but it under-serves anything that needs to be *executable
+logic* rather than a notes string — most importantly Opus 5's
+effort/thinking breaking change, which was previously just prose.
+
+**`claude_opus5.py` (new):** `Opus5Client` validates the effort/thinking
+combination client-side before sending — `--opus5-effort xhigh` or
+`max` together with `--opus5-disable-thinking` is now rejected locally
+with a clear message instead of burning a request on a guaranteed 400.
+Adds `OPUS5_EFFORT_BUDGETS` with the `xhigh` rung that
+`claude_models.EFFORT_BUDGETS` is still missing. Flags data-residency
+support as *unconfirmed* rather than assuming either way, since
+`INFERENCE_GEO_SUPPORTED` predates this model's 2026-07-24 launch.
+`--opus5-info` / `--opus5` / `--opus5-effort` / `--opus5-disable-thinking`
+/ `--opus5-fast` / `--opus5-geo`. 9 new tests.
+
+**`claude_sonnet5.py` (new):** makes the "$2/$10 introductory through
+2026-08-31" note in the catalog an actual date comparison
+(`current_pricing()`), not prose a caller has to remember to re-read.
+Also flags that Sonnet 5 is the one current-tier model that does *not*
+support `service_tier`/Priority Tier, while it *does* support
+`inference_geo`. `--sonnet5-info` / `--sonnet5` / `--sonnet5-geo` /
+`--sonnet5-cost IN,OUT`. 9 new tests.
+
+**`claude_haiku45.py` (new):** `build_thinking_param()` always builds the
+*extended* (manual `budget_tokens`) shape and never `type:"adaptive"`,
+which this model doesn't accept — the one place in the project that
+previously risked sending Haiku 4.5 a request shaped for the wrong
+thinking mode. Also flags that fast mode and data residency are
+unsupported here (both are Opus/Sonnet-5-only). Resolves the dateless
+alias `claude-haiku-4-5` to the full ID. `--haiku45-info` / `--haiku45` /
+`--haiku45-thinking-budget N`. 12 new tests.
+
+All three wired into `main.py`'s argparse groups and command dispatch
+following the existing `--fable5`/`--mythos5` pattern. 30 new tests
+total; full existing suite still green.
+
+## v1.32.0 — Claude Opus 5, fast-mode enforcement, fallbacks "default"
+
+Fetched `platform.claude.com/docs/en/release-notes/overview` directly
+(2026-07-26) covering everything since the last audit (2026-07-14).
+Full detail in `docs/44_upgrade_v1.32.0_release_validation.md`.
+
+**Claude Opus 5** (launched 2026-07-24) added to `claude_models.
+MODEL_CATALOG`: 1M context window (default and max), 128k max output,
+thinking on by default, $5/$25 per MTok, full effort ladder (`low`
+through `max`). Breaking change vs. Opus 4.8 noted in its catalog entry:
+disabling thinking is only allowed at effort `high` or below.
+
+**Fast-mode enforcement, previously nonexistent:** `claude_models.py`
+had `FAST_MODE_SUPPORTED`/`FAST_MODE_DEPRECATED` sets that nothing ever
+checked — `coder.py` sent `speed:"fast"` for any model regardless.
+Replaced with `FAST_MODE_SUPPORTED`, `FAST_MODE_REMOVED_ERROR`
+(Opus 4.7 — hard 400 as of 2026-07-24), `FAST_MODE_REMOVED_SILENT`
+(Opus 4.6 — silently downgrades to standard speed, no error), and a new
+`validate_fast_mode()` wired into `Coder.generate()`: Opus 4.7 +
+`--fast-mode` now fails locally with a clear message instead of
+burning a request on a guaranteed 400. First test coverage `--fast-mode`
+has ever had (5 new tests in `tests/test_coder.py`).
+
+**`fallbacks` "default" mode** (added 2026-07-24): `Fable5Client.
+fallback_chain` now also accepts the literal string `"default"`
+(Anthropic's recommended fallback models by refusal category), sending
+the new `server-side-fallback-2026-07-01` beta header automatically.
+`--fable5-fallback-chain default` wired through `parse_fallback_chain()`.
+3 new tests in `tests/test_claude_fable5.py`.
+
+Checked and confirmed non-gaps: MCP tunnels, advisor `max_tokens`,
+`code_execution_20260120`. Flagged as deliberately deferred (not
+silently dropped): mid-conversation tool changes (beta, distinct from
+the already-implemented mid-conversation system messages), and several
+July 22 Managed Agents items (agent-level `effort`, environment/memory-
+store webhook events, session `initial_events` seeding, optional
+`version` on agent update, thread-level event deltas).
+
+Full suite: **392 tests passed, 1 skipped, regression-clean**.
+
+## v1.31.0 — CLI-to-API wiring audit: four modules, thirteen functions, never had a flag
+
+Different kind of cycle: not a docs re-audit, but a check of whether
+every `claude_*.py` module's `cmd_*` functions are actually reachable
+from `main.py`. Four modules — `claude_github.py`, `claude_router.py`,
+`claude_prompt_optimizer.py`, `claude_metrics.py` — were fully
+implemented, each with its own `CLI flags:` docstring specifying exactly
+what should exist, and none of it wired since `v1.9.1`. Full detail in
+`docs/43_upgrade_v1.31.0_cli_wiring_audit.md`.
+
+Added: `--gh-review-pr`, `--gh-triage-issues`, `--gh-summarise-commits`,
+`--gh-pr-description`, `--gh-token`, `--gh-max-items` (GitHub
+integration); `--route`, `--route-explain`, `--route-parallel`,
+`--route-list` (multi-agent router); `--optimize`, `--score-prompt`,
+`--ab-test`, `--ab-prompt-b`, `--ab-task`, `--prompt-lib-add`,
+`--prompt-lib-list`, `--prompt-lib-get` (prompt optimizer — note
+`--ab-prompt-b` instead of the docstring's originally-planned `--v2`,
+which collides with an existing `type=int` artifact-versioning flag);
+`--metrics-show`, `--metrics-today`, `--metrics-model`, `--metrics-clear`,
+`--metrics-export` (local usage metrics — this log has been populated by
+`claude_stream.py` on every streamed call all along, just unreadable
+until now).
+
+Checked and deliberately left unwired: `claude_evals.py`'s `cmd_eval`
+(superseded by `claude_eval.py`, which already covers the same ground
+with more features under an already-wired flag set — wiring both would
+mean two conflicting `--eval`-family flag sets) and `claude_router.py`'s
+`--route-add-agent` (no `cmd_*` function backs it; needs a design
+decision on how a custom agent gets expressed on the command line that
+this cycle didn't make).
+
+New `tests/test_cli_wiring.py`: a parametrized regression test that
+parses every `claude_*.py` file's `cmd_*` functions via `ast` and
+asserts each is referenced in `main.py`, so this class of gap gets
+caught going forward instead of sitting for twenty releases. 62 new
+tests. Full suite: **336 tests, regression-clean** (excluding
+`test_webapp_server.py`, which needs `fastapi` and isn't installed in
+every environment).
+
+## v1.30.0 — Extended thinking gap-audit: adaptive/effort routing was broken on 5 of 9 catalog models
+
+Re-ran the docs gap-audit methodology against
+`platform.claude.com/docs/en/build-with-claude/extended-thinking` and
+`.../adaptive-thinking` directly. Finding: `claude_thinking.py`'s
+`--thinking` always sent manual `thinking.type="enabled"` +
+`budget_tokens`, which is a **400 error** on Claude Opus 4.8, Opus 4.7,
+Sonnet 5, Fable 5, Mythos 5, and Mythos Preview (5 of 9 models in
+`claude_models.MODEL_CATALOG`), and **deprecated** on Opus 4.6/Sonnet
+4.6. The `--adaptive` flag didn't fix this either: it sent
+`{"type": "adaptive", "budget_tokens": N}`, but adaptive thinking
+doesn't take `budget_tokens` — depth control is a separate top-level
+`output_config: {"effort": ...}` object, which the old code never sent
+at all.
+
+- **`claude_thinking.py`** — `generate_with_thinking()` /
+  `stream_with_thinking()` now auto-select the correct mode per model
+  (`adaptive` param changed from `bool = False` to
+  `Optional[bool] = None`, where `None` triggers auto-selection instead
+  of always picking the mode that 400s on newer models). Adaptive mode
+  now correctly sends `thinking: {"type": "adaptive"}` (no
+  `budget_tokens`) plus top-level `output_config: {"effort": ...}`. New
+  `legacy_budget` param / `--effort-legacy-budget` CLI flag force the
+  old manual path where still supported, and raise `ThinkingModeError`
+  immediately (no wasted API call) where it isn't. Also fixed: usage
+  reporting read a nonexistent `thinking_input_tokens` field and always
+  printed `thinking=0`; now reads the real
+  `usage.output_tokens_details.thinking_tokens`.
+- **`main.py`** — new `--effort-legacy-budget` flag; dispatch now
+  passes `adaptive=None` (not `False`) when `--adaptive` isn't
+  explicit, which is what lets auto-selection work; `ThinkingModeError`
+  caught at the dispatch site for a clean one-line error + exit(1)
+  instead of a traceback.
+- **`claude_structured.py`** — removed the unconditional
+  `structured-outputs-2025-11-13` beta header (structured outputs went
+  GA on the Claude API January 29, 2026 — "no beta header required")
+  and the dead, unreferenced `BETA = "output-128k-2025-02-19"` class
+  attribute. No behavioral change — `output_config.format` was already
+  correct.
+- **Explicitly not implemented**: an "Xhigh" effort level a third-party
+  (non-Anthropic) blog claimed exists between "high" and "max" on Opus
+  4.7/4.8. The official `platform.claude.com/docs/en/build-with-claude/effort`
+  page lists only `low | medium | high (default) | max` — unconfirmed
+  against the primary source, so not added.
+- **Tests** — `tests/test_claude_thinking.py` rewritten (routing matrix,
+  regression tests for both bugs, legacy-budget escape hatch on both
+  the "still works" and "hard 400" model classes, streaming parity);
+  `tests/test_claude_structured.py` added (this module had zero prior
+  coverage — now covers header removal, dead-attribute removal,
+  `output_config.format` shape, and schema validation). Full suite:
+  **274 tests, regression-clean.**
+
 ## v1.29.0 — Textual TUI + web console streaming/sessions/theme upgrade
 
 Deep-dive across the CLI's terminal front end, the webapp frontend, and
@@ -133,6 +420,102 @@ deliberately deferred pending a concrete use case, same reasoning
 pattern as the Compliance API and native Multiagent orchestration
 deferrals. See `tests/test_claude_agents_sdk.py` (13 new tests, 2 fixed)
 and `IMPLEMENTATION_CHECKLIST.md` Form 12.
+
+## v1.25.0 — Extended thinking `display: "omitted"` + CMEK `external_keys` audit
+
+Continuation of the cross-product audit cycle. Model catalog re-checked
+first: no new model releases since Claude Sonnet 5 (June 30, 2026).
+
+**Extended thinking `display: "omitted"`** (GA, no beta header):
+`claude_thinking.py`'s thinking-config builders only ever produced
+`{"type": "enabled", "budget_tokens": ...}`. Added a `display` field —
+`"omitted"` returns thinking blocks with an empty `thinking` field but
+the `signature` preserved for multi-turn continuity, so a
+`--stream`-style caller that doesn't render thinking text can skip the
+extra payload. Billing unchanged. `--thinking-display omitted`.
+
+**CMEK `external_keys` Admin API:** confirmed the customer-managed
+encryption key endpoints exist as a distinct Admin API surface on
+standard Claude Platform (explicitly unavailable on Claude Platform on
+AWS, per the docs). Added read-only `--admin-cmek-list` alongside the
+existing Admin API group; write/rotate operations left out of scope
+pending a concrete request, matching the Compliance API precedent.
+
+## v1.24.0 — Server tool version drift: code_execution, web_search, web_fetch
+
+Widened the sweep past Managed Agents (three prior cycles) and
+Admin/Auth (v1.23.0) to re-check the full release-notes overview plus
+the Web fetch, Web search, and Code execution tool reference pages.
+
+**Finding:** three tool-version bumps shipped together (June 11, 2026):
+`code_execution_20260521` (discloses the sandbox's 90-second per-cell
+wall-clock limit in the tool description), `web_search_20260318`, and
+`web_fetch_20260318` (both add a `response_inclusion` parameter that
+can drop a *consumed* result's nested tool-use/tool-result block pair
+from the response when it was consumed by a `code_execution` call in
+the same turn). `claude_tools.SERVER_TOOLS` was one bump behind on the
+first two and three versions behind on `web_fetch`; `claude_search.py`'s
+own separate `WEB_SEARCH_TOOL`/`WEB_FETCH_TOOL` constants had never
+been bumped at all, meaning `claude_tools.py`'s version-tracking work
+had never propagated to that sibling module. All three constants bumped
+in both modules; `response_inclusion` wired as an opt-in parameter.
+Confirmed non-gap this cycle: the Claude Enterprise Analytics API is
+real but deliberately left unbuilt — no concrete zcoder use case yet.
+
+## v1.23.0 — Workload Identity Federation (WIF) (GA)
+
+Widened the net past three straight Managed Agents cycles to check
+Authentication, Admin API, and Rate Limits.
+
+**Finding:** Workload Identity Federation, now GA, exchanges a
+short-lived OIDC JWT (AWS IAM, Google Cloud, GitHub Actions,
+Kubernetes, Entra ID, Okta, SPIFFE, or any standards-compliant OIDC
+issuer) for a short-lived Claude API access token
+(`POST /v1/oauth/token`, RFC 7523 jwt-bearer grant) instead of a
+long-lived static API key. Every existing zcoder module authenticated
+with a single static `api_key`/`admin_api_key` string; grepped for
+`workload identity|OIDC|oidc|federation` and, second pass,
+`short-lived|token_exchange|id_token` — zero matches either way.
+`claude_wif.py` (new): `WIFClient` auto-detects a full federation
+configuration from `ANTHROPIC_FEDERATION_RULE_ID`,
+`ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`,
+`ANTHROPIC_WORKSPACE_ID`, and one of
+`ANTHROPIC_IDENTITY_TOKEN_FILE`/`ANTHROPIC_IDENTITY_TOKEN`, exchanges
+and refreshes the token before expiry. `--wif-info`, `--wif-token`.
+Priority 🔴 P0 — the flagship keyless-auth story across the platform.
+Tests in `tests/test_claude_wif.py`.
+
+## v1.22.0 — Managed Agents session overrides, vault injection location, event deltas, code_execution version bump
+
+- Session-level overrides (public beta): `--agent-override-json`,
+  `--agent-override-model`, `--agent-override-system`
+- Vault `injection_location` (public beta): `--agent-vault-injection-location`
+- Session event deltas (public beta): `--agent-stream-deltas`
+- `code_execution` tool version bump to `code_execution_20260120`:
+  `claude_code_exec.py` (`--code-exec-version`)
+
+All four wired into `claude_agents_sdk.py` / `claude_code_exec.py` and
+`main.py`'s existing Managed Agents / code-execution argument groups.
+
+## v1.21.0 — Managed Agents Vaults, Scheduled deployments, native Multiagent orchestration, Outcomes file-based rubrics
+
+Closes the native Multiagent orchestration item deferred at v1.20.0,
+plus three further Managed Agents gaps found in the same audit sweep:
+
+- Vaults & credentials (public beta): `--agent-vault-create`,
+  `--agent-vault-add-credential`, `--agent-vault-list`, `--agent-vault`
+- Scheduled deployments (public beta): `--agent-schedule-create`,
+  `--agent-schedule-list`, `--agent-schedule-cancel`
+- Native Multiagent orchestration (`multiagent: {type: "coordinator",
+  ...}` on the Agent resource — distinct from the pre-existing
+  client-side `--agent-orchestrate`, which makes separate Messages API
+  calls per subagent rather than sharing one session/sandbox):
+  `build_multiagent_config()`, `--agent-review-multiagent`
+- Outcomes `file_id` rubric form: `--agent-outcome-rubric-upload`,
+  `--agent-outcome-rubric-file`
+
+All four wired into `claude_agents_sdk.py` and `main.py`'s Managed
+Agents argument group; tests added to `tests/test_claude_agents_sdk.py`.
 
 ## v1.26.0 — Managed Agents self-hosted sandboxes
 

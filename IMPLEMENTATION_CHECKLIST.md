@@ -383,6 +383,9 @@ narrative writeups this form-style tracker summarizes.
 | 10c | Managed Agents Webhooks | 🟡 P2 | ✅ Done (v1.20.0) |
 | 10d | Managed Agents native Multiagent orchestration | 🟡 P2 | ⏸ Deferred (v1.20.0) |
 | 11 | Managed Agents self-hosted sandboxes | 🟠 P1 | ✅ Done (v1.26.0) |
+| 12 | Memory store beta-header regression fix + memory/memory-store CRUD | 🔴 P0 / 🟠 P1 | ✅ Done (v1.27.0) |
+| 13 | CLI-to-API wiring audit (GitHub, Router, Prompt Optimizer, Metrics) | 🟠 P1 | ✅ Done (v1.31.0) |
+| 14 | Claude Opus 5 catalog entry + fast-mode enforcement + fallbacks "default" | 🔴 P0 bug fix + 🟡 P2 | ✅ Done (v1.32.0) |
 
 ---
 
@@ -495,3 +498,230 @@ narrative writeups this form-style tracker summarizes.
   since a live 400 on every memory-store call outranks an unbuilt
   feature. `create_session()`'s additive header usage was checked and
   left alone deliberately, not overlooked.
+
+---
+
+## Form 13 — 🟠 P1: CLI-to-API wiring audit (GitHub, Router, Prompt Optimizer, Metrics)
+
+| Field | Value |
+|---|---|
+| Module(s) affected | `main.py`, `tests/test_cli_wiring.py` (new) |
+| Est. effort | ~170 lines (main.py) + ~220 lines (new test file) |
+| Owner | zcoder maintainers |
+| Target date | v1.31.0 |
+| Status | ☑ Done |
+
+**Task list**
+- [x] Different audit type this cycle: not platform.claude.com/docs vs.
+  code, but `claude_*.py`'s own `cmd_*` functions vs. `main.py`'s
+  dispatch — checked with `ast.parse` per module, not a docs fetch
+- [x] Found 4 modules (`claude_github.py`, `claude_router.py`,
+  `claude_prompt_optimizer.py`, `claude_metrics.py`) with 13 `cmd_*`
+  functions total, none referenced in `main.py`
+- [x] Caught and avoided a naming collision before wiring anything:
+  `claude_prompt_optimizer.py`'s docstring specifies `--v2` for the
+  second A/B variant, but `--v2` already exists as a `type=int` artifact
+  flag — used `--ab-prompt-b` instead
+- [x] Added argument groups: GitHub Integration, Multi-Agent Router,
+  Prompt Optimizer, Metrics (local usage log)
+- [x] Added dispatch blocks calling each `cmd_*` function with correct
+  positional argument order (verified against each function's real
+  signature, not assumed)
+- [x] Evaluated `claude_evals.py`'s `cmd_eval` — confirmed superseded by
+  the already-wired `claude_eval.py`, left unwired on purpose, recorded
+  in `tests/test_cli_wiring.py`'s `KNOWN_EXCEPTIONS`
+- [x] Evaluated `claude_router.py`'s `--route-add-agent` (docstring-only,
+  no backing `cmd_*` function) — left as a follow-up, not guessed at
+- [x] New `tests/test_cli_wiring.py`: parametrized regression test over
+  every `claude_*.py` module (62 new tests total, includes flag-parsing
+  and dispatch-level coverage for all 4 newly-wired modules)
+- [x] Bumped `main.py`'s `VERSION` to `"1.31.0"`
+- [x] `ROADMAP.md`, `CHANGELOG.md`, `README.md` updated
+
+**Sign-off**
+- Reviewed by: zcoder maintainers  Date: v1.31.0 release
+- Notes: Purely additive — no existing flag, dest name, or dispatch
+  order was changed. The `test_cli_wiring.py` regression test is the
+  actual deliverable of this cycle as much as the 4 modules' flags are;
+  it's what prevents this exact gap from reappearing for the next
+  fully-built-but-unwired module.
+
+---
+
+## Form 14 — 🔴 P0 bug fix + 🟡 P2: Claude Opus 5, fast-mode enforcement, fallbacks "default"
+
+| Field | Value |
+|---|---|
+| Module(s) affected | `claude_models.py`, `coder.py`, `claude_fable5.py`, `main.py` |
+| Est. effort | ~120 lines + tests |
+| Owner | zcoder maintainers |
+| Target date | v1.32.0 |
+| Status | ☑ Done |
+
+**Task list**
+- [x] Re-fetched `platform.claude.com/docs/en/release-notes/overview`
+  live (not reused from a prior cycle), covering 2026-07-14 → 2026-07-26
+- [x] **Gap found:** Claude Opus 5 (launched 2026-07-24) entirely
+  missing from `MODEL_CATALOG`
+- [x] Added `claude-opus-5` with correct specs and the effort/thinking
+  breaking-change note vs. Opus 4.8
+- [x] **Bug found:** `FAST_MODE_SUPPORTED`/`FAST_MODE_DEPRECATED` existed
+  in `claude_models.py` but zero call sites read them — `coder.py` sent
+  `speed:"fast"` unconditionally for any model
+- [x] Replaced with `FAST_MODE_SUPPORTED`, `FAST_MODE_REMOVED_ERROR`
+  (Opus 4.7, hard 400 since 2026-07-24),
+  `FAST_MODE_REMOVED_SILENT` (Opus 4.6, silent standard-speed downgrade
+  since 2026-06-29), and `validate_fast_mode()`
+- [x] Wired `validate_fast_mode()` into `Coder.generate()` — Opus 4.7 +
+  `--fast-mode` now short-circuits locally instead of sending a
+  guaranteed-400 request
+- [x] Added first-ever test coverage for `--fast-mode` payload behavior:
+  5 new tests in `tests/test_coder.py`
+- [x] **Gap found:** `fallbacks` parameter's new `"default"` mode
+  (2026-07-24), gated behind a beta header distinct from the existing
+  fallback-credit one
+- [x] Extended `Fable5Client.fallback_chain` and `parse_fallback_chain()`
+  to accept the literal string `"default"`; beta header attached only
+  for that mode, list mode unchanged
+- [x] 3 new tests in `tests/test_claude_fable5.py`
+- [x] Checked and confirmed non-gaps: MCP tunnels, advisor `max_tokens`,
+  `code_execution_20260120`
+- [x] Deliberately deferred (documented, not dropped): mid-conversation
+  tool changes (beta); July 22 Managed Agents items (agent-level
+  `effort`, environment/memory-store webhooks, session `initial_events`,
+  optional `version` on agent update, thread-level event deltas)
+- [x] Bumped `main.py`'s `VERSION` to `"1.32.0"`
+- [x] Full suite: 392 passed, 1 skipped, regression-clean
+
+**Sign-off**
+- Reviewed by: zcoder maintainers  Date: v1.32.0 release
+- Notes: Finding 2 (fast-mode enforcement) is the highest-priority item
+  here despite being smaller in surface area than the model-catalog
+  addition — a client that can silently attempt a guaranteed-400 request
+  is a worse failure mode than a model being briefly absent from a local
+  cache, since `GET /v1/models` always remains the live source of truth
+  for the latter.
+
+---
+
+## Form 15 — 🟡 P2: Dedicated deep-detail modules — Claude Opus 5, Sonnet 5, Haiku 4.5
+
+| Field | Value |
+|---|---|
+| Module(s) affected | `claude_opus5.py` (new), `claude_sonnet5.py` (new), `claude_haiku45.py` (new), `main.py` |
+| Est. effort | ~300 lines + tests |
+| Owner | zcoder maintainers |
+| Target date | v1.33.0 |
+| Status | ☑ Done |
+
+**Task list**
+- [x] Requested as "deep upgrade Opus 5, and separate each current-tier
+  model out in detail" — starting point was that every current-tier
+  model lived only as one shallow `MODEL_CATALOG` row
+- [x] **Finding 1:** Opus 5's effort/thinking breaking change existed
+  only as a `notes` string, not enforcement — added
+  `validate_effort_thinking()` client-side guard in `claude_opus5.py`,
+  called inside `Opus5Client.call()` before any HTTP request is built
+- [x] Added `OPUS5_EFFORT_BUDGETS` with the `xhigh` rung
+  `claude_models.EFFORT_BUDGETS` still lacks
+- [x] Flagged (not fixed): `INFERENCE_GEO_SUPPORTED` predates Opus 5's
+  launch and doesn't list it — `--opus5-geo` warns as *unconfirmed*
+  rather than assuming either way
+- [x] **Finding 2:** Sonnet 5's "$2/$10 introductory through 2026-08-31"
+  pricing note was prose, not a comparison the code makes — added
+  `current_pricing(as_of=None)` with a real `date` comparison against
+  `PROMO_END_DATE`, plus `estimate_cost_usd()` / `--sonnet5-cost IN,OUT`
+- [x] Surfaced that Sonnet 5 is the one current-tier model without
+  `service_tier`/Priority Tier support, while it does support
+  `inference_geo` — `validate_service_tier()` warns rather than
+  silently sending a rejected parameter
+- [x] **Finding 3:** Haiku 4.5 is the only current-tier model on
+  extended (not adaptive) thinking — added `build_thinking_param()` in
+  `claude_haiku45.py`, always returns the extended shape, raises
+  `ValueError` below the 1024-token floor
+- [x] Resolved dateless alias `claude-haiku-4-5` → `claude-haiku-4-5-20251001`
+  via `resolve_model_id()`; flagged fast-mode and `inference_geo` as
+  unsupported for this model
+- [x] All three modules follow existing `claude_fable5.py`/
+  `claude_mythos5.py` conventions: shared `retry`/`CircuitBreaker`
+  decorator, `cmd_*_info()`, `cmd_*_call()`, validators returning `None`
+  (safe) or a message string (not safe)
+- [x] `main.py` gained three new argument groups wired into the
+  existing info-command/call-command dispatch blocks
+- [x] New flags: `--opus5-info`/`--opus5`/`--opus5-effort`/
+  `--opus5-disable-thinking`/`--opus5-fast`/`--opus5-geo`;
+  `--sonnet5-info`/`--sonnet5`/`--sonnet5-geo`/`--sonnet5-cost`;
+  `--haiku45-info`/`--haiku45`/`--haiku45-thinking-budget`
+- [x] 30 new tests: `tests/test_claude_opus5.py` (9),
+  `tests/test_claude_sonnet5.py` (9), `tests/test_claude_haiku45.py` (12)
+- [x] Full existing suite passes with no regressions (excluding the
+  pre-existing `fastapi`-dependent `test_webapp_server.py`, unrelated to
+  this change)
+- [x] Deliberately out of scope: `claude_models.EFFORT_BUDGETS` not
+  patched (wider blast radius than this cycle); `--upgrade-all` not
+  extended to target Sonnet 5/Haiku 4.5 (product decision)
+- [x] `README.md`, `CHANGELOG.md`, `CHECKLIST.md`, `ROADMAP.md` all
+  updated for this cycle
+- [x] Bumped `main.py`'s `VERSION` to `"1.33.0"`
+
+**Sign-off**
+- Reviewed by: zcoder maintainers  Date: v1.33.0 release
+- Notes: this cycle also closed a standing documentation gap —
+  `CHECKLIST.md` had not been updated since v1.20.0 and this file had
+  no entry for the v1.33.0 cycle itself; both backfilled alongside the
+  code changes above.
+
+---
+
+## Form 16 — 🟠 P1 / 🟡 P2: Re-validation cycle — Opus, Sonnet, Haiku, Fable, Mythos
+
+| Field | Value |
+|---|---|
+| Module(s) affected | `claude_tools.py`, `claude_sonnet5.py`, `main.py` |
+| Est. effort | ~100 lines + tests |
+| Owner | zcoder maintainers |
+| Target date | v1.34.0 |
+| Status | ☑ Done |
+
+**Task list**
+- [x] Requested: "upgrade all model below to latest update and
+  validate: Opus, Sonnet, Haiku, Fable, Mythos"
+- [x] Fetched `platform.claude.com/docs/en/release-notes/overview`
+  directly (2026-07-26) — confirmed nothing newer than July 24, 2026
+- [x] Re-checked `MODEL_CATALOG`, `FAST_MODE_*` sets, and every
+  existing per-model validator (Opus 5 effort/thinking, Haiku 4.5
+  thinking shape, Fable 5/Mythos 5 refusal/fallback) against the docs
+  line by line — all still correct, no drift found
+- [x] **Gap found:** mid-conversation tool changes beta
+  (`mid-conversation-tool-changes-2026-07-01`; Fable 5, Mythos 5,
+  Opus 4.8, Opus 5 only) — zero matches on
+  `mid-conversation-tool-changes|mid_conversation_tool` anywhere in
+  the tree before this cycle
+- [x] Added `MID_CONVERSATION_TOOL_CHANGES_SUPPORTED`,
+  `validate_mid_conversation_tool_change()`,
+  `with_mid_conversation_tool_changes()` to `claude_tools.py`
+- [x] Wired `--mid-conv-tool-check MODEL_ID` into `main.py`'s Tool Use
+  group and dispatch block
+- [x] **Gap found:** Sonnet 5 returns a 400 on any non-default
+  `temperature`/`top_p`/`top_k` — `claude_sonnet5.py` didn't expose or
+  guard these at all
+- [x] Added `validate_sampling_params()`; `Sonnet5Client.call()` now
+  accepts and rejects these client-side before building a request
+- [x] Checked and confirmed non-gaps: Dreaming's July 10 Fable 5/
+  Sonnet 5 expansion (Managed Agents concern, out of scope for
+  per-model modules); Fable 5/Mythos 5 prefill/thinking guards (no
+  live code path exposes either parameter)
+- [x] 10 new tests: `tests/test_claude_tools.py` (+5),
+  `tests/test_claude_sonnet5.py` (+5)
+- [x] Full suite: 506 passed, regression-clean (excluding the
+  pre-existing `fastapi`-dependent `test_webapp_server.py`)
+- [x] `README.md`, `CHANGELOG.md`, `CHECKLIST.md` updated
+- [x] Bumped `main.py`'s `VERSION` and `pyproject.toml` to `"1.34.0"`
+
+**Sign-off**
+- Reviewed by: zcoder maintainers  Date: v1.34.0 release
+- Notes: this was a re-validation cycle, not a rebuild — the goal was
+  confirming the five model modules still match the live docs, not
+  assuming they do because they were correct at v1.33.0. Most of the
+  catalog and validators held up; the two gaps found were both real
+  and both defensive/beta-adoption gaps rather than active bugs.

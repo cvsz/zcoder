@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
 main.py — AI Model Coder CLI
-Version 1.29.0 | Adds --tui (a full-screen Textual interface, see tui.py)
-alongside the plain-argparse CLI and the web console; upgrades the web
-console (webapp/) with SSE response streaming, a sessions sidebar,
-lite-markdown/code rendering, a light/dark theme toggle, and backend
-input validation + per-IP rate limiting. See docs/41_upgrade_v1.29.0.md,
-CHANGELOG.md, and ROADMAP.md.
+Version 1.30.0 | Gap-audit finding: --thinking always sent manual
+thinking.type="enabled"+budget_tokens, which is a 400 error on every
+current-generation model (Opus 4.7/4.8, Sonnet 5, Fable 5, Mythos 5,
+Mythos Preview) and deprecated on Opus 4.6/Sonnet 4.6. claude_thinking.py
+now auto-selects real adaptive thinking (thinking.type="adaptive" +
+top-level output_config.effort, GA, no beta header) per model, with a
+--effort-legacy-budget escape hatch that fails fast on models where it
+can't work. Also removed claude_structured.py's now-unnecessary
+structured-outputs-2025-11-13 beta header (structured outputs are GA).
+See docs/42_upgrade_v1.30.0.md, CHANGELOG.md, and ROADMAP.md.
 """
 import argparse
 import os
@@ -19,7 +23,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from personalities import PERSONALITIES
 
-VERSION = "1.29.0"
+VERSION = "1.37.0"
 BANNER  = f"\033[94mAI Model Coder CLI v{VERSION}\033[0m"
 
 # Named agent roles. Previously these seven names only existed as a
@@ -95,17 +99,6 @@ def build_parser():
     g.add_argument("--fast-mode", action="store_true", dest="fast_mode",
                    help="Research-preview reduced-latency mode (speed:\"fast\"); "
                         "currently Opus-only and billed at a premium rate")
-    g.add_argument("--cache-mode", choices=["off", "automatic"], default="off",
-                   help="Enable opt-in automatic prompt caching for normal chat requests")
-    g.add_argument("--model-preflight", action="store_true",
-                   help="Verify model availability through /v1/models before sending a request")
-    g.add_argument("--mcp-remote", metavar="HTTPS_URL",
-                   help="Connect an allowlisted remote MCP server for this request (not ZDR eligible)")
-    g.add_argument("--mcp-server-name", default="remote-mcp")
-    g.add_argument("--mcp-tool", action="append", default=[],
-                   help="Explicit remote MCP tool allowlist entry; repeat for multiple tools")
-    g.add_argument("--mcp-token-env", default=None,
-                   help="Environment variable containing the remote MCP OAuth bearer token")
     g.add_argument("--health-check", action="store_true", dest="health_check",
                    help="Run liveness/readiness checks and exit (config, API key, "
                         "disk-writable); prints JSON, exit code 0=healthy 1=unhealthy")
@@ -179,7 +172,18 @@ def build_parser():
     th.add_argument("--thinking", action="store_true")
     th.add_argument("--thinking-budget", type=int, default=8000, dest="thinking_budget")
     th.add_argument("--effort", default="", choices=["","low","medium","high","max"])
-    th.add_argument("--adaptive", action="store_true")
+    th.add_argument("--adaptive", action="store_true",
+                    help="Force adaptive thinking (thinking.type='adaptive' + top-level "
+                         "output_config.effort, GA, no beta header). Default (neither this "
+                         "nor --effort-legacy-budget) auto-selects per model: adaptive on "
+                         "Opus 4.6+/Sonnet 4.6+/Sonnet 5/Opus 4.7/4.8/Fable 5/Mythos 5/Mythos "
+                         "Preview, legacy manual budget_tokens on Opus 4.5/Haiku 4.5/earlier")
+    th.add_argument("--effort-legacy-budget", action="store_true", dest="effort_legacy_budget",
+                    help="Force the old manual thinking.type='enabled'+budget_tokens path "
+                         "(--thinking-budget/--effort still apply) even on a model where "
+                         "adaptive would otherwise be auto-selected. Errors out immediately, "
+                         "before any API call, on models where budget_tokens is a 400 "
+                         "(Opus 4.7/4.8, Sonnet 5, Fable 5, Mythos 5, Mythos Preview)")
     th.add_argument("--interleaved-thinking", action="store_true", dest="interleaved_thinking")
     th.add_argument("--show-thinking", action="store_true", dest="show_thinking")
     th.add_argument("--thinking-display-omitted", action="store_true",
@@ -277,6 +281,10 @@ def build_parser():
     tu.add_argument("--stream-tools", metavar="PROMPT", dest="stream_tools",
                     help="Stream a turn with fine-grained tool input streaming, using "
                          "--tool-file for the tool definitions")
+    tu.add_argument("--mid-conv-tool-check", metavar="MODEL_ID", dest="mid_conv_tool_check",
+                    help="Check whether MODEL_ID supports mid-conversation tool changes "
+                         "(mid-conversation-tool-changes-2026-07-01 beta; Fable 5, Mythos 5, "
+                         "Opus 4.8, Opus 5 only)")
 
     adv = p.add_argument_group("Advisor Tool")
     adv.add_argument("--advisor", metavar="PROMPT", dest="advisor",
@@ -369,17 +377,61 @@ def build_parser():
     f5.add_argument("--fallback-model", default="claude-opus-4-8", dest="fallback_model",
                     help="Manual-retry fallback model (default: claude-opus-4-8). "
                          "No effect if --fable5-fallback-chain is set.")
-    f5.add_argument("--fable5-fallback-chain", metavar="MODEL1,MODEL2", dest="fable5_fallback_chain",
+    f5.add_argument("--fable5-fallback-chain", metavar="MODEL1,MODEL2|default", dest="fable5_fallback_chain",
                     help="Server-side fallback (beta `fallbacks` param): comma-separated "
                          "models (up to 3 total including the primary) that the platform "
                          "itself retries against, in order, in the same round trip if the "
-                         "primary refuses. Preferred over --fallback-model when available.")
+                         "primary refuses. Or pass the literal value 'default' to use "
+                         "Anthropic's own recommended fallback models by refusal category "
+                         "(added 2026-07-24, needs its own beta header, sent automatically). "
+                         "Preferred over --fallback-model when available.")
 
     m5 = p.add_argument_group("Claude Mythos 5 (limited access)")
     m5.add_argument("--mythos5-info", action="store_true", dest="mythos5_info",
                     help="Show what's known about Mythos 5 access/pricing (approval-gated, see --fable5-info for the public sibling)")
     m5.add_argument("--mythos5", metavar="PROMPT", dest="mythos5",
                     help="Call Claude Mythos 5 directly (requires approved Project Glasswing access)")
+
+    o5 = p.add_argument_group("Claude Opus 5 (deep model-specific support)")
+    o5.add_argument("--opus5-info", action="store_true", dest="opus5_info",
+                    help="Show Opus 5's capability table (effort ladder, thinking rules, "
+                         "fast mode, Priority Tier, data residency)")
+    o5.add_argument("--opus5", metavar="PROMPT", dest="opus5",
+                    help="Call Claude Opus 5")
+    o5.add_argument("--opus5-effort", choices=["low", "medium", "high", "xhigh", "max"],
+                    dest="opus5_effort",
+                    help="Effort level for --opus5 (default: model default)")
+    o5.add_argument("--opus5-disable-thinking", action="store_true", dest="opus5_disable_thinking",
+                    help="Disable thinking for --opus5. Rejected client-side (not sent to the "
+                         "API) if combined with --opus5-effort xhigh or max — Opus 5 only allows "
+                         "disabling thinking at effort high or below.")
+    o5.add_argument("--opus5-fast", action="store_true", dest="opus5_fast",
+                    help="Send speed:\"fast\" with --opus5 (supported on this model)")
+    o5.add_argument("--opus5-geo", action="store_true", dest="opus5_geo",
+                    help="Send inference_geo:\"us\" with --opus5 (support unconfirmed for this "
+                         "model — see --opus5-info)")
+
+    s5 = p.add_argument_group("Claude Sonnet 5 (deep model-specific support)")
+    s5.add_argument("--sonnet5-info", action="store_true", dest="sonnet5_info",
+                    help="Show Sonnet 5's capability table and today's pricing "
+                         "(introductory $2/$10 through 2026-08-31, then $3/$15 standard)")
+    s5.add_argument("--sonnet5", metavar="PROMPT", dest="sonnet5",
+                    help="Call Claude Sonnet 5")
+    s5.add_argument("--sonnet5-geo", action="store_true", dest="sonnet5_geo",
+                    help="Send inference_geo:\"us\" with --sonnet5 (supported; 1.1x pricing)")
+    s5.add_argument("--sonnet5-cost", metavar="IN,OUT", dest="sonnet5_cost",
+                    help="Estimate cost in USD for IN input / OUT output tokens on Sonnet 5, "
+                         "using whichever pricing tier (introductory/standard) applies today")
+
+    h45 = p.add_argument_group("Claude Haiku 4.5 (deep model-specific support)")
+    h45.add_argument("--haiku45-info", action="store_true", dest="haiku45_info",
+                     help="Show Haiku 4.5's capability table (extended, non-adaptive thinking; "
+                          "no fast mode; no data residency)")
+    h45.add_argument("--haiku45", metavar="PROMPT", dest="haiku45",
+                     help="Call Claude Haiku 4.5")
+    h45.add_argument("--haiku45-thinking-budget", type=int, metavar="N", dest="haiku45_thinking_budget",
+                     help="Enable extended thinking with explicit budget_tokens=N (min 1024). "
+                          "Haiku 4.5 uses extended (manual-budget) thinking only, never adaptive.")
 
     ad = p.add_argument_group("Admin API (usage/cost reporting + API key management)")
     ad.add_argument("--admin-api-key", metavar="KEY", dest="admin_api_key",
@@ -623,9 +675,22 @@ def build_parser():
                     dest="agent_dream_instructions", default="",
                     help="Optional steering text for --agent-dream")
     ag.add_argument("--agent-dream-list", action="store_true", dest="agent_dream_list",
-                    help="List non-archived dreams in the workspace")
+                    help="List dreams in the workspace (newest first)")
+    ag.add_argument("--agent-dream-list-include-archived", action="store_true",
+                    dest="agent_dream_list_include_archived",
+                    help="With --agent-dream-list, also include archived dreams")
+    ag.add_argument("--agent-dream-list-limit", type=int, default=20,
+                    dest="agent_dream_list_limit",
+                    help="With --agent-dream-list, max results per page (default 20, max 100)")
+    ag.add_argument("--agent-dream-list-page", metavar="CURSOR", dest="agent_dream_list_page",
+                    default="", help="With --agent-dream-list, page cursor from a previous call")
     ag.add_argument("--agent-dream-get", metavar="DREAM_ID", dest="agent_dream_get",
-                    help="Retrieve one dream's status and output_store_id")
+                    help="Retrieve one dream's status, usage, session_id, and output_store_id")
+    ag.add_argument("--agent-dream-cancel", metavar="DREAM_ID", dest="agent_dream_cancel",
+                    help="Cancel a pending/running dream immediately")
+    ag.add_argument("--agent-dream-archive", metavar="DREAM_ID", dest="agent_dream_archive",
+                    help="Archive a completed/failed/canceled dream (excludes it from "
+                         "--agent-dream-list without deleting it)")
 
     ag.add_argument("--agent-outcome", metavar="DESC", dest="agent_outcome", default="",
                     help="With --agent-managed-run: define an outcome (rubric-graded "
@@ -916,11 +981,55 @@ def build_parser():
     gt.add_argument("--git-review", action="store_true", dest="git_review")
     gt.add_argument("--git-blame-explain", nargs=3, metavar=("FILE","START","END"), dest="git_blame_explain")
 
+    gh = p.add_argument_group("GitHub Integration")
+    gh.add_argument("--gh-review-pr", metavar="REPO/NUMBER", dest="gh_review_pr",
+                    help="AI review of a pull request diff, e.g. anthropics/claude-code/42")
+    gh.add_argument("--gh-triage-issues", metavar="REPO", dest="gh_triage_issues",
+                    help="Triage open issues and suggest labels/owners")
+    gh.add_argument("--gh-summarise-commits", metavar="REPO", dest="gh_summarise_commits",
+                    help="Summarise recent commit history")
+    gh.add_argument("--gh-pr-description", metavar="REPO/NUMBER", dest="gh_pr_description",
+                    help="Generate a PR description from a pull request's diff")
+    gh.add_argument("--gh-token", default="", dest="gh_token",
+                    help="GitHub personal access token (or GITHUB_TOKEN env var)")
+    gh.add_argument("--gh-max-items", type=int, default=20, dest="gh_max_items",
+                    help="Max issues/commits to process for --gh-triage-issues / "
+                         "--gh-summarise-commits (default: 20)")
+
+    ro = p.add_argument_group("Multi-Agent Router")
+    ro.add_argument("--route", metavar="PROMPT", dest="route",
+                    help="Auto-route PROMPT to the best specialist agent")
+    ro.add_argument("--route-explain", action="store_true", dest="route_explain",
+                    help="With --route: print which agent was chosen and why")
+    ro.add_argument("--route-parallel", action="store_true", dest="route_parallel",
+                    help="With --route: fan out to ALL agents and synthesise the best answer")
+    ro.add_argument("--route-list", action="store_true", dest="route_list",
+                    help="List all agents in the routing table")
+
     co = p.add_argument_group("Cost Optimizer")
     co.add_argument("--optimized", metavar="PROMPT", dest="optimized")
     co.add_argument("--force-model", default=None, dest="force_model")
     co.add_argument("--cost-summary", action="store_true", dest="cost_summary")
     co.add_argument("--cost-reset", action="store_true", dest="cost_reset")
+
+    po = p.add_argument_group("Prompt Optimizer")
+    po.add_argument("--optimize", metavar="PROMPT", dest="prompt_optimize",
+                    help="Rewrite a prompt to be clearer and more effective")
+    po.add_argument("--score-prompt", metavar="PROMPT", dest="score_prompt",
+                    help="Score a prompt 0-100 for clarity, specificity, and completeness")
+    po.add_argument("--ab-test", action="store_true", dest="ab_test",
+                    help="With --prompt and --ab-prompt-b: A/B test two prompt variants "
+                         "against --ab-task")
+    po.add_argument("--ab-prompt-b", metavar="PROMPT_B", default="", dest="ab_prompt_b",
+                    help="Second prompt variant for --ab-test (first variant is --prompt)")
+    po.add_argument("--ab-task", metavar="TASK", default="", dest="ab_task",
+                    help="Task description to judge both --ab-test variants against")
+    po.add_argument("--prompt-lib-add", action="store_true", dest="prompt_lib_add",
+                    help="Save --prompt to the library under --tag")
+    po.add_argument("--prompt-lib-list", action="store_true", dest="prompt_lib_list",
+                    help="List saved prompts")
+    po.add_argument("--prompt-lib-get", metavar="TAG", dest="prompt_lib_get",
+                    help="Print a saved prompt by tag")
 
     ob = p.add_argument_group("Observability")
     ob.add_argument("--obs-latency", action="store_true", dest="obs_latency")
@@ -928,6 +1037,18 @@ def build_parser():
     ob.add_argument("--obs-tail", type=int, nargs="?", const=20, default=None, dest="obs_tail")
     ob.add_argument("--obs-clear", action="store_true", dest="obs_clear")
     ob.add_argument("--obs-hours", type=int, default=24, dest="obs_hours")
+
+    mt = p.add_argument_group("Metrics (local usage log)")
+    mt.add_argument("--metrics-show", action="store_true", dest="metrics_show",
+                    help="Show usage summary (calls, cost, tokens) across all logged calls")
+    mt.add_argument("--metrics-today", action="store_true", dest="metrics_today",
+                    help="With --metrics-show: limit to today's calls")
+    mt.add_argument("--metrics-model", default="", dest="metrics_model",
+                    help="With --metrics-show: filter summary to one model")
+    mt.add_argument("--metrics-clear", action="store_true", dest="metrics_clear",
+                    help="Clear the local metrics log")
+    mt.add_argument("--metrics-export", metavar="FILE", dest="metrics_export",
+                    help="Export the full metrics log to FILE as JSON")
 
     wf = p.add_argument_group("Workflows")
     wf.add_argument("--workflow-run", metavar="PATH", dest="workflow_run")
@@ -1047,6 +1168,22 @@ def main():
     if args.mythos5_info:
         from claude_mythos5 import cmd_mythos5_info
         cmd_mythos5_info(); return
+
+    if args.opus5_info:
+        from claude_opus5 import cmd_opus5_info
+        cmd_opus5_info(); return
+
+    if args.sonnet5_info:
+        from claude_sonnet5 import cmd_sonnet5_info
+        cmd_sonnet5_info(); return
+
+    if args.sonnet5_cost:
+        from claude_sonnet5 import cmd_sonnet5_cost
+        cmd_sonnet5_cost(args.sonnet5_cost); return
+
+    if args.haiku45_info:
+        from claude_haiku45 import cmd_haiku45_info
+        cmd_haiku45_info(); return
 
     if args.skills_list:
         from claude_skills_api import cmd_skills_list
@@ -1304,6 +1441,18 @@ def main():
         cmd_artifact_attach(args.artifact_attach, args.to_project); return
     if args.list_server_tools:
         from claude_tools import cmd_list_server_tools; cmd_list_server_tools(); return
+
+    if args.mid_conv_tool_check:
+        from claude_tools import validate_mid_conversation_tool_change, MID_CONVERSATION_TOOL_CHANGES_SUPPORTED
+        model_id = args.mid_conv_tool_check
+        warning = validate_mid_conversation_tool_change(model_id)
+        if warning is None:
+            print(f"\033[92m✓ {model_id} supports mid-conversation tool changes\033[0m "
+                  f"(mid-conversation-tool-changes-2026-07-01 beta)")
+        else:
+            print(f"\033[93m⚠ {warning}\033[0m")
+            print(f"  Supported models: {', '.join(sorted(MID_CONVERSATION_TOOL_CHANGES_SUPPORTED))}")
+        return
     if args.cowork_list:
         from cowork import cmd_cowork_list; cmd_cowork_list(); return
     if args.agent_list_sessions:
@@ -1350,6 +1499,14 @@ def main():
         from claude_cost_optimizer import cmd_cost_summary; cmd_cost_summary(); return
     if args.cost_reset:
         from claude_cost_optimizer import cmd_cost_reset; cmd_cost_reset(); return
+    if args.metrics_show:
+        from claude_metrics import cmd_metrics_show
+        cmd_metrics_show(today_only=args.metrics_today, model_filter=args.metrics_model or None); return
+    if args.metrics_clear:
+        from claude_metrics import cmd_metrics_clear; cmd_metrics_clear(); return
+    if args.metrics_export:
+        from claude_metrics import cmd_metrics_export
+        cmd_metrics_export(args.metrics_export, today_only=args.metrics_today); return
     if args.obs_latency:
         from claude_observability import cmd_obs_latency; cmd_obs_latency(args.obs_hours); return
     if args.obs_tail is not None:
@@ -1373,8 +1530,7 @@ def main():
 
     if args.tui:
         from tui import run_tui
-        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""),
-                cache_mode=args.cache_mode)
+        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
         return
 
     # ── API key required ──
@@ -1428,6 +1584,17 @@ def main():
     if args.mythos5:
         from claude_mythos5 import cmd_mythos5_call
         cmd_mythos5_call(args.mythos5, key); return
+    if args.opus5:
+        from claude_opus5 import cmd_opus5_call
+        cmd_opus5_call(args.opus5, key, effort=args.opus5_effort,
+                      disable_thinking=args.opus5_disable_thinking,
+                      fast=args.opus5_fast, use_geo=args.opus5_geo); return
+    if args.sonnet5:
+        from claude_sonnet5 import cmd_sonnet5_call
+        cmd_sonnet5_call(args.sonnet5, key, use_geo=args.sonnet5_geo); return
+    if args.haiku45:
+        from claude_haiku45 import cmd_haiku45_call
+        cmd_haiku45_call(args.haiku45, key, thinking_budget=args.haiku45_thinking_budget); return
 
     # ── zai-live ──
     if args.live:
@@ -1474,6 +1641,54 @@ def main():
         f, s, e = args.git_blame_explain
         cmd_git_blame_explain(f, int(s), int(e), key, model); return
 
+    # ── GitHub Integration ──
+    if args.gh_review_pr:
+        from claude_github import cmd_gh_review_pr
+        cmd_gh_review_pr(args.gh_review_pr, args.gh_token or None, key, model); return
+    if args.gh_triage_issues:
+        from claude_github import cmd_gh_triage
+        cmd_gh_triage(args.gh_triage_issues, args.gh_max_items, args.gh_token or None, key, model); return
+    if args.gh_summarise_commits:
+        from claude_github import cmd_gh_commits
+        cmd_gh_commits(args.gh_summarise_commits, args.gh_max_items, args.gh_token or None, key, model); return
+    if args.gh_pr_description:
+        from claude_github import cmd_gh_pr_description
+        cmd_gh_pr_description(args.gh_pr_description, args.gh_token or None, key, model); return
+
+    # ── Multi-Agent Router ──
+    if args.route_list:
+        from claude_router import cmd_route_list; cmd_route_list(); return
+    if args.route:
+        from claude_router import cmd_route
+        cmd_route(args.route, key, model, explain=args.route_explain,
+                  parallel=args.route_parallel); return
+
+    # ── Prompt Optimizer ──
+    if args.prompt_lib_list:
+        from claude_prompt_optimizer import cmd_prompt_lib_list; cmd_prompt_lib_list(); return
+    if args.prompt_lib_get:
+        from claude_prompt_optimizer import lib_get
+        found = lib_get(args.prompt_lib_get)
+        print(found if found is not None else f"No prompt saved under tag '{args.prompt_lib_get}'")
+        return
+    if args.prompt_lib_add:
+        from claude_prompt_optimizer import lib_add
+        if not args.prompt:
+            print("\033[91m--prompt-lib-add requires --prompt\033[0m"); return
+        import time as _time
+        tag = lib_add(args.prompt, args.tag or _time.strftime("%Y%m%d-%H%M%S"))
+        print(f"Saved to prompt library under tag '{tag}'"); return
+    if args.ab_test:
+        from claude_prompt_optimizer import cmd_ab_test
+        if not (args.prompt and args.ab_prompt_b):
+            print("\033[91m--ab-test requires --prompt (variant A) and --ab-prompt-b "
+                  "(variant B)\033[0m"); return
+        cmd_ab_test(args.prompt, args.ab_prompt_b, args.ab_task, key, model); return
+    if args.score_prompt:
+        from claude_prompt_optimizer import cmd_score; cmd_score(args.score_prompt, key, model); return
+    if args.prompt_optimize:
+        from claude_prompt_optimizer import cmd_optimize; cmd_optimize(args.prompt_optimize, key, model); return
+
     # ── Cost Optimizer (optimized calls the model; summary/reset handled above) ──
     if args.optimized:
         from claude_cost_optimizer import cmd_optimized
@@ -1494,13 +1709,20 @@ def main():
         cmd_plan(args.plan, key, model, context=args.plan_context,
                 execute=args.plan_execute, output=args.output); return
 
-    if args.thinking or args.adaptive:
-        from claude_thinking import cmd_thinking
+    if args.thinking or args.adaptive or args.effort_legacy_budget:
+        from claude_thinking import cmd_thinking, ThinkingModeError
         prompt = args.prompt or (args.file and _read_file(args.file)) or ""
-        cmd_thinking(prompt=prompt, api_key=key, model=model,
-                     budget=args.thinking_budget, effort=args.effort or None,
-                     adaptive=args.adaptive, show_thinking=args.show_thinking,
-                     stream=args.stream, display_omitted=args.thinking_display_omitted); return
+        try:
+            cmd_thinking(prompt=prompt, api_key=key, model=model,
+                         budget=args.thinking_budget, effort=args.effort or None,
+                         adaptive=(True if args.adaptive else None),
+                         legacy_budget=args.effort_legacy_budget,
+                         show_thinking=args.show_thinking,
+                         stream=args.stream, display_omitted=args.thinking_display_omitted)
+        except ThinkingModeError as e:
+            print(f"\033[91m✗ {e}\033[0m", file=sys.stderr)
+            sys.exit(1)
+        return
     if args.stream:
         from claude_stream import cmd_stream
         cmd_stream(args.prompt or "", key, model,
@@ -1683,9 +1905,17 @@ def main():
     if args.agent_dream_get:
         from claude_agents_sdk import cmd_agent_dream_get
         cmd_agent_dream_get(args.agent_dream_get, key); return
+    if args.agent_dream_cancel:
+        from claude_agents_sdk import cmd_agent_dream_cancel
+        cmd_agent_dream_cancel(args.agent_dream_cancel, key); return
+    if args.agent_dream_archive:
+        from claude_agents_sdk import cmd_agent_dream_archive
+        cmd_agent_dream_archive(args.agent_dream_archive, key); return
     if args.agent_dream_list:
         from claude_agents_sdk import cmd_agent_dream_list
-        cmd_agent_dream_list(key); return
+        cmd_agent_dream_list(key, include_archived=args.agent_dream_list_include_archived,
+                             limit=args.agent_dream_list_limit,
+                             page=args.agent_dream_list_page or None); return
     if args.agent_webhook_register:
         from claude_agents_sdk import cmd_agent_webhook_register
         events = [e.strip() for e in args.agent_webhook_events.split(",") if e.strip()] or None
@@ -1896,19 +2126,10 @@ def main():
 
     if args.prompt or args.file:
         from coder import Coder
-        mcp_servers = mcp_tools = extra_betas = None
-        if args.mcp_remote:
-            from claude_mcp_connector import build_remote_mcp
-            mcp_servers, mcp_tools, extra_betas = build_remote_mcp(
-                args.mcp_server_name, args.mcp_remote, args.mcp_tool, args.mcp_token_env
-            )
-            print("[WARN] Remote MCP connector is not eligible for Zero Data Retention.", file=sys.stderr)
         c = Coder(api_key=key, model=model,
                   temperature=args.temperature, max_tokens=args.max_tokens,
                   service_tier=args.service_tier, inference_geo=args.inference_geo,
                   fast_mode=args.fast_mode,
-                  cache_mode=args.cache_mode, model_preflight=args.model_preflight,
-                  mcp_servers=mcp_servers, mcp_tools=mcp_tools, extra_betas=extra_betas,
                   # Previously never sourced from a CLI flag at all — see
                   # the Skills & Agents arg group comment above.
                   personality_style=args.personality)

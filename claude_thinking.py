@@ -1,21 +1,42 @@
 """
 claude_thinking.py — Extended Thinking & Adaptive Thinking
-AI Model Coder CLI v1.8.0
+AI Model Coder CLI v1.30.0
 
 Wraps the Anthropic SDK to expose:
-  • Extended thinking  (explicit budget_tokens)
-  • Adaptive thinking  (model decides when/how much to think)
+  • Adaptive thinking  (thinking.type="adaptive" + top-level
+    output_config.effort — GA, no beta header, the recommended path on
+    Claude Opus 4.6+, Sonnet 4.6+, Sonnet 5, Opus 4.7/4.8, Fable 5,
+    Mythos 5, Mythos Preview)
+  • Legacy manual thinking (thinking.type="enabled" + budget_tokens —
+    required on Opus 4.5, Haiku 4.5, and earlier Claude 4 models, since
+    those don't support adaptive at all; deprecated-but-functional on
+    Opus 4.6 / Sonnet 4.6; a 400 error on every newer model)
   • Effort levels      (low / medium / high / max)
   • Streaming thinking blocks
   • Thinking display   (show / hide / summary)
 
+Model routing (see docs/42_upgrade_v1.30.0.md for the full audit):
+  budget_tokens is a 400 error — not just deprecated — on Claude Opus
+  4.8/4.7, Claude Sonnet 5, Claude Fable 5, Claude Mythos 5, and Claude
+  Mythos Preview. This module now picks adaptive vs. legacy automatically
+  per model (see ADAPTIVE_THINKING_MODELS / MANUAL_ONLY_MODELS below)
+  instead of always sending budget_tokens, which broke --thinking outright
+  on every current-generation model in claude_models.MODEL_CATALOG except
+  Opus 4.5 and Haiku 4.5.
+
 CLI flags added in main.py:
   --thinking                 Enable extended thinking
-  --thinking-budget N        Token budget (default 8000, min 1024)
+  --thinking-budget N        Token budget (legacy manual mode only)
   --effort low|medium|high|max
-  --adaptive                 Let model decide thinking depth
+  --adaptive                 Force adaptive mode (auto-selected by
+                              default on models that support it)
+  --effort-legacy-budget     Force the old manual budget_tokens path
+                              even on an adaptive-capable model (errors
+                              out with a clear message on models where
+                              budget_tokens is a hard 400, rather than
+                              sending a request known to fail)
   --stream                   Stream the response (with thinking blocks)
-  --show-thinking            Print thinking content to stderr
+  --show-thinking             Print thinking content to stderr
 """
 
 import os
@@ -25,13 +46,62 @@ import anthropic
 from typing import Optional
 
 
-# ── Effort → budget mapping ────────────────────────────────────────────────
+# ── Effort → budget mapping (legacy manual mode only) ──────────────────────
 EFFORT_BUDGETS = {
     "low":    2_000,
     "medium": 8_000,
     "high":   16_000,
     "max":    32_000,
 }
+
+# Models where adaptive thinking is the modern, correct path.
+# On Opus 4.6 / Sonnet 4.6, manual budget_tokens is deprecated but still
+# accepted (--effort-legacy-budget can still target these). On every
+# other model in this set, manual budget_tokens is a hard 400 error.
+ADAPTIVE_THINKING_MODELS = {
+    "claude-mythos-5", "claude-fable-5",
+    "claude-opus-4-8", "claude-opus-4-7",
+    "claude-sonnet-5",
+    "claude-opus-4-6", "claude-sonnet-4-6",
+    "claude-mythos-preview",
+}
+
+# Models where budget_tokens is a hard 400 — adaptive is the *only*
+# working mode, --effort-legacy-budget must refuse rather than fail late.
+BUDGET_TOKENS_UNSUPPORTED_MODELS = {
+    "claude-mythos-5", "claude-fable-5",
+    "claude-opus-4-8", "claude-opus-4-7",
+    "claude-sonnet-5",
+    "claude-mythos-preview",
+}
+
+
+def _model_key(model: str) -> str:
+    # claude_models.MODEL_CATALOG ids are mostly bare ("claude-sonnet-5"),
+    # but claude-haiku-4-5-20251001 carries a snapshot date — normalize by
+    # matching on prefix membership so a dated snapshot id of a listed
+    # model still routes correctly.
+    if model in ADAPTIVE_THINKING_MODELS or model in BUDGET_TOKENS_UNSUPPORTED_MODELS:
+        return model
+    for known in ADAPTIVE_THINKING_MODELS | BUDGET_TOKENS_UNSUPPORTED_MODELS:
+        if model.startswith(known):
+            return known
+    return model
+
+
+def supports_adaptive_thinking(model: str) -> bool:
+    return _model_key(model) in ADAPTIVE_THINKING_MODELS
+
+
+def supports_manual_budget_tokens(model: str) -> bool:
+    return _model_key(model) not in BUDGET_TOKENS_UNSUPPORTED_MODELS
+
+
+class ThinkingModeError(ValueError):
+    """Raised when the requested thinking mode can't work on this model
+    (e.g. --effort-legacy-budget on a model where budget_tokens is a
+    400), so the caller gets a clear message before an API round trip
+    instead of after one."""
 
 
 class ThinkingCoder:
@@ -51,12 +121,30 @@ class ThinkingCoder:
         system: Optional[str] = None,
         budget_tokens: int = 8_000,
         effort: Optional[str] = None,
-        adaptive: bool = False,
+        adaptive: Optional[bool] = None,
+        legacy_budget: bool = False,
         show_thinking: bool = False,
         display_omitted: bool = False,
     ) -> dict:
         """
         Returns {"thinking": str, "response": str, "usage": dict}
+
+        Mode selection (see module docstring / docs/42_upgrade_v1.30.0.md):
+          - `legacy_budget=True` forces the old manual
+            `thinking.type="enabled"` + `budget_tokens` path. Raises
+            `ThinkingModeError` immediately if `self.model` is one where
+            that's a hard 400 (no wasted API round trip).
+          - Otherwise, `adaptive` (True/False) picks the mode explicitly
+            if given; if `adaptive` is None (the default), the mode is
+            auto-selected from `self.model` via
+            `supports_adaptive_thinking()`.
+          - In adaptive mode, `effort` (low/medium/high/max) is sent as a
+            top-level `output_config: {"effort": ...}` — NOT nested
+            inside `thinking`, and `budget_tokens` is not sent at all
+            (adaptive thinking doesn't take one). Effort defaults to the
+            API's own default ("high") when not given.
+          - In legacy mode, `effort` (if given) maps to a `budget_tokens`
+            value via `EFFORT_BUDGETS`, same as before v1.30.0.
 
         `display_omitted` (v1.25.0; GA, no beta header), when True, sets
         `thinking.display: "omitted"`: the response's thinking block(s)
@@ -66,32 +154,28 @@ class ThinkingCoder:
         Billing is unchanged: thinking tokens are still generated and
         billed, only the response payload is thinner. Since the thinking
         text itself will be empty in this mode, `show_thinking` has
-        nothing to print regardless of its value. Omitted by default: no
-        regression to the pre-v1.25.0 thinking_cfg shape."""
-        if effort and effort in EFFORT_BUDGETS:
-            budget_tokens = EFFORT_BUDGETS[effort]
+        nothing to print regardless of its value."""
+        use_adaptive = self._resolve_mode(adaptive, legacy_budget)
 
-        # Build betas header
-        betas = []
-
-        # thinking config
-        if adaptive:
-            thinking_cfg = {"type": "adaptive", "budget_tokens": budget_tokens}
-        else:
-            thinking_cfg = {"type": "enabled", "budget_tokens": budget_tokens}
-        if display_omitted:
-            thinking_cfg["display"] = "omitted"
-
-        kwargs = dict(
-            model=self.model,
-            max_tokens=max(self.max_tokens, budget_tokens + 1000),
-            thinking=thinking_cfg,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        kwargs = dict(model=self.model, messages=[{"role": "user", "content": prompt}])
         if system:
             kwargs["system"] = system
-        if betas:
-            kwargs["betas"] = betas
+
+        if use_adaptive:
+            thinking_cfg = {"type": "adaptive"}
+            if display_omitted:
+                thinking_cfg["display"] = "omitted"
+            kwargs["thinking"] = thinking_cfg
+            kwargs["output_config"] = {"effort": effort or "high"}
+            kwargs["max_tokens"] = self.max_tokens
+        else:
+            if effort and effort in EFFORT_BUDGETS:
+                budget_tokens = EFFORT_BUDGETS[effort]
+            thinking_cfg = {"type": "enabled", "budget_tokens": budget_tokens}
+            if display_omitted:
+                thinking_cfg["display"] = "omitted"
+            kwargs["thinking"] = thinking_cfg
+            kwargs["max_tokens"] = max(self.max_tokens, budget_tokens + 1000)
 
         resp = self.client.messages.create(**kwargs)
 
@@ -115,6 +199,28 @@ class ThinkingCoder:
             "model":     self.model,
         }
 
+    def _resolve_mode(self, adaptive: Optional[bool], legacy_budget: bool) -> bool:
+        """Returns True for adaptive mode, False for legacy manual mode.
+        Raises ThinkingModeError instead of building a request known to
+        fail with a 400."""
+        if legacy_budget:
+            if not supports_manual_budget_tokens(self.model):
+                raise ThinkingModeError(
+                    f"--effort-legacy-budget can't be used with {self.model}: "
+                    f"budget_tokens is not accepted by this model (400 error). "
+                    f"Drop --effort-legacy-budget and use --effort instead."
+                )
+            return False
+        if adaptive is not None:
+            if adaptive and not supports_adaptive_thinking(self.model):
+                raise ThinkingModeError(
+                    f"{self.model} doesn't support adaptive thinking. "
+                    f"Use --effort-legacy-budget with --thinking-budget/--effort instead."
+                )
+            return adaptive
+        # Auto-select: prefer adaptive when the model supports it.
+        return supports_adaptive_thinking(self.model)
+
     # ── Streaming with thinking ────────────────────────────────────────────
 
     def stream_with_thinking(
@@ -123,27 +229,36 @@ class ThinkingCoder:
         system: Optional[str] = None,
         budget_tokens: int = 8_000,
         effort: Optional[str] = None,
+        adaptive: Optional[bool] = None,
+        legacy_budget: bool = False,
         show_thinking: bool = False,
         display_omitted: bool = False,
     ) -> str:
         """Stream response, optionally printing thinking blocks to stderr.
 
-        `display_omitted` behaves exactly as in generate_with_thinking()
-        — see that method's docstring for the full explanation."""
-        if effort and effort in EFFORT_BUDGETS:
-            budget_tokens = EFFORT_BUDGETS[effort]
+        Mode selection and `display_omitted` behave exactly as in
+        `generate_with_thinking()` — see that method's docstring."""
+        use_adaptive = self._resolve_mode(adaptive, legacy_budget)
 
-        thinking_cfg = {"type": "enabled", "budget_tokens": budget_tokens}
-        if display_omitted:
-            thinking_cfg["display"] = "omitted"
-        kwargs = dict(
-            model=self.model,
-            max_tokens=max(self.max_tokens, budget_tokens + 1000),
-            thinking=thinking_cfg,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        kwargs = dict(model=self.model, messages=[{"role": "user", "content": prompt}])
         if system:
             kwargs["system"] = system
+
+        if use_adaptive:
+            thinking_cfg = {"type": "adaptive"}
+            if display_omitted:
+                thinking_cfg["display"] = "omitted"
+            kwargs["thinking"] = thinking_cfg
+            kwargs["output_config"] = {"effort": effort or "high"}
+            kwargs["max_tokens"] = self.max_tokens
+        else:
+            if effort and effort in EFFORT_BUDGETS:
+                budget_tokens = EFFORT_BUDGETS[effort]
+            thinking_cfg = {"type": "enabled", "budget_tokens": budget_tokens}
+            if display_omitted:
+                thinking_cfg["display"] = "omitted"
+            kwargs["thinking"] = thinking_cfg
+            kwargs["max_tokens"] = max(self.max_tokens, budget_tokens + 1000)
 
         full_response = ""
         in_thinking   = False
@@ -181,30 +296,41 @@ class ThinkingCoder:
 # ── CLI entry points ───────────────────────────────────────────────────────
 
 def cmd_thinking(prompt: str, api_key: str, model: str, budget: int,
-                 effort: str, adaptive: bool, show_thinking: bool,
-                 stream: bool, system: str = None, display_omitted: bool = False):
-    """Called from main.py --thinking"""
+                 effort: str, adaptive: Optional[bool], show_thinking: bool,
+                 stream: bool, system: str = None, display_omitted: bool = False,
+                 legacy_budget: bool = False):
+    """Called from main.py --thinking.
+
+    `adaptive`: True/False forces a mode; None (main.py's default when
+    --adaptive isn't passed) auto-selects per model. `legacy_budget`
+    (main.py's --effort-legacy-budget) forces the old manual budget_tokens
+    path, and raises a clear ThinkingModeError up front on models where
+    that's a 400 rather than sending a doomed request.
+    """
     tc = ThinkingCoder(api_key=api_key, model=model)
 
-    print(f"\033[94mℹ Extended Thinking | effort={effort or 'custom'} | budget={budget} tokens\033[0m\n")
+    mode = "adaptive" if tc._resolve_mode(adaptive, legacy_budget) else "manual budget_tokens"
+    print(f"\033[94mℹ Extended Thinking | mode={mode} | effort={effort or 'default'} | "
+          f"budget={budget} tokens (manual mode only)\033[0m\n")
 
     if stream:
         result = tc.stream_with_thinking(
             prompt, system=system, budget_tokens=budget,
-            effort=effort, show_thinking=show_thinking,
-            display_omitted=display_omitted,
+            effort=effort, adaptive=adaptive, legacy_budget=legacy_budget,
+            show_thinking=show_thinking, display_omitted=display_omitted,
         )
         return result
     else:
         result = tc.generate_with_thinking(
             prompt, system=system, budget_tokens=budget,
-            effort=effort, adaptive=adaptive, show_thinking=show_thinking,
-            display_omitted=display_omitted,
+            effort=effort, adaptive=adaptive, legacy_budget=legacy_budget,
+            show_thinking=show_thinking, display_omitted=display_omitted,
         )
         print(result["response"])
         usage = result.get("usage", {})
         if usage:
+            thinking_tokens = usage.get("output_tokens_details", {}).get("thinking_tokens", 0)
             print(f"\n\033[90m[tokens] input={usage.get('input_tokens',0)}  "
                   f"output={usage.get('output_tokens',0)}  "
-                  f"thinking={usage.get('thinking_input_tokens',0)}\033[0m")
+                  f"thinking={thinking_tokens}\033[0m")
         return result["response"]

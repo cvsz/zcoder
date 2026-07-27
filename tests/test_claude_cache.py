@@ -249,5 +249,28 @@ def test_multi_turn_cached_mid_system_rejects_unsupported_model():
         cc.multi_turn_cached(["a", "b"], mid_system_updates={0: "x"})
 
 
-def test_mid_system_supported_models_is_opus_4_8_only():
-    assert MID_SYSTEM_SUPPORTED_MODELS == {"claude-opus-4-8"}
+def test_mid_system_supported_models_matches_docs():
+    # Per platform.claude.com/docs (re-checked 2026-07-26): Fable 5, Mythos 5,
+    # and Opus 4.8 — NOT Sonnet 5 or Opus 5. Regression test for the v1.36.0
+    # fix (this set was stuck at {"claude-opus-4-8"} since v1.18.0 launch).
+    assert MID_SYSTEM_SUPPORTED_MODELS == {
+        "claude-fable-5", "claude-mythos-5", "claude-opus-4-8",
+    }
+
+
+@pytest.mark.parametrize("model", ["claude-fable-5", "claude-mythos-5"])
+def test_generate_cached_mid_system_accepts_fable5_and_mythos5(monkeypatch, model):
+    captured = {}
+
+    def fake_post(payload, diagnose=False):
+        captured["payload"] = payload
+        return _response("ok")
+
+    cc = CachingCoder(api_key="k", model=model)
+    monkeypatch.setattr(cc, "_post", fake_post)
+
+    cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}],
+                       mid_system="update instructions")
+
+    messages = captured["payload"]["messages"]
+    assert messages[1] == build_mid_system_message("update instructions")

@@ -1,6 +1,6 @@
 """
 claude_models.py — Models API + Computer Use + Adaptive/Interleaved Thinking
-AI Model Coder CLI v1.10.4
+AI Model Coder CLI v1.37.0
 
 Covers:
   • Models API  — list available models, get model info
@@ -17,8 +17,9 @@ CLI flags:
   --list-models            List all available Claude models
   --list-models-legacy     Include superseded (still-callable) models in the list
   --model-info ID          Get capabilities and context window for a model
-                           (also checks the retired-model registry first)
-  --check-deprecated PATH  Scan a file or directory for retired model ID strings
+                           (also checks the retired- and deprecated-model registries first)
+  --check-deprecated PATH  Scan a file or directory for retired AND deprecated
+                           (announced, not-yet-retired) model ID strings
   --computer-use PROMPT    Run a computer use task
   --adaptive-thinking      Enable adaptive thinking (model decides depth)
   --interleaved-thinking   Enable thinking between tool calls
@@ -50,6 +51,17 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # tier:     "mythos" (above Opus) | "current" | "legacy" (superseded, still callable)
 
 MODEL_CATALOG: dict = {
+    "claude-opus-5": {
+        "display_name": "Claude Opus 5", "tier": "current",
+        "context_window": 1_000_000, "max_output": 128_000,
+        "price_in": 5.0, "price_out": 25.0,
+        "thinking": "adaptive", "effort_default": None,
+        "notes": "Launched 2026-07-24, a step-change over Opus 4.8 at the same "
+                 "price. Thinking on by default. Full effort ladder (low/medium/"
+                 "high/xhigh/max). Breaking change vs. Opus 4.8: disabling thinking "
+                 "(thinking.type='disabled') is only allowed at effort high or "
+                 "below -- xhigh or max with thinking disabled returns a 400.",
+    },
     "claude-mythos-5": {
         "display_name": "Claude Mythos 5", "tier": "mythos",
         "context_window": 1_000_000, "max_output": 128_000,
@@ -138,11 +150,42 @@ TIER_ORDER = ["mythos", "current", "legacy"]
 # ever sent `speed: "fast"`. Per platform.claude.com/docs (checked
 # 2026-07-02): fast mode sends `speed: "fast"` on the request, is currently
 # restricted to Opus models, and is billed at a premium rate ($10/$50 per
-# MTok on Opus 4.8 vs. its $5/$25 standard rate). Deprecated on Opus 4.7
-# (removed 2026-07-24); Opus 4.8 is the current supported target. Not
-# available on the Batch API.
-FAST_MODE_SUPPORTED = {"claude-opus-4-8"}
-FAST_MODE_DEPRECATED = {"claude-opus-4-7"}  # still works but removed 2026-07-24
+# MTok on Opus 4.8 vs. its $5/$25 standard rate). Not available on the
+# Batch API.
+#
+# Fast mode's *removal* behavior differs by model, checked against the
+# July 24, 2026 and June 29, 2026 release notes:
+#   - Opus 4.7 (removed 2026-07-24): speed:"fast" now returns an ERROR.
+#     Unlike Opus 4.6, it does NOT fall back to standard speed.
+#   - Opus 4.6 (removed 2026-06-29): speed:"fast" is silently ignored --
+#     the request runs at standard speed/pricing with no error.
+# Both sets used to be represented by a single unused FAST_MODE_DEPRECATED
+# constant that nothing ever actually checked against — coder.py sent
+# speed:"fast" unconditionally whenever --fast-mode was passed, regardless
+# of model. See validate_fast_mode() below, wired into coder.Coder.generate().
+FAST_MODE_SUPPORTED = {"claude-opus-5", "claude-opus-4-8"}
+FAST_MODE_REMOVED_ERROR = {"claude-opus-4-7"}
+FAST_MODE_REMOVED_SILENT = {"claude-opus-4-6"}
+
+
+def validate_fast_mode(model_id: str) -> Optional[str]:
+    """Return None if `speed: "fast"` is safe to send for model_id, or a
+    human-readable reason string if it isn't (or won't do what the caller
+    expects). Callers should treat FAST_MODE_REMOVED_ERROR as a hard stop
+    (don't send the request — it will 400) and FAST_MODE_REMOVED_SILENT as
+    a warning (safe to send, but it silently runs at standard speed/price,
+    not fast)."""
+    if model_id in FAST_MODE_REMOVED_ERROR:
+        return (f"fast mode was removed for {model_id} on 2026-07-24 and now "
+                f"returns an error (unlike Opus 4.6, it does not fall back to "
+                f"standard speed) -- use claude-opus-5 or claude-opus-4-8 instead")
+    if model_id in FAST_MODE_REMOVED_SILENT:
+        return (f"fast mode was removed for {model_id} on 2026-06-29 -- the "
+                f"request will run at standard speed and standard pricing, "
+                f"not fast, with no error")
+    if model_id not in FAST_MODE_SUPPORTED:
+        return f"fast mode is not supported on {model_id}"
+    return None
 
 # ── Priority Tier / service_tier ────────────────────────────────────────────
 # Was entirely absent from the project. Per platform.claude.com/docs/en/
@@ -218,6 +261,37 @@ def check_retired(model_id: str) -> Optional[dict]:
     known-retired ID. Matched against RETIRED_MODELS only — an unknown ID
     that isn't in MODEL_CATALOG either is just unrecognized, not retired."""
     return RETIRED_MODELS.get(model_id)
+
+
+# ── Deprecated (announced, not yet retired) models ──────────────────────────
+# Distinct from RETIRED_MODELS: these IDs still work today but Anthropic has
+# published a future retirement date for them. Added v1.37.0 after the
+# project's own model catalog was found to have no way to represent this
+# state at all — check_retired() only covers "already 404s", so an ID like
+# claude-opus-4-1-20250805, which was never in MODEL_CATALOG to begin with,
+# had nowhere to go even though its retirement is now on the calendar.
+# Per platform.claude.com/docs/en/about-claude/model-deprecations, checked
+# 2026-07-27.
+DEPRECATED_MODELS: dict = {
+    "claude-opus-4-1-20250805": {
+        "display_name": "Claude Opus 4.1",
+        "deprecation_announced": "2026-06-05",
+        "retirement_scheduled": "2026-08-05",
+        "replacement": "claude-opus-4-8",
+        "notes": "Not in MODEL_CATALOG (predates this project's catalog scope) — "
+                 "listed here purely so --model-info on this ID surfaces the "
+                 "warning instead of falling through to a bare live-API lookup.",
+    },
+}
+
+
+def check_deprecated(model_id: str) -> Optional[dict]:
+    """Return the deprecation record for model_id if Anthropic has announced
+    a future retirement date for it, or None. A model can appear here and
+    still work fine today — this is an early-warning check, not a block.
+    Once the retirement date passes, move the entry to RETIRED_MODELS
+    instead (this dict is not auto-expired)."""
+    return DEPRECATED_MODELS.get(model_id)
 
 
 # ── Models API ─────────────────────────────────────────────────────────────
@@ -298,6 +372,17 @@ def cmd_model_info(model_id: str, api_key: str):
               f"just the local retirement record. Continuing to check the live "
               f"API and local catalog below in case the record above is stale:\n")
 
+    deprecated = check_deprecated(model_id)
+    if deprecated:
+        print(f"\n  \033[93m⚠ {model_id} is deprecated, retiring "
+              f"{deprecated['retirement_scheduled']}\033[0m")
+        print(f"    Was:            {deprecated['display_name']}")
+        print(f"    Announced:      {deprecated['deprecation_announced']}")
+        print(f"    Migrate to:     {deprecated['replacement']}")
+        print(f"    Notes:          {deprecated['notes']}")
+        print(f"\n  Still works today — this is an early warning, not a failure. "
+              f"Continuing below:\n")
+
     ma = ModelsAPI(api_key=api_key)
     try:
         m = ma.get_model(model_id)
@@ -350,12 +435,19 @@ def cmd_check_deprecated(path: str):
     """Scan a file or directory for retired model ID strings and report
     migration targets. Text-based grep, not an AST — matches Anthropic's
     own documented migration advice to grep the whole codebase (API calls,
-    env files, CI configs), not just the primary call site."""
+    env files, CI configs), not just the primary call site.
+
+    Also flags DEPRECATED_MODELS hits (v1.37.0) — IDs with an announced
+    future retirement date that still work today. These are reported
+    separately from RETIRED_MODELS hits since they aren't a build-breaking
+    problem yet, just a heads-up before they become one."""
     import os
     import re
 
-    targets = list(RETIRED_MODELS.keys())
-    pattern = re.compile("|".join(re.escape(t) for t in targets))
+    retired_targets = list(RETIRED_MODELS.keys())
+    deprecated_targets = list(DEPRECATED_MODELS.keys())
+    all_targets = retired_targets + deprecated_targets
+    pattern = re.compile("|".join(re.escape(t) for t in all_targets))
 
     if os.path.isfile(path):
         files = [path]
@@ -377,20 +469,38 @@ def cmd_check_deprecated(path: str):
         except (IsADirectoryError, PermissionError):
             continue
 
-    if not hits:
-        print(f"\n\033[92m✓ No retired model IDs found under {path}\033[0m")
+    retired_hits = {k: v for k, v in hits.items() if k in RETIRED_MODELS}
+    deprecated_hits = {k: v for k, v in hits.items() if k in DEPRECATED_MODELS}
+
+    if not retired_hits and not deprecated_hits:
+        print(f"\n\033[92m✓ No retired or deprecated model IDs found under {path}\033[0m")
         return
 
-    print(f"\n\033[91m⚠ Retired model IDs found under {path}\033[0m\n")
-    for model_id, locations in hits.items():
-        rec = RETIRED_MODELS[model_id]
-        print(f"  \033[1m{model_id}\033[0m — retired {rec['retired']}, "
-              f"migrate to \033[92m{rec['replacement']}\033[0m")
-        for fp, lineno in locations[:5]:
-            print(f"    {fp}:{lineno}")
-        if len(locations) > 5:
-            print(f"    ... and {len(locations) - 5} more")
-        print()
+    if retired_hits:
+        print(f"\n\033[91m⚠ Retired model IDs found under {path}\033[0m\n")
+        for model_id, locations in retired_hits.items():
+            rec = RETIRED_MODELS[model_id]
+            print(f"  \033[1m{model_id}\033[0m — retired {rec['retired']}, "
+                  f"migrate to \033[92m{rec['replacement']}\033[0m")
+            for fp, lineno in locations[:5]:
+                print(f"    {fp}:{lineno}")
+            if len(locations) > 5:
+                print(f"    ... and {len(locations) - 5} more")
+            print()
+
+    if deprecated_hits:
+        print(f"\n\033[93m⚠ Deprecated model IDs found under {path} "
+              f"(still work today, retiring soon)\033[0m\n")
+        for model_id, locations in deprecated_hits.items():
+            rec = DEPRECATED_MODELS[model_id]
+            print(f"  \033[1m{model_id}\033[0m — retiring "
+                  f"{rec['retirement_scheduled']}, migrate to "
+                  f"\033[92m{rec['replacement']}\033[0m")
+            for fp, lineno in locations[:5]:
+                print(f"    {fp}:{lineno}")
+            if len(locations) > 5:
+                print(f"    ... and {len(locations) - 5} more")
+            print()
 
 
 # ── Upgrade all ─────────────────────────────────────────────────────────────
@@ -423,8 +533,13 @@ MODEL_ID_ALIASES = {
 def _upgrade_source_ids(target_id: str) -> list:
     """Every model ID string this project knows about except the target
     itself, longest-first so no shorter alias can partially shadow a
-    longer one when both would otherwise match at the same position."""
-    ids = set(RETIRED_MODELS.keys()) | set(MODEL_CATALOG.keys()) | set(MODEL_ID_ALIASES.keys())
+    longer one when both would otherwise match at the same position.
+    Includes DEPRECATED_MODELS (v1.37.0) — a still-callable-but-announced
+    ID like claude-opus-4-1-20250805 is exactly the kind of reference
+    --upgrade-all exists to clear out before it becomes a RETIRED_MODELS
+    problem instead."""
+    ids = (set(RETIRED_MODELS.keys()) | set(MODEL_CATALOG.keys())
+           | set(MODEL_ID_ALIASES.keys()) | set(DEPRECATED_MODELS.keys()))
     ids.discard(target_id)
     return sorted(ids, key=len, reverse=True)
 

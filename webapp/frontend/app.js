@@ -27,9 +27,6 @@ const healthText        = el("healthText");
 const themeToggle        = el("themeToggle");
 const sessionList        = el("sessionList");
 const streamToggle       = el("streamToggle");
-const fileUploadInput    = el("fileUploadInput");
-const fileUploadBtn      = el("fileUploadBtn");
-const fileUploadStatus   = el("fileUploadStatus");
 
 let sessionId = null;
 let busy = false;
@@ -278,31 +275,6 @@ newSessionBtn.addEventListener("click", () => {
   sessionId = null;
   sessionIdTag.textContent = "new";
   transcript.innerHTML = `<div class="welcome"><p><span class="prompt-sym">&gt;</span> new session started.</p></div>`;
-});
-
-fileUploadBtn.addEventListener("click", async () => {
-  const file = fileUploadInput.files && fileUploadInput.files[0];
-  if (!file || busy) return;
-  const form = new FormData();
-  form.append("file", file);
-  form.append("model", modelSelect.value || "claude-sonnet-5");
-  const key = apiKeyInput.value.trim();
-  if (key) form.append("api_key", key);
-  fileUploadBtn.disabled = true;
-  fileUploadStatus.textContent = "uploading…";
-  try {
-    const response = await fetch(API + "/files/upload", { method: "POST", body: form });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || `upload -> HTTP ${response.status}`);
-    fileUploadStatus.textContent = `uploaded: ${data.id}`;
-    addMessage("assistant", `File uploaded: \`${data.filename}\`\n\nFile ID: \`${data.id}\``);
-    fileUploadInput.value = "";
-  } catch (error) {
-    fileUploadStatus.textContent = "upload failed";
-    addMessage("error", `File upload failed: ${error.message || error}`);
-  } finally {
-    fileUploadBtn.disabled = false;
-  }
 });
 
 promptInput.addEventListener("keydown", (e) => {

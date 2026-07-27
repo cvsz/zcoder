@@ -1,9 +1,16 @@
 """
 claude_structured.py — Structured Outputs
-AI Model Coder CLI v1.8.0
+AI Model Coder CLI v1.30.0
 
 Force Claude to respond in validated JSON matching a schema.
-Uses the output_config.format parameter (GA on Sonnet 4.5+, Opus 4.1+).
+Uses the output_config.format parameter — GA on the Claude API for
+Claude Fable 5, Claude Mythos 5, Claude Opus 4.8, Claude Mythos Preview,
+Claude Opus 4.7, Claude Opus 4.6, Claude Sonnet 5, Claude Sonnet 4.6,
+Claude Sonnet 4.5, Claude Opus 4.5, and Claude Haiku 4.5. No beta header
+required (the old structured-outputs-2025-11-13 header still works
+during Anthropic's transition period, but sending it unconditionally on
+every request is dead weight now that GA doesn't need it — removed in
+v1.30.0, see docs/42_upgrade_v1.30.0.md).
 
 Modes:
   • json_object   — Any valid JSON object (no schema)
@@ -33,7 +40,6 @@ class StructuredCoder:
     """Claude client for structured / JSON outputs."""
 
     ENDPOINT = "https://api.anthropic.com/v1/messages"
-    BETA     = "output-128k-2025-02-19"
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5",
                  max_tokens: int = 4096):
@@ -47,7 +53,6 @@ class StructuredCoder:
             "Content-Type":    "application/json",
             "x-api-key":       self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta":  "structured-outputs-2025-11-13",
         }
         req = urllib.request.Request(
             self.ENDPOINT,

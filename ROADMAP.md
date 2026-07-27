@@ -1,13 +1,34 @@
 # ROADMAP.md
 
-**AI Model Coder CLI (zcoder) — v1.29.0**
-Last audited against `platform.claude.com/docs`: 2026-07-13 (memory store
-beta-header regression fix + memory/memory-store CRUD)
+**AI Model Coder CLI (zcoder) — v1.32.0**
+Last audited against `platform.claude.com/docs`: 2026-07-26 (release
+notes overview, full July 14→24 window — see
+`docs/44_upgrade_v1.32.0_release_validation.md`)
 
-v1.29.0 was a front-end deep-dive (Textual TUI + web console
-streaming/sessions/theme/hardening — see `CHANGELOG.md` and
-`docs/41_upgrade_v1.29.0.md`), not a re-run of the docs gap-audit below;
-the "last audited" date above is unchanged from v1.27.0.
+v1.32.0 re-fetched `platform.claude.com/docs/en/release-notes/overview`
+directly and found **Claude Opus 5** (launched 2026-07-24) entirely
+missing from `claude_models.MODEL_CATALOG`, plus a real bug: fast-mode
+removal-behavior constants (`FAST_MODE_SUPPORTED`/`FAST_MODE_DEPRECATED`)
+existed in `claude_models.py` but nothing ever checked them —
+`coder.py` sent `speed:"fast"` unconditionally regardless of model, even
+though Opus 4.7's fast mode was hard-removed (error) on 2026-07-24 while
+Opus 4.6's was silently downgraded (no error) on 2026-06-29. Also added
+the `fallbacks` parameter's new `"default"` mode. See
+`docs/44_upgrade_v1.32.0_release_validation.md`. v1.31.0 was a
+CLI-to-API *wiring* audit — cross-referencing every `claude_*.py`
+module's own `cmd_*` functions against `main.py`'s dispatch, rather than
+against platform.claude.com/docs. Found four fully-implemented, fully
+undocumented-in-`main.py` modules (`claude_github.py`,
+`claude_router.py`, `claude_prompt_optimizer.py`, `claude_metrics.py`) —
+see `docs/43_upgrade_v1.31.0_cli_wiring_audit.md`. v1.30.0 re-ran the
+docs gap-audit against
+`build-with-claude/extended-thinking` and `.../adaptive-thinking`
+directly and found `--thinking` was sending a request shape that 400s
+on 5 of 9 models in `claude_models.MODEL_CATALOG` — see `CHANGELOG.md`
+and `docs/42_upgrade_v1.30.0.md` for the full writeup. v1.29.0 was a
+front-end deep-dive (Textual TUI + web console
+streaming/sessions/theme/hardening — see `docs/41_upgrade_v1.29.0.md`),
+not a docs re-audit.
 
 This roadmap has two parts:
 
@@ -30,17 +51,17 @@ different name either.
 ### Models & model metadata
 | Feature | Module | Notes |
 |---|---|---|
-| Model catalog (Opus 4.8, Sonnet 5, Haiku 4.5, legacy tiers) | `claude_models.py` | Local cache + live `/v1/models` |
+| Model catalog (Opus 5, Opus 4.8, Sonnet 5, Haiku 4.5, legacy tiers) | `claude_models.py` | Local cache + live `/v1/models` |
 | Claude Fable 5 / Claude Mythos 5 | `claude_fable5.py`, `claude_mythos5.py` | Refusal detection, client-side fallback, fallback-credit header |
 | Retired-model registry / deprecation scanner | `claude_models.py` | `--check-deprecated PATH` |
 | Computer use | `claude_models.py` | `--computer-use PROMPT` |
-| Adaptive / interleaved thinking, fast mode, effort levels | `claude_models.py`, `claude_thinking.py` | |
+| Adaptive / interleaved thinking, fast mode, effort levels | `claude_models.py`, `claude_thinking.py` | Mode auto-selected per model *(fixed v1.30.0 — see docs/42)* |
 
 ### Core Messages API features
 | Feature | Module |
 |---|---|
-| Extended thinking | `claude_thinking.py` |
-| Structured outputs | `claude_structured.py` |
+| Extended thinking | `claude_thinking.py` *(adaptive/effort routing fixed v1.30.0)* |
+| Structured outputs | `claude_structured.py` *(stale beta header removed v1.30.0)* |
 | Citations | `claude_citations.py` |
 | Streaming | `claude_stream.py` |
 | Batch processing | `claude_batch.py` |
@@ -128,6 +149,14 @@ Git integration, GitHub integration, cost optimizer, observability/metrics,
 research (deep research style multi-source), RAG, evals, workflows,
 sessions, personalities, interactive REPL, artifacts, projects, resilience
 (retry/circuit breaker), security scanning.
+
+*Note (v1.31.0):* "GitHub integration," "multi-agent router," "prompt
+optimizer," and "local metrics" were listed here as covered — accurately,
+in the sense that the modules existed and worked — but weren't actually
+*reachable*: `main.py` had no CLI flags for any of `claude_github.py`,
+`claude_router.py`, `claude_prompt_optimizer.py`, or `claude_metrics.py`
+until this cycle wired them. See
+`docs/43_upgrade_v1.31.0_cli_wiring_audit.md`.
 
 Full per-flag reference: see `README.md`.
 
@@ -701,3 +730,12 @@ Where a docstring claimed coverage that the grep didn't confirm, the grep
 won — except where the grep itself was wrong (see the Cache diagnostics
 correction above): confirm with a second, differently-worded grep before
 concluding a feature is missing, not just one pattern match.
+
+## Note on cycles after v1.27.0
+
+Audit cycles from v1.28.0 through v1.36.0 are documented in `CHANGELOG.md`
+(high-level index) and their individual `docs/*_upgrade_*.md` writeups
+rather than as new sections in this file — this file's Part 2 gap-audit
+narrative wasn't kept current past v1.27.0 in practice, matching the same
+pattern `CHECKLIST.md` notes about itself. `CHANGELOG.md` is the
+authoritative index of every cycle in order.

@@ -14,6 +14,7 @@ from claude_fable5 import (
     estimate_cost_usd,
     parse_fallback_chain,
     FABLE5_MODEL_ID,
+    SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER,
 )
 
 
@@ -222,4 +223,39 @@ def test_estimate_cost_usd_known_model():
 
 
 def test_estimate_cost_usd_unknown_model():
-    assert estimate_cost_usd("not-a-real-model", 100, 100) is None
+    assert estimate_cost_usd("not-a-real-model", 100, 100) is None
+
+# -- v1.32.0: fallbacks "default" mode (added 2026-07-24) ----------------
+
+
+def test_fallback_default_mode_attached_to_call_payload():
+    client = Fable5Client(api_key="k", fallback_chain="default")
+    captured = {}
+
+    def fake_post(payload, extra_headers=None):
+        captured["payload"] = payload
+        captured["headers"] = extra_headers
+        return _response()
+
+    client._post = fake_post
+    client.call("hi")
+
+    assert captured["payload"]["fallbacks"] == "default"
+    assert captured["headers"] == {"anthropic-beta": SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER}
+
+
+def test_fallback_default_mode_not_attached_on_explicit_model_override():
+    client = Fable5Client(api_key="k", fallback_chain="default")
+    captured = {}
+    client._post = lambda payload, extra_headers=None: (captured.update(payload=payload, headers=extra_headers) or _response())
+
+    client.call("hi", model="claude-sonnet-5")
+
+    assert "fallbacks" not in captured["payload"]
+    assert captured["headers"] is None
+
+
+def test_parse_fallback_chain_recognizes_default_case_insensitively():
+    assert parse_fallback_chain("default") == "default"
+    assert parse_fallback_chain("Default") == "default"
+    assert parse_fallback_chain("DEFAULT") == "default"
