@@ -23,7 +23,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from personalities import PERSONALITIES
 
-VERSION = "1.38.0"
+VERSION = "1.39.0"
 BANNER  = f"\033[94mAI Model Coder CLI v{VERSION}\033[0m"
 
 # Named agent roles. Previously these seven names only existed as a
@@ -842,6 +842,58 @@ def build_parser():
                     help="Read a self-hosted environment's work queue state: how many "
                          "sessions are waiting (depth), being processed (pending), and "
                          "whether a worker is actually connected (workers_polling)")
+
+    ag.add_argument("--agent-create", metavar="NAME", dest="agent_create",
+                    help="Create a persisted, versioned Managed Agent NAME (v1.38.0, "
+                         "public beta) -- pair with --model and --agent-system")
+    ag.add_argument("--agent-system", metavar="TEXT", dest="agent_system",
+                    default="You are a helpful coding assistant.",
+                    help="System prompt for --agent-create/--agent-update")
+    ag.add_argument("--agent-effort", metavar="LEVEL", dest="agent_effort",
+                    default="", help="Effort level for --agent-create/--agent-update "
+                         "(v1.38.0, public beta)")
+    ag.add_argument("--agent-get", metavar="AGENT_ID", dest="agent_get",
+                    help="Retrieve a Managed Agent's stored config (v1.38.0, public beta)")
+    ag.add_argument("--agent-get-version", type=int, metavar="N", dest="agent_get_version",
+                    help="With --agent-get: read a specific prior version instead of current")
+    ag.add_argument("--agent-list", action="store_true", dest="agent_list",
+                    help="List Managed Agents in the workspace (v1.38.0, public beta)")
+    ag.add_argument("--agent-list-limit", type=int, default=50, dest="agent_list_limit",
+                    help="With --agent-list: max results (default 50)")
+    ag.add_argument("--agent-update", metavar="AGENT_ID", dest="agent_update",
+                    help="Update a persisted agent, creating a new version (v1.38.0, "
+                         "public beta) -- pair with --model/--agent-system/--agent-effort")
+    ag.add_argument("--agent-inference-geo", metavar="GEO", dest="agent_inference_geo",
+                    default="", choices=["", "us", "global"],
+                    help="With --agent-create/--agent-update: pin the Managed Agent's "
+                         "model.inference_geo (v1.39.0, public beta). 'us' keeps "
+                         "inference US-only at a 1.1x price multiplier; 'global' runs "
+                         "wherever there's capacity at the standard rate. Distinct from "
+                         "the top-level --inference-geo flag, which is the Messages API "
+                         "field (different request shape).")
+
+    ag.add_argument("--agent-session-budget-usd", type=float, metavar="DOLLARS",
+                    dest="agent_session_budget_usd",
+                    help="With --agent-managed-run: set a hard USD spend cap on the "
+                         "throwaway session (v1.39.0, public beta). The session pauses "
+                         "with stop_reason=budget_reached instead of terminating once "
+                         "reached -- see --agent-session-budget-set/--agent-session-get "
+                         "to change or inspect it afterward. Not the same as "
+                         "--task-budget (an advisory token budget for the Advisor "
+                         "Tool's agentic loop) or --thinking-budget.")
+    ag.add_argument("--agent-session-get", metavar="SESSION_ID", dest="agent_session_get",
+                    help="Inspect a Managed Agents session's status, stop_reason, "
+                         "budget, and consumed spend (v1.39.0, public beta)")
+    ag.add_argument("--agent-session-budget-set", metavar="SESSION_ID",
+                    dest="agent_session_budget_set",
+                    help="Replace SESSION_ID's spend budget -- pair with "
+                         "--agent-session-budget-usd for the new cap. Resumes the "
+                         "session automatically if it was paused at budget_reached.")
+    ag.add_argument("--agent-session-budget-remove", metavar="SESSION_ID",
+                    dest="agent_session_budget_remove",
+                    help="Remove SESSION_ID's spend budget entirely (one-way -- the "
+                         "session can never be given a new budget afterward). Resumes "
+                         "the session automatically if it was paused at budget_reached.")
 
     cw = p.add_argument_group("Cowork")
     cw.add_argument("--cowork", metavar="TYPE")
@@ -2101,7 +2153,40 @@ def main():
                               outcome_max_iterations=args.agent_outcome_max_iter,
                               vault_id=args.agent_vault or None,
                               agent_overrides=agent_overrides,
-                              stream_deltas=args.agent_stream_deltas); return
+                              stream_deltas=args.agent_stream_deltas,
+                              budget_usd_cents=(round(args.agent_session_budget_usd * 100)
+                                                if args.agent_session_budget_usd else None)); return
+    if args.agent_create:
+        from claude_agents_sdk import cmd_agent_create
+        cmd_agent_create(args.agent_create, key, model=model, system=args.agent_system,
+                         effort=args.agent_effort or None,
+                         inference_geo=args.agent_inference_geo or None); return
+    if args.agent_get:
+        from claude_agents_sdk import cmd_agent_get
+        cmd_agent_get(args.agent_get, key, version=args.agent_get_version); return
+    if args.agent_list:
+        from claude_agents_sdk import cmd_agent_list
+        cmd_agent_list(key, limit=args.agent_list_limit); return
+    if args.agent_update:
+        from claude_agents_sdk import cmd_agent_update
+        cmd_agent_update(args.agent_update, key,
+                         model=model if model else None,
+                         effort=args.agent_effort or None,
+                         system=args.agent_system or None,
+                         inference_geo=args.agent_inference_geo or None); return
+    if args.agent_session_get:
+        from claude_agents_sdk import cmd_agent_session_get
+        cmd_agent_session_get(args.agent_session_get, key); return
+    if args.agent_session_budget_set:
+        from claude_agents_sdk import cmd_agent_session_budget_set
+        if not args.agent_session_budget_usd:
+            print("[ERROR] --agent-session-budget-set requires "
+                  "--agent-session-budget-usd DOLLARS"); sys.exit(1)
+        cmd_agent_session_budget_set(args.agent_session_budget_set, key,
+                                     round(args.agent_session_budget_usd * 100)); return
+    if args.agent_session_budget_remove:
+        from claude_agents_sdk import cmd_agent_session_budget_remove
+        cmd_agent_session_budget_remove(args.agent_session_budget_remove, key); return
     if args.agent_memory_store_create:
         from claude_agents_sdk import cmd_agent_memory_store_create
         if not args.agent_memory_store:
