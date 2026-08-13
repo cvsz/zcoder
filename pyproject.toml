@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zcoder"
-version = "1.37.0"
+version = "1.38.0"
 description = "AI Model Coder CLI — enterprise-grade edition"
 readme = "README.md"
 requires-python = ">=3.9"

@@ -691,7 +691,8 @@ class ManagedAgentsClient:
     def create_agent(self, name: str, model: str = "claude-opus-4-8",
                      system: str = "You are a helpful coding assistant.",
                      tools: Optional[list] = None,
-                     multiagent: Optional[dict] = None) -> dict:
+                     multiagent: Optional[dict] = None,
+                     effort: Optional[str] = None) -> dict:
         """Create a persisted, versioned Agent config. tools defaults to the
         full pre-built agent_toolset_20260401 (bash, file ops, web search,
         etc.) if not given.
@@ -701,16 +702,94 @@ class ManagedAgentsClient:
         build_multiagent_config()) declaring up to 20 other agents it can
         delegate to at runtime, sharing one sandbox filesystem and event
         stream within a single session. Omitted by default — no change to
-        the existing single-agent behavior when not given."""
+        the existing single-agent behavior when not given.
+
+        `effort` (v1.38.0, public beta), when given, is folded into the
+        agent's model config as `model={"id": model, "effort": effort}`
+        per platform.claude.com/docs' July 22, 2026 release note. Omitted
+        by default — `model` is sent as the bare {"id": model} dict,
+        unchanged from pre-v1.38.0 behavior, and the platform applies its
+        own default effort for `model` when not given."""
         tools = tools or [{"type": "agent_toolset_20260401"}]
         kwargs = {}
         if multiagent is not None:
             kwargs["multiagent"] = multiagent
+        model_config = {"id": model}
+        if effort is not None:
+            model_config["effort"] = effort
         agent = self.client.beta.agents.create(
-            name=name, model={"id": model}, system=system, tools=tools,
+            name=name, model=model_config, system=system, tools=tools,
             betas=[MANAGED_AGENTS_BETA], **kwargs,
         )
-        return {"id": agent.id, "name": name, "model": model}
+        return {"id": agent.id, "name": name, "model": model, "effort": effort}
+
+    def get_agent(self, agent_id: str, version: Optional[int] = None) -> dict:
+        """Retrieve an agent's stored config. GET /v1/agents/{id}, or
+        GET /v1/agents/{id}/versions/{version} when `version` is given to
+        read a specific prior version rather than the current one (v1.38.0,
+        public beta — see update_agent() for how versions are created)."""
+        kwargs = {"betas": [MANAGED_AGENTS_BETA]}
+        if version is not None:
+            agent = self.client.beta.agents.versions.retrieve(
+                agent_id, version, **kwargs,
+            )
+        else:
+            agent = self.client.beta.agents.retrieve(agent_id, **kwargs)
+        return {"id": agent_id, "version": version, "raw": agent}
+
+    def list_agents(self, limit: int = 50, page: Optional[str] = None) -> dict:
+        """List agents in the workspace, newest first (v1.38.0, public
+        beta). GET /v1/agents. Pass the `page` cursor from a previous call
+        to continue paginating."""
+        kwargs = {"limit": limit, "betas": [MANAGED_AGENTS_BETA]}
+        if page is not None:
+            kwargs["page"] = page
+        result = self.client.beta.agents.list(**kwargs)
+        return {"raw": result}
+
+    def update_agent(self, agent_id: str, name: Optional[str] = None,
+                     model: Optional[str] = None, effort: Optional[str] = None,
+                     system: Optional[str] = None, tools: Optional[list] = None,
+                     multiagent: Optional[dict] = None,
+                     version: Optional[int] = None) -> dict:
+        """Update a persisted agent's config, creating a new version. POST
+        /v1/agents/{id} (v1.38.0, public beta). Any field left as None is
+        left unchanged from the agent's current version — only fields
+        actually given are sent.
+
+        `version` pins which existing version this update is layered on
+        top of; per platform.claude.com/docs' July 22, 2026 release note,
+        `version` is now optional — omitted (the default), the platform
+        updates on top of whichever version is current at the time the
+        request is received, instead of requiring the caller to look it
+        up and pass it explicitly first.
+
+        `effort` sets/replaces the effort inside the agent's model config;
+        passing `model` without `effort` (or vice versa) only touches the
+        field given — the other stays whatever the agent already has, since
+        the two are merged into one `model` dict here rather than the
+        caller needing to resend both every time."""
+        kwargs = {"betas": [MANAGED_AGENTS_BETA]}
+        if version is not None:
+            kwargs["version"] = version
+        if name is not None:
+            kwargs["name"] = name
+        if system is not None:
+            kwargs["system"] = system
+        if tools is not None:
+            kwargs["tools"] = tools
+        if multiagent is not None:
+            kwargs["multiagent"] = multiagent
+        if model is not None or effort is not None:
+            model_config = {}
+            if model is not None:
+                model_config["id"] = model
+            if effort is not None:
+                model_config["effort"] = effort
+            kwargs["model"] = model_config
+        agent = self.client.beta.agents.update(agent_id, **kwargs)
+        return {"id": agent_id, "name": name, "model": model, "effort": effort,
+                "version": getattr(agent, "version", None)}
 
     def create_environment(self, name: str, networking: str = "unrestricted",
                            env_type: str = "cloud") -> dict:
@@ -938,7 +1017,8 @@ class ManagedAgentsClient:
     def create_session(self, agent_id: str, environment_id: str, title: str = "",
                        memory_store_id: Optional[str] = None,
                        vault_ids: Optional[list] = None,
-                       agent_overrides: Optional[dict] = None) -> dict:
+                       agent_overrides: Optional[dict] = None,
+                       initial_events: Optional[list] = None) -> dict:
         """Create a session. If `memory_store_id` is given, mount that
         memory store as a session resource so the agent can read/write it
         through normal file tools — no memory-tool handler code required
@@ -964,7 +1044,17 @@ class ManagedAgentsClient:
         except `model` (never clearable — the API 400s) — that
         restriction is enforced server-side, not here. Omitted entirely
         (the default), `agent` is sent as the bare agent_id string,
-        unchanged from pre-v1.22.0 behavior."""
+        unchanged from pre-v1.22.0 behavior.
+
+        `initial_events` (v1.38.0, public beta), when given, seeds the
+        new session with up to 50 events (e.g. user.message,
+        user.define_outcome) on POST /v1/sessions itself, so the session
+        starts working immediately instead of sitting idle until a
+        separate events.send() call. This is distinct from
+        create_scheduled_deployment()'s `initial_events` field, which
+        seeds each session a cron schedule spins up rather than a
+        one-off session created directly here. Omitted by default — no
+        change to the pre-v1.38.0 behavior of creating an idle session."""
         resources = None
         betas = [MANAGED_AGENTS_BETA]
         if memory_store_id:
@@ -973,6 +1063,13 @@ class ManagedAgentsClient:
         kwargs = {}
         if vault_ids:
             kwargs["vault_ids"] = vault_ids
+        if initial_events:
+            if len(initial_events) > 50:
+                raise ValueError(
+                    f"initial_events supports at most 50 events "
+                    f"(got {len(initial_events)})"
+                )
+            kwargs["initial_events"] = initial_events
         agent_param = agent_id
         if agent_overrides:
             agent_param = {"type": "agent_with_overrides", "id": agent_id, **agent_overrides}
@@ -984,6 +1081,7 @@ class ManagedAgentsClient:
             "id": session.id, "agent_id": agent_id,
             "environment_id": environment_id, "memory_store_id": memory_store_id,
             "vault_ids": vault_ids, "agent_overrides": agent_overrides,
+            "initial_events": initial_events,
         }
 
     # ── Vaults & credentials (v1.21.0, public beta) ──────────────────────
@@ -1350,6 +1448,50 @@ class ManagedAgentsClient:
                 elif event.type == "session.status_idle":
                     break
         return {"text": "".join(text_parts), "result": result_state}
+
+    def stream_thread(self, session_id: str, thread_id: str,
+                      stream_deltas: bool = True) -> dict:
+        """Stream a single subagent thread's own event feed within a
+        multiagent/coordinator session (v1.38.0, public beta) — GET
+        /v1/sessions/{id}/threads/{thread_id}/stream, distinct from
+        wait_for_outcome()'s session-level stream, which only ever sees
+        the coordinator's own events plus terminal outcome spans, not a
+        given subagent's in-progress output. Use this to preview a
+        specific delegate's work (e.g. one specialist from
+        build_multiagent_config()'s roster) while it's still running,
+        rather than waiting for it to hand a result back to the
+        coordinator.
+
+        `stream_deltas` defaults to True here (unlike wait_for_outcome(),
+        where it defaults to False) since previewing a thread's live
+        output is the whole point of calling this rather than
+        wait_for_outcome() — pass False to only see thread-level
+        event_start/event_end markers with no interleaved text.
+        Returns the accumulated thread text plus the final thread
+        status once the thread reaches a terminal state."""
+        text_parts: list[str] = []
+        thread_status = None
+        stream_kwargs = {"event_deltas": ["text"]} if stream_deltas else {}
+        with self.client.beta.sessions.threads.stream(
+            session_id, thread_id, betas=[MANAGED_AGENTS_BETA], **stream_kwargs
+        ) as stream:
+            for event in stream:
+                if event.type == "agent.message":
+                    for block in event.content:
+                        if getattr(block, "text", None):
+                            text_parts.append(block.text)
+                elif event.type == "event_delta":
+                    delta_text = getattr(event, "text", None) or getattr(event, "delta", "")
+                    if delta_text:
+                        print(delta_text, end="", flush=True)
+                elif event.type == "thread.status_completed":
+                    thread_status = "completed"
+                    break
+                elif event.type == "thread.status_failed":
+                    thread_status = "failed"
+                    break
+        return {"session_id": session_id, "thread_id": thread_id,
+                "text": "".join(text_parts), "status": thread_status}
 
     # ── Webhooks (v1.20.0, public beta) ─────────────────────────────────
     def register_webhook(self, url: str, event_types: Optional[list] = None) -> dict:
@@ -1764,6 +1906,43 @@ def cmd_agent_webhook_register(url: str, api_key: str, events: Optional[list] = 
     if events:
         print(f"  events: {', '.join(events)}")
     return webhook
+
+
+def cmd_agent_create(name: str, api_key: str, model: str = "claude-opus-4-8",
+                     system: str = "You are a helpful coding assistant.",
+                     effort: Optional[str] = None) -> dict:
+    mac = ManagedAgentsClient(api_key)
+    agent = mac.create_agent(name, model=model, system=system, effort=effort)
+    print(f"\033[92m✓ agent created\033[0m  id={agent['id']}  name={name}  model={model}"
+          + (f"  effort={effort}" if effort else ""))
+    return agent
+
+
+def cmd_agent_get(agent_id: str, api_key: str, version: Optional[int] = None) -> dict:
+    mac = ManagedAgentsClient(api_key)
+    agent = mac.get_agent(agent_id, version=version)
+    print(f"\033[92m✓ agent\033[0m  id={agent_id}" + (f"  version={version}" if version else ""))
+    print(f"  {agent['raw']}")
+    return agent
+
+
+def cmd_agent_list(api_key: str, limit: int = 50) -> dict:
+    mac = ManagedAgentsClient(api_key)
+    result = mac.list_agents(limit=limit)
+    print(f"\033[92m✓ agents\033[0m")
+    for a in result["raw"]:
+        print(f"  id={getattr(a, 'id', '?')}  name={getattr(a, 'name', '?')}")
+    return result
+
+
+def cmd_agent_update(agent_id: str, api_key: str, name: Optional[str] = None,
+                     model: Optional[str] = None, effort: Optional[str] = None,
+                     system: Optional[str] = None, version: Optional[int] = None) -> dict:
+    mac = ManagedAgentsClient(api_key)
+    agent = mac.update_agent(agent_id, name=name, model=model, effort=effort,
+                             system=system, version=version)
+    print(f"\033[92m✓ agent updated\033[0m  id={agent_id}  new_version={agent['version']}")
+    return agent
 
 
 def cmd_agent_review_multiagent(path: str, specialists: list, api_key: str,
