@@ -6,6 +6,47 @@ high-level index. Two project lineages (`ai-coder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## v1.39.0 — Managed Agents session budgets, `inference_geo`, advisor roster, and a CLI wiring gap
+
+Full detail in `docs/52_upgrade_v1.39.0_managed_agents_session_budgets.md`.
+
+**New feature:** Managed Agents session budgets (public beta, shipped by
+Anthropic Aug 7 2026) — a hard USD spend cap on a session, enforced at
+public list rates, pausing the session at `stop_reason=budget_reached`
+rather than terminating it. `ManagedAgentsClient.create_session()` gains
+`budget_usd_cents`; new `get_session()` and `update_session_budget()`
+methods; new `--agent-session-budget-usd`, `--agent-session-get`,
+`--agent-session-budget-set`, `--agent-session-budget-remove` CLI flags.
+Distinct from the pre-existing `--task-budget` (an advisory Advisor-Tool
+token budget) — not conflated.
+
+**New feature:** Managed Agents `inference_geo` (`"us"`/`"global"`) on
+`create_agent`/`update_agent`'s model config — the Managed Agents analog
+of the existing Messages-API `inference_geo`, with a different (nested)
+request shape.
+
+**New feature:** Managed Agents session advisor roster —
+`build_multiagent_config(agents, advisor_model=...)` appends a
+`{"type": "advisor", "model": ...}` roster entry. Client-side
+capability-pairing validation is not yet implemented (deferred, see
+writeup).
+
+**Wiring gap (found and fixed same cycle):** `cmd_agent_create`,
+`cmd_agent_get`, `cmd_agent_list`, `cmd_agent_update` were fully
+implemented but never given CLI flags — caught by
+`tests/test_cli_wiring.py`. Added `--agent-create/--agent-get/
+--agent-list/--agent-update` and dispatch.
+
+33 new tests in `tests/test_claude_agents_sdk.py`. 531 tests passing
+(507 → 531, 0 failing).
+
+This cycle's audit was scoped to Managed Agents session budgets/
+inference_geo/advisor only — GitHub-repo skill discovery, Enterprise
+inference hooks, Compliance API remote/local session transcripts,
+`anthropic-workspace-id` metadata, and a model-registry re-sweep were
+**not** investigated and remain open; see the writeup's deferred-items
+section for exact reasons.
+
 ## v1.38.0 — Claude Enterprise User Management API, and closing a wiring gap in it
 
 Full detail in `docs/51_upgrade_v1.38.0_ce_user_management.md`.
