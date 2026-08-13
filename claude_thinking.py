@@ -27,7 +27,7 @@ Model routing (see docs/42_upgrade_v1.30.0.md for the full audit):
 CLI flags added in main.py:
   --thinking                 Enable extended thinking
   --thinking-budget N        Token budget (legacy manual mode only)
-  --effort low|medium|high|max
+  --effort low|medium|high|xhigh|max
   --adaptive                 Force adaptive mode (auto-selected by
                               default on models that support it)
   --effort-legacy-budget     Force the old manual budget_tokens path
@@ -47,10 +47,16 @@ from typing import Optional
 
 
 # ── Effort → budget mapping (legacy manual mode only) ──────────────────────
+# "xhigh" (live since April 16, 2026 on Opus 4.7, and part of Opus 5's
+# advertised ladder — see claude_opus5.py's OPUS5_EFFORT_BUDGETS, which
+# stays the authoritative source for Opus 5 specifically) sits between
+# "high" and "max" here, matching the budget_tokens value Opus 5's
+# dedicated module already uses for it, so the two ladders agree.
 EFFORT_BUDGETS = {
     "low":    2_000,
     "medium": 8_000,
     "high":   16_000,
+    "xhigh":  24_000,
     "max":    32_000,
 }
 

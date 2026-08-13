@@ -199,3 +199,57 @@ def test_ab_test_requires_both_variants(monkeypatch, capsys):
     _run_main_with(monkeypatch, ["--ab-test", "--prompt", "only A"])
     out = capsys.readouterr().out
     assert "requires --prompt" in out and "--ab-prompt-b" in out
+
+
+# ── Targeted parse tests for v1.38.0's CE User Management flags ─────────
+
+
+def test_members_list_and_email_filter_parse(parsed_args):
+    args = parsed_args(["--members-list", "--members-email", "jane@example.com"])
+    assert args.members_list is True
+    assert args.members_email == "jane@example.com"
+
+
+def test_member_role_set_flag_parses(parsed_args):
+    args = parsed_args(["--member-role-set", "user_01Ab", "managed"])
+    assert args.member_role_set == ["user_01Ab", "managed"]
+
+
+def test_invite_create_with_rbac_groups_parses(parsed_args):
+    args = parsed_args(["--invite-create", "jane@example.com", "managed",
+                        "--invite-rbac-groups", "rbac_group_01Ab,rbac_group_02Cd"])
+    assert args.invite_create == ["jane@example.com", "managed"]
+    assert args.invite_rbac_groups == "rbac_group_01Ab,rbac_group_02Cd"
+
+
+def test_group_member_add_flag_parses(parsed_args):
+    args = parsed_args(["--group-member-add", "rbac_group_01Ab", "user_01Cd"])
+    assert args.group_member_add == ["rbac_group_01Ab", "user_01Cd"]
+
+
+def test_roles_list_and_role_permissions_flags_parse(parsed_args):
+    args = parsed_args(["--roles-list"])
+    assert args.roles_list is True
+    args2 = parsed_args(["--role-permissions", "rbac_role_01Ab"])
+    assert args2.role_permissions == "rbac_role_01Ab"
+
+
+def test_ce_user_management_dispatch_requires_admin_key(monkeypatch, capsys):
+    monkeypatch.delenv("ANTHROPIC_ADMIN_API_KEY", raising=False)
+    with pytest.raises(SystemExit):
+        _run_main_with(monkeypatch, ["--members-list"])
+    err = capsys.readouterr().err
+    assert "Admin API key" in err
+
+
+def test_members_list_dispatches_to_cmd(monkeypatch):
+    import claude_admin_api
+    seen = {}
+
+    def fake_members_list(admin_key, limit=20, email=None):
+        seen.update(admin_key=admin_key, email=email)
+
+    monkeypatch.setattr(claude_admin_api, "cmd_members_list", fake_members_list)
+    monkeypatch.setenv("ANTHROPIC_ADMIN_API_KEY", "sk-ant-admin-test")
+    _run_main_with(monkeypatch, ["--members-list", "--members-email", "jane@example.com"])
+    assert seen == {"admin_key": "sk-ant-admin-test", "email": "jane@example.com"}

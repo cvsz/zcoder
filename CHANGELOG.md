@@ -6,6 +6,27 @@ high-level index. Two project lineages (`ai-coder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## v1.38.0 — Claude Enterprise User Management API, and closing a wiring gap in it
+
+Full detail in `docs/51_upgrade_v1.38.0_ce_user_management.md`.
+
+**New feature:** the Claude Enterprise (claude.ai) User Management API,
+beta since July 14, 2026 — Members, Invites, Groups, and read-only
+Custom Roles. 19 new `AdminApiClient` methods in `claude_admin_api.py`.
+
+**Wiring gap (found and fixed same cycle):** the 15 new `cmd_*`
+functions were never given CLI flags in `main.py` — exactly what
+`tests/test_cli_wiring.py` (v1.31.0) exists to catch, and would have,
+had the version bump and this writeup landed with the original commit.
+Added the full `--members-*`/`--invite-*`/`--group-*`/`--roles-list`/
+`--role-permissions` flag set and dispatch, 7 new targeted tests, and
+brought `main.py`'s `VERSION` / `pyproject.toml`'s `version` up to
+`1.38.0` to match what the README already described.
+
+30 new tests in `tests/test_claude_admin_api.py`, 7 new in
+`tests/test_cli_wiring.py`. 488 tests passing (excluding two
+pre-existing, unrelated environment gaps — see the writeup).
+
 ## v1.37.0 — Closing out v1.36.0's three deferred items
 
 Full detail in `docs/49_upgrade_v1.37.0_deferred_items.md`.
