@@ -23,7 +23,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from personalities import PERSONALITIES
 
-VERSION = "1.37.0"
+VERSION = "1.38.0"
 BANNER  = f"\033[94mAI Model Coder CLI v{VERSION}\033[0m"
 
 # Named agent roles. Previously these seven names only existed as a
@@ -171,7 +171,7 @@ def build_parser():
     th = p.add_argument_group("Extended Thinking")
     th.add_argument("--thinking", action="store_true")
     th.add_argument("--thinking-budget", type=int, default=8000, dest="thinking_budget")
-    th.add_argument("--effort", default="", choices=["","low","medium","high","max"])
+    th.add_argument("--effort", default="", choices=["","low","medium","high","xhigh","max"])
     th.add_argument("--adaptive", action="store_true",
                     help="Force adaptive thinking (thinking.type='adaptive' + top-level "
                          "output_config.effort, GA, no beta header). Default (neither this "
@@ -501,6 +501,47 @@ def build_parser():
                          "shape, see docs/37_upgrade_v1.25.0_audit_and_impl.md)")
     ad.add_argument("--cmek-workspace", metavar="WORKSPACE_ID", dest="cmek_workspace",
                     default="", help="Filter --cmek-list to one workspace")
+
+    ce = p.add_argument_group("Claude Enterprise User Management (v1.38.0, beta)")
+    ce.add_argument("--members-list", action="store_true", dest="members_list",
+                    help="List organization members (Members/Invites take no beta header)")
+    ce.add_argument("--members-email", metavar="EMAIL", dest="members_email", default="",
+                    help="Filter --members-list to one email address")
+    ce.add_argument("--member-get", metavar="USER_ID", dest="member_get",
+                    help="Show one organization member")
+    ce.add_argument("--member-role-set", metavar=("USER_ID", "ROLE"), nargs=2,
+                    dest="member_role_set",
+                    help="Set a member's role to \"user\" or \"managed\" "
+                         "(administrative roles are Console-only)")
+    ce.add_argument("--member-remove", metavar="USER_ID", dest="member_remove",
+                    help="Remove a member from the organization")
+    ce.add_argument("--invite-create", metavar=("EMAIL", "ROLE"), nargs=2,
+                    dest="invite_create", help="Invite someone by email with role "
+                         "\"user\" or \"managed\"")
+    ce.add_argument("--invite-rbac-groups", metavar="ID,ID", dest="invite_rbac_groups",
+                    default="", help="Comma-separated rbac_group_ids to assign on "
+                         "--invite-create acceptance")
+    ce.add_argument("--invites-list", action="store_true", dest="invites_list",
+                    help="List pending/accepted/expired invites")
+    ce.add_argument("--invite-withdraw", metavar="INVITE_ID", dest="invite_withdraw",
+                    help="Withdraw a pending invite")
+    ce.add_argument("--groups-list", action="store_true", dest="groups_list",
+                    help="List Enterprise groups (requires ce-user-management beta)")
+    ce.add_argument("--group-create", metavar="NAME", dest="group_create",
+                    help="Create an Enterprise group")
+    ce.add_argument("--group-delete", metavar="GROUP_ID", dest="group_delete",
+                    help="Delete an Enterprise group (not SCIM-provisioned ones)")
+    ce.add_argument("--group-members-list", metavar="GROUP_ID", dest="group_members_list",
+                    help="List a group's members")
+    ce.add_argument("--group-member-add", metavar=("GROUP_ID", "USER_ID"), nargs=2,
+                    dest="group_member_add",
+                    help="Add an existing organization member to a group")
+    ce.add_argument("--group-member-remove", metavar=("GROUP_ID", "USER_ID"), nargs=2,
+                    dest="group_member_remove", help="Remove a member from a group")
+    ce.add_argument("--roles-list", action="store_true", dest="roles_list",
+                    help="List custom roles (read-only through the API)")
+    ce.add_argument("--role-permissions", metavar="ROLE_ID", dest="role_permissions",
+                    help="List one custom role's permissions")
 
     wf = p.add_argument_group("Workload Identity Federation (v1.23.0)")
     wf.add_argument("--wif-exchange-token", action="store_true", dest="wif_exchange_token",
@@ -1261,6 +1302,68 @@ def main():
         if args.cmek_list:
             from claude_admin_api import cmd_cmek_list
             cmd_cmek_list(admin_key, workspace_id=args.cmek_workspace or None); return
+
+    if (args.members_list or args.member_get or args.member_role_set or args.member_remove
+            or args.invite_create or args.invites_list or args.invite_withdraw
+            or args.groups_list or args.group_create or args.group_delete
+            or args.group_members_list or args.group_member_add or args.group_member_remove
+            or args.roles_list or args.role_permissions):
+        admin_key = args.admin_api_key or os.environ.get("ANTHROPIC_ADMIN_API_KEY")
+        if not admin_key:
+            print("[ERROR] This requires an Admin API key: pass --admin-api-key or set "
+                 "ANTHROPIC_ADMIN_API_KEY", file=sys.stderr)
+            sys.exit(1)
+        if args.members_list:
+            from claude_admin_api import cmd_members_list
+            cmd_members_list(admin_key, email=args.members_email or None); return
+        if args.member_get:
+            from claude_admin_api import cmd_member_get
+            cmd_member_get(args.member_get, admin_key); return
+        if args.member_role_set:
+            from claude_admin_api import cmd_member_role_set
+            user_id, role = args.member_role_set
+            cmd_member_role_set(user_id, role, admin_key); return
+        if args.member_remove:
+            from claude_admin_api import cmd_member_remove
+            cmd_member_remove(args.member_remove, admin_key); return
+        if args.invite_create:
+            from claude_admin_api import cmd_invite_create
+            email, role = args.invite_create
+            rbac_group_ids = ([g.strip() for g in args.invite_rbac_groups.split(",") if g.strip()]
+                              if args.invite_rbac_groups else None)
+            cmd_invite_create(email, role, admin_key, rbac_group_ids=rbac_group_ids); return
+        if args.invites_list:
+            from claude_admin_api import cmd_invites_list
+            cmd_invites_list(admin_key); return
+        if args.invite_withdraw:
+            from claude_admin_api import cmd_invite_withdraw
+            cmd_invite_withdraw(args.invite_withdraw, admin_key); return
+        if args.groups_list:
+            from claude_admin_api import cmd_groups_list
+            cmd_groups_list(admin_key); return
+        if args.group_create:
+            from claude_admin_api import cmd_group_create
+            cmd_group_create(args.group_create, admin_key); return
+        if args.group_delete:
+            from claude_admin_api import cmd_group_delete
+            cmd_group_delete(args.group_delete, admin_key); return
+        if args.group_members_list:
+            from claude_admin_api import cmd_group_members_list
+            cmd_group_members_list(args.group_members_list, admin_key); return
+        if args.group_member_add:
+            from claude_admin_api import cmd_group_member_add
+            group_id, user_id = args.group_member_add
+            cmd_group_member_add(group_id, user_id, admin_key); return
+        if args.group_member_remove:
+            from claude_admin_api import cmd_group_member_remove
+            group_id, user_id = args.group_member_remove
+            cmd_group_member_remove(group_id, user_id, admin_key); return
+        if args.roles_list:
+            from claude_admin_api import cmd_roles_list
+            cmd_roles_list(admin_key); return
+        if args.role_permissions:
+            from claude_admin_api import cmd_role_permissions_list
+            cmd_role_permissions_list(args.role_permissions, admin_key); return
 
     if (args.wif_exchange_token or args.wif_status or args.wif_create_service_account
             or args.wif_list_service_accounts or args.wif_create_issuer
