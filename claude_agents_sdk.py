@@ -528,6 +528,60 @@ class ManagedAgent:
 # for Zero Data Retention.
 MANAGED_AGENTS_BETA = "managed-agents-2026-04-01"
 
+# Session budgets (v1.39.0) — platform.claude.com/docs/en/managed-agents/
+# budgets, released Aug 7 2026, checked 2026-08-14. A budget is a hard USD
+# spend cap on one session, encoded as whole US cents in a *string* (never
+# a float, to avoid rounding): {"type": "limit", "max_list_cost":
+# {"amount": "2500", "currency": "USD"}} is a $25.00 cap. USD is the only
+# accepted currency at this time. Rides the existing MANAGED_AGENTS_BETA
+# header — budgets did not introduce a new beta header.
+SESSION_BUDGET_MIN_CENTS = 1  # amount must be > 0
+
+
+def _encode_session_budget(usd_cents: int) -> dict:
+    if not isinstance(usd_cents, int) or isinstance(usd_cents, bool):
+        raise ValueError(f"budget_usd_cents must be an int, got {type(usd_cents).__name__}")
+    if usd_cents < SESSION_BUDGET_MIN_CENTS:
+        raise ValueError(
+            f"budget_usd_cents must be > 0 (got {usd_cents}); the platform "
+            f"rejects zero/negative caps with a 400"
+        )
+    return {"type": "limit", "max_list_cost": {"amount": str(usd_cents), "currency": "USD"}}
+
+
+def _budget_to_dict(budget) -> Optional[dict]:
+    """Normalize the SDK's budget object/dict/None into a plain dict for
+    local use (e.g. `mac.get_session(...)["budget"]`), without assuming
+    the SDK response object shape beyond attribute access."""
+    if budget is None:
+        return None
+    if isinstance(budget, dict):
+        return budget
+    max_list_cost = getattr(budget, "max_list_cost", None)
+    return {
+        "type": getattr(budget, "type", "limit"),
+        "max_list_cost": {
+            "amount": getattr(max_list_cost, "amount", None),
+            "currency": getattr(max_list_cost, "currency", "USD"),
+        } if max_list_cost is not None else None,
+    }
+
+
+def _list_cost_cents(usage) -> Optional[int]:
+    """Best-effort extraction of usage.list_cost.amount (whole US cents,
+    as a string per the API) from a session's usage object, if present.
+    Returns None rather than raising when a session has no budget (and
+    so no list_cost is being tracked) or usage is otherwise absent."""
+    if usage is None:
+        return None
+    list_cost = getattr(usage, "list_cost", None) if not isinstance(usage, dict) \
+        else usage.get("list_cost")
+    if list_cost is None:
+        return None
+    amount = getattr(list_cost, "amount", None) if not isinstance(list_cost, dict) \
+        else list_cost.get("amount")
+    return int(amount) if amount is not None else None
+
 # Managed Agents memory stores (v1.19.0) — a workspace-scoped, persistent,
 # versioned file directory mountable into a session's `resources`. Found via
 # the anthropic-sdk-python v0.116.0 release note "api: add
@@ -626,7 +680,7 @@ MULTIAGENT_MAX_ROSTER = 20
 FILES_API_BETA = "files-api-2025-04-14"
 
 
-def build_multiagent_config(agents: list) -> dict:
+def build_multiagent_config(agents: list, advisor_model: Optional[str] = None) -> dict:
     """Build the {"type": "coordinator", "agents": [...]} dict passed as
     `multiagent` to create_agent(), per platform.claude.com/docs/en/
     managed-agents/multi-agent (checked 2026-07-08).
@@ -636,6 +690,25 @@ def build_multiagent_config(agents: list) -> dict:
       - {"type": "self"} -> lets the coordinator spawn copies of itself
       - an already-shaped dict (e.g. {"type": "agent", "id": ..., "version": ...})
         -> passed through unchanged
+
+    `advisor_model` (v1.39.0, public beta, per platform.claude.com/docs/en/
+    agents-and-tools/tool-use/advisor-tool and managed-agents/multi-agent,
+    checked 2026-08-14), when given, appends a {"type": "advisor", "model":
+    advisor_model} entry so the session's primary thread can consult that
+    model mid-turn. This is the Managed Agents surface's version of the
+    Messages API Advisor Tool (see claude_advisor.py) -- distinct
+    configuration (roster entry, not a tool definition) and distinct
+    delivery (thread events on the session's event stream, not
+    advisor_tool_result content blocks). The roster entry takes no
+    max_uses/max_tokens/caching options; those only apply to the Messages
+    API tool form. The advisor occupies the reserved roster name
+    "anthropic.advisor" -- the platform rejects a roster (400) that has
+    both an advisor entry and a member literally named that. The
+    platform also enforces (400 at save time, not checked here) that the
+    advisor's model isn't *less* capable than the agent's own model --
+    equal-capability pairs are fine, but an agent cannot "advise itself
+    down". Raises ValueError only for the client-side-checkable roster
+    size limit; model-pairing validity is left to the API.
 
     Raises ValueError if more than MULTIAGENT_MAX_ROSTER (20) entries are
     given — the API itself enforces this limit, but failing fast client-
@@ -651,6 +724,8 @@ def build_multiagent_config(agents: list) -> dict:
             roster.append(a)
         else:
             roster.append({"type": "agent", "id": a})
+    if advisor_model is not None:
+        roster.append({"type": "advisor", "model": advisor_model})
     return {"type": "coordinator", "agents": roster}
 
 
@@ -692,7 +767,8 @@ class ManagedAgentsClient:
                      system: str = "You are a helpful coding assistant.",
                      tools: Optional[list] = None,
                      multiagent: Optional[dict] = None,
-                     effort: Optional[str] = None) -> dict:
+                     effort: Optional[str] = None,
+                     inference_geo: Optional[str] = None) -> dict:
         """Create a persisted, versioned Agent config. tools defaults to the
         full pre-built agent_toolset_20260401 (bash, file ops, web search,
         etc.) if not given.
@@ -709,7 +785,25 @@ class ManagedAgentsClient:
         per platform.claude.com/docs' July 22, 2026 release note. Omitted
         by default — `model` is sent as the bare {"id": model} dict,
         unchanged from pre-v1.38.0 behavior, and the platform applies its
-        own default effort for `model` when not given."""
+        own default effort for `model` when not given.
+
+        `inference_geo` (v1.39.0, public beta, per platform.claude.com/
+        docs/en/managed-agents/agent-setup, checked 2026-08-14), when
+        given, is one of "us" (inference stays US-only, billed at a 1.1x
+        multiplier) or "global" (runs wherever there's capacity, standard
+        rate) -- folded into the same model config dict as `effort`.
+        Setting it on a model that doesn't support geographic inference
+        pinning is rejected with a 400 by the platform, not caught here.
+        This is the Managed Agents analog of the existing Messages API
+        `inference_geo` field (see coder.py/claude_sonnet5.py/
+        claude_haiku45.py) -- same two values and same 1.1x "us" pricing,
+        but a distinct request shape (folded into `model`, not a
+        top-level request field) since Managed Agents' model config is
+        itself a nested object rather than a bare model-id string. In a
+        multiagent configuration, the coordinator's pin and every roster
+        member's pin must all match (or all be unset); the platform
+        enforces this, not this method. Omitted by default — no change
+        to the pre-v1.39.0 behavior."""
         tools = tools or [{"type": "agent_toolset_20260401"}]
         kwargs = {}
         if multiagent is not None:
@@ -717,11 +811,18 @@ class ManagedAgentsClient:
         model_config = {"id": model}
         if effort is not None:
             model_config["effort"] = effort
+        if inference_geo is not None:
+            if inference_geo not in ("us", "global"):
+                raise ValueError(
+                    f"inference_geo must be 'us' or 'global', got {inference_geo!r}"
+                )
+            model_config["inference_geo"] = inference_geo
         agent = self.client.beta.agents.create(
             name=name, model=model_config, system=system, tools=tools,
             betas=[MANAGED_AGENTS_BETA], **kwargs,
         )
-        return {"id": agent.id, "name": name, "model": model, "effort": effort}
+        return {"id": agent.id, "name": name, "model": model, "effort": effort,
+                "inference_geo": inference_geo}
 
     def get_agent(self, agent_id: str, version: Optional[int] = None) -> dict:
         """Retrieve an agent's stored config. GET /v1/agents/{id}, or
@@ -751,6 +852,7 @@ class ManagedAgentsClient:
                      model: Optional[str] = None, effort: Optional[str] = None,
                      system: Optional[str] = None, tools: Optional[list] = None,
                      multiagent: Optional[dict] = None,
+                     inference_geo: Optional[str] = None,
                      version: Optional[int] = None) -> dict:
         """Update a persisted agent's config, creating a new version. POST
         /v1/agents/{id} (v1.38.0, public beta). Any field left as None is
@@ -768,7 +870,13 @@ class ManagedAgentsClient:
         passing `model` without `effort` (or vice versa) only touches the
         field given — the other stays whatever the agent already has, since
         the two are merged into one `model` dict here rather than the
-        caller needing to resend both every time."""
+        caller needing to resend both every time.
+
+        `inference_geo` (v1.39.0, public beta) works the same way: set,
+        replace, or leave the agent's model.inference_geo untouched
+        depending on whether it's given, merged into the same `model`
+        dict as `model`/`effort`. See create_agent()'s docstring for the
+        "us"/"global" semantics."""
         kwargs = {"betas": [MANAGED_AGENTS_BETA]}
         if version is not None:
             kwargs["version"] = version
@@ -780,15 +888,22 @@ class ManagedAgentsClient:
             kwargs["tools"] = tools
         if multiagent is not None:
             kwargs["multiagent"] = multiagent
-        if model is not None or effort is not None:
+        if model is not None or effort is not None or inference_geo is not None:
             model_config = {}
             if model is not None:
                 model_config["id"] = model
             if effort is not None:
                 model_config["effort"] = effort
+            if inference_geo is not None:
+                if inference_geo not in ("us", "global"):
+                    raise ValueError(
+                        f"inference_geo must be 'us' or 'global', got {inference_geo!r}"
+                    )
+                model_config["inference_geo"] = inference_geo
             kwargs["model"] = model_config
         agent = self.client.beta.agents.update(agent_id, **kwargs)
         return {"id": agent_id, "name": name, "model": model, "effort": effort,
+                "inference_geo": inference_geo,
                 "version": getattr(agent, "version", None)}
 
     def create_environment(self, name: str, networking: str = "unrestricted",
@@ -1018,7 +1133,8 @@ class ManagedAgentsClient:
                        memory_store_id: Optional[str] = None,
                        vault_ids: Optional[list] = None,
                        agent_overrides: Optional[dict] = None,
-                       initial_events: Optional[list] = None) -> dict:
+                       initial_events: Optional[list] = None,
+                       budget_usd_cents: Optional[int] = None) -> dict:
         """Create a session. If `memory_store_id` is given, mount that
         memory store as a session resource so the agent can read/write it
         through normal file tools — no memory-tool handler code required
@@ -1054,7 +1170,31 @@ class ManagedAgentsClient:
         create_scheduled_deployment()'s `initial_events` field, which
         seeds each session a cron schedule spins up rather than a
         one-off session created directly here. Omitted by default — no
-        change to the pre-v1.38.0 behavior of creating an idle session."""
+        change to the pre-v1.38.0 behavior of creating an idle session.
+
+        `budget_usd_cents` (v1.39.0, public beta, shipped on the platform
+        Aug 7 2026 — see docs/en/managed-agents/budgets) sets an optional
+        hard spend ceiling for this session: the platform prices every
+        thread the session runs at public list rates and stops issuing
+        new model requests once that running total reaches the cap. The
+        request in flight when the cap is crossed still finishes, so the
+        final cost can land a fraction over budget. This is distinct from
+        --thinking-budget (per-request thinking token budget), the
+        Messages API Advisor Tool's task_budget (an advisory, not
+        enforced, token budget for one agentic loop), and --task-budget
+        (this CLI's flag for that same advisory budget) — none of those
+        are a hard dollar cap on a whole session's spend. A session that
+        hits its budget pauses (does not terminate) with stop_reason
+        budget_reached; conversation history, files, and tool state are
+        preserved, and changing or removing the budget via update_session()
+        resumes the paused work automatically. This is a per-session
+        control, not a beta-header change — it rides the existing
+        MANAGED_AGENTS_BETA header, not a separate one.
+
+        Budgeting requires every agent (and every agent/advisor on its
+        multiagent roster) to use a model with a public list price;
+        creating a budgeted session against a model with no public price
+        is rejected with a 400 by the platform, not caught locally here."""
         resources = None
         betas = [MANAGED_AGENTS_BETA]
         if memory_store_id:
@@ -1070,6 +1210,10 @@ class ManagedAgentsClient:
                     f"(got {len(initial_events)})"
                 )
             kwargs["initial_events"] = initial_events
+        budget = None
+        if budget_usd_cents is not None:
+            budget = _encode_session_budget(budget_usd_cents)
+            kwargs["budget"] = budget
         agent_param = agent_id
         if agent_overrides:
             agent_param = {"type": "agent_with_overrides", "id": agent_id, **agent_overrides}
@@ -1081,7 +1225,55 @@ class ManagedAgentsClient:
             "id": session.id, "agent_id": agent_id,
             "environment_id": environment_id, "memory_store_id": memory_store_id,
             "vault_ids": vault_ids, "agent_overrides": agent_overrides,
-            "initial_events": initial_events,
+            "initial_events": initial_events, "budget": budget,
+        }
+
+    def get_session(self, session_id: str) -> dict:
+        """Retrieve a session's current state, including its status
+        (see Session statuses in the docs — idle/running/paused/etc,
+        and stop_reason == "budget_reached" when a budget cap paused
+        it), consumed list cost (usage.list_cost, if the session has a
+        budget), and its current budget (None if never set or removed).
+        GET /v1/sessions/{id} — v1.39.0, public beta."""
+        session = self.client.beta.sessions.retrieve(
+            session_id, betas=[MANAGED_AGENTS_BETA],
+        )
+        return {
+            "id": session_id,
+            "status": getattr(session, "status", None),
+            "stop_reason": getattr(session, "stop_reason", None),
+            "budget": _budget_to_dict(getattr(session, "budget", None)),
+            "list_cost_usd_cents": _list_cost_cents(getattr(session, "usage", None)),
+            "raw": session,
+        }
+
+    def update_session_budget(self, session_id: str,
+                              budget_usd_cents: Optional[int] = "__unset__") -> dict:
+        """Replace or remove a session's spend budget (v1.39.0, public
+        beta) — POST-equivalent of `client.beta.sessions.update`. Pass an
+        int to replace the cap with a new max_list_cost (must be strictly
+        greater than the session's already-consumed list cost, per the
+        docs — the platform, not this method, enforces that). Pass
+        `None` explicitly to remove the budget entirely (sets `budget`
+        to null in the request) — removal is one-way: a session whose
+        budget was removed cannot be given a new one, and a session
+        created without a budget can never be given one either; only an
+        *existing* non-null budget can be replaced. Either update
+        automatically resumes any work that was paused with
+        stop_reason=budget_reached — no separate resume call exists."""
+        if budget_usd_cents == "__unset__":
+            raise ValueError(
+                "update_session_budget requires an explicit budget_usd_cents: "
+                "an int to replace the cap, or None to remove the budget."
+            )
+        budget = (_encode_session_budget(budget_usd_cents)
+                 if budget_usd_cents is not None else None)
+        session = self.client.beta.sessions.update(
+            session_id, budget=budget, betas=[MANAGED_AGENTS_BETA],
+        )
+        return {
+            "id": session_id, "budget": budget,
+            "status": getattr(session, "status", None),
         }
 
     # ── Vaults & credentials (v1.21.0, public beta) ──────────────────────
@@ -1513,7 +1705,8 @@ def cmd_managed_agent_run(task: str, api_key: str, model: str = "claude-opus-4-8
                           outcome_max_iterations: int = 3,
                           vault_id: Optional[str] = None,
                           agent_overrides: Optional[dict] = None,
-                          stream_deltas: bool = False):
+                          stream_deltas: bool = False,
+                          budget_usd_cents: Optional[int] = None):
     """End-to-end convenience: create a throwaway agent + environment +
     session, run one task, print the result. For anything beyond a single
     one-off task, create the agent/environment once and reuse them across
@@ -1543,7 +1736,13 @@ def cmd_managed_agent_run(task: str, api_key: str, model: str = "claude-opus-4-8
 
     If `stream_deltas` (v1.22.0, public beta) is True, text is printed
     live as it's generated instead of only after the full turn completes
-    — see ManagedAgentsClient.run_task()/wait_for_outcome()."""
+    — see ManagedAgentsClient.run_task()/wait_for_outcome().
+
+    If `budget_usd_cents` (v1.39.0, public beta) is given, the throwaway
+    session is created with a hard spend cap — see
+    ManagedAgentsClient.create_session()'s budget_usd_cents docstring for
+    the pause/resume semantics. Omitted by default: no regression to the
+    pre-v1.39.0 unbudgeted path."""
     mac = ManagedAgentsClient(api_key)
     print("\033[94mℹ Creating Managed Agent, environment, and session…\033[0m")
     agent = mac.create_agent(name=f"ai-coder-task-{uuid.uuid4().hex[:8]}", model=model)
@@ -1556,8 +1755,11 @@ def cmd_managed_agent_run(task: str, api_key: str, model: str = "claude-opus-4-8
     title = (outcome_description or task)[:60]
     vault_ids = [vault_id] if vault_id else None
     sess  = mac.create_session(agent["id"], env["id"], title=title, memory_store_id=store_id,
-                               vault_ids=vault_ids, agent_overrides=agent_overrides)
+                               vault_ids=vault_ids, agent_overrides=agent_overrides,
+                               budget_usd_cents=budget_usd_cents)
     print(f"\033[92m✓ session {sess['id']}\033[0m — running task…\n")
+    if budget_usd_cents is not None:
+        print(f"\033[90m[session budget: ${budget_usd_cents / 100:.2f} USD]\033[0m")
 
     if outcome_description and (outcome_rubric or outcome_rubric_file_id):
         mac.define_outcome(sess["id"], outcome_description,
@@ -1910,11 +2112,14 @@ def cmd_agent_webhook_register(url: str, api_key: str, events: Optional[list] = 
 
 def cmd_agent_create(name: str, api_key: str, model: str = "claude-opus-4-8",
                      system: str = "You are a helpful coding assistant.",
-                     effort: Optional[str] = None) -> dict:
+                     effort: Optional[str] = None,
+                     inference_geo: Optional[str] = None) -> dict:
     mac = ManagedAgentsClient(api_key)
-    agent = mac.create_agent(name, model=model, system=system, effort=effort)
+    agent = mac.create_agent(name, model=model, system=system, effort=effort,
+                             inference_geo=inference_geo)
     print(f"\033[92m✓ agent created\033[0m  id={agent['id']}  name={name}  model={model}"
-          + (f"  effort={effort}" if effort else ""))
+          + (f"  effort={effort}" if effort else "")
+          + (f"  inference_geo={inference_geo}" if inference_geo else ""))
     return agent
 
 
@@ -1937,10 +2142,11 @@ def cmd_agent_list(api_key: str, limit: int = 50) -> dict:
 
 def cmd_agent_update(agent_id: str, api_key: str, name: Optional[str] = None,
                      model: Optional[str] = None, effort: Optional[str] = None,
-                     system: Optional[str] = None, version: Optional[int] = None) -> dict:
+                     system: Optional[str] = None, version: Optional[int] = None,
+                     inference_geo: Optional[str] = None) -> dict:
     mac = ManagedAgentsClient(api_key)
     agent = mac.update_agent(agent_id, name=name, model=model, effort=effort,
-                             system=system, version=version)
+                             system=system, version=version, inference_geo=inference_geo)
     print(f"\033[92m✓ agent updated\033[0m  id={agent_id}  new_version={agent['version']}")
     return agent
 
@@ -2062,6 +2268,45 @@ def cmd_agent_list_sessions():
             print(f"{d['id']:<16}{d.get('name','')[:24]:<25}{turns:<8}{d.get('updated_at','')[:10]}")
         except Exception:
             pass
+
+
+def cmd_agent_session_get(session_id: str, api_key: str) -> dict:
+    """Inspect a Managed Agents session's status, stop_reason, budget,
+    and consumed list cost (v1.39.0, public beta)."""
+    mac = ManagedAgentsClient(api_key)
+    info = mac.get_session(session_id)
+    print(f"\033[92m✓ session {session_id}\033[0m  status={info['status']}"
+          + (f"  stop_reason={info['stop_reason']}" if info['stop_reason'] else ""))
+    if info["budget"]:
+        cap = info["budget"].get("max_list_cost", {}).get("amount")
+        spent = info["list_cost_usd_cents"]
+        cap_str = f"${int(cap) / 100:.2f}" if cap is not None else "?"
+        spent_str = f"${spent / 100:.2f}" if spent is not None else "?"
+        print(f"  budget: {spent_str} / {cap_str} USD")
+    else:
+        print("  budget: none")
+    return info
+
+
+def cmd_agent_session_budget_set(session_id: str, api_key: str, usd_cents: int) -> dict:
+    """Replace a session's spend budget with a new cap, in whole US
+    cents (v1.39.0, public beta). Resumes the session automatically if
+    it was paused with stop_reason=budget_reached."""
+    mac = ManagedAgentsClient(api_key)
+    result = mac.update_session_budget(session_id, budget_usd_cents=usd_cents)
+    print(f"\033[92m✓ session {session_id}\033[0m budget set to ${usd_cents / 100:.2f} USD")
+    return result
+
+
+def cmd_agent_session_budget_remove(session_id: str, api_key: str) -> dict:
+    """Remove a session's spend budget entirely (v1.39.0, public beta).
+    One-way: the session can never be given a new budget afterward.
+    Resumes the session automatically if it was paused with
+    stop_reason=budget_reached."""
+    mac = ManagedAgentsClient(api_key)
+    result = mac.update_session_budget(session_id, budget_usd_cents=None)
+    print(f"\033[92m✓ session {session_id}\033[0m budget removed")
+    return result
 
 
 def cmd_list_tool_presets():

@@ -1154,3 +1154,354 @@ def test_cmd_agent_env_work_stats_no_warning_when_workers_active(agents_sdk, mon
 
     out = capsys.readouterr().out
     assert "no worker has polled" not in out
+
+# ── Session budgets (v1.39.0, public beta — platform.claude.com/docs/en/ ──
+# managed-agents/budgets, shipped Aug 7 2026) ───────────────────────────
+
+
+def test_encode_session_budget_valid(agents_sdk):
+    budget = agents_sdk._encode_session_budget(2500)
+    assert budget == {"type": "limit", "max_list_cost": {"amount": "2500", "currency": "USD"}}
+
+
+def test_encode_session_budget_amount_is_string_not_float(agents_sdk):
+    # Regression guard: the API rejects floats/leading zeros; amount must
+    # always be a plain integer string.
+    budget = agents_sdk._encode_session_budget(50)
+    assert budget["max_list_cost"]["amount"] == "50"
+    assert isinstance(budget["max_list_cost"]["amount"], str)
+
+
+def test_encode_session_budget_rejects_zero(agents_sdk):
+    with pytest.raises(ValueError):
+        agents_sdk._encode_session_budget(0)
+
+
+def test_encode_session_budget_rejects_negative(agents_sdk):
+    with pytest.raises(ValueError):
+        agents_sdk._encode_session_budget(-100)
+
+
+def test_encode_session_budget_rejects_float(agents_sdk):
+    with pytest.raises(ValueError):
+        agents_sdk._encode_session_budget(25.5)
+
+
+def test_encode_session_budget_rejects_bool(agents_sdk):
+    # bool is a subclass of int in Python; guard against True/False slipping
+    # through as 1/0 cents.
+    with pytest.raises(ValueError):
+        agents_sdk._encode_session_budget(True)
+
+
+def test_create_session_without_budget_omits_budget_kwarg(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.sessions.create.return_value = MagicMock(id="sess_1")
+
+    result = client.create_session("agent_1", "env_1", title="t")
+
+    _, kwargs = client.client.beta.sessions.create.call_args
+    assert "budget" not in kwargs
+    assert result["budget"] is None
+
+
+def test_create_session_with_budget_sends_encoded_budget(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.sessions.create.return_value = MagicMock(id="sess_1")
+
+    result = client.create_session("agent_1", "env_1", title="t", budget_usd_cents=2500)
+
+    _, kwargs = client.client.beta.sessions.create.call_args
+    assert kwargs["budget"] == {
+        "type": "limit", "max_list_cost": {"amount": "2500", "currency": "USD"},
+    }
+    # Budgets ride the existing managed-agents beta header, not a new one.
+    assert kwargs["betas"] == [agents_sdk.MANAGED_AGENTS_BETA]
+    assert result["budget"]["max_list_cost"]["amount"] == "2500"
+
+
+def test_get_session_parses_status_stop_reason_and_budget(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    fake_max_list_cost = MagicMock(amount="1200", currency="USD")
+    fake_budget = MagicMock(type="limit", max_list_cost=fake_max_list_cost)
+    fake_usage = MagicMock(list_cost=MagicMock(amount="850"))
+    fake_session = MagicMock(status="paused", stop_reason="budget_reached",
+                             budget=fake_budget, usage=fake_usage)
+    client.client.beta.sessions.retrieve.return_value = fake_session
+
+    info = client.get_session("sess_1")
+
+    client.client.beta.sessions.retrieve.assert_called_once_with(
+        "sess_1", betas=[agents_sdk.MANAGED_AGENTS_BETA],
+    )
+    assert info["status"] == "paused"
+    assert info["stop_reason"] == "budget_reached"
+    assert info["budget"]["max_list_cost"]["amount"] == "1200"
+    assert info["list_cost_usd_cents"] == 850
+
+
+def test_get_session_handles_no_budget(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    fake_session = MagicMock(status="running", stop_reason=None, budget=None, usage=None)
+    client.client.beta.sessions.retrieve.return_value = fake_session
+
+    info = client.get_session("sess_1")
+
+    assert info["budget"] is None
+    assert info["list_cost_usd_cents"] is None
+
+
+def test_update_session_budget_replace_sends_new_cap(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.sessions.update.return_value = MagicMock(status="running")
+
+    result = client.update_session_budget("sess_1", budget_usd_cents=5000)
+
+    args, kwargs = client.client.beta.sessions.update.call_args
+    assert args[0] == "sess_1"
+    assert kwargs["budget"] == {
+        "type": "limit", "max_list_cost": {"amount": "5000", "currency": "USD"},
+    }
+    assert result["status"] == "running"
+
+
+def test_update_session_budget_remove_sends_null(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.sessions.update.return_value = MagicMock(status="running")
+
+    client.update_session_budget("sess_1", budget_usd_cents=None)
+
+    _, kwargs = client.client.beta.sessions.update.call_args
+    assert kwargs["budget"] is None
+
+
+def test_update_session_budget_requires_explicit_argument(agents_sdk):
+    # Regression guard: forgetting the argument must never silently no-op
+    # or silently remove the budget -- it must fail loudly.
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    with pytest.raises(ValueError):
+        client.update_session_budget("sess_1")
+
+
+def test_cmd_managed_agent_run_passes_budget_through(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.create_agent.return_value = {"id": "agent_1"}
+    mac.create_environment.return_value = {"id": "env_1"}
+    mac.create_session.return_value = {"id": "sess_1"}
+    mac.run_task.return_value = {"text": "done", "tool_calls": []}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_managed_agent_run("do the thing", api_key="sk-test", budget_usd_cents=2500)
+
+    _, kwargs = mac.create_session.call_args
+    assert kwargs["budget_usd_cents"] == 2500
+    out = capsys.readouterr().out
+    assert "$25.00" in out
+
+
+def test_cmd_managed_agent_run_no_budget_by_default(agents_sdk, monkeypatch):
+    mac = MagicMock()
+    mac.create_agent.return_value = {"id": "agent_1"}
+    mac.create_environment.return_value = {"id": "env_1"}
+    mac.create_session.return_value = {"id": "sess_1"}
+    mac.run_task.return_value = {"text": "done", "tool_calls": []}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_managed_agent_run("do the thing", api_key="sk-test")
+
+    _, kwargs = mac.create_session.call_args
+    assert kwargs["budget_usd_cents"] is None
+
+
+def test_cmd_agent_session_get_prints_budget_progress(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.get_session.return_value = {
+        "status": "paused", "stop_reason": "budget_reached",
+        "budget": {"max_list_cost": {"amount": "2500"}},
+        "list_cost_usd_cents": 2510,
+    }
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_session_get("sess_1", api_key="sk-test")
+
+    out = capsys.readouterr().out
+    assert "budget_reached" in out
+    assert "$25.10" in out and "$25.00" in out
+
+
+def test_cmd_agent_session_get_no_budget(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.get_session.return_value = {
+        "status": "running", "stop_reason": None,
+        "budget": None, "list_cost_usd_cents": None,
+    }
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_session_get("sess_1", api_key="sk-test")
+
+    out = capsys.readouterr().out
+    assert "budget: none" in out
+
+
+def test_cmd_agent_session_budget_set_calls_client(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.update_session_budget.return_value = {"id": "sess_1", "status": "running"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_session_budget_set("sess_1", api_key="sk-test", usd_cents=5000)
+
+    mac.update_session_budget.assert_called_once_with("sess_1", budget_usd_cents=5000)
+    assert "$50.00" in capsys.readouterr().out
+
+
+def test_cmd_agent_session_budget_remove_calls_client_with_none(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.update_session_budget.return_value = {"id": "sess_1", "status": "running"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_session_budget_remove("sess_1", api_key="sk-test")
+
+    mac.update_session_budget.assert_called_once_with("sess_1", budget_usd_cents=None)
+
+
+# ── Agent CRUD CLI wiring (was COMPLETE BUT UNWIRED prior to this cycle) ──
+
+
+def test_cmd_agent_create_calls_client_and_prints(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.create_agent.return_value = {"id": "agent_1", "name": "n", "model": "claude-opus-4-8"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_create("n", api_key="sk-test")
+
+    mac.create_agent.assert_called_once()
+    assert "agent_1" in capsys.readouterr().out
+
+
+def test_cmd_agent_get_calls_client(agents_sdk, monkeypatch):
+    mac = MagicMock()
+    mac.get_agent.return_value = {"id": "agent_1", "raw": MagicMock()}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_get("agent_1", api_key="sk-test", version=3)
+
+    mac.get_agent.assert_called_once_with("agent_1", version=3)
+
+
+def test_cmd_agent_list_calls_client(agents_sdk, monkeypatch):
+    mac = MagicMock()
+    mac.list_agents.return_value = {"raw": []}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_list(api_key="sk-test", limit=10)
+
+    mac.list_agents.assert_called_once_with(limit=10)
+
+
+def test_cmd_agent_update_calls_client(agents_sdk, monkeypatch):
+    mac = MagicMock()
+    mac.update_agent.return_value = {"id": "agent_1", "version": 2}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_update("agent_1", api_key="sk-test", name="new-name")
+
+    mac.update_agent.assert_called_once()
+
+
+# ── Managed Agents inference_geo (v1.39.0, public beta) ─────────────────
+
+
+def test_create_agent_without_inference_geo_omits_field(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.agents.create.return_value = MagicMock(id="agent_1")
+
+    client.create_agent("n")
+
+    _, kwargs = client.client.beta.agents.create.call_args
+    assert "inference_geo" not in kwargs["model"]
+
+
+def test_create_agent_with_inference_geo_us(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.agents.create.return_value = MagicMock(id="agent_1")
+
+    result = client.create_agent("n", inference_geo="us")
+
+    _, kwargs = client.client.beta.agents.create.call_args
+    assert kwargs["model"]["inference_geo"] == "us"
+    assert result["inference_geo"] == "us"
+
+
+def test_create_agent_rejects_invalid_inference_geo(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    with pytest.raises(ValueError):
+        client.create_agent("n", inference_geo="eu")
+
+
+def test_update_agent_with_inference_geo_only_does_not_require_model(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    client.client.beta.agents.update.return_value = MagicMock(version=2)
+
+    client.update_agent("agent_1", inference_geo="global")
+
+    _, kwargs = client.client.beta.agents.update.call_args
+    assert kwargs["model"] == {"inference_geo": "global"}
+
+
+def test_update_agent_rejects_invalid_inference_geo(agents_sdk):
+    client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
+    with pytest.raises(ValueError):
+        client.update_agent("agent_1", inference_geo="not-a-geo")
+
+
+def test_cmd_agent_create_passes_inference_geo(agents_sdk, monkeypatch, capsys):
+    mac = MagicMock()
+    mac.create_agent.return_value = {"id": "agent_1", "name": "n", "model": "claude-opus-4-8"}
+    monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
+
+    agents_sdk.cmd_agent_create("n", api_key="sk-test", inference_geo="us")
+
+    _, kwargs = mac.create_agent.call_args
+    assert kwargs["inference_geo"] == "us"
+    assert "inference_geo=us" in capsys.readouterr().out
+
+
+# ── Managed Agents session advisor roster (v1.39.0, public beta) ────────
+
+
+def test_build_multiagent_config_without_advisor_unchanged(agents_sdk):
+    config = agents_sdk.build_multiagent_config(["agent_a", "agent_b"])
+    assert config == {
+        "type": "coordinator",
+        "agents": [
+            {"type": "agent", "id": "agent_a"},
+            {"type": "agent", "id": "agent_b"},
+        ],
+    }
+
+
+def test_build_multiagent_config_appends_advisor_entry(agents_sdk):
+    config = agents_sdk.build_multiagent_config(["agent_a"], advisor_model="claude-opus-4-8")
+    assert config["agents"][-1] == {"type": "advisor", "model": "claude-opus-4-8"}
+    assert len(config["agents"]) == 2
+
+
+def test_build_multiagent_config_advisor_only(agents_sdk):
+    config = agents_sdk.build_multiagent_config([], advisor_model="claude-opus-4-8")
+    assert config["agents"] == [{"type": "advisor", "model": "claude-opus-4-8"}]
+
+
+def test_build_multiagent_config_roster_limit_excludes_advisor_call(agents_sdk):
+    # The 20-entry cap check runs against `agents` before the advisor is
+    # appended -- 20 delegates + 1 advisor is a valid 21-entry roster
+    # (the docs don't count the advisor against the delegate cap), so
+    # this must NOT raise.
+    roster = [f"agent_{i}" for i in range(20)]
+    config = agents_sdk.build_multiagent_config(roster, advisor_model="claude-opus-4-8")
+    assert len(config["agents"]) == 21
+
+
+def test_build_multiagent_config_still_enforces_delegate_limit(agents_sdk):
+    roster = [f"agent_{i}" for i in range(21)]
+    with pytest.raises(ValueError):
+        agents_sdk.build_multiagent_config(roster)
