@@ -23,6 +23,7 @@ from zcoder.services.upgrade_loop import (
     work_from_maintenance_recommendation,
 )
 from zcoder.services.upgrade_state import JsonUpgradeLedger, RepositorySnapshotter
+from zcoder.services.upgrade_store_ledger import EngineeringStoreUpgradeLedger, UpgradeLedger
 
 
 @dataclasses.dataclass(frozen=True)
@@ -154,7 +155,7 @@ class ContinuousEngineeringPipeline:
     def __init__(
         self,
         executor: Upgrade20EngineeringExecutor,
-        ledger: JsonUpgradeLedger,
+        ledger: UpgradeLedger,
         *,
         work_sources: Sequence[WorkSource] = (),
         policy: LoopPolicy | None = None,
@@ -166,8 +167,16 @@ class ContinuousEngineeringPipeline:
         self.work_sources = tuple(work_sources)
         self.policy = policy or LoopPolicy()
         self.retry_blocked = retry_blocked
-        self.run_lease = run_lease or UpgradeRunLease(ledger.path.with_name(f"{ledger.path.name}.run.lock"))
+        self.run_lease = run_lease or self._default_run_lease(ledger)
         self._items_by_id: dict[str, UpgradeWorkItem] = {}
+
+    @staticmethod
+    def _default_run_lease(ledger: UpgradeLedger) -> UpgradeRunLease:
+        ledger_path = getattr(ledger, "path", None)
+        if ledger_path is None:
+            raise ValueError("run_lease is required for upgrade ledgers without a local path")
+        path = Path(ledger_path)
+        return UpgradeRunLease(path.with_name(f"{path.name}.run.lock"))
 
     def run(self, seed_items: Iterable[UpgradeWorkItem] = ()) -> LoopReport:
         with self.run_lease:
@@ -240,6 +249,31 @@ def _risk_mapper(task_risk: Any) -> Callable[[str], Any]:
     return map_risk
 
 
+def _build_upgrade20_executor(
+    repository_root: str | Path,
+    *,
+    project_id: str,
+    allow_push: bool,
+    github_orchestrator: Any,
+    max_ci_repairs: int,
+) -> Upgrade20EngineeringExecutor:
+    from local_ai_stack import AutonomousEngineeringLoop, PushPolicy, TaskRisk, TaskSource
+
+    push_policy = PushPolicy.AUTO_PUSH_ALLOWED if allow_push else PushPolicy.AUTO_LOCAL_ONLY
+    return Upgrade20EngineeringExecutor(
+        AutonomousEngineeringLoop(push_policy=push_policy),
+        RepositorySnapshotter(repository_root),
+        project_id=project_id,
+        task_source=TaskSource.WORKFLOW,
+        risk_mapper=_risk_mapper(TaskRisk),
+        ci_repair=(
+            github_ci_repair_hook(github_orchestrator, max_repairs=max_ci_repairs)
+            if github_orchestrator is not None
+            else None
+        ),
+    )
+
+
 def build_local_pipeline(
     repository_root: str | Path,
     state_file: str | Path,
@@ -252,22 +286,14 @@ def build_local_pipeline(
     github_orchestrator: Any = None,
     max_ci_repairs: int = 3,
 ) -> ContinuousEngineeringPipeline:
-    """Build the real local Upgrade-25 pipeline with Upgrade-20 as the executor."""
+    """Build the JSON-backed local pipeline with Upgrade-20 as the executor."""
 
-    from local_ai_stack import AutonomousEngineeringLoop, PushPolicy, TaskRisk, TaskSource
-
-    push_policy = PushPolicy.AUTO_PUSH_ALLOWED if allow_push else PushPolicy.AUTO_LOCAL_ONLY
-    executor = Upgrade20EngineeringExecutor(
-        AutonomousEngineeringLoop(push_policy=push_policy),
-        RepositorySnapshotter(repository_root),
+    executor = _build_upgrade20_executor(
+        repository_root,
         project_id=project_id,
-        task_source=TaskSource.WORKFLOW,
-        risk_mapper=_risk_mapper(TaskRisk),
-        ci_repair=(
-            github_ci_repair_hook(github_orchestrator, max_repairs=max_ci_repairs)
-            if github_orchestrator is not None
-            else None
-        ),
+        allow_push=allow_push,
+        github_orchestrator=github_orchestrator,
+        max_ci_repairs=max_ci_repairs,
     )
     return ContinuousEngineeringPipeline(
         executor,
@@ -275,6 +301,44 @@ def build_local_pipeline(
         work_sources=work_sources,
         policy=policy,
         retry_blocked=retry_blocked,
+    )
+
+
+def build_sqlite_store_pipeline(
+    repository_root: str | Path,
+    db_path: str | Path,
+    *,
+    ledger_namespace: str = "zcoder-continuous-upgrades",
+    lease_path: str | Path | None = None,
+    project_id: str = "zcoder-continuous-upgrades",
+    allow_push: bool = False,
+    policy: LoopPolicy | None = None,
+    retry_blocked: bool = False,
+    work_sources: Sequence[WorkSource] = (),
+    github_orchestrator: Any = None,
+    max_ci_repairs: int = 3,
+) -> ContinuousEngineeringPipeline:
+    """Build a same-host SQLite EngineeringStore-backed continuous pipeline."""
+
+    from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
+
+    db = Path(db_path)
+    lease = Path(lease_path) if lease_path is not None else db.with_name(f"{db.name}.upgrade-loop.lock")
+    executor = _build_upgrade20_executor(
+        repository_root,
+        project_id=project_id,
+        allow_push=allow_push,
+        github_orchestrator=github_orchestrator,
+        max_ci_repairs=max_ci_repairs,
+    )
+    ledger = EngineeringStoreUpgradeLedger(SQLiteEngineeringStore(db_path=db), namespace=ledger_namespace)
+    return ContinuousEngineeringPipeline(
+        executor,
+        ledger,
+        work_sources=work_sources,
+        policy=policy,
+        retry_blocked=retry_blocked,
+        run_lease=UpgradeRunLease(lease),
     )
 
 
@@ -307,7 +371,7 @@ def _load_work_file(path: Path) -> list[UpgradeWorkItem]:
     return items
 
 
-def _report_dict(report: LoopReport, ledger: JsonUpgradeLedger) -> dict[str, Any]:
+def _report_dict(report: LoopReport, ledger: UpgradeLedger) -> dict[str, Any]:
     return {
         "state": report.state.value,
         "iterations": report.iterations,
@@ -335,7 +399,10 @@ def _report_dict(report: LoopReport, ledger: JsonUpgradeLedger) -> dict[str, Any
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the durable ZCoder continuous engineering pipeline")
     parser.add_argument("--repository", default=".", help="Repository root to snapshot and improve")
+    parser.add_argument("--state-backend", choices=["json", "sqlite"], default="json")
     parser.add_argument("--state-file", default=".zcoder/upgrade-loop-state.json")
+    parser.add_argument("--engineering-db", default=".zcoder/engineering.db")
+    parser.add_argument("--ledger-namespace", default="zcoder-continuous-upgrades")
     parser.add_argument("--project-id", default="zcoder-continuous-upgrades")
     parser.add_argument("--feature", help="Seed one feature implementation item")
     parser.add_argument("--description", default="", help="Description for --feature")
@@ -352,12 +419,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_repository_path(repository_root: Path, value: str | Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else repository_root / path
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repository_root = Path(args.repository).resolve()
-    state_file = Path(args.state_file)
-    if not state_file.is_absolute():
-        state_file = repository_root / state_file
 
     seed: list[UpgradeWorkItem] = []
     if args.feature:
@@ -366,14 +435,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         seed.extend(_load_work_file(args.work_file))
 
     policy = LoopPolicy(max_iterations=args.max_iterations)
-    pipeline = build_local_pipeline(
-        repository_root,
-        state_file,
-        project_id=args.project_id,
-        allow_push=args.allow_push,
-        policy=policy,
-        retry_blocked=args.retry_blocked,
-    )
+    if args.state_backend == "sqlite":
+        pipeline = build_sqlite_store_pipeline(
+            repository_root,
+            _resolve_repository_path(repository_root, args.engineering_db),
+            ledger_namespace=args.ledger_namespace,
+            project_id=args.project_id,
+            allow_push=args.allow_push,
+            policy=policy,
+            retry_blocked=args.retry_blocked,
+        )
+    else:
+        pipeline = build_local_pipeline(
+            repository_root,
+            _resolve_repository_path(repository_root, args.state_file),
+            project_id=args.project_id,
+            allow_push=args.allow_push,
+            policy=policy,
+            retry_blocked=args.retry_blocked,
+        )
     report = pipeline.run(seed)
     print(json.dumps(_report_dict(report, pipeline.ledger), indent=2, sort_keys=True))
     return 0 if report.state == LoopState.COMPLETED else 2
