@@ -1,0 +1,66 @@
+name: Upgrade-33 Repair Once
+
+on:
+  push:
+    branches:
+      - upgrade-33-postgres-backend-cli
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: upgrade-33-postgres-backend-cli
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Repair lifecycle compatibility
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('src/zcoder/services/continuous_engineering.py')
+          text = source.read_text(encoding='utf-8')
+          old = '''    with pipeline:\n        report = pipeline.run(seed)\n        output = json.dumps(_report_dict(report, pipeline.ledger), indent=2, sort_keys=True)\n    print(output)\n    return 0 if report.state == LoopState.COMPLETED else 2\n'''
+          new = '''    try:\n        report = pipeline.run(seed)\n        output = json.dumps(_report_dict(report, pipeline.ledger), indent=2, sort_keys=True)\n    finally:\n        close = getattr(pipeline, "close", None)\n        if callable(close):\n            close()\n    print(output)\n    return 0 if report.state == LoopState.COMPLETED else 2\n'''
+          if old not in text:
+              raise SystemExit('expected main lifecycle block not found')
+          source.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          unit = Path('tests/unit/test_continuous_engineering_postgres_backend.py')
+          text = unit.read_text(encoding='utf-8')
+          text = text.replace('''        self.closed = False\n        self.entered = False\n\n    def __enter__(self):\n        self.entered = True\n        return self\n\n    def __exit__(self, exc_type, exc, tb):\n        self.closed = True\n''', '''        self.closed = False\n\n    def close(self):\n        self.closed = True\n''', 1)
+          text = text.replace('''    assert pipeline.entered is True\n    assert pipeline.closed is True\n''', '''    assert pipeline.closed is True\n''', 1)
+          unit.write_text(text, encoding='utf-8')
+
+          docs = Path('docs/upgrades/UPGRADE-33.md')
+          text = docs.read_text(encoding='utf-8')
+          text = text.replace(
+              'The CLI runs every backend inside the pipeline context manager so cleanup executes on success and exception paths.',
+              'The CLI uses a `try/finally` cleanup boundary and calls `close()` when the returned pipeline exposes it, preserving compatibility with lightweight adapters while closing production PostgreSQL resources on success and exception paths.',
+          )
+          docs.write_text(text, encoding='utf-8')
+          PY
+      - name: Canonical Black formatting
+        run: |
+          python -m pip install --disable-pip-version-check black==26.5.1
+          black --line-length 110 \
+            src/zcoder/services/continuous_engineering.py \
+            tests/unit/test_continuous_engineering_postgres_backend.py \
+            tests/integration/test_continuous_engineering_postgres_backend_live.py
+          rm .github/workflows/upgrade33-repair-once.yml
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/zcoder/services/continuous_engineering.py tests/unit/test_continuous_engineering_postgres_backend.py tests/integration/test_continuous_engineering_postgres_backend_live.py docs/upgrades/UPGRADE-33.md .github/workflows/upgrade33-repair-once.yml
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'fix: preserve CLI lifecycle compatibility in Upgrade-33'
+          git push origin HEAD:upgrade-33-postgres-backend-cli
