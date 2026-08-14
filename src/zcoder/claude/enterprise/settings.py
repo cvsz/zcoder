@@ -31,6 +31,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+from resilience import shell_command_argv
+
 USER_SETTINGS = Path(os.path.expanduser("~/.claude/settings.json"))
 PROJECT_SETTINGS = Path(".claude/settings.json")
 LOCAL_SETTINGS = Path(".claude/settings.local.json")
@@ -127,8 +129,7 @@ def render_status_line(session_state: dict) -> str:
     if isinstance(sl, dict) and sl.get("command"):
         try:
             r = subprocess.run(
-                sl["command"],
-                shell=True,
+                shell_command_argv(sl["command"]),
                 input=json.dumps(session_state),
                 capture_output=True,
                 text=True,

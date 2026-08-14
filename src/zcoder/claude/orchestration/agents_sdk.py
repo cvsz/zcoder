@@ -144,7 +144,7 @@ from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError
-from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
+from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
 SESSIONS_DIR = Path(os.path.expanduser("~/.ai-coder/agent_sessions"))
 ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -319,7 +319,7 @@ class McpTunnel:
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call_delete(self, req: "urllib.request.Request") -> dict:
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with safe_urlopen(req, timeout=30) as r:
                 return {"status": r.status}
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
@@ -1968,9 +1968,9 @@ def cmd_agent_memory_stores_list(api_key: str, include_archived: bool = False) -
     print(f"\n\033[94mMemory stores\033[0m{' (including archived)' if include_archived else ''}\n")
     for entry in entries:
         get = (
-            (lambda k, d="?": entry.get(k, d))
+            (lambda k, d="?", entry=entry: entry.get(k, d))
             if isinstance(entry, dict)
-            else (lambda k, d="?": getattr(entry, k, d))
+            else (lambda k, d="?", entry=entry: getattr(entry, k, d))
         )
         print(f"  {get('id')}  {get('name')}" f"{'  [archived]' if get('archived', False) else ''}")
     if not entries:
