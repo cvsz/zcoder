@@ -254,8 +254,11 @@ class ComplianceApiClient:
                         return body, headers
                     return json.loads(body.decode()) if body else {}
             except urllib.error.HTTPError as e:
-                body = e.read()
-                headers = dict(e.headers or {})
+                try:
+                    body = e.read() if getattr(e, "fp", None) is not None else b""
+                except Exception:
+                    body = b""
+                headers = dict(getattr(e, "headers", None) or {})
                 if _is_retryable(e.code, headers) and attempt < self.max_retries:
                     sleep_for = min(self.backoff_cap, 2**attempt)
                     self._sleep(sleep_for)
