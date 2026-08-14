@@ -111,7 +111,7 @@ def read_manifest(plugin_dir: Path) -> dict:
         try:
             data = json.loads(manifest_path.read_text())
         except Exception as e:
-            raise ValueError(f"invalid plugin.json: {e}")
+            raise ValueError(f"invalid plugin.json: {e}") from e
         merged = {**DEFAULT_MANIFEST_FIELDS, **data}
         if not merged["name"]:
             raise ValueError("plugin.json must include a 'name' field")

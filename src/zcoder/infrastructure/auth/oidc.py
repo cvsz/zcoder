@@ -204,11 +204,11 @@ class OidcValidator:
             )
 
         except jwt.ExpiredSignatureError:
-            raise TokenExpiredError("JWT token has expired")
+            raise TokenExpiredError("JWT token has expired") from None
         except jwt.InvalidTokenError as e:
-            raise TokenInvalidError(f"JWT validation failed: {e}")
+            raise TokenInvalidError(f"JWT validation failed: {e}") from e
         except Exception as e:
-            raise AuthError(f"Authentication failed: {e}")
+            raise AuthError(f"Authentication failed: {e}") from e
 
         # Map role
         raw_role = claims.get(self.role_claim, "")
