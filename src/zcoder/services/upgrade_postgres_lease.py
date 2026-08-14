@@ -99,9 +99,7 @@ class PostgresAdvisoryRunLease:
                     f"PostgreSQL upgrade run lease ownership lost before release: {self.namespace}"
                 )
         except Exception as exc:
-            failure = PostgresUpgradeRunLeaseError(
-                f"unable to release PostgreSQL upgrade run lease: {exc}"
-            )
+            failure = PostgresUpgradeRunLeaseError(f"unable to release PostgreSQL upgrade run lease: {exc}")
         finally:
             if scope is not None:
                 try:
