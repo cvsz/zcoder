@@ -1,4 +1,4 @@
-"""Cross-process run lease for bounded continuous engineering execution."""
+"""Cross-process run lease contracts for bounded continuous engineering execution."""
 
 from __future__ import annotations
 
@@ -8,6 +8,19 @@ import socket
 import time
 import uuid
 from pathlib import Path
+from typing import Protocol
+
+
+class RunLease(Protocol):
+    """Minimal exclusive-run contract consumed by ContinuousEngineeringPipeline."""
+
+    def acquire(self) -> None: ...
+
+    def release(self) -> None: ...
+
+    def __enter__(self) -> RunLease: ...
+
+    def __exit__(self, exc_type, exc, tb) -> None: ...
 
 
 class UpgradeRunLeaseError(RuntimeError):
