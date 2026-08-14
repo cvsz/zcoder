@@ -182,9 +182,7 @@ class JsonUpgradeLedger:
                 self._write(data)
             return items
 
-    def record_checkpoint(
-        self, checkpoint: LoopCheckpoint, items_by_id: dict[str, UpgradeWorkItem]
-    ) -> None:
+    def record_checkpoint(self, checkpoint: LoopCheckpoint, items_by_id: dict[str, UpgradeWorkItem]) -> None:
         with self._lock:
             data = self._read()
             completed = set(checkpoint.completed_item_ids)
@@ -200,9 +198,7 @@ class JsonUpgradeLedger:
                     persisted_state = WorkState.PENDING
                 elif item_id == checkpoint.active_item_id:
                     persisted_state = WorkState.RUNNING
-                data["records"][item.fingerprint] = self._serialize_item(
-                    item, state=persisted_state
-                )
+                data["records"][item.fingerprint] = self._serialize_item(item, state=persisted_state)
 
             checkpoints = data["checkpoints"]
             checkpoints.append(
@@ -241,9 +237,7 @@ class JsonUpgradeLedger:
                     counts[state] += 1
         return counts
 
-    def _serialize_item(
-        self, item: UpgradeWorkItem, *, state: WorkState | None = None
-    ) -> dict[str, Any]:
+    def _serialize_item(self, item: UpgradeWorkItem, *, state: WorkState | None = None) -> dict[str, Any]:
         return {
             "item_id": item.item_id,
             "title": item.title,

@@ -81,9 +81,7 @@ class Upgrade20EngineeringExecutor:
         normalized = str(getattr(status, "value", status)).upper()
         execution = EngineeringExecution(task_id=task_id, status=normalized, raw_task=raw_task)
         if self.ci_repair is not None and item.kind == WorkKind.REPAIR:
-            execution = dataclasses.replace(
-                execution, ci_repair_passed=bool(self.ci_repair(item, execution))
-            )
+            execution = dataclasses.replace(execution, ci_repair_passed=bool(self.ci_repair(item, execution)))
         return execution
 
     def validate(self, item: UpgradeWorkItem, execution: EngineeringExecution) -> ValidationResult:
@@ -131,9 +129,7 @@ def github_ci_repair_hook(
         if not job_id or not repository or pr_number is None:
             return True
         return bool(
-            orchestrator.execute_ci_repair_loop(
-                job_id, repository, int(pr_number), max_repairs=max_repairs
-            )
+            orchestrator.execute_ci_repair_loop(job_id, repository, int(pr_number), max_repairs=max_repairs)
         )
 
     return repair
