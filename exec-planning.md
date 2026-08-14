@@ -3,7 +3,7 @@
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
 **Current Baseline:** `zcoder v1.40.0`  
 **Last Updated:** 2026-08-14  
-**Scope:** Track the repository restructuring, Clean Architecture & Domain-Driven Design (DDD) migration, durable engineering runtime validation, test accounting, release gate compliance, and enterprise deployment roadmap.
+**Scope:** Track the repository restructuring, Clean Architecture & Domain-Driven Design (DDD) migration, durable engineering runtime validation, continuous upgrade/update/feature orchestration, test accounting, release gate compliance, and enterprise deployment roadmap.
 
 ---
 
@@ -14,9 +14,10 @@ This execution planning document establishes the operational and architectural b
 ### 1.1 Current Baseline & Key Metrics
 
 - **Repository Layout:** Clean Architecture + DDD package structure under `src/zcoder/` with zero breaking import changes (compatibility shims preserved in `src/*.py`).
-- **Test Suite Status:** **807 passed**, **0 skipped**, **0 failed**, **0 collection warnings** (including all webapp and interactive TUI suites).
+- **Test Suite Status:** **807 passed**, **0 skipped**, **0 failed**, **0 collection warnings** at the pre-Upgrade-24 baseline (including all webapp and interactive TUI suites).
 - **Durability & Crash Consistency:** SQLite WAL-mode verified crash-consistent under hard SIGKILL subprocess termination; PostgreSQL multiprocess store verified concurrency-safe.
 - **Release Gate:** Over 50 capability gates mapped across security, compliance, data residency, multi-tenancy, and no-cost local AI execution.
+- **Continuous Improvement Orchestration:** Upgrade-24 adds a bounded queue-level meta-loop for upgrade, update, feature implementation, and repair work with retry budgets, deduplication, regression guards, rollback hooks, and checkpoints.
 
 ---
 
@@ -33,7 +34,7 @@ The repository enforces strict Clean Architecture dependency boundaries:
                                    ▼
        ┌────────────────────────────────────────────────────────┐
        │               Application Services                     │
-       │   (Agent Runtime, Orchestrator, Compliance, Coder)     │
+       │ (Agent Runtime, Orchestrator, Upgrade Loop, Compliance)│
        └───────────────────────────┬────────────────────────────┘
                                    │
                                    ▼
@@ -55,7 +56,7 @@ The repository enforces strict Clean Architecture dependency boundaries:
 | `zcoder.config` | Configuration | User settings, production configs, logging configuration |
 | `zcoder.core` | Core Primitives | Exceptions, resilience/circuit breakers, health checks, security utilities |
 | `zcoder.domain` | Domain | Entities, invariants, ports (`EngineeringTask`, `ResidencyPolicy`, `TenantPolicy`) |
-| `zcoder.services` | Application Logic | `agent_runtime`, `engineering_orchestrator`, `compliance_evidence`, `cowork` |
+| `zcoder.services` | Application Logic | `agent_runtime`, `engineering_orchestrator`, `upgrade_loop`, `compliance_evidence`, `cowork` |
 | `zcoder.infrastructure` | Infrastructure | SQLite & PostgreSQL stores, OIDC/SCIM auth, OTel observability |
 | `zcoder.claude` | Model & Tools | Anthropic API conformance, tool catalogs, code execution sandboxes, streaming |
 | `zcoder.enterprise` | Enterprise | Local AI stack, zero-cost offline platform, portfolio execution |
@@ -87,6 +88,13 @@ The repository enforces strict Clean Architecture dependency boundaries:
    - SSRF protection on all outbound customer webhooks (blocking metadata endpoints and loopback).
    - SCIM 2.0 provisioning and OIDC authentication with RBAC ceiling enforcement.
 
+5. **Autonomous Loop Safety:**
+   - Queue-level autonomous work must be bounded by global iteration and no-progress budgets.
+   - One independently verifiable vertical slice is executed per Upgrade-24 iteration.
+   - Newly introduced regressions are a hard stop by default.
+   - Provider, GitHub, shell, and deployment side effects remain behind injected adapters/callbacks.
+   - Upgrade-20 remains the task-level engineering execution authority; Upgrade-24 owns queue-level prioritization and progression.
+
 ---
 
 ## 4. Test Accounting & Quality Matrix
@@ -95,11 +103,13 @@ The test suite is structured by execution semantics:
 
 | Category | Path | Test Count | Scope & Validation |
 | :--- | :--- | :--- | :--- |
-| **Unit Tests** | `tests/unit/` | ~380 | Isolated logic, mock APIs, config parsing, security regex, token counting |
+| **Unit Tests** | `tests/unit/` | ~380 + Upgrade-24 suite | Isolated logic, mock APIs, config parsing, security regex, token counting, continuous upgrade-loop policy |
 | **Integration Tests** | `tests/integration/` | ~160 | PostgreSQL concurrency, SQLite stores, OIDC auth, conformance tests |
 | **E2E Tests** | `tests/e2e/` | ~50 | Durability restarts, hard crash recovery, worker fleet campaigns |
 | **Upgrade Suites** | `tests/e2e/upgrade_suites/` | ~200 | Regressions & capability verification (Upgrade-11 through Upgrade-20) |
-| **Total** | `tests/` | **807 Passed** | **100% Passing baseline (0 errors, 0 warnings, 0 skipped)** |
+| **Pre-Upgrade-24 Baseline** | `tests/` | **807 Passed** | **100% passing before this change (0 errors, 0 warnings, 0 skipped)** |
+
+Upgrade-24 adds focused unit coverage in `tests/unit/test_upgrade_loop.py`. The full-suite total must only be promoted to a new canonical count after hosted/local CI verifies the branch.
 
 ---
 
@@ -115,6 +125,7 @@ The test suite is structured by execution semantics:
 - [x] **Upgrade-21:** Durable SQLite & PostgreSQL engineering store with atomic checkpoints and state snapshots.
 - [x] **Upgrade-22:** Multi-tenant portfolio scheduler, campaign execution, and worker fleet orchestration.
 - [x] **Upgrade-23:** Maintenance intelligence service, proactive issue detection, self-repair workflows.
+- [x] **Upgrade-24:** Bounded continuous upgrade/update/feature/repair meta-loop with priority ordering, idempotent discovery, retries, regression guard, rollback hook, and checkpoints.
 - [x] **v1.40.0 Refactoring:** Clean Architecture & DDD `src/zcoder` migration with full backward compatibility.
 
 ---
@@ -122,19 +133,28 @@ The test suite is structured by execution semantics:
 ## 6. Execution Roadmap & Next Milestones
 
 ```text
- Milestone 1: Core Clean Architecture & Test Green Baseline  [ COMPLETED - 807/807 PASS ]
- Milestone 2: Durability & Subprocess Import Alignment       [ COMPLETED ]
- Milestone 3: Release Gate Path & Verification Alignment     [ COMPLETED ]
- Milestone 4: CI/CD Hosted Runner Unblocking & Gates Check  [ IN PROGRESS / PENDING HOSTED CI ]
- Milestone 5: Standalone Binary & Container Packaging Verify [ READY FOR STAGING ]
+ Milestone 1: Core Clean Architecture & Test Green Baseline   [ COMPLETED - 807/807 PASS ]
+ Milestone 2: Durability & Subprocess Import Alignment        [ COMPLETED ]
+ Milestone 3: Release Gate Path & Verification Alignment      [ COMPLETED ]
+ Milestone 4: Continuous Upgrade Meta-Loop (Upgrade-24)       [ IMPLEMENTED / CI VERIFY ]
+ Milestone 5: CI/CD Hosted Runner Unblocking & Gates Check    [ IN PROGRESS / PENDING HOSTED CI ]
+ Milestone 6: Standalone Binary & Container Packaging Verify  [ READY FOR STAGING ]
+ Milestone 7: Wire Upgrade-24 to live Upgrade-20/GitHub adapters [ NEXT ]
 ```
 
 ### 6.1 Action Items
 
 1. **Continuous Validation:**
-   - Execute `pytest` before merging any feature PRs to guarantee 0 regressions.
+   - Execute focused Upgrade-24 tests and the full `pytest` suite before merge.
+   - Maintain zero newly introduced regressions relative to the 807-test pre-change baseline.
    - Maintain `__test__ = False` on non-test classes with `Test*` naming prefix to prevent collection warnings.
 2. **Subprocess Execution Invariant:**
    - Ensure all scripts or tests invoking subprocesses pass `PYTHONPATH` with both `<repo_root>/src` and `<repo_root>`.
 3. **Hosted CI Execution:**
    - Monitor GitHub Actions billing and hosted runners to unblock hosted release gate verification.
+4. **Upgrade-24 Runtime Wiring:**
+   - Feed Upgrade-23 maintenance recommendations through `work_from_maintenance_recommendation()`.
+   - Adapt one `UpgradeWorkItem` at a time into Upgrade-20 `EngineeringTask` execution.
+   - Convert Upgrade-20 baseline/post-edit validation delta into Upgrade-24 `ValidationResult`.
+   - Persist Upgrade-24 checkpoints through the durable engineering/portfolio store boundary.
+   - Keep automatic push/PR behavior governed by the existing Upgrade-20 push policy and approval controls.
