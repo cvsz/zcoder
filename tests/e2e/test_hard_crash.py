@@ -39,7 +39,9 @@ for i in range(1000):
         repo_root = Path(__file__).resolve().parents[2]
         src_path = repo_root / "src"
         existing_pp = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = f"{src_path}:{repo_root}:{existing_pp}" if existing_pp else f"{src_path}:{repo_root}"
+        env["PYTHONPATH"] = (
+            f"{src_path}:{repo_root}:{existing_pp}" if existing_pp else f"{src_path}:{repo_root}"
+        )
         proc = subprocess.Popen([sys.executable, "-c", script], env=env)
 
         # Give it some time to start writing

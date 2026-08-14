@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
 """Run the one-shot hardening migration with robust security rewrites."""
+
 from __future__ import annotations
 
 import apply_repository_hardening as migration
 
-
 EXEC_BLOCKS = {
     "src/zcoder/claude/integrations/excel.py": (
-        '''            exec(compile(code, "<excel-turn>", "exec"), {"__builtins__": {
+        """            exec(compile(code, "<excel-turn>", "exec"), {"__builtins__": {
                 "len": len, "range": range, "sum": sum, "min": min, "max": max,
                 "round": round, "sorted": sorted, "list": list, "dict": dict,
                 "str": str, "int": int, "float": float, "bool": bool,
                 "enumerate": enumerate, "zip": zip, "abs": abs,
-            }}, local_ns)''',
-        '''            execute_restricted_code(code, {"__builtins__": {
+            }}, local_ns)""",
+        """            execute_restricted_code(code, {"__builtins__": {
                 "len": len, "range": range, "sum": sum, "min": min, "max": max,
                 "round": round, "sorted": sorted, "list": list, "dict": dict,
                 "str": str, "int": int, "float": float, "bool": bool,
                 "enumerate": enumerate, "zip": zip, "abs": abs,
-            }}, local_ns, filename="<excel-turn>")''',
+            }}, local_ns, filename="<excel-turn>")""",
     ),
     "src/zcoder/claude/integrations/powerpoint.py": (
-        '''            exec(compile(code, "<pptx-turn>", "exec"), {"__builtins__": {
+        """            exec(compile(code, "<pptx-turn>", "exec"), {"__builtins__": {
                 "len": len, "range": range, "sum": sum, "min": min, "max": max,
                 "round": round, "sorted": sorted, "list": list, "dict": dict,
                 "str": str, "int": int, "float": float, "bool": bool,
                 "enumerate": enumerate, "zip": zip, "abs": abs,
-            }}, local_ns)''',
-        '''            execute_restricted_code(code, {"__builtins__": {
+            }}, local_ns)""",
+        """            execute_restricted_code(code, {"__builtins__": {
                 "len": len, "range": range, "sum": sum, "min": min, "max": max,
                 "round": round, "sorted": sorted, "list": list, "dict": dict,
                 "str": str, "int": int, "float": float, "bool": bool,
                 "enumerate": enumerate, "zip": zip, "abs": abs,
-            }}, local_ns, filename="<pptx-turn>")''',
+            }}, local_ns, filename="<pptx-turn>")""",
     ),
 }
 
@@ -224,58 +224,58 @@ def harden_shell_calls() -> None:
 
     _replace(
         "src/zcoder/claude/capabilities/code.py",
-        '''                result = subprocess.run(
+        """                result = subprocess.run(
                     cmd, shell=True, input=stdin_data,
                     capture_output=True, text=True, timeout=30, env=env,
-                )''',
-        '''                result = run_shell_command(
+                )""",
+        """                result = run_shell_command(
                     cmd, input=stdin_data,
                     capture_output=True, text=True, timeout=30, env=env,
-                )''',
+                )""",
         shell_import,
     )
     _replace(
         "src/zcoder/claude/capabilities/code.py",
-        '''                r = subprocess.run(cmd, shell=True, cwd=cwd,
-                                   capture_output=True, text=True, timeout=timeout)''',
-        '''                r = run_shell_command(cmd, cwd=cwd,
-                                   capture_output=True, text=True, timeout=timeout)''',
+        """                r = subprocess.run(cmd, shell=True, cwd=cwd,
+                                   capture_output=True, text=True, timeout=timeout)""",
+        """                r = run_shell_command(cmd, cwd=cwd,
+                                   capture_output=True, text=True, timeout=timeout)""",
         shell_import,
     )
     _replace(
         "src/zcoder/claude/integrations/git.py",
-        '''    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=30)''',
-        '''    r = run_command(cmd, cwd=cwd, capture_output=True, text=True, timeout=30)''',
+        """    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=30)""",
+        """    r = run_command(cmd, cwd=cwd, capture_output=True, text=True, timeout=30)""",
         direct_import,
     )
     _replace(
         "src/zcoder/claude/enterprise/settings.py",
-        '''            r = subprocess.run(
+        """            r = subprocess.run(
                 sl["command"], shell=True,
                 input=json.dumps(session_state),
                 capture_output=True, text=True, timeout=5,
-            )''',
-        '''            r = run_shell_command(
+            )""",
+        """            r = run_shell_command(
                 sl["command"],
                 input=json.dumps(session_state),
                 capture_output=True, text=True, timeout=5,
-            )''',
+            )""",
         shell_import,
     )
     _replace(
         "src/zcoder/claude/orchestration/sessions.py",
-        '''        r = subprocess.run(f'git log --since="{since_iso}" --oneline',
-                          shell=True, cwd=cwd, capture_output=True, text=True, timeout=5)''',
-        '''        r = run_command(["git", "log", f"--since={since_iso}", "--oneline"],
-                          cwd=cwd, capture_output=True, text=True, timeout=5)''',
+        """        r = subprocess.run(f'git log --since="{since_iso}" --oneline',
+                          shell=True, cwd=cwd, capture_output=True, text=True, timeout=5)""",
+        """        r = run_command(["git", "log", f"--since={since_iso}", "--oneline"],
+                          cwd=cwd, capture_output=True, text=True, timeout=5)""",
         direct_import,
     )
     _replace(
         "src/zcoder/claude/enterprise/hooks_perms.py",
-        '''                p = subprocess.run(h.command, shell=True, capture_output=True,
-                                   text=True, timeout=30, env=env)''',
-        '''                p = run_shell_command(h.command, capture_output=True,
-                                   text=True, timeout=30, env=env)''',
+        """                p = subprocess.run(h.command, shell=True, capture_output=True,
+                                   text=True, timeout=30, env=env)""",
+        """                p = run_shell_command(h.command, capture_output=True,
+                                   text=True, timeout=30, env=env)""",
         shell_import,
     )
 
@@ -286,9 +286,7 @@ def harden_generated_code() -> None:
         if old not in text:
             raise RuntimeError(f"expected generated-code block not found in {path}")
         text = text.replace(old, new, 1)
-        text = migration.add_import(
-            text, "from zcoder.core.restricted_exec import execute_restricted_code"
-        )
+        text = migration.add_import(text, "from zcoder.core.restricted_exec import execute_restricted_code")
         migration.write(path, text)
 
 

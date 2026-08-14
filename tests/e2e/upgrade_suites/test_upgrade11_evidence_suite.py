@@ -41,7 +41,7 @@ def test_version_single_source_of_truth():
         except ImportError:
             import re
 
-            with open("pyproject.toml", "r", encoding="utf-8") as f:
+            with open("pyproject.toml", encoding="utf-8") as f:
                 content = f.read()
             match = re.search(r'version\s*=\s*"([^"]+)"', content)
             toml_ver = match.group(1) if match else None

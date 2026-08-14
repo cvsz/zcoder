@@ -5,6 +5,7 @@ This script is intentionally deterministic: it rewrites known security
 primitives, dependency metadata, active documentation, and GitHub repository
 metadata. It is used on a review branch and can be removed after the migration.
 """
+
 from __future__ import annotations
 
 import re
@@ -15,7 +16,11 @@ SRC = ROOT / "src" / "zcoder"
 
 
 def read(path: str | Path) -> str:
-    return (ROOT / path).read_text(encoding="utf-8") if isinstance(path, str) else path.read_text(encoding="utf-8")
+    return (
+        (ROOT / path).read_text(encoding="utf-8")
+        if isinstance(path, str)
+        else path.read_text(encoding="utf-8")
+    )
 
 
 def write(path: str | Path, content: str) -> None:
@@ -36,7 +41,7 @@ def add_import(text: str, import_line: str) -> str:
         return text
     lines = text.splitlines()
     idx = 0
-    if lines and lines[0].startswith(("\"\"\"", "'''")):
+    if lines and lines[0].startswith(('"""', "'''")):
         quote = lines[0][:3]
         if lines[0].count(quote) >= 2 and len(lines[0].strip()) > 6:
             idx = 1
@@ -311,10 +316,10 @@ def harden_temp_paths() -> None:
 def harden_sql() -> None:
     path = "src/zcoder/domain/services/deployment.py"
     text = read(path)
-    old = '''            for table in ["jobs", "outbox", "webhook_inbox", "installations", "repositories"]:
+    old = """            for table in ["jobs", "outbox", "webhook_inbox", "installations", "repositories"]:
                 cur.execute(f"SELECT COUNT(*) FROM {table}")
-                records[table] = cur.fetchone()[0]'''
-    new = '''            table_count_queries = {
+                records[table] = cur.fetchone()[0]"""
+    new = """            table_count_queries = {
                 "jobs": "SELECT COUNT(*) FROM jobs",
                 "outbox": "SELECT COUNT(*) FROM outbox",
                 "webhook_inbox": "SELECT COUNT(*) FROM webhook_inbox",
@@ -323,7 +328,7 @@ def harden_sql() -> None:
             }
             for table, query in table_count_queries.items():
                 cur.execute(query)
-                records[table] = cur.fetchone()[0]'''
+                records[table] = cur.fetchone()[0]"""
     if old not in text:
         raise RuntimeError("expected deployment table-count query not found")
     write(path, text.replace(old, new))
@@ -337,17 +342,17 @@ def update_dependencies() -> None:
         if marker not in text:
             raise RuntimeError("pyproject pptx extra marker missing")
         text = text.replace(marker, marker + 'postgres = ["psycopg2-binary>=2.9.9,<3"]\n')
-    all_block = '''all = [
+    all_block = """all = [
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
     "starlette>=0.27.0",
-]'''
-    all_new = '''all = [
+]"""
+    all_new = """all = [
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
     "starlette>=0.27.0",
     "psycopg2-binary>=2.9.9,<3",
-]'''
+]"""
     if all_block in text:
         text = text.replace(all_block, all_new)
     dev_marker = '    "bandit>=1.7.9",\n]'
@@ -367,7 +372,7 @@ def github_files() -> None:
     write(".github/CODEOWNERS", "* @cvsz\n")
     write(
         ".github/PULL_REQUEST_TEMPLATE.md",
-        '''## Summary
+        """## Summary
 
 Describe the problem and the production impact of this change.
 
@@ -391,11 +396,11 @@ Describe the problem and the production impact of this change.
 ## Operational impact
 
 List deployment, rollback, migration, observability, cost, or reliability considerations. Use `None` when not applicable.
-''',
+""",
     )
     write(
         ".github/ISSUE_TEMPLATE/bug_report.yml",
-        '''name: Bug report
+        """name: Bug report
 description: Report a reproducible defect in ZCoder
 title: "bug: "
 labels: ["bug"]
@@ -433,11 +438,11 @@ body:
     attributes:
       label: Sanitized logs
       description: Remove credentials, tokens, customer data, and private prompts.
-''',
+""",
     )
     write(
         ".github/ISSUE_TEMPLATE/feature_request.yml",
-        '''name: Feature request
+        """name: Feature request
 description: Propose a production-facing capability or improvement
 title: "feat: "
 labels: ["enhancement"]
@@ -465,11 +470,11 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-''',
+""",
     )
     write(
         ".github/ISSUE_TEMPLATE/documentation.yml",
-        '''name: Documentation issue
+        """name: Documentation issue
 description: Report missing, stale, ambiguous, or incorrect documentation
 title: "docs: "
 labels: ["documentation"]
@@ -491,20 +496,20 @@ body:
     id: proposed
     attributes:
       label: Proposed correction
-''',
+""",
     )
     write(
         ".github/ISSUE_TEMPLATE/config.yml",
-        '''blank_issues_enabled: false
+        """blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
     url: https://github.com/cvsz/zcoder/security/advisories/new
     about: Report vulnerabilities privately. Do not open a public issue.
-''',
+""",
     )
     write(
         ".github/dependabot.yml",
-        '''version: 2
+        """version: 2
 updates:
   - package-ecosystem: pip
     directory: "/"
@@ -520,14 +525,14 @@ updates:
       day: monday
     open-pull-requests-limit: 10
     labels: ["dependencies", "github-actions"]
-''',
+""",
     )
 
 
 def workflows() -> None:
     write(
         ".github/workflows/ci.yml",
-        '''name: CI
+        """name: CI
 
 on:
   push:
@@ -609,11 +614,11 @@ jobs:
       - uses: actions/checkout@v7
       - run: docker build -t zcoder:ci .
       - run: docker run --rm zcoder:ci --version
-''',
+""",
     )
     write(
         ".github/workflows/docs.yml",
-        '''name: Documentation
+        """name: Documentation
 
 on:
   push:
@@ -641,11 +646,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/check_docs.py
-''',
+""",
     )
     write(
         ".github/workflows/package.yml",
-        '''name: Package
+        """name: Package
 
 on:
   push:
@@ -679,11 +684,11 @@ jobs:
         with:
           name: python-package
           path: dist/*
-''',
+""",
     )
     write(
         ".github/workflows/dependency-audit.yml",
-        '''name: Dependency audit
+        """name: Dependency audit
 
 on:
   workflow_dispatch:
@@ -704,14 +709,14 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[dev]" pip-audit
       - run: pip-audit
-''',
+""",
     )
 
 
 def documentation_files() -> None:
     write(
         "CODE_OF_CONDUCT.md",
-        '''# Code of Conduct
+        """# Code of Conduct
 
 ## Our standard
 
@@ -728,11 +733,11 @@ Maintainers may edit or remove content, close interactions, restrict participati
 ## Reporting
 
 Report conduct concerns privately to the repository maintainers. Security vulnerabilities must follow [SECURITY.md](SECURITY.md) and must not be disclosed through public issues.
-''',
+""",
     )
     write(
         "GOVERNANCE.md",
-        '''# Governance
+        """# Governance
 
 ZCoder is maintained under the `cvsz` repository ownership boundary. The `main` branch is the release source of truth.
 
@@ -751,11 +756,11 @@ A change is mergeable when required CI, security, tests, documentation validatio
 ## Releases
 
 Release versions are defined by package metadata and the canonical runtime. Release notes belong in [CHANGELOG.md](CHANGELOG.md); historical implementation/audit notes live under `docs/upgrades/`.
-''',
+""",
     )
     write(
         "SUPPORT.md",
-        '''# Support
+        """# Support
 
 ## Before opening an issue
 
@@ -769,22 +774,45 @@ Use the structured GitHub issue forms for reproducible bugs, feature requests, a
 ## Security
 
 Do **not** open a public issue for a vulnerability. Follow [SECURITY.md](SECURITY.md) and use GitHub private vulnerability reporting / security advisories where available.
-''',
+""",
     )
     category_docs = {
-        "docs/security/README.md": ("Security", "Identity, credentials, encryption, key management, SSO, SCIM, service accounts, and security runbooks."),
-        "docs/compliance/README.md": ("Compliance", "Audit evidence, policies, retention, residency, quotas, controls, and multi-tenant compliance boundaries."),
-        "docs/operations/README.md": ("Operations", "Deployment, observability, SLOs, disaster recovery, Kubernetes, billing, metering, and incident runbooks."),
-        "docs/enterprise/README.md": ("Enterprise", "Enterprise feature, RBAC, organization, and MCP conformance documentation."),
-        "docs/guides/README.md": ("Guides", "Operator and developer guides for local AI, projects/artifacts, and advanced model workflows."),
-        "docs/upgrades/README.md": ("Upgrade archive", "Historical release, audit, and implementation records. These documents preserve the architecture and paths that existed at the time; use current root/docs indexes for authoritative paths."),
-        "docs/prompts/README.md": ("Prompt archive", "Historical upgrade/audit prompts retained as project provenance. They are not current implementation instructions unless explicitly referenced by a current plan."),
+        "docs/security/README.md": (
+            "Security",
+            "Identity, credentials, encryption, key management, SSO, SCIM, service accounts, and security runbooks.",
+        ),
+        "docs/compliance/README.md": (
+            "Compliance",
+            "Audit evidence, policies, retention, residency, quotas, controls, and multi-tenant compliance boundaries.",
+        ),
+        "docs/operations/README.md": (
+            "Operations",
+            "Deployment, observability, SLOs, disaster recovery, Kubernetes, billing, metering, and incident runbooks.",
+        ),
+        "docs/enterprise/README.md": (
+            "Enterprise",
+            "Enterprise feature, RBAC, organization, and MCP conformance documentation.",
+        ),
+        "docs/guides/README.md": (
+            "Guides",
+            "Operator and developer guides for local AI, projects/artifacts, and advanced model workflows.",
+        ),
+        "docs/upgrades/README.md": (
+            "Upgrade archive",
+            "Historical release, audit, and implementation records. These documents preserve the architecture and paths that existed at the time; use current root/docs indexes for authoritative paths.",
+        ),
+        "docs/prompts/README.md": (
+            "Prompt archive",
+            "Historical upgrade/audit prompts retained as project provenance. They are not current implementation instructions unless explicitly referenced by a current plan.",
+        ),
     }
     for path, (title, desc) in category_docs.items():
         folder = ROOT / path
-        entries = sorted(
-            p.name for p in folder.parent.iterdir() if p.is_file() and p.name.lower() != "readme.md"
-        ) if folder.parent.exists() else []
+        entries = (
+            sorted(p.name for p in folder.parent.iterdir() if p.is_file() and p.name.lower() != "readme.md")
+            if folder.parent.exists()
+            else []
+        )
         listing = "\n".join(f"- `{name}`" for name in entries) or "- No indexed files yet."
         write(path, f"# {title}\n\n{desc}\n\n## Contents\n\n{listing}\n")
 
@@ -792,18 +820,18 @@ Do **not** open a public issue for a vulnerability. Follow [SECURITY.md](SECURIT
     if not broken.exists() or not broken.read_text(encoding="utf-8", errors="ignore").strip():
         write(
             broken,
-            '''# Upgrade v1.10.0 — Historical record
+            """# Upgrade v1.10.0 — Historical record
 
 This archive entry was present in the repository as an empty/truncated file after the source-layout migration. It is restored as an explicit historical marker rather than inventing release claims that cannot be reconstructed from the truncated artifact.
 
 For current architecture and supported entry points, use [../../ARCHITECTURE.md](../../ARCHITECTURE.md) and [../../README.md](../../README.md). Adjacent v1.10.x records in this directory provide the preserved detailed implementation history for that release line.
-''',
+""",
         )
 
     upsert_block(
         "README.md",
         "repository-baseline",
-        '''## Repository baseline (2026-08-14)
+        """## Repository baseline (2026-08-14)
 
 The canonical Python implementation is the `src/zcoder/` package. Installed entry points are `zcoder` and `ai-coder`; root `main.py` and top-level modules under `src/` exist only for compatibility with older integrations.
 
@@ -816,22 +844,22 @@ pytest
 Optional PostgreSQL support is installed with `zcoder[postgres]`. Repository changes are validated by CI, Bandit security scanning, documentation checks, built-wheel smoke tests, and Docker build validation. See [ARCHITECTURE.md](ARCHITECTURE.md), [QUICKSTART.md](QUICKSTART.md), [CONTRIBUTING.md](CONTRIBUTING.md), and the [documentation index](docs/README.md).
 
 > Historical release sections below may mention the compatibility launcher `python main.py`; new automation and documentation should prefer the installed `zcoder` command or `python -m zcoder.main`.
-''',
+""",
     )
     upsert_block(
         "ARCHITECTURE.md",
         "validation-contract",
-        '''## Repository validation contract
+        """## Repository validation contract
 
 The architecture is enforced at repository boundaries as well as runtime boundaries: CI validates the canonical package across Python 3.9-3.12, Bandit blocks Medium/High findings under `src/zcoder`, package checks install the built wheel rather than relying only on editable installs, documentation checks validate the active documentation surface, and Docker is built only after code gates succeed.
 
 Shell commands are executed without implicit shell expansion, outbound urllib integrations pass through a validated HTTP(S) boundary, model-generated Python used by document integrations passes through AST policy validation, and PostgreSQL support is an explicit install extra rather than an undeclared import-time dependency.
-''',
+""",
     )
     upsert_block(
         "SECURITY.md",
         "secure-development",
-        '''## Secure-development baseline
+        """## Secure-development baseline
 
 - No provider secret may be sent to browser clients.
 - New subprocess execution must use argv-based execution without `shell=True`; explicit shell interpreters are capabilities that require policy review.
@@ -842,12 +870,12 @@ Shell commands are executed without implicit shell expansion, outbound urllib in
 - CI Bandit scanning remains blocking for Medium and High severity findings.
 
 Report vulnerabilities privately through GitHub Security Advisories / private vulnerability reporting. Never include credentials or customer data in a public issue.
-''',
+""",
     )
     upsert_block(
         "CONTRIBUTING.md",
         "repository-workflow",
-        '''## Current repository workflow
+        """## Current repository workflow
 
 1. Install development dependencies with `python -m pip install -e ".[dev]"`.
 2. Add code under `src/zcoder/`; use compatibility aliases only when preserving an existing public import.
@@ -855,12 +883,12 @@ Report vulnerabilities privately through GitHub Security Advisories / private vu
 4. Run `ruff check src tests scripts`, `black --check src tests scripts`, `bandit -r src/zcoder -ll`, `pytest`, and `python scripts/check_docs.py` before requesting review.
 5. Update active docs and `CHANGELOG.md` when behavior, operations, compatibility, or security posture changes.
 6. Do not treat skipped CI jobs, unavailable runners, or stale release-gate evidence as a successful validation result.
-''',
+""",
     )
     upsert_block(
         "QUICKSTART.md",
         "canonical-quickstart",
-        '''## Canonical quick start
+        """## Canonical quick start
 
 ```bash
 python -m venv venv
@@ -875,20 +903,20 @@ zcoder --version
 ```
 
 For PostgreSQL adapters use `python -m pip install -e ".[dev,postgres]"`. For a package-consumer install use `python -m pip install ".[all]"`. The root `python main.py` launcher remains compatibility-only.
-''',
+""",
     )
     upsert_block(
         "ROADMAP.md",
         "current-status",
-        '''## Current repository status
+        """## Current repository status
 
 The src-layout migration is complete. The current engineering focus is release evidence and operational hardening: keep all CI gates executing successfully, preserve canonical/legacy import compatibility, maintain explicit dependency extras, expand integration/e2e coverage around sandbox and provider boundaries, and keep active documentation synchronized with code. Historical version/audit records are archived under `docs/upgrades/` rather than used as current architecture guidance.
-''',
+""",
     )
     upsert_block(
         "CHANGELOG.md",
         "unreleased-hardening",
-        '''## Unreleased — Repository hardening
+        """## Unreleased — Repository hardening
 
 ### Changed
 - Declared the PostgreSQL adapter dependency through the `postgres`, `all`, and development dependency contracts.
@@ -900,20 +928,20 @@ The src-layout migration is complete. The current engineering focus is release e
 ### Documentation and governance
 - Added repository governance, support, code-of-conduct, CODEOWNERS, structured issue forms, PR template, Dependabot, category indexes, and documentation validation.
 - Restored the truncated v1.10.0 upgrade archive marker without inventing historical release evidence.
-''',
+""",
     )
     upsert_block(
         "Artifacts-zcoder.md",
         "migration-status",
-        '''## Migration execution status
+        """## Migration execution status
 
 The restructuring proposed by this artifact has been executed. `src/zcoder/` is now canonical, tests are grouped by test boundary, documentation has category indexes, legacy imports are compatibility aliases, and packaging/CLI/Docker entry points resolve through the canonical package. Future architecture changes should be proposed against [ARCHITECTURE.md](ARCHITECTURE.md), not against the pre-migration flat layout captured later in this historical proposal.
-''',
+""",
     )
     upsert_block(
         "CHECKLIST.md",
         "repository-gates",
-        '''## Repository completion gates
+        """## Repository completion gates
 
 - [x] Canonical `src/zcoder` package layout
 - [x] Editable/package install metadata
@@ -924,12 +952,12 @@ The restructuring proposed by this artifact has been executed. `src/zcoder/` is 
 - [x] GitHub issue/PR templates, CODEOWNERS, Dependabot, governance/support documents
 - [x] Historical upgrade archive indexed and truncated v1.10.0 marker restored
 - [ ] Mark release evidence PASS only after the new workflows execute successfully on the final commit
-''',
+""",
     )
     upsert_block(
         "IMPLEMENTATION_CHECKLIST.md",
         "repository-hardening",
-        '''## Repository-hardening implementation
+        """## Repository-hardening implementation
 
 - [x] PostgreSQL driver declared for development and optional production installs
 - [x] shell-free subprocess boundary
@@ -940,23 +968,21 @@ The restructuring proposed by this artifact has been executed. `src/zcoder/` is 
 - [x] active documentation current-layout banner and archive navigation
 - [x] GitHub governance/templates/workflows
 - [ ] Final CI evidence recorded only after GitHub Actions executes on the completed branch/main commit
-''',
+""",
     )
     if (ROOT / "webapp/README.md").exists():
         upsert_block(
             "webapp/README.md",
             "canonical-runtime",
-            '''## Canonical runtime integration
+            """## Canonical runtime integration
 
 The web application is an interface adapter over the canonical `zcoder` package. Development/install automation should install the package (`python -m pip install -e ".[web]"`) and import `zcoder.*`; references to root modules are compatibility paths only. Provider credentials remain server-side and must never be serialized to browser clients.
-''',
+""",
         )
 
 
 def update_active_markdown_paths() -> None:
-    upgrade_names = {
-        p.name: p.relative_to(ROOT).as_posix() for p in (ROOT / "docs/upgrades").glob("*.md")
-    }
+    upgrade_names = {p.name: p.relative_to(ROOT).as_posix() for p in (ROOT / "docs/upgrades").glob("*.md")}
     test_matches: dict[str, list[str]] = {}
     for p in (ROOT / "tests").rglob("*.py"):
         test_matches.setdefault(p.name, []).append(p.relative_to(ROOT).as_posix())
@@ -1073,7 +1099,7 @@ if __name__ == "__main__":
 def docs_index() -> None:
     write(
         "docs/README.md",
-        '''# ZCoder Documentation
+        """# ZCoder Documentation
 
 This directory is the navigation root for architecture, security, compliance, operations, enterprise behavior, guides, historical upgrade evidence, and archived implementation prompts. The authoritative package layout is `src/zcoder/`; root-level architecture/security/contribution documents remain the project policy source of truth.
 
@@ -1104,7 +1130,7 @@ This directory is the navigation root for architecture, security, compliance, op
 ## Archive policy
 
 `docs/upgrades/` and `docs/prompts/` are provenance archives. Text inside an archived record may refer to module names, test paths, or commands that were correct when that record was written. Current implementation guidance must come from root policy docs and current category docs. The documentation workflow inventories every Markdown file for non-empty content and validates local links on the active documentation surface.
-''',
+""",
     )
 
 
