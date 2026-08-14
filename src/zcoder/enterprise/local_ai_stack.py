@@ -1289,7 +1289,7 @@ class ValidationFailure:
 @dataclasses.dataclass
 class ValidationDelta:
     """Tracks baseline vs post-edit failures (§45)."""
-
+    __test__ = False
     baseline_failures: list[str]
     post_edit_failures: list[str]
 
