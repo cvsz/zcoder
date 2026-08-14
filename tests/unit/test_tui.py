@@ -141,6 +141,18 @@ def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch):
     assert updates == ["Hi", "Hi there!"]
 
 
+def _purge_tui_modules(modules):
+    """Remove both the legacy alias and canonical src-layout TUI module."""
+    for mod in list(modules):
+        if (
+            mod == "tui"
+            or mod.startswith("tui.")
+            or mod == "zcoder.interfaces.cli.tui"
+            or mod.startswith("zcoder.interfaces.cli.tui.")
+        ):
+            del modules[mod]
+
+
 def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
     # Simulate the "not installed" path without actually uninstalling
     # textual -- checks tui.py's own guard message stays informative.
@@ -148,10 +160,8 @@ def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
     import sys as _sys
 
     real_textual = _sys.modules.get("textual")
-    _sys.modules["textual"] = None  # forces an ImportError on next import
-    for mod in list(_sys.modules):
-        if mod == "tui" or mod.startswith("tui."):
-            del _sys.modules[mod]
+    _sys.modules["textual"] = None  # forces an ImportError on next canonical import
+    _purge_tui_modules(_sys.modules)
     try:
         with pytest.raises(ImportError, match="pip install textual"):
             importlib.import_module("tui")
@@ -160,7 +170,5 @@ def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
             _sys.modules["textual"] = real_textual
         else:
             _sys.modules.pop("textual", None)
-        for mod in list(_sys.modules):
-            if mod == "tui" or mod.startswith("tui."):
-                del _sys.modules[mod]
+        _purge_tui_modules(_sys.modules)
         importlib.import_module("tui")
