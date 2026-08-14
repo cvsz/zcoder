@@ -1,0 +1,16 @@
+Implement Upgrade-29 as a bounded production-readiness slice for cvsz/zcoder.
+
+Objective: wire the Upgrade-28 EngineeringStore ledger into ContinuousEngineeringPipeline and expose a safe SQLite backend without changing the JSON compatibility default.
+
+Requirements:
+- type the pipeline against the generic UpgradeLedger contract;
+- preserve automatic sidecar run lease behavior for JsonUpgradeLedger;
+- fail closed when a pathless/generic ledger is supplied without an explicit run lease;
+- add a SQLite builder using the existing SQLiteEngineeringStore and EngineeringStoreUpgradeLedger;
+- use a same-host sidecar UpgradeRunLease for SQLite runs;
+- expose explicit CLI backend selection and SQLite DB/namespace options;
+- keep JSON as the default backend;
+- do not expose PostgreSQL continuous fleet execution until a distributed lease/fencing mechanism exists;
+- test restart deduplication, builder composition, CLI routing, compatibility default, and lease fail-closed behavior;
+- preserve Upgrade-20 execution authority and Upgrade-24 retry/regression/no-progress policy;
+- do not weaken Ruff, Black, Bandit, pytest coverage, Docker, CodeQL, dependency review, Helm, SDK/TypeScript, or release gates.
