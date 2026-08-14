@@ -10,7 +10,12 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 dependencies = [
-    "anthropic>=0.40.0",
+    "anthropic>=0.75.0",
+    "python-dotenv>=1.0.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "python-pptx>=0.6.23",
+    "textual>=0.80.0",
 ]
 
 [project.optional-dependencies]
@@ -19,121 +24,67 @@ web = [
     "uvicorn>=0.23.0",
     "starlette>=0.27.0",
 ]
-tui = [
-    "textual>=0.40.0",
-]
+tui = ["textual>=0.80.0"]
+excel = ["pandas>=2.0.0", "openpyxl>=3.1.0"]
+pptx = ["python-pptx>=0.6.23"]
 all = [
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
     "starlette>=0.27.0",
-    "textual>=0.40.0",
 ]
 dev = [
-    "pytest-asyncio>=0.21.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.0",
+    "black>=24.0.0",
+    "mypy>=1.10.0",
+    "bandit>=1.7.9",
 ]
 
 [project.scripts]
-zcoder = "main:main"
-ai-coder = "main:main"
+zcoder = "zcoder.main:main"
+ai-coder = "zcoder.main:main"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
 py-modules = [
-    "agent_runtime",
-    "anthropic_conformance",
-    "artifacts",
-    "auth_oidc",
-    "backup_restore",
-    "claude_admin_api",
-    "claude_advisor",
-    "claude_agents_sdk",
-    "claude_batch",
-    "claude_cache",
-    "claude_chrome",
-    "claude_citations",
-    "claude_code",
-    "claude_code_exec",
-    "claude_compliance_api",
-    "claude_cost_optimizer",
-    "claude_embeddings",
-    "claude_eval",
-    "claude_evals",
-    "claude_excel",
-    "claude_fable5",
-    "claude_files",
-    "claude_git",
-    "claude_github",
-    "claude_haiku45",
-    "claude_hooks_perms_plan",
-    "claude_interactive",
-    "claude_live",
-    "claude_mcp_connector",
-    "claude_memory",
-    "claude_metrics",
-    "claude_model_preflight",
-    "claude_models",
-    "claude_mythos5",
-    "claude_observability",
-    "claude_opus5",
-    "claude_output_styles",
-    "claude_plugins",
-    "claude_powerpoint",
-    "claude_prompt_optimizer",
-    "claude_rag",
-    "claude_research",
-    "claude_router",
-    "claude_sandbox",
-    "claude_search",
-    "claude_sessions",
-    "claude_settings",
-    "claude_skills_api",
-    "claude_sonnet5",
-    "claude_stream",
-    "claude_structured",
-    "claude_thinking",
-    "claude_tokens",
-    "claude_tools",
-    "claude_vision",
-    "claude_wif",
-    "claude_workflow",
-    "coder",
-    "compliance_evidence",
-    "config",
-    "control_plane",
-    "cowork",
-    "deployment_engine",
-    "enterprise_postgres_store",
-    "exceptions",
-    "github_orchestrator",
-    "health",
-    "logging_config",
+    "_zcoder_compat",
     "main",
-    "local_ai_stack",
-    "no_cost_platform",
-
-    "observability_otel",
-    "personalities",
-    "policy_engine",
-    "postgres_store",
-
-    "product_models",
-    "production_config",
-    "projects",
-    "public_api_v1",
-    "release_gate",
-    "residency_models",
-    "resilience",
-    "scim_service",
-    "sdk_client",
-    "security",
-    "skills",
-    "tenant_models",
-    "tui",
-    "tui_streaming",
-    "utils",
+    "agent_runtime", "anthropic_conformance", "artifacts", "auth_oidc",
+    "backup_restore", "claude_admin_api", "claude_advisor", "claude_agents_sdk",
+    "claude_batch", "claude_cache", "claude_chrome", "claude_citations",
+    "claude_code", "claude_code_exec", "claude_compliance_api",
+    "claude_cost_optimizer", "claude_embeddings", "claude_eval", "claude_evals",
+    "claude_excel", "claude_fable5", "claude_files", "claude_git", "claude_github",
+    "claude_haiku45", "claude_hooks_perms_plan", "claude_interactive", "claude_live",
+    "claude_mcp_connector", "claude_memory", "claude_metrics", "claude_model_preflight",
+    "claude_models", "claude_mythos5", "claude_observability", "claude_opus5",
+    "claude_output_styles", "claude_plugins", "claude_powerpoint",
+    "claude_prompt_optimizer", "claude_rag", "claude_research", "claude_router",
+    "claude_sandbox", "claude_search", "claude_sessions", "claude_settings",
+    "claude_skills_api", "claude_sonnet5", "claude_stream", "claude_structured",
+    "claude_thinking", "claude_tokens", "claude_tools", "claude_vision", "claude_wif",
+    "claude_workflow", "coder", "compliance_evidence", "config", "control_plane",
+    "cowork", "deployment_engine", "engineering_models", "engineering_orchestrator",
+    "engineering_store_interface", "engineering_worker", "enterprise_postgres_store",
+    "exceptions", "github_orchestrator", "health", "intelligence_models",
+    "legacy_job_models", "local_ai_stack", "logging_config",
+    "maintenance_intelligence_service", "no_cost_platform", "observability_otel",
+    "personalities", "policy_engine", "portfolio_models", "portfolio_scheduler",
+    "portfolio_store", "postgres_engineering_store", "postgres_store", "product_models",
+    "production_config", "projects", "public_api_v1", "release_gate", "residency_models",
+    "resilience", "scim_service", "sdk_client", "security", "skills",
+    "sqlite_engineering_store", "tenant_models", "tui", "tui_streaming", "utils",
     "worker_process",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["zcoder*"]
 
+[tool.setuptools.package-data]
+zcoder = ["api/*.yaml"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -142,7 +93,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["."]
+source = ["src/zcoder"]
 omit = ["tests/*", "build/*", "dist/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
