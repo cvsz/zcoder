@@ -4,6 +4,7 @@ descriptions, changelogs, diff review, and blame explanations.
 AI Model Coder CLI v1.10.0
 """
 
+import shlex
 import subprocess
 from typing import Optional
 
@@ -18,7 +19,7 @@ SYS = (
 
 
 def _git(cmd: str, cwd: str = ".") -> str:
-    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=30)
+    r = subprocess.run(shlex.split(cmd), cwd=cwd, capture_output=True, text=True, timeout=30)
     return r.stdout.strip() or r.stderr.strip()
 
 

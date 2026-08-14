@@ -162,7 +162,7 @@ class ExcelSession:
             "add_chart": self._add_chart,
         }
         try:
-            exec(
+            exec(  # nosec B102 -- explicit restricted local-code execution boundary
                 compile(code, "<excel-turn>", "exec"),
                 {
                     "__builtins__": {

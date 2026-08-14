@@ -1,0 +1,447 @@
+.sssssssssF......s...................................................... [  9%]
+........................................................................ [ 18%]
+.........FssssF......................................................... [ 27%]
+........................................................................ [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 54%]
+........................................................................ [ 63%]
+........................................................................ [ 72%]
+........................................................................ [ 81%]
+........................................................................ [ 90%]
+........................................F............................... [ 99%]
+....
+ERROR: Coverage failure: total of 43 is less than fail-under=70
+                                                                         [100%]
+=================================== FAILURES ===================================
+__________________ TestFleetE2E.test_campaign_fleet_execution __________________
+
+self = <e2e.test_fleet_e2e.TestFleetE2E testMethod=test_campaign_fleet_execution>
+
+    def setUp(self):
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+>       self.eng_store = PostgresEngineeringStore(dsn=self.dsn)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/e2e/test_fleet_e2e.py:14: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/zcoder/infrastructure/stores/postgres.py:191: in __init__
+    self._init_pool()
+src/zcoder/infrastructure/stores/postgres.py:196: in _init_pool
+    self._pool = psycopg2.pool.ThreadedConnectionPool(
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:161: in __init__
+    AbstractConnectionPool.__init__(
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:59: in __init__
+    self._connect()
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:63: in _connect
+    conn = psycopg2.connect(*self._args, **self._kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'user=postgres password=postgres dbname=postgres host=localhost connect_timeout=10'
+connection_factory = None, cursor_factory = None
+kwargs = {'connect_timeout': 10}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+>       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/__init__.py:122: OperationalError
+______________ TestMultiWorkerContention.test_multi_worker_claim _______________
+
+self = <integration.test_postgres_multiprocess.TestMultiWorkerContention testMethod=test_multi_worker_claim>
+
+    def setUp(self):
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+>       self.store = PostgresEngineeringStore(dsn=self.dsn)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_postgres_multiprocess.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/zcoder/infrastructure/stores/postgres.py:191: in __init__
+    self._init_pool()
+src/zcoder/infrastructure/stores/postgres.py:196: in _init_pool
+    self._pool = psycopg2.pool.ThreadedConnectionPool(
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:161: in __init__
+    AbstractConnectionPool.__init__(
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:59: in __init__
+    self._connect()
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:63: in _connect
+    conn = psycopg2.connect(*self._args, **self._kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'user=postgres password=postgres dbname=postgres host=localhost connect_timeout=10'
+connection_factory = None, cursor_factory = None
+kwargs = {'connect_timeout': 10}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+>       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/__init__.py:122: OperationalError
+_______________ TestPostgresEngineeringStore.test_postgres_crud ________________
+
+self = <integration.test_postgres_store.TestPostgresEngineeringStore testMethod=test_postgres_crud>
+
+    def setUp(self):
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+>       self.store = PostgresEngineeringStore(dsn=self.dsn)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_postgres_store.py:11: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/zcoder/infrastructure/stores/postgres.py:191: in __init__
+    self._init_pool()
+src/zcoder/infrastructure/stores/postgres.py:196: in _init_pool
+    self._pool = psycopg2.pool.ThreadedConnectionPool(
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:161: in __init__
+    AbstractConnectionPool.__init__(
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:59: in __init__
+    self._connect()
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/pool.py:63: in _connect
+    conn = psycopg2.connect(*self._args, **self._kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'user=postgres password=postgres dbname=postgres host=localhost connect_timeout=10'
+connection_factory = None, cursor_factory = None
+kwargs = {'connect_timeout': 10}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+>       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/psycopg2/__init__.py:122: OperationalError
+_________ test_import_error_message_is_actionable_when_textual_missing _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc202ea7750>
+
+    def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
+        # Simulate the "not installed" path without actually uninstalling
+        # textual -- checks tui.py's own guard message stays informative.
+        import importlib
+        import sys as _sys
+    
+        real_textual = _sys.modules.get("textual")
+        _sys.modules["textual"] = None  # forces an ImportError on next import
+        for mod in list(_sys.modules):
+            if mod == "tui" or mod.startswith("tui."):
+                del _sys.modules[mod]
+        try:
+>           with pytest.raises(ImportError, match="pip install textual"):
+E           Failed: DID NOT RAISE ImportError
+
+tests/unit/test_tui.py:156: Failed
+=============================== warnings summary ===============================
+src/zcoder/enterprise/local_ai_stack.py:1286
+  /home/runner/work/zcoder/zcoder/src/zcoder/enterprise/local_ai_stack.py:1286: PytestCollectionWarning: cannot collect test class 'ValidationDelta' because it has a __init__ constructor (from: tests/e2e/upgrade_suites/test_upgrade20_engineering_loop_suite.py)
+    @dataclasses.dataclass
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.11.15-final-0 _______________
+
+Name                                                       Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------------
+src/zcoder/__init__.py                                         1      0   100%
+src/zcoder/api/__init__.py                                     0      0   100%
+src/zcoder/api/anthropic_conformance.py                       48     48     0%   9-98
+src/zcoder/api/public/__init__.py                              0      0   100%
+src/zcoder/api/public/v1.py                                   80     10    88%   67, 122-123, 163, 174-177, 193, 214
+src/zcoder/claude/__init__.py                                  0      0   100%
+src/zcoder/claude/capabilities/__init__.py                     0      0   100%
+src/zcoder/claude/capabilities/advisor.py                     92     92     0%   48-274
+src/zcoder/claude/capabilities/citations.py                  102    102     0%   15-213
+src/zcoder/claude/capabilities/code.py                       761    458    40%   228-234, 270-277, 283, 311-315, 320-325, 334-335, 338-339, 350-376, 404, 433-437, 442-443, 447, 455, 462, 470-474, 477, 480, 484, 504-505, 512-518, 521-536, 539-553, 556, 559, 565-574, 598-612, 629-646, 649, 652, 664-669, 672-673, 676-685, 688-694, 697, 700, 714, 721-724, 727-729, 736, 738, 769-782, 785-790, 796-801, 924, 928, 930, 933-934, 939-945, 961-962, 965-968, 971-977, 980-998, 1001-1004, 1007-1022, 1028-1055, 1093, 1095, 1097, 1108, 1134, 1138, 1149, 1159, 1165, 1171, 1175, 1193, 1214, 1218-1237, 1275-1276, 1280-1285, 1297-1304, 1309, 1313, 1320-1325, 1333-1335, 1345-1347, 1362, 1380-1382, 1385-1386, 1392-1404, 1409-1432, 1437-1555, 1560-1578, 1582-1594, 1598-1623, 1628-1655
+src/zcoder/claude/capabilities/code_exec.py                  119     49    59%   95-98, 123, 139, 143, 156, 164-172, 185-194, 200-204, 208-214, 235-243, 247, 255-261
+src/zcoder/claude/capabilities/embeddings.py                  95     95     0%   37-196
+src/zcoder/claude/capabilities/search.py                      64     30    53%   89, 98-106, 125-127, 142-162, 166-170
+src/zcoder/claude/capabilities/stream.py                     150    150     0%   35-309
+src/zcoder/claude/capabilities/structured.py                  89     41    54%   69-72, 85, 89, 113, 117, 129-134, 145-170, 198-214, 218-224, 228-234
+src/zcoder/claude/capabilities/thinking.py                   124     42    66%   99, 172, 177, 195-198, 201-203, 230, 255, 260, 265-271, 278-300, 339-349
+src/zcoder/claude/capabilities/vision.py                     105    105     0%   16-188
+src/zcoder/claude/enterprise/__init__.py                       0      0   100%
+src/zcoder/claude/enterprise/admin_api.py                    557    277    50%   137-144, 147-160, 163-175, 178-186, 289, 292, 301, 326, 348, 352, 362, 408, 419, 425, 428, 435-438, 445, 455, 461, 464, 467, 470, 474, 479, 482, 492, 497, 502, 505, 508, 538-548, 564-570, 575, 635, 662-668, 750-752, 758-764, 771-772, 782-784, 788, 800-801, 810-811, 823-825, 841-843, 867-886, 890-901, 908-915, 919-926, 930-940, 944-960, 966-973, 977-1000, 1004-1011, 1018-1025, 1029-1042, 1049-1056, 1060-1067, 1073-1093, 1097-1115
+src/zcoder/claude/enterprise/compliance.py                   469    241    49%   252, 263-269, 275, 278, 380-392, 399-405, 417-418, 425, 466, 472-473, 482-483, 492-493, 498, 503, 506, 513, 516-517, 520, 526, 536, 539, 542, 545, 551, 562, 569, 574, 580, 593-629, 633-641, 645-661, 665-682, 696-698, 704-713, 723-730, 734-746, 750-761, 765-778, 801-802, 806-816, 820-832, 836-846, 850-860, 864-874, 878-888, 895-897, 907, 916-918, 930-932, 941, 950-953
+src/zcoder/claude/enterprise/hooks_perms.py                  221    221     0%   12-357
+src/zcoder/claude/enterprise/metrics.py                       84     69    18%   47-48, 69-83, 87-105, 109-133, 143-163, 167-169, 173-176
+src/zcoder/claude/enterprise/settings.py                      74     74     0%   28-162
+src/zcoder/claude/enterprise/skills.py                       111     19    83%   143-155, 158-163, 178, 218, 256, 277-283
+src/zcoder/claude/eval/__init__.py                             0      0   100%
+src/zcoder/claude/eval/eval.py                               117    117     0%   8-264
+src/zcoder/claude/eval/evals.py                              109    109     0%   17-211
+src/zcoder/claude/eval/output_styles.py                       63     63     0%   25-152
+src/zcoder/claude/integrations/__init__.py                     0      0   100%
+src/zcoder/claude/integrations/chrome.py                     118    118     0%   41-219
+src/zcoder/claude/integrations/excel.py                      218    218     0%   33-440
+src/zcoder/claude/integrations/files.py                      197    197     0%   17-376
+src/zcoder/claude/integrations/git.py                         59     59     0%   7-146
+src/zcoder/claude/integrations/github.py                      77     77     0%   18-200
+src/zcoder/claude/integrations/powerpoint.py                 260    260     0%   35-510
+src/zcoder/claude/integrations/wif.py                        175     67    62%   115, 131-136, 202-205, 217-220, 235, 260, 286, 314-316, 328-334, 338-345, 349-355, 359-366, 372-379, 383-390
+src/zcoder/claude/memory/__init__.py                           0      0   100%
+src/zcoder/claude/memory/cache.py                            211     81    62%   132, 186, 234-235, 239, 307, 329-342, 353-375, 437, 443-444, 468-482, 498-504, 526-543, 549-562
+src/zcoder/claude/memory/memory.py                           137    137     0%   11-205
+src/zcoder/claude/models/__init__.py                           0      0   100%
+src/zcoder/claude/models/fable5.py                           115     38    67%   176-189, 192-197, 221, 371-389, 400-415
+src/zcoder/claude/models/haiku45.py                           94     40    57%   96, 107, 125-136, 139-144, 159, 169, 175-178, 182, 189-203, 214-225
+src/zcoder/claude/models/mythos5.py                           66     66     0%   37-151
+src/zcoder/claude/models/opus5.py                            106     47    56%   148, 167-178, 181-186, 204, 213, 217, 225, 229-232, 243-262, 274-295
+src/zcoder/claude/models/preflight.py                         22     22     0%   3-42
+src/zcoder/claude/models/registry.py                         345    227    34%   236, 363, 367, 370-378, 381-382, 385, 389-428, 446-454, 465-503, 525, 530, 541-542, 562, 566-581, 630-640, 650-707, 747-751, 755-767, 770-775, 779-815, 819-828, 840-842, 846-859, 862-867, 871-884, 888-900, 904-908
+src/zcoder/claude/models/sonnet5.py                          106     42    60%   119, 162-173, 176-181, 203, 215-232, 242-251, 256-264
+src/zcoder/claude/observability.py                           113    113     0%   7-195
+src/zcoder/claude/optimization/__init__.py                     0      0   100%
+src/zcoder/claude/optimization/cost.py                       103     62    40%   102, 110, 123-129, 133-135, 139-156, 179-222, 237-243, 247-257, 261-265
+src/zcoder/claude/optimization/prompt.py                     105    105     0%   18-195
+src/zcoder/claude/optimization/tokens.py                      57     57     0%   14-121
+src/zcoder/claude/orchestration/__init__.py                    0      0   100%
+src/zcoder/claude/orchestration/agents_sdk.py                855    348    59%   183-190, 194-200, 203-205, 208, 211, 219-221, 224, 228, 232, 236, 264-266, 269, 280-297, 301, 305-317, 321-325, 331-333, 338-348, 375-378, 387-400, 403-408, 414-432, 441-458, 468-510, 559, 583, 739, 830, 833, 859-868, 874-878, 917, 919, 921, 923, 925, 929, 931, 1049, 1120, 1179, 1279, 1281-1283, 1366-1372, 1413-1420, 1428, 1430, 1441, 1455-1459, 1465-1466, 1472-1477, 1510, 1657-1669, 1680-1681, 1685-1686, 1691-1692, 1714, 1718-1719, 1760-1762, 1764, 1788-1809, 1919, 1964-1979, 1984-1987, 2013-2022, 2029-2032, 2043-2046, 2062-2065, 2073-2080, 2113-2119, 2140, 2156, 2167, 2169, 2183, 2223-2231, 2235-2241, 2245-2248, 2303, 2338, 2377-2418, 2427-2437, 2444-2460, 2464-2469, 2473-2486, 2531-2533
+src/zcoder/claude/orchestration/batch.py                     144    144     0%   26-312
+src/zcoder/claude/orchestration/interactive.py                65     65     0%   23-119
+src/zcoder/claude/orchestration/live.py                      117    117     0%   10-174
+src/zcoder/claude/orchestration/router.py                     69     51    26%   46-57, 63-68, 72, 77-102, 113-164, 175-179, 183-189
+src/zcoder/claude/orchestration/sessions.py                  201    201     0%   8-300
+src/zcoder/claude/orchestration/workflow.py                  113    113     0%   24-204
+src/zcoder/claude/personalities.py                             6      0   100%
+src/zcoder/claude/rag/__init__.py                              0      0   100%
+src/zcoder/claude/rag/engine.py                              116    116     0%   11-195
+src/zcoder/claude/rag/research.py                             93     93     0%   8-162
+src/zcoder/claude/tools/__init__.py                            0      0   100%
+src/zcoder/claude/tools/mcp.py                                23      1    96%   32
+src/zcoder/claude/tools/plugins.py                           405    333    18%   71-74, 79, 109-121, 131-182, 191, 198-202, 212-261, 266-291, 295-299, 303-315, 325-365, 370-398, 402-410, 414-419, 423-427, 431-440, 457-463, 469-482, 488-492, 497-504, 511-523, 530-538, 553-559, 563-570, 574-578, 582-587, 591-596, 600-604, 608-615, 619-639, 643-647, 651-655, 659-664
+src/zcoder/claude/tools/registry.py                          390    281    28%   359, 366-374, 386-389, 399, 411-413, 424-426, 442-445, 448-459, 462-520, 530-531, 534-542, 545, 548-553, 575-591, 604-619, 635-690, 727, 745, 748-750, 760, 762-765, 767-774, 792-793, 813-877, 885-957, 965-970, 990-1014, 1021-1026, 1030-1061
+src/zcoder/claude/tools/sandbox.py                            59     59     0%   31-141
+src/zcoder/config/__init__.py                                  0      0   100%
+src/zcoder/config/logging.py                                  62      6    90%   46, 57, 99, 105, 111-112
+src/zcoder/config/production.py                              214     23    89%   229-230, 233, 235, 238-239, 251, 254-257, 260-261, 294, 301-302, 333, 338-339, 348-350, 356
+src/zcoder/config/settings.py                                 20      0   100%
+src/zcoder/core/__init__.py                                    0      0   100%
+src/zcoder/core/exceptions.py                                 37      1    97%   38
+src/zcoder/core/health.py                                     58     58     0%   15-101
+src/zcoder/core/resilience.py                                138     32    77%   63, 83-84, 87-106, 121-122, 126-127, 142-146, 155-159, 265-266
+src/zcoder/core/security.py                                   41      4    90%   62-64, 116
+src/zcoder/core/utils.py                                      38     14    63%   9-12, 16, 20, 24, 28, 40-44, 70
+src/zcoder/domain/__init__.py                                  0      0   100%
+src/zcoder/domain/interfaces/__init__.py                       0      0   100%
+src/zcoder/domain/interfaces/engineering_store.py             22      6    73%   16, 21, 26, 31, 36, 41
+src/zcoder/domain/models/__init__.py                           0      0   100%
+src/zcoder/domain/models/engineering.py                       39      0   100%
+src/zcoder/domain/models/intelligence.py                      29     29     0%   3-38
+src/zcoder/domain/models/legacy_job.py                       154     12    92%   143, 225-248, 251-252, 303-306, 325
+src/zcoder/domain/models/portfolio.py                         35      0   100%
+src/zcoder/domain/models/product.py                          179     37    79%   184-185, 191-197, 209, 212, 215, 218, 221, 267-270, 273-274, 284-285, 288-290, 293, 296, 299, 303-311
+src/zcoder/domain/models/residency.py                         46      3    93%   77, 96, 115
+src/zcoder/domain/models/tenant.py                           158     22    86%   183-185, 188-189, 197, 203-204, 284-304, 307-311
+src/zcoder/domain/services/__init__.py                         0      0   100%
+src/zcoder/domain/services/control_plane.py                  107      4    96%   152, 168, 236-237
+src/zcoder/domain/services/deployment.py                      64      5    92%   49-51, 85, 102
+src/zcoder/domain/services/policy_engine.py                   61     31    49%   47-50, 53-54, 57-58, 62-93, 103-104, 116-121
+src/zcoder/enterprise/__init__.py                              0      0   100%
+src/zcoder/enterprise/local_ai_stack.py                     1010     85    92%   82-83, 92-94, 104-108, 134, 262, 278, 283-284, 296, 299, 315, 326-340, 345-358, 388-393, 395, 400, 446, 471, 486-500, 505-514, 552, 569, 618, 622-623, 640, 748, 794, 818, 821-823, 960, 979, 985, 1048, 1058, 1350, 1423, 1434, 1463, 1538, 1611, 1857-1860, 1864
+src/zcoder/enterprise/no_cost_platform.py                    156     11    93%   115-129, 172, 242, 351, 362
+src/zcoder/infrastructure/__init__.py                          0      0   100%
+src/zcoder/infrastructure/artifacts.py                       224    224     0%   20-460
+src/zcoder/infrastructure/auth/__init__.py                     0      0   100%
+src/zcoder/infrastructure/auth/oidc.py                       210     62    70%   30-32, 40-41, 125-127, 130-131, 139-150, 186-230, 234-241, 245-253, 413, 417-419, 425-441
+src/zcoder/infrastructure/auth/scim.py                        65     35    46%   32, 55, 68-70, 73-92, 95-104, 107-111, 114-128
+src/zcoder/infrastructure/observability/__init__.py            0      0   100%
+src/zcoder/infrastructure/observability/otel.py              234     61    74%   26-34, 255-257, 263, 266, 272, 275, 308-337, 354-356, 365-377, 383-394
+src/zcoder/infrastructure/stores/__init__.py                   0      0   100%
+src/zcoder/infrastructure/stores/enterprise_postgres.py      199    157    21%   286-288, 292-297, 301-305, 315-334, 343-385, 393-403, 407-416, 420-427, 430, 435-448, 451-462, 467-486, 491-518, 524-572, 583-601, 606-610, 630-655, 666-694, 700-734, 739-761, 764-778
+src/zcoder/infrastructure/stores/portfolio.py                 20     10    50%   14-16, 19-28, 38-39, 45-46
+src/zcoder/infrastructure/stores/postgres.py                 235    178    24%   46-47, 50-57, 178, 185, 202-215, 222-234, 238-241, 245-249, 255-277, 288-347, 358-368, 378-388, 392-407, 411-423, 443-480, 485-496, 505-543, 549-565, 572-574, 595-597, 615-617, 629-631, 637-646, 670-691, 703-715, 718-720, 727-740, 751-758, 764-768
+src/zcoder/infrastructure/stores/postgres_engineering.py      64     49    23%   21-66, 70-97, 107-110, 131-142, 152-154, 170-172, 189-202, 213-223
+src/zcoder/infrastructure/stores/sqlite_engineering.py        54      8    85%   86, 144, 156-162
+src/zcoder/interfaces/__init__.py                              0      0   100%
+src/zcoder/interfaces/cli/__init__.py                          0      0   100%
+src/zcoder/interfaces/cli/streaming.py                        24      0   100%
+src/zcoder/interfaces/cli/tui.py                             170     16    91%   192, 199-200, 233, 259-267, 281, 301-302, 314
+src/zcoder/interfaces/sdk/__init__.py                          0      0   100%
+src/zcoder/interfaces/sdk/client.py                           30      3    90%   47, 56, 63
+src/zcoder/main.py                                          1775   1099    38%   57-58, 67-71, 2162-2163, 2166-2172, 2176-2180, 2185-2187, 2189-2193, 2197-2200, 2202-2205, 2207-2210, 2212-2215, 2217-2220, 2222-2225, 2227-2230, 2232-2235, 2237-2240, 2242-2245, 2247-2250, 2254-2257, 2259-2262, 2264-2267, 2270-2273, 2276-2279, 2282-2285, 2288-2291, 2294-2297, 2300-2303, 2306-2309, 2311-2314, 2334-2437, 2464-2547, 2559-2621, 2645-2770, 2773-2776, 2778-2786, 2789-2792, 2794-2797, 2799-2802, 2804-2808, 2810-2814, 2816-2819, 2821-2830, 2832-2835, 2837-2845, 2847-2850, 2852-2855, 2857-2860, 2862-2865, 2867-2870, 2872-2875, 2877-2880, 2882-2885, 2888-2903, 2905-2908, 2910-2913, 2915-2918, 2920-2923, 2925-2928, 2932-2937, 2939-2942, 2944-2947, 2949-2952, 2954-2957, 2959-2962, 2964-2967, 2969-2972, 2974-2977, 2979-2982, 2984-2987, 2989-2992, 2994-2997, 2999-3002, 3004-3007, 3009-3012, 3019-3022, 3024-3027, 3029-3032, 3034-3037, 3039-3042, 3044-3047, 3049-3052, 3054-3057, 3059-3062, 3064-3067, 3070-3073, 3080-3090, 3093-3105, 3108-3119, 3122-3137, 3140-3143, 3145-3148, 3150-3164, 3166-3169, 3171-3181, 3183-3186, 3188-3191, 3195-3202, 3206-3216, 3220-3223, 3227-3230, 3232-3237, 3241-3244, 3246-3249, 3251-3254, 3256-3259, 3261-3265, 3269-3272, 3274-3277, 3279-3282, 3284-3287, 3295-4126, 4130
+src/zcoder/services/__init__.py                                0      0   100%
+src/zcoder/services/_release_gate_legacy.py                   99     12    88%   448, 461-469, 473-474
+src/zcoder/services/agent_runtime.py                           7      0   100%
+src/zcoder/services/backup_restore.py                        195     78    60%   137-155, 168-171, 223-272, 281-314, 330, 333-334, 373-377, 407-412
+src/zcoder/services/coder.py                                 107     28    74%   72, 75-85, 99, 101, 103, 140-141, 147-154, 164-172
+src/zcoder/services/compliance_evidence.py                    64      7    89%   105, 113, 115, 121-130
+src/zcoder/services/cowork.py                                 97     97     0%   30-443
+src/zcoder/services/engineering_orchestrator.py               24     24     0%   3-34
+src/zcoder/services/engineering_worker.py                     15      9    40%   12-13, 16-27
+src/zcoder/services/github_orchestrator.py                   166     12    93%   135-139, 171, 188, 190, 205, 215, 244, 248
+src/zcoder/services/maintenance_intelligence.py               15     15     0%   3-41
+src/zcoder/services/portfolio_scheduler.py                    16      8    50%   13-14, 17-22
+src/zcoder/services/projects.py                              235    235     0%   9-490
+src/zcoder/services/release_gate.py                           28      2    93%   65, 82
+src/zcoder/services/skills.py                                  6      0   100%
+src/zcoder/worker/__init__.py                                  0      0   100%
+src/zcoder/worker/process.py                                 212     93    56%   91-100, 112-113, 140-183, 187-203, 230, 239-249, 266-274, 280-296, 300-308, 312-322, 341, 356-357, 368-370, 394-423, 427
+----------------------------------------------------------------------------------------
+TOTAL                                                      16233   9272    43%
+FAIL Required test coverage of 70.0% not reached. Total coverage: 42.88%
+=========================== short test summary info ============================
+SKIPPED [1] tests/e2e/test_webapp_server.py:14: optional dependency for webapp, see webapp/requirements-web.txt
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:95: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:106: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:125: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:145: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:169: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:187: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:206: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:229: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/test_enterprise_suite.py:254: PostgreSQL test container not reachable
+SKIPPED [1] tests/e2e/upgrade_suites/test_upgrade11_evidence_suite.py:107: PostgreSQL test instance required
+SKIPPED [1] tests/integration/test_postgres_multiprocess_live.py:68: PostgreSQL test container not reachable
+SKIPPED [1] tests/integration/test_postgres_multiprocess_live.py:71: PostgreSQL test container not reachable
+SKIPPED [1] tests/integration/test_postgres_multiprocess_live.py:115: PostgreSQL test container not reachable
+SKIPPED [1] tests/integration/test_postgres_multiprocess_live.py:148: PostgreSQL test container not reachable
+FAILED tests/e2e/test_fleet_e2e.py::TestFleetE2E::test_campaign_fleet_execution - psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+FAILED tests/integration/test_postgres_multiprocess.py::TestMultiWorkerContention::test_multi_worker_claim - psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+FAILED tests/integration/test_postgres_store.py::TestPostgresEngineeringStore::test_postgres_crud - psycopg2.OperationalError: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+FAILED tests/unit/test_tui.py::test_import_error_message_is_actionable_when_textual_missing - Failed: DID NOT RAISE ImportError
+4 failed, 778 passed, 15 skipped, 1 warning in 24.38s

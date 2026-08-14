@@ -32,9 +32,11 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import os
 import random
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable, TypeVar
@@ -128,12 +130,36 @@ def extract_response_metadata(headers) -> dict:
     return meta
 
 
+def safe_urlopen(req, timeout: float):
+    """Open an HTTP(S) URL after rejecting local-file/custom URL schemes.
+
+    ``urllib.request.urlopen`` accepts ``file:``, ``ftp:`` and custom handlers;
+    ZCoder's network clients must only cross the explicit HTTP(S) boundary.
+    """
+    url = req.full_url if isinstance(req, urllib.request.Request) else str(req)
+    scheme = urllib.parse.urlparse(url).scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"Unsupported URL scheme for outbound request: {scheme or '<missing>'}")
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 -- scheme checked above
+
+
+def shell_command_argv(command: str) -> list[str]:
+    """Return an explicit platform shell argv for trusted hook/Bash boundaries.
+
+    Callers must perform their normal policy/sandbox checks before invoking this.
+    Using an explicit argv avoids implicit ``shell=True`` subprocess execution.
+    """
+    if os.name == "nt":
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command]
+    return ["/bin/sh", "-c", command]
+
+
 def urlopen_json(req: urllib.request.Request, timeout: float) -> dict:
     """`urllib.request.urlopen(req)` that returns parsed JSON and translates
     failures via `raise_for_http_error`. Call this from inside a function
     decorated with `@retry(...)` — it does not retry by itself."""
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with safe_urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read().decode())
             if isinstance(data, dict):
                 headers = getattr(r, "headers", None)
@@ -153,7 +179,7 @@ def urlopen_text(req: urllib.request.Request, timeout: float) -> str:
     """Like `urlopen_json` but returns the raw decoded body (for endpoints
     that don't return JSON, e.g. fetching a diff or a web page)."""
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with safe_urlopen(req, timeout=timeout) as r:
             return r.read().decode(errors="replace")
     except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
         raise_for_http_error(e)

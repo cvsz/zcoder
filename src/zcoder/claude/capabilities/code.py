@@ -355,8 +355,7 @@ class HooksEngine:
                 continue
             try:
                 result = subprocess.run(
-                    cmd,
-                    shell=True,
+                    shell_command_argv(cmd),
                     input=stdin_data,
                     capture_output=True,
                     text=True,
@@ -747,7 +746,14 @@ import urllib.error
 import urllib.request
 
 from exceptions import AICoderError
-from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
+from resilience import (
+    CircuitBreaker,
+    raise_for_http_error,
+    retry,
+    safe_urlopen,
+    shell_command_argv,
+    urlopen_json,
+)
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -795,7 +801,7 @@ class CodeAgent:
     def _webfetch_retrying(self, url: str) -> str:
         req = urllib.request.Request(url, headers={"User-Agent": "ai-coder-agent/1.8"})
         try:
-            with urllib.request.urlopen(req, timeout=15) as r:
+            with safe_urlopen(req, timeout=15) as r:
                 return r.read().decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
@@ -990,7 +996,9 @@ class CodeAgent:
                         return f"[SANDBOX BLOCKED] {e}"
                     except ImportError:
                         pass
-                r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+                r = subprocess.run(
+                    shell_command_argv(cmd), cwd=cwd, capture_output=True, text=True, timeout=timeout
+                )
                 out = r.stdout.strip()
                 err = r.stderr.strip()
                 if r.returncode != 0:
