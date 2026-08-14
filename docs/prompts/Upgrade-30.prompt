@@ -1,0 +1,15 @@
+Implement Upgrade-30 as a bounded production-fleet safety slice for cvsz/zcoder.
+
+Objective: add a PostgreSQL session advisory run lease for distributed continuous-engineering mutual exclusion without exposing the PostgreSQL backend before stale-writer fencing exists.
+
+Requirements:
+- define a minimal generic RunLease protocol while preserving the existing filesystem UpgradeRunLease;
+- derive a deterministic signed BIGINT advisory-lock key from a non-empty namespace;
+- hold one PostgreSQL connection/session from acquire through release;
+- acquire with pg_try_advisory_lock and release with pg_advisory_unlock on the same session;
+- fail closed on contention, query errors, lost ownership, or connection return failures;
+- ensure contention immediately returns the checked-out connection;
+- add unit tests for lifecycle/error paths and a live DATABASE_URL integration test for cross-session exclusion/release;
+- document that advisory locking alone is exclusivity, not stale-writer fencing;
+- do not expose PostgreSQL as a ContinuousEngineeringPipeline/CLI backend until fence-aware ledger mutations are implemented;
+- preserve Upgrade-20 execution authority, Upgrade-24 budgets, JSON/SQLite behavior, local-only push default, and all existing CI/security gates.
