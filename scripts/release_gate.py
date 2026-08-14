@@ -17,7 +17,7 @@ if script_dir in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from zcoder.services.release_gate import GateVerdict, ProductionReleaseGate  # noqa: E402
+from zcoder.services.release_gate import ProductionReleaseGate  # noqa: E402
 
 if __name__ == "__main__":
     gate = ProductionReleaseGate()
