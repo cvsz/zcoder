@@ -230,6 +230,8 @@ Supported kinds remain `UPGRADE`, `UPDATE`, `IMPLEMENT_FEATURE`, and `REPAIR`.
 - corrupt-ledger fail-closed behavior;
 - JSON work-file parsing for all work kinds.
 
+Hosted verification on 2026-08-14 passed Ruff, Black, Bandit, Python 3.9/3.10/3.11/3.12 test jobs, Docker build/version smoke, CodeQL, Dependency Review, Helm Lint, SDK & TypeScript Check, and Release Gate. The Python 3.11 run reported 807 passed, 15 environment/optional-dependency skips, 0 failed, and 76.08% coverage against the 70% gate.
+
 ## Safety invariants
 
 1. Upgrade-24 global iteration and no-progress budgets remain authoritative.
@@ -256,4 +258,4 @@ Supported kinds remain `UPGRADE`, `UPDATE`, `IMPLEMENT_FEATURE`, and `REPAIR`.
 - [x] Safe local-only default and explicit push opt-in implemented.
 - [x] Invokable module CLI and JSON work-file input implemented.
 - [x] Focused unit test suite added.
-- [ ] Hosted CI verification and merge.
+- [x] Hosted CI verification completed with all required gates green.
