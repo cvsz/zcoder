@@ -9,6 +9,7 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
+from zcoder.services.upgrade_lease import UpgradeRunLease
 from zcoder.services.upgrade_loop import (
     ContinuousUpgradeLoop,
     LoopCheckpoint,
@@ -158,15 +159,23 @@ class ContinuousEngineeringPipeline:
         work_sources: Sequence[WorkSource] = (),
         policy: LoopPolicy | None = None,
         retry_blocked: bool = False,
+        run_lease: UpgradeRunLease | None = None,
     ) -> None:
         self.executor = executor
         self.ledger = ledger
         self.work_sources = tuple(work_sources)
         self.policy = policy or LoopPolicy()
         self.retry_blocked = retry_blocked
+        self.run_lease = run_lease or UpgradeRunLease(
+            ledger.path.with_name(f"{ledger.path.name}.run.lock")
+        )
         self._items_by_id: dict[str, UpgradeWorkItem] = {}
 
     def run(self, seed_items: Iterable[UpgradeWorkItem] = ()) -> LoopReport:
+        with self.run_lease:
+            return self._run_locked(seed_items)
+
+    def _run_locked(self, seed_items: Iterable[UpgradeWorkItem]) -> LoopReport:
         seed = self.ledger.load_resumable(retry_blocked=self.retry_blocked)
         seed.extend(self._restore(item) for item in seed_items)
         normalized_seed = [item for item in seed if item is not None]
