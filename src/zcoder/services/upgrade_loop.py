@@ -12,8 +12,9 @@ import hashlib
 import json
 import time
 import uuid
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any, Callable
 
 
 class WorkKind(str, enum.Enum):
@@ -106,7 +107,7 @@ class LoopPolicy:
 class LoopCheckpoint:
     iteration: int
     state: LoopState
-    active_item_id: Optional[str]
+    active_item_id: str | None
     completed_item_ids: Sequence[str]
     blocked_item_ids: Sequence[str]
     pending_item_ids: Sequence[str]
@@ -159,9 +160,9 @@ class ContinuousUpgradeLoop:
         implement: ImplementCallback,
         validate: ValidateCallback,
         *,
-        rollback: Optional[RollbackCallback] = None,
-        checkpoint: Optional[CheckpointCallback] = None,
-        policy: Optional[LoopPolicy] = None,
+        rollback: RollbackCallback | None = None,
+        checkpoint: CheckpointCallback | None = None,
+        policy: LoopPolicy | None = None,
     ) -> None:
         self.discover = discover
         self.implement = implement
@@ -341,7 +342,7 @@ class ContinuousUpgradeLoop:
             halt_reason=halt_reason,
         )
 
-    def _next_pending(self) -> Optional[UpgradeWorkItem]:
+    def _next_pending(self) -> UpgradeWorkItem | None:
         pending = [item for item in self._items.values() if item.state == WorkState.PENDING]
         if not pending:
             return None
@@ -358,7 +359,7 @@ class ContinuousUpgradeLoop:
         self,
         iteration: int,
         state: LoopState,
-        active_item_id: Optional[str],
+        active_item_id: str | None,
         completed: Sequence[str],
         blocked: Sequence[str],
     ) -> None:
