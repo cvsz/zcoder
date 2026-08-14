@@ -36,15 +36,18 @@ class UpgradeRunLease:
     def acquire(self) -> None:
         deadline = time.monotonic() + self.wait_seconds
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = json.dumps(
-            {
-                "pid": os.getpid(),
-                "host": socket.gethostname(),
-                "token": self._token,
-                "created_at": time.time(),
-            },
-            sort_keys=True,
-        ) + "\n"
+        payload = (
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "host": socket.gethostname(),
+                    "token": self._token,
+                    "created_at": time.time(),
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        )
         while True:
             try:
                 fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
