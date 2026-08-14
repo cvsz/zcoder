@@ -1,0 +1,2287 @@
+# UPGRADE-17
+# Local AI Production Runtime
+#
+# Production-grade daemon supervision, multi-model hot/warm/cold pool,
+# capacity-aware scheduling, adaptive load/unload, runtime recovery,
+# measured routing, continuous performance regression,
+# per-project inference profiles and zero-paid autonomous execution.
+#
+# PRIMARY PRINCIPLES:
+#
+# NO-COST FIRST
+# LOCAL-FIRST
+# CPU-FIRST MUST REMAIN SUPPORTED
+# NO SILENT MODEL DOWNLOAD
+# NO SILENT PAID FALLBACK
+# NO FABRICATED PERFORMANCE DATA
+# NO CLOUD DEPENDENCY FOR CORE OPERATION
+
+You are operating directly inside ZCoder after Upgrade-16.
+
+================================================================
+MISSION
+================================================================
+
+Upgrade-14 through Upgrade-16 built:
+
+- local provider abstraction
+- model factory
+- model registry
+- llama.cpp/Ollama/vLLM adapters
+- hardware profiling
+- model-fit estimation
+- benchmark infrastructure
+- local RAG
+- MCP
+- LocalAgentRuntime
+- zero-paid-call enforcement
+- auto-tuning architecture
+- performance evidence framework
+
+Upgrade-17 turns these components into a long-running, reliable,
+resource-aware local inference service.
+
+Target:
+
+                    ZCoder Jobs
+                         │
+                         ▼
+                Inference Scheduler
+                         │
+             ┌───────────┼────────────┐
+             ▼           ▼            ▼
+          Queue A      Queue B      Queue C
+             │           │            │
+             └───────────┼────────────┘
+                         ▼
+                Local Runtime Manager
+                         │
+       ┌─────────────────┼──────────────────┐
+       ▼                 ▼                  ▼
+   llama.cpp          Ollama              vLLM
+       │                 │                  │
+       └─────────────────┼──────────────────┘
+                         ▼
+                  Model Pool Manager
+                         │
+          ┌──────────────┼───────────────┐
+          ▼              ▼               ▼
+         HOT            WARM            COLD
+          │
+          ▼
+   Hardware / RAM / VRAM
+   Capacity Controller
+          │
+          ▼
+   Continuous Measurement
+          │
+          ▼
+   Benchmark-Aware Router
+
+A developer should be able to leave ZCoder running locally for long
+periods and have it:
+
+- load the right model
+- avoid OOM
+- reuse warm models
+- unload idle models
+- recover crashed runtimes
+- queue excess requests
+- prevent paid fallback
+- monitor actual performance
+- select models using real evidence
+- execute autonomous coding jobs
+- remain useful on CPU-only hosts
+
+================================================================
+PHASE 0 — VERIFY UPGRADE-16
+================================================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+git diff --check
+
+Run the current release gate.
+
+Inspect:
+
+local_ai_stack.py
+no_cost_platform.py
+agent_runtime.py
+release_gate.py
+performance/benchmark code
+model registry
+runtime adapters
+Web/API routes
+tests/
+
+Produce:
+
+UPGRADE-16 EVIDENCE MATRIX
+
+Capability
+Claim
+Evidence Level
+Actual Artifact/Test
+Real Runtime?
+Verdict
+
+Do not infer E4 from a passing unit suite.
+
+================================================================
+1. E4 CARRY-FORWARD RULE
+================================================================
+
+Only retain:
+
+LOCAL_RUNTIME_VERIFIED = PASS E4
+
+if Upgrade-16 contains reproducible evidence of:
+
+- actual runtime process
+- actual model artifact
+- actual digest
+- actual generated tokens
+- actual timings
+- zero prohibited provider calls
+
+Only retain:
+
+LOCAL_CODING_VERIFIED = PASS E4
+
+if a real model:
+
+- inspected code
+- produced a patch
+- ran validation
+- fixed deterministic repository tests
+
+Otherwise downgrade to the strongest proven tier.
+
+================================================================
+2. LOCAL RUNTIME MANAGER
+================================================================
+
+Create/consolidate:
+
+LocalRuntimeManager
+
+Responsibilities:
+
+discover runtimes
+start ZCoder-owned runtimes
+observe external runtimes
+health-check
+load models
+unload models
+restart crashed managed runtimes
+stop managed runtimes
+report capacity
+
+Do not mix job orchestration logic into this class.
+
+================================================================
+3. RUNTIME OWNERSHIP
+================================================================
+
+Runtime instances must be classified:
+
+ZCODER_MANAGED
+EXTERNAL
+
+For ZCODER_MANAGED:
+
+ZCoder may start/stop/restart it.
+
+For EXTERNAL:
+
+ZCoder may health-check and route to it.
+
+ZCoder must never kill an external process merely because the endpoint
+became unhealthy.
+
+================================================================
+4. RUNTIME INSTANCE MODEL
+================================================================
+
+Persist runtime state such as:
+
+runtime_instance_id
+runtime_type
+owner
+endpoint
+pid
+process_fingerprint
+version
+started_at
+last_health_at
+state
+loaded_models
+capacity
+configuration_hash
+
+================================================================
+5. RUNTIME STATES
+================================================================
+
+Use explicit states:
+
+STARTING
+READY
+BUSY
+DEGRADED
+DRAINING
+STOPPING
+STOPPED
+FAILED
+
+Do not encode state only through process existence.
+
+================================================================
+6. HEALTH MODEL
+================================================================
+
+Separate:
+
+PROCESS_ALIVE
+SERVER_READY
+MODEL_READY
+CAPACITY_AVAILABLE
+
+A process can exist while model loading is incomplete.
+
+================================================================
+7. HEALTH CHECK ADAPTER
+================================================================
+
+Each runtime adapter determines its own documented health semantics.
+
+Do not assume all local servers implement the same endpoint.
+
+================================================================
+8. MODEL RESIDENCY MODEL
+================================================================
+
+Create explicit states:
+
+COLD
+LOADING
+WARM
+HOT
+EVICTING
+UNLOADED
+FAILED
+
+Definitions must be documented.
+
+Example:
+
+COLD:
+artifact exists but not resident.
+
+WARM:
+model resident but currently idle.
+
+HOT:
+resident and actively serving/recently used.
+
+================================================================
+9. MODEL POOL MANAGER
+================================================================
+
+Create:
+
+ModelPoolManager
+
+Responsibilities:
+
+resident models
+memory allocation
+capacity
+load
+reuse
+unload
+eviction
+preload
+
+================================================================
+10. NO DUPLICATE MODEL COPIES
+================================================================
+
+Do not launch multiple copies of the same large model unless:
+
+measured concurrency requires it
+and
+hardware can safely support it.
+
+Prefer shared runtime capacity first.
+
+================================================================
+11. MODEL SERVER KEY
+================================================================
+
+Server compatibility identity includes:
+
+runtime
+runtime version
+model digest
+tuning profile
+context configuration
+security scope
+
+Do not reuse incompatible server instance.
+
+================================================================
+12. MEMORY ACCOUNTING
+================================================================
+
+Track:
+
+host RAM total
+host RAM available
+runtime RSS
+model estimated RAM
+model measured RAM
+GPU VRAM when available
+KV/cache estimates
+safety reserve
+
+================================================================
+13. ADMISSION CONTROL
+================================================================
+
+Before loading model or admitting job:
+
+requirements
++
+current resident models
++
+available RAM/VRAM
++
+runtime capacity
++
+job priority
+
+→ ADMIT
+  QUEUE
+  EVICT_THEN_ADMIT
+  REJECT
+
+================================================================
+14. NEVER OOM DELIBERATELY
+================================================================
+
+Maintain configurable minimum memory headroom.
+
+Do not start another server/model when predicted usage violates safety
+policy.
+
+================================================================
+15. MEMORY PRESSURE MONITOR
+================================================================
+
+Continuously but cheaply observe host memory.
+
+States:
+
+NORMAL
+PRESSURE
+CRITICAL
+
+Avoid high-frequency polling.
+
+================================================================
+16. MEMORY PRESSURE ACTION
+================================================================
+
+NORMAL:
+normal scheduling
+
+PRESSURE:
+avoid new model loads
+
+CRITICAL:
+unload safe idle model / pause new jobs
+
+Never terminate active job blindly unless necessary for host safety.
+
+================================================================
+17. EVICTION POLICY
+================================================================
+
+Support an evidence-driven policy such as:
+
+idle first
+least recently used
+largest idle memory reclaim
+project priority
+
+Do not implement arbitrary eviction order.
+
+================================================================
+18. PINNED MODELS
+================================================================
+
+Allow operator/project configuration:
+
+pin model
+
+Pinned model should remain resident where safe.
+
+Host-safety policy still overrides pinning.
+
+================================================================
+19. IDLE TTL
+================================================================
+
+Support model idle timeout.
+
+Do not hardcode one global duration.
+
+Possible levels:
+
+runtime default
+organization/project
+model profile
+
+================================================================
+20. PRELOAD
+================================================================
+
+Support controlled preload for frequently used models.
+
+Preload is optional.
+
+Never preload every catalog model.
+
+================================================================
+21. PRELOAD SAFETY
+================================================================
+
+Preload only when:
+
+artifact verified
+fit safe
+runtime healthy
+cost policy compliant
+
+================================================================
+22. LLAMA.CPP ROUTER MODE
+================================================================
+
+Re-read CURRENT official llama.cpp server documentation.
+
+If current router mode is stable enough for the target functionality,
+integrate behind the llama.cpp adapter.
+
+Potential responsibilities:
+
+multiple model discovery
+load
+unload
+autoload policy
+max loaded models
+health
+slot state
+
+Do not expose llama.cpp router-specific concepts to domain callers.
+
+================================================================
+23. LLAMA.CPP MODEL LIMIT
+================================================================
+
+Map ZCoder pool limits into runtime-supported model concurrency only
+when the current runtime documents the required feature.
+
+Otherwise retain ZCoder-side process pool management.
+
+================================================================
+24. OLLAMA RESIDENCY
+================================================================
+
+Re-read current official Ollama API.
+
+Use documented model residency/load/unload controls.
+
+Keep runtime-specific semantics inside Ollama adapter.
+
+================================================================
+25. OLLAMA PROCESS OBSERVATION
+================================================================
+
+Use documented running-model information where available to reconcile:
+
+resident models
+memory
+context
+expiry
+
+Do not infer loaded model solely from recent ZCoder request history.
+
+================================================================
+26. VLLM RESIDENCY
+================================================================
+
+Re-read current official vLLM APIs.
+
+Use documented health/load/metrics/sleep functionality only when
+supported by active platform/runtime configuration.
+
+Do not invoke development-only dangerous endpoints in normal production
+mode.
+
+================================================================
+27. VLLM DEVELOPMENT ENDPOINTS
+================================================================
+
+Any endpoint explicitly documented as development-only must be disabled
+or policy-gated in production profiles.
+
+================================================================
+28. INFERENCE SCHEDULER
+================================================================
+
+Create:
+
+LocalInferenceScheduler
+
+It schedules inference capacity, not engineering jobs themselves.
+
+Input:
+
+job_id
+project
+task
+model requirement
+runtime requirement
+priority
+context requirement
+tool requirement
+deadline optional
+
+================================================================
+29. CAPACITY SLOT
+================================================================
+
+Represent:
+
+InferenceSlot
+
+Fields:
+
+runtime
+model
+server
+capacity
+active_requests
+queue_depth
+memory
+health
+
+================================================================
+30. PER-MODEL QUEUE
+================================================================
+
+Requests for an already-loaded model should normally queue against that
+capacity rather than spawning another model server immediately.
+
+================================================================
+31. GLOBAL QUEUE
+================================================================
+
+If no compatible resident model exists:
+
+global router chooses:
+
+reuse
+load
+evict/load
+queue
+reject
+
+================================================================
+32. QUEUE PRIORITY
+================================================================
+
+Use bounded priority classes.
+
+Example:
+
+INTERACTIVE
+NORMAL
+BACKGROUND
+
+Do not allow permanent starvation.
+
+================================================================
+33. FAIRNESS
+================================================================
+
+Prevent one project/job from monopolizing all local inference capacity.
+
+Use simple fair scheduling.
+
+================================================================
+34. CANCELLATION
+================================================================
+
+Queued inference:
+
+cancel immediately.
+
+Running inference:
+
+propagate cancellation when runtime supports it.
+
+Always clean local bookkeeping.
+
+================================================================
+35. TIMEOUT
+================================================================
+
+Support:
+
+queue timeout
+load timeout
+inference timeout
+
+Do not use one timeout for all phases.
+
+================================================================
+36. BACKPRESSURE
+================================================================
+
+Bound:
+
+queued inference requests
+model load requests
+benchmark jobs
+
+Reject clearly when limit exceeded.
+
+Do not allow unlimited RAM-backed queues.
+
+================================================================
+37. RUNTIME CRASH DETECTION
+================================================================
+
+Detect:
+
+process exit
+health failure
+connection failure
+repeated malformed response
+
+Distinguish transient vs terminal.
+
+================================================================
+38. CRASH RECOVERY
+================================================================
+
+ZCODER_MANAGED runtime:
+
+bounded restart.
+
+EXTERNAL runtime:
+
+mark unavailable.
+
+Do not restart endlessly.
+
+================================================================
+39. RESTART BUDGET
+================================================================
+
+Track:
+
+restart_count
+restart_window
+last_failure
+
+Exceeding threshold:
+
+FAILED
+
+and require cooldown/operator action.
+
+================================================================
+40. MODEL LOAD FAILURE
+================================================================
+
+Classify:
+
+OOM
+INVALID_MODEL
+UNSUPPORTED_ARCHITECTURE
+BAD_CONFIGURATION
+CORRUPT_ARTIFACT
+PROCESS_FAILURE
+TIMEOUT
+
+Do not flatten to RuntimeError.
+
+================================================================
+41. RECONCILIATION
+================================================================
+
+At ZCoder restart:
+
+discover managed runtime records
+inspect actual processes/endpoints
+reconcile model residency
+clear stale capacity claims
+resume scheduler
+
+================================================================
+42. ORPHAN PROCESS SAFETY
+================================================================
+
+Before terminating a recorded PID:
+
+verify process fingerprint.
+
+PID reuse must never kill unrelated application.
+
+================================================================
+43. CAPACITY RECONCILIATION
+================================================================
+
+After runtime restart/crash:
+
+reset or reconstruct inference slots.
+
+No permanently BUSY phantom slot.
+
+================================================================
+44. REQUEST IDENTIFIERS
+================================================================
+
+Every local inference request receives:
+
+inference_request_id
+
+Link to:
+
+job
+attempt
+runtime
+model
+project
+
+================================================================
+45. STREAMING ROUTER
+================================================================
+
+Streaming must preserve:
+
+request identity
+cancellation
+terminal event
+error state
+
+Router must not buffer entire output unnecessarily.
+
+================================================================
+46. CONTEXT ISOLATION
+================================================================
+
+No prompt/conversation state may leak between:
+
+jobs
+projects
+organizations
+
+even if model weights/server are shared.
+
+================================================================
+47. PROMPT CACHE SECURITY
+================================================================
+
+If runtime prompt/KV caching is enabled:
+
+verify cache behavior does not expose one tenant's content to another.
+
+Add explicit isolation tests.
+
+================================================================
+48. CACHE POLICY
+================================================================
+
+Allow:
+
+DISABLED
+SAME_JOB
+SAME_PROJECT_SAFE
+RUNTIME_DEFAULT
+
+Default to conservative behavior.
+
+Do not enable cross-tenant prompt reuse.
+
+================================================================
+49. TOOL CONTEXT ISOLATION
+================================================================
+
+Shared model runtime never shares:
+
+tool results
+MCP credentials
+workspace path
+memory
+
+between jobs.
+
+================================================================
+50. CONTINUOUS PERFORMANCE MONITOR
+================================================================
+
+Use real inference measurements generated during normal execution.
+
+Collect bounded:
+
+TTFT
+prompt throughput
+decode throughput
+total latency
+failure
+memory
+
+Do not turn every user request into a heavy benchmark.
+
+================================================================
+51. OBSERVED PERFORMANCE
+================================================================
+
+Separate:
+
+BENCHMARK
+
+from:
+
+OBSERVED_PRODUCTION_LOCAL
+
+Measurements from normal job execution use a distinct evidence source.
+
+================================================================
+52. PERFORMANCE EWMA
+================================================================
+
+Maintain lightweight rolling statistics.
+
+Do not store unlimited raw timing samples.
+
+Persist appropriate aggregates plus bounded recent observations.
+
+================================================================
+53. PERFORMANCE DRIFT
+================================================================
+
+Detect meaningful degradation:
+
+TTFT
+decode throughput
+failure rate
+OOM frequency
+
+Thresholds configurable.
+
+================================================================
+54. QUALITY DRIFT
+================================================================
+
+Performance alone is insufficient.
+
+Run deterministic quality regression fixtures periodically or after:
+
+model digest change
+runtime upgrade
+tuning change
+
+================================================================
+55. ROUTER USES QUALITY
+================================================================
+
+A faster model with failing coding validation must not automatically
+become default.
+
+================================================================
+56. ROUTING SCORE
+================================================================
+
+Routing combines:
+
+capability
+quality
+latency
+memory
+availability
+cost policy
+residency
+project evidence
+
+Do not use opaque model prestige.
+
+================================================================
+57. ROUTING SOURCE QUALITY
+================================================================
+
+Preference order:
+
+same-project measured evidence
+same-host measured evidence
+same-host benchmark
+contract capability
+catalog estimate
+
+================================================================
+58. CONFIDENCE
+================================================================
+
+Return:
+
+HIGH
+MEDIUM
+LOW
+
+with explanation.
+
+================================================================
+59. ADAPTIVE ROUTING
+================================================================
+
+When preferred model becomes:
+
+unhealthy
+memory unsafe
+quality regressed
+
+choose next eligible zero-cost candidate.
+
+Do not jump to paid provider.
+
+================================================================
+60. PAID FALLBACK FIREWALL
+================================================================
+
+Keep a central paid-provider firewall.
+
+No component can bypass it:
+
+scheduler
+router
+agent
+workflow
+MCP
+recovery
+fallback
+
+================================================================
+61. ZERO PAID POLICY
+================================================================
+
+When active:
+
+PAID_PLATFORM
+UNKNOWN
+
+are forbidden.
+
+CUSTOMER_KEY also forbidden unless explicitly allowed by separate
+policy.
+
+================================================================
+62. TRANSPORT AUDIT
+================================================================
+
+Maintain prohibited-call counters for each autonomous job.
+
+Persist result.
+
+================================================================
+63. STRICT LOCAL MODE
+================================================================
+
+For strict offline execution:
+
+allow only:
+
+loopback
+local IPC
+filesystem
+approved local subprocess
+
+================================================================
+64. ONLINE ACQUISITION SEPARATION
+================================================================
+
+Model download belongs to:
+
+ONLINE_ACQUISITION
+
+not inference.
+
+Once acquired, strict local execution can operate offline.
+
+================================================================
+65. SCHEDULER + MODEL DOWNLOAD
+================================================================
+
+Inference scheduler must never silently download a missing model.
+
+Return:
+
+MODEL_NOT_INSTALLED
+
+plus recommendation.
+
+================================================================
+66. PROJECT MODEL PROFILE
+================================================================
+
+Persist per-project:
+
+coding model preference
+review model preference
+embedding profile
+runtime preference
+cost policy
+latency preference
+quality floor
+
+================================================================
+67. AUTO PROFILE
+================================================================
+
+`auto` resolves from evidence.
+
+Never mutate configured explicit model choice silently.
+
+================================================================
+68. PROFILE FALLBACK
+================================================================
+
+Explicit model unavailable:
+
+policy determines:
+
+queue
+allow compatible local fallback
+fail
+
+================================================================
+69. LOCAL AGENT INTEGRATION
+================================================================
+
+LocalAgentRuntime obtains inference through LocalInferenceScheduler.
+
+Do not directly instantiate provider clients everywhere.
+
+================================================================
+70. WORKFLOW INTEGRATION
+================================================================
+
+Workflow agents use capability requirements.
+
+Scheduler handles actual model allocation.
+
+================================================================
+71. RAG INTEGRATION
+================================================================
+
+Repository retrieval remains local.
+
+Routing should consider:
+
+RAG availability
+context requirements
+model context capacity
+
+================================================================
+72. MCP INTEGRATION
+================================================================
+
+Tool-capable jobs require appropriate model/runtime strategy.
+
+MCP remains policy controlled.
+
+================================================================
+73. MULTI-MODEL WORKFLOW
+================================================================
+
+Allow different local models for:
+
+planning
+coding
+review
+embedding
+
+only when evidence justifies it.
+
+Avoid unnecessary model swapping on RAM-constrained hosts.
+
+================================================================
+74. SWAP COST
+================================================================
+
+Router considers model load/unload cost.
+
+A marginally better cold model may be worse than a good hot model for
+interactive task.
+
+================================================================
+75. WARMTH FACTOR
+================================================================
+
+Routing may account for:
+
+HOT
+WARM
+COLD
+
+as an optimization, after correctness/security constraints.
+
+================================================================
+76. CPU-ONLY OPTIMIZATION
+================================================================
+
+CPU-only remains first-class.
+
+Optimize for:
+
+bounded thread use
+low parallelism where appropriate
+resident small models
+minimal swap/thrash
+
+================================================================
+77. GPU FUTURE
+================================================================
+
+GPU capacity abstraction remains compatible with:
+
+NVIDIA
+AMD
+Apple
+
+Do not claim verified GPU behavior without hardware.
+
+================================================================
+78. MODEL POOL STRESS TEST
+================================================================
+
+Using Fake/controlled runtimes:
+
+simulate many jobs.
+
+Verify:
+
+pool limit
+queue
+eviction
+fairness
+no duplicate server
+no OOM admission
+
+================================================================
+79. REAL LOCAL CONCURRENCY TEST
+================================================================
+
+If actual runtime exists:
+
+run small bounded concurrent requests.
+
+Measure:
+
+latency
+throughput
+queueing
+memory
+
+Do not overload host.
+
+================================================================
+80. LOAD SHEDDING
+================================================================
+
+When system cannot safely accept more inference:
+
+return explicit capacity status.
+
+Do not crash host.
+
+================================================================
+81. ADAPTIVE IDLE TIMEOUT
+================================================================
+
+Optional:
+
+models used frequently remain resident longer.
+
+Rare large models unload earlier.
+
+Algorithm should be understandable and bounded.
+
+================================================================
+82. MODEL USAGE STATISTICS
+================================================================
+
+Persist privacy-safe statistics:
+
+load_count
+request_count
+last_used
+failures
+average resident duration
+
+No prompt content needed.
+
+================================================================
+83. DAEMON SUPERVISOR
+================================================================
+
+Create:
+
+LocalAIDaemonSupervisor
+
+for ZCoder-owned processes.
+
+Responsibilities:
+
+startup
+shutdown
+signal handling
+health
+restart
+drain
+process cleanup
+
+================================================================
+84. GRACEFUL ZCODER SHUTDOWN
+================================================================
+
+On shutdown:
+
+stop accepting inference
+drain/finish according to policy
+persist state
+terminate ZCoder-owned model servers cleanly
+
+External servers remain untouched.
+
+================================================================
+85. SYSTEM BOOT
+================================================================
+
+Do not automatically load large models merely because ZCoder starts.
+
+Default:
+
+lazy load
+
+unless explicit preload policy exists.
+
+================================================================
+86. SERVICE MODE
+================================================================
+
+Support long-running local daemon/service mode.
+
+Example conceptual command:
+
+zcoder local-ai serve
+
+Follow current CLI conventions.
+
+================================================================
+87. STATUS
+================================================================
+
+Provide:
+
+zcoder local-ai status
+
+Show:
+
+runtime
+model pool
+resident models
+queues
+capacity
+RAM
+health
+zero-paid policy
+
+================================================================
+88. MODEL POOL CLI
+================================================================
+
+Potential commands:
+
+zcoder local-ai models
+zcoder local-ai load MODEL
+zcoder local-ai unload MODEL
+zcoder local-ai drain
+
+Require appropriate local/operator authorization.
+
+================================================================
+89. SCHEDULER CLI
+================================================================
+
+Provide diagnostic:
+
+zcoder local-ai queue
+
+No hidden scheduling state.
+
+================================================================
+90. ROUTING EXPLAIN CLI
+================================================================
+
+Provide:
+
+zcoder models explain --task coding --project ...
+
+Include:
+
+selected
+evidence
+warm state
+quality
+performance
+memory
+policy
+
+================================================================
+91. WEB LOCAL AI OPERATIONS
+================================================================
+
+If SELF_HOSTED Web profile is supported, add service-backed UI:
+
+Runtime
+Model Pool
+Queues
+Memory
+Health
+Performance
+Routing
+Regressions
+
+No mock cards.
+
+================================================================
+92. LIVE UPDATE
+================================================================
+
+Use existing realtime infrastructure.
+
+Durable state remains source of truth.
+
+================================================================
+93. PERFORMANCE CHART
+================================================================
+
+Show actual measured history.
+
+Label:
+
+BENCHMARK
+OBSERVED
+SIMULATED
+
+clearly.
+
+================================================================
+94. MEMORY CHART
+================================================================
+
+Show:
+
+available RAM
+resident model footprint
+runtime RSS
+safety reserve
+
+Do not fabricate GPU telemetry on CPU host.
+
+================================================================
+95. ALERTS
+================================================================
+
+Local in-app notifications:
+
+runtime crash
+repeated restart
+memory pressure
+model OOM
+performance regression
+quality regression
+
+No paid alert provider required.
+
+================================================================
+96. SELF-HEALING LIMIT
+================================================================
+
+Self-healing must be bounded.
+
+No infinite runtime restart loop.
+
+================================================================
+97. MODEL QUARANTINE
+================================================================
+
+Repeatedly crashing/corrupt model can become:
+
+QUARANTINED
+
+until operator revalidates/removes it.
+
+================================================================
+98. PROFILE QUARANTINE
+================================================================
+
+A tuning profile causing repeated OOM/crash should be disabled.
+
+Fall back to last known safe profile.
+
+================================================================
+99. LAST KNOWN GOOD
+================================================================
+
+Persist:
+
+last_known_good_runtime_profile
+last_known_good_model_selection
+
+Use only if still compatible with:
+
+digest
+runtime
+hardware
+policy
+
+================================================================
+100. CANARY TUNING
+================================================================
+
+New tuning profile should be tested with bounded workload before making
+it default.
+
+================================================================
+101. CONTINUOUS BENCHMARKING
+================================================================
+
+Do not constantly benchmark.
+
+Trigger on:
+
+new model
+new runtime
+changed hardware
+manual request
+scheduled low-frequency maintenance
+
+================================================================
+102. IDLE BENCHMARK
+================================================================
+
+Optional benchmark only when host is sufficiently idle.
+
+Do not compete with active developer job.
+
+================================================================
+103. PERFORMANCE REGRESSION GATE
+================================================================
+
+Release/runtime update may compare against stored baseline.
+
+Do not fail release from noisy 1% variation.
+
+Use meaningful thresholds.
+
+================================================================
+104. QUALITY REGRESSION GATE
+================================================================
+
+Coding/tool correctness regressions take priority over minor speedups.
+
+================================================================
+105. MODEL UPGRADE POLICY
+================================================================
+
+A new digest/tag is never silently promoted solely because "latest".
+
+Acquire → verify → benchmark → canary → promote.
+
+================================================================
+106. MODEL PROMOTION
+================================================================
+
+States may include:
+
+CANDIDATE
+VALIDATED
+PREFERRED
+QUARANTINED
+RETIRED
+
+Separate from artifact download state.
+
+================================================================
+107. RUNTIME UPGRADE POLICY
+================================================================
+
+Same pattern:
+
+detect new runtime
+verify compatibility
+benchmark
+compare
+promote
+
+Do not auto-install runtime upgrades in core execution.
+
+================================================================
+108. LOCAL PRODUCTION DATA
+================================================================
+
+Performance/model pool state belongs in persistent local DB or current
+storage abstraction.
+
+Do not require Redis.
+
+================================================================
+109. SQLITE MODE
+================================================================
+
+Single-host local runtime must work with SQLite.
+
+================================================================
+110. POSTGRESQL SELF-HOSTED MODE
+================================================================
+
+Multi-process/self-hosted deployments may use PostgreSQL.
+
+Do not introduce separate queue infrastructure.
+
+================================================================
+111. PROCESS LOCKING
+================================================================
+
+Prevent two ZCoder supervisors on same host from managing the same
+runtime process accidentally.
+
+Use safe OS/storage coordination.
+
+Do not rely solely on in-memory mutex.
+
+================================================================
+112. PORT COLLISION
+================================================================
+
+Dynamic port allocation must be race-safe where multiple processes may
+operate.
+
+================================================================
+113. SECURITY
+================================================================
+
+Audit:
+
+runtime ownership
+loopback binding
+process command injection
+model path traversal
+model digest
+runtime endpoint SSRF
+prompt cache tenant isolation
+queue tenant isolation
+MCP
+RAG
+paid-provider firewall
+logs
+
+================================================================
+114. COMMAND INJECTION
+================================================================
+
+Runtime process arguments must use structured argv.
+
+Never build shell command from arbitrary model/project input.
+
+================================================================
+115. MODEL PATH
+================================================================
+
+Only verified registered artifacts may be passed into managed runtime.
+
+No arbitrary user-controlled path escape.
+
+================================================================
+116. LOCAL SERVER AUTH BOUNDARY
+================================================================
+
+Loopback server may have different authentication semantics from remote
+server.
+
+Never treat remote/LAN endpoint as trusted simply because runtime type is
+"local".
+
+================================================================
+117. REMOTE LOCAL-RUNTIME CONFIG
+================================================================
+
+If endpoint is not loopback:
+
+classify it separately.
+
+Apply:
+
+authentication
+TLS
+SSRF
+network policy
+
+as applicable.
+
+================================================================
+118. FAULT INJECTION TESTS
+================================================================
+
+Test:
+
+runtime crash
+model load OOM
+health timeout
+queue overflow
+memory pressure
+stale runtime PID
+port collision
+corrupt model
+bad tuning profile
+
+================================================================
+119. TENANT ISOLATION TESTS
+================================================================
+
+Two organizations sharing model weights:
+
+no prompt leakage
+no cache leakage
+no job state leakage
+no tool credential leakage
+
+================================================================
+120. QUEUE FAIRNESS TEST
+================================================================
+
+Tenant/project A floods scheduler.
+
+B still receives bounded fair service.
+
+================================================================
+121. RESTART RECOVERY TEST
+================================================================
+
+Start managed model runtime.
+
+Persist state.
+
+Kill/restart ZCoder.
+
+Reconcile accurately.
+
+Do not duplicate runtime process.
+
+================================================================
+122. MODEL EVICTION TEST
+================================================================
+
+Simulate constrained memory.
+
+Load A.
+Request B.
+
+Verify intended eviction/queue behavior.
+
+================================================================
+123. ACTIVE MODEL PROTECTION
+================================================================
+
+Never evict model serving an active request.
+
+================================================================
+124. EXTERNAL RUNTIME PROTECTION
+================================================================
+
+Never unload/stop model on external runtime unless adapter/policy
+explicitly permits management.
+
+================================================================
+125. OFFLINE E2E
+================================================================
+
+With already-installed local artifact:
+
+network denied
+→ runtime start
+→ model load
+→ coding job
+→ RAG
+→ tools
+→ validation
+→ result
+
+Prove prohibited outbound transport calls = 0.
+
+================================================================
+126. CPU PRODUCTION E2E
+================================================================
+
+On CPU-only environment:
+
+run bounded system scenario.
+
+Report real resource/performance evidence if real model is available.
+
+================================================================
+127. REAL RUNTIME EVIDENCE
+================================================================
+
+If actual model/runtime available:
+
+record separately:
+
+runtime
+version
+model
+digest
+resident state
+load time
+TTFT
+prompt tok/s
+decode tok/s
+RSS
+concurrent requests
+failure rate
+
+================================================================
+128. REAL CODING EVIDENCE
+================================================================
+
+Do not reuse fake autonomous repair as real proof.
+
+Use actual model if claiming E4.
+
+================================================================
+129. RELEASE PROFILES
+================================================================
+
+Maintain:
+
+CORE_FREE
+SELF_HOSTED
+LOCAL_RUNTIME_VERIFIED
+LOCAL_CODING_VERIFIED
+PERFORMANCE_VERIFIED
+
+Add:
+
+LOCAL_PRODUCTION_RUNTIME
+
+================================================================
+130. LOCAL_PRODUCTION_RUNTIME PROFILE
+================================================================
+
+Requires at minimum:
+
+runtime supervisor
+model pool
+admission control
+queue
+memory safety
+crash recovery
+bounded self-healing
+routing
+zero-paid firewall
+offline execution
+tenant/job isolation
+
+Real local model E4 remains separately reported.
+
+================================================================
+131. NO-COST RELEASE RULE
+================================================================
+
+No cloud/paid credential may be required to pass:
+
+CORE_FREE
+LOCAL_PRODUCTION_RUNTIME
+
+================================================================
+132. WEB RELEASE EVIDENCE
+================================================================
+
+If self-hosted Web is part of profile:
+
+install Web dependencies
+run Web tests
+
+Do not leave Web skipped while claiming strong Web evidence.
+
+================================================================
+133. TEST ACCOUNTING
+================================================================
+
+Report separately:
+
+unit
+scheduler
+pool
+supervisor
+failure injection
+security
+offline
+self-hosted Web
+real local model
+real coding
+
+================================================================
+134. RELEASE GATES
+================================================================
+
+Add:
+
+RUNTIME_SUPERVISOR
+RUNTIME_RECONCILIATION
+
+MODEL_POOL
+MODEL_RESIDENCY
+MEMORY_ADMISSION
+EVICTION
+
+INFERENCE_SCHEDULER
+QUEUE_FAIRNESS
+BACKPRESSURE
+
+CRASH_RECOVERY
+BOUNDED_SELF_HEALING
+
+PROMPT_CACHE_ISOLATION
+TENANT_INFERENCE_ISOLATION
+
+CONTINUOUS_METRICS
+PERFORMANCE_REGRESSION
+QUALITY_REGRESSION
+
+ADAPTIVE_ROUTING
+ZERO_PAID_FIREWALL
+
+LOCAL_PRODUCTION_RUNTIME
+
+================================================================
+135. GATE EXAMPLE
+================================================================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+NO_COST_CORE: PASS
+ZERO_PAID_CALLS: PASS
+OFFLINE_EXECUTION: PASS
+
+RUNTIME_SUPERVISOR: PASS
+RUNTIME_RECONCILIATION: PASS
+
+MODEL_POOL: PASS
+MODEL_RESIDENCY: PASS
+MEMORY_ADMISSION: PASS
+EVICTION: PASS
+
+INFERENCE_SCHEDULER: PASS
+QUEUE_FAIRNESS: PASS
+BACKPRESSURE: PASS
+
+CRASH_RECOVERY: PASS
+BOUNDED_SELF_HEALING: PASS
+
+PROMPT_CACHE_ISOLATION: PASS
+TENANT_INFERENCE_ISOLATION: PASS
+
+CONTINUOUS_METRICS: PASS
+PERFORMANCE_REGRESSION: PASS
+QUALITY_REGRESSION: PASS
+
+ADAPTIVE_ROUTING: PASS
+ZERO_PAID_FIREWALL: PASS
+
+REAL_LOCAL_RUNTIME:
+  evidence-derived
+
+REAL_LOCAL_CODING:
+  evidence-derived
+
+LOCAL_PRODUCTION_RUNTIME: PASS
+
+WEB_SELF_HOSTED:
+  evidence-derived
+
+PITR:
+  PASS_WITH_LIMITATIONS
+
+FINAL:
+  evidence-derived
+
+================================================================
+136. DOCUMENTATION
+================================================================
+
+Add:
+
+docs/UPGRADE-17.md
+docs/LOCAL-PRODUCTION-RUNTIME.md
+docs/RUNTIME-SUPERVISOR.md
+docs/MODEL-POOL.md
+docs/INFERENCE-SCHEDULER.md
+docs/MEMORY-ADMISSION.md
+docs/MODEL-EVICTION.md
+docs/RUNTIME-RECOVERY.md
+docs/ADAPTIVE-ROUTING.md
+docs/LOCAL-AI-OPERATIONS.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+docs/LOCAL-AI.md
+docs/PERFORMANCE-LAB.md
+
+================================================================
+137. CLI TARGET
+================================================================
+
+Integrate according to existing CLI structure.
+
+Target capabilities:
+
+zcoder local-ai status
+zcoder local-ai serve
+zcoder local-ai stop
+zcoder local-ai drain
+
+zcoder local-ai queue
+zcoder local-ai pool
+
+zcoder local-ai load MODEL
+zcoder local-ai unload MODEL
+
+zcoder models explain --task coding
+zcoder models health
+
+zcoder doctor local-ai
+
+================================================================
+138. REQUIRED FINAL COMMANDS
+================================================================
+
+Run:
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+git diff --check
+git status --short
+
+clean wheel install
+zcoder --version
+zcoder doctor local-ai
+
+Run separately:
+
+supervisor tests
+model-pool tests
+scheduler tests
+memory-pressure tests
+eviction tests
+crash-recovery tests
+fairness tests
+tenant-isolation tests
+offline E2E
+zero-paid-call E2E
+self-hosted Web profile
+
+Run real local runtime/coding tests if actual model exists.
+
+Never fabricate them.
+
+================================================================
+139. DEFINITION OF DONE
+================================================================
+
+Upgrade-17 is complete only when:
+
+[ ] Upgrade-16 evidence is revalidated
+[ ] simulated and real evidence remain separated
+[ ] runtime supervisor exists
+[ ] managed/external ownership differs correctly
+[ ] managed runtimes recover from crash
+[ ] restart loops are bounded
+[ ] runtime reconciliation works
+[ ] model pool exists
+[ ] model residency states are explicit
+[ ] duplicate model copies are prevented by default
+[ ] memory admission control exists
+[ ] memory pressure cannot intentionally OOM host
+[ ] safe eviction exists
+[ ] active model cannot be evicted
+[ ] inference scheduler exists
+[ ] per-model/global queues are bounded
+[ ] fairness exists
+[ ] cancellation works
+[ ] backpressure works
+[ ] warm model reuse works
+[ ] model-load cost affects routing
+[ ] continuous measured metrics exist
+[ ] performance drift is detectable
+[ ] quality regression is detectable
+[ ] routing uses evidence quality
+[ ] zero-paid firewall is central
+[ ] paid fallback cannot bypass policy
+[ ] prompt/cache tenant isolation passes
+[ ] tool/MCP context isolation passes
+[ ] offline E2E has zero prohibited outbound traffic
+[ ] CPU-only remains supported
+[ ] no Redis/Kafka/cloud service becomes mandatory
+[ ] local production profile is reproducible
+[ ] inherited RLS/security gates remain green
+
+================================================================
+140. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-16 Evidence Carry-Forward
+
+Capability | Previous Tier | Verified Evidence | New Tier | Verdict
+
+## 3. Version Decision
+
+## 4. Local Production Runtime Architecture
+
+## 5. Runtime Supervisor
+
+## 6. Runtime Inventory
+
+Runtime | Owner | State | Version | Health | Models | Capacity
+
+## 7. Model Pool
+
+Model | Digest | State | Runtime | RAM | Slots | Last Used
+
+## 8. Memory Admission
+
+Total RAM:
+Available:
+Safety reserve:
+Resident:
+Decision examples:
+
+## 9. Model Load / Unload / Eviction
+
+## 10. Inference Scheduler
+
+## 11. Queue / Fairness / Backpressure
+
+## 12. Crash Recovery
+
+## 13. Runtime Reconciliation
+
+## 14. Continuous Performance Metrics
+
+## 15. Performance Regression
+
+## 16. Quality Regression
+
+## 17. Adaptive Routing
+
+Selected:
+Confidence:
+Evidence:
+Alternatives:
+Reason:
+
+## 18. Prompt Cache / Tenant Isolation
+
+## 19. Offline / Zero-Paid Proof
+
+Anthropic calls:
+OpenAI paid calls:
+Stripe calls:
+Hosted embeddings:
+Other prohibited outbound:
+
+## 20. Real Local Runtime
+
+Status:
+Runtime:
+Model:
+Digest:
+Evidence tier:
+
+## 21. Real Local Coding
+
+Status:
+Fixture:
+Tests before:
+Tests after:
+Evidence tier:
+
+## 22. Self-Hosted Web
+
+## 23. Security Review
+
+## 24. Failure Injection
+
+Crash:
+OOM:
+Health timeout:
+Queue overflow:
+Port collision:
+Corrupt model:
+
+## 25. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+core
+supervisor
+pool
+scheduler
+failure
+security
+offline
+Web
+real local
+
+## 26. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 27. Release Profiles
+
+CORE_FREE:
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_CODING_VERIFIED:
+PERFORMANCE_VERIFIED:
+LOCAL_PRODUCTION_RUNTIME:
+SELF_HOSTED:
+SAAS:
+
+## 28. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+NO_COST_CORE:
+ZERO_PAID_CALLS:
+OFFLINE_EXECUTION:
+
+RUNTIME_SUPERVISOR:
+RUNTIME_RECONCILIATION:
+
+MODEL_POOL:
+MODEL_RESIDENCY:
+MEMORY_ADMISSION:
+EVICTION:
+
+INFERENCE_SCHEDULER:
+QUEUE_FAIRNESS:
+BACKPRESSURE:
+
+CRASH_RECOVERY:
+BOUNDED_SELF_HEALING:
+
+PROMPT_CACHE_ISOLATION:
+TENANT_INFERENCE_ISOLATION:
+
+CONTINUOUS_METRICS:
+PERFORMANCE_REGRESSION:
+QUALITY_REGRESSION:
+
+ADAPTIVE_ROUTING:
+ZERO_PAID_FIREWALL:
+
+REAL_LOCAL_RUNTIME:
+REAL_LOCAL_CODING:
+
+LOCAL_PRODUCTION_RUNTIME:
+WEB_SELF_HOSTED:
+
+PITR:
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 29. Files Changed
+
+## 30. Remaining Limitations
+
+Explicitly state:
+
+actual model-generated tokens?
+real llama.cpp?
+real Ollama?
+real vLLM?
+real autonomous repair?
+measured concurrency?
+CPU only?
+NVIDIA?
+AMD?
+Apple?
+PITR?
+PostgreSQL HA?
+multi-region?
+
+## 31. Final Verdict
+
+Never use a passing unit suite as evidence of an actual model runtime.
+
+Never report an external runtime as ZCoder-managed.
+
+Never report model residency from stale local state.
+
+Never continue loading models when memory admission says unsafe.
+
+Never silently route to a paid provider.
+
+Never call the platform "production local AI verified" if runtime
+supervision, memory admission, recovery and isolation have not actually
+been exercised.
+
+Upgrade-17 succeeds when the local AI layer behaves like a reliable
+long-running inference service rather than a collection of model
+adapter classes.

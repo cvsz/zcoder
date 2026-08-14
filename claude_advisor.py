@@ -64,10 +64,11 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # eval note says a short reminder message on turn 2 raises Haiku pass rates
 # ~7pp if it hasn't called the advisor in its first assistant turn.
 ADVISOR_EXECUTOR_MODELS = {
+    "claude-opus-5",
     "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
     "claude-sonnet-5", "claude-sonnet-4-6",
     "claude-haiku-4-5", "claude-haiku-4-5-20251001",
-    "claude-fable-5",
+    "claude-fable-5", "claude-mythos-5",
 }
 
 

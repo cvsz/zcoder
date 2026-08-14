@@ -101,13 +101,45 @@ def raise_for_http_error(exc: BaseException) -> None:
     raise exc
 
 
+def extract_response_metadata(headers) -> dict:
+    """Extract standard Claude API response metadata headers without leaking secrets."""
+    if not headers:
+        return {}
+    meta = {}
+    if "request-id" in headers:
+        meta["request_id"] = headers.get("request-id")
+    if "anthropic-workspace-id" in headers:
+        meta["workspace_id"] = headers.get("anthropic-workspace-id")
+    if "anthropic-ratelimit-requests-remaining" in headers:
+        try:
+            meta["ratelimit_requests_remaining"] = int(headers.get("anthropic-ratelimit-requests-remaining"))
+        except (ValueError, TypeError):
+            pass
+    if "anthropic-ratelimit-tokens-remaining" in headers:
+        try:
+            meta["ratelimit_tokens_remaining"] = int(headers.get("anthropic-ratelimit-tokens-remaining"))
+        except (ValueError, TypeError):
+            pass
+    return meta
+
+
 def urlopen_json(req: "urllib.request.Request", timeout: float) -> dict:
     """`urllib.request.urlopen(req)` that returns parsed JSON and translates
     failures via `raise_for_http_error`. Call this from inside a function
     decorated with `@retry(...)` — it does not retry by itself."""
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read().decode())
+            data = json.loads(r.read().decode())
+            if isinstance(data, dict):
+                headers = getattr(r, "headers", None)
+                meta = extract_response_metadata(headers) if headers is not None else {}
+                if meta:
+                    data["_response_metadata"] = meta
+                    if "workspace_id" in meta:
+                        data["_workspace_id"] = meta["workspace_id"]
+                    if "request_id" in meta:
+                        data["_request_id"] = meta["request_id"]
+            return data
     except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
         raise_for_http_error(e)
 

@@ -91,6 +91,9 @@ CLI flags:
   --compliance-org-settings ORG_UUID      Show effective org settings
   --compliance-groups-list                List RBAC/SCIM groups
   --compliance-group-members GROUP_ID     List a group's members
+  --compliance-local-sessions-list        List Cowork/Claude Code local sessions (filter with --compliance-user-ids)
+  --compliance-local-session-info ID      Show metadata for one local session
+  --compliance-local-session-messages ID  Print full transcript/messages for one local session
   --compliance-yes                        Actually execute a delete (default: dry-run preview)
   --compliance-output PATH                Write --compliance-file-download's bytes here
 """
@@ -378,6 +381,38 @@ class ComplianceApiClient:
         them. Requires delete:compliance_user_data. Returns
         {"id": ..., "type": "claude_chat_deleted"}."""
         return self._delete(f"/apps/chats/{chat_id}")
+
+    # ── Local sessions (Cowork / Claude Code, Compliance Access Key) ─
+
+    def list_local_sessions(self, user_ids: Optional[list] = None,
+                            limit: int = 100, page: Optional[str] = None) -> dict:
+        """GET /v1/compliance/apps/sessions/local — lists local Cowork and
+        Claude Code sessions across the organization. Requires
+        read:compliance_user_data."""
+        params: dict = {"limit": limit}
+        if user_ids:
+            params["user_ids"] = user_ids
+        if page:
+            params["page"] = page
+        return self._get("/apps/sessions/local", params=params)
+
+    def get_local_session(self, session_id: str) -> dict:
+        """GET /v1/compliance/apps/sessions/local/{id} — returns metadata
+        for one local Cowork / Claude Code session. Requires
+        read:compliance_user_data."""
+        return self._get(f"/apps/sessions/local/{session_id}")
+
+    def get_local_session_messages(self, session_id: str, limit: Optional[int] = None,
+                                   page: Optional[str] = None) -> dict:
+        """GET /v1/compliance/apps/sessions/local/{id}/messages — returns
+        the full transcript (prompts, tool calls, responses) for a local
+        session. Requires read:compliance_user_data."""
+        params = {}
+        if limit is not None:
+            params["limit"] = limit
+        if page:
+            params["page"] = page
+        return self._get(f"/apps/sessions/local/{session_id}/messages", params=params)
 
     # ── Files / artifacts (Compliance Access Key only) ──────────────
 
@@ -767,4 +802,70 @@ def cmd_compliance_group_members(api_key: str, group_id: str):
     for m in data.get("data", []):
         print(f"  {m.get('user_id')}  {m.get('email', '?')}")
     print()
+    return data
+
+
+def cmd_compliance_local_sessions_list(api_key: str, user_ids: Optional[list] = None,
+                                       limit: int = 100):
+    client = ComplianceApiClient(api_key)
+    try:
+        page = client.list_local_sessions(user_ids=user_ids, limit=limit)
+    except ComplianceApiError as e:
+        _print_error("Failed to list local sessions", e)
+        return None
+    print("\n\033[94mLocal Sessions (Cowork / Claude Code)\033[0m\n")
+    for s in page.get("data", []):
+        sid = s.get("id", "?")
+        uid = s.get("user_id", "?")
+        app = s.get("app_type", s.get("type", "local_session"))
+        created = s.get("created_at", "")[:19]
+        title = (s.get("title") or s.get("summary") or "")[:40]
+        print(f"  {sid}  {app:<14} user={uid}  created={created}  {title}")
+    if page.get("has_more"):
+        print(f"\033[90m  ... more available (next_page={page.get('next_page')})\033[0m")
+    print()
+    return page
+
+
+def cmd_compliance_local_session_info(api_key: str, session_id: str):
+    client = ComplianceApiClient(api_key)
+    try:
+        s = client.get_local_session(session_id)
+    except ComplianceApiError as e:
+        _print_error(f"Failed to get local session {session_id}", e)
+        return None
+    print(f"\n\033[94mLocal Session {session_id}\033[0m\n")
+    for k, v in s.items():
+        print(f"  {k:<20}: {v}")
+    print()
+    return s
+
+
+def cmd_compliance_local_session_messages(api_key: str, session_id: str):
+    client = ComplianceApiClient(api_key)
+    try:
+        data = client.get_local_session_messages(session_id)
+    except ComplianceApiError as e:
+        _print_error(f"Failed to fetch messages for local session {session_id}", e)
+        return None
+    print(f"\n\033[94mTranscript for Local Session {session_id}\033[0m\n")
+    for msg in data.get("data", []):
+        role = msg.get("role", "?")
+        created = msg.get("created_at", "")[:19]
+        color = "\033[92m" if role == "user" else "\033[96m"
+        print(f"{color}[{role.upper()}]\033[0m {created}")
+        for block in msg.get("content", []):
+            if isinstance(block, str):
+                print(f"  {block}")
+            elif isinstance(block, dict):
+                btype = block.get("type")
+                if btype == "text":
+                    print(f"  {block.get('text', '')}")
+                elif btype == "tool_use":
+                    print(f"  \033[93m[TOOL USE: {block.get('name')}]\033[0m {json.dumps(block.get('input', {}))}")
+                elif btype == "tool_result":
+                    print(f"  \033[90m[TOOL RESULT]\033[0m {str(block.get('content', ''))[:100]}")
+                else:
+                    print(f"  [{btype}] {block}")
+        print()
     return data

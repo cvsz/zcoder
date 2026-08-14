@@ -615,6 +615,7 @@ DREAMING_BETA = "dreaming-2026-04-21"
 # Dreaming-focused audit since the expansion shipped, so it's the first
 # one positioned to actually close it.
 DREAMING_SUPPORTED_MODELS = {
+    "claude-opus-5", "claude-mythos-5",
     "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6",
     "claude-fable-5", "claude-sonnet-5",
 }

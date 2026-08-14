@@ -1,0 +1,2274 @@
+# UPGRADE-14
+
+# Fully Self-Hosted Local AI Stack
+
+# Local Model Gateway, Real Runtime Verification,
+
+# Hardware-Aware Routing, Local Embeddings/RAG,
+
+# MCP 2026-07-28, Benchmarking,
+
+# and Zero-Cost Autonomous Coding Pipeline
+
+You are operating directly inside ZCoder after Upgrade-13.
+
+PRIMARY PRINCIPLE:
+
+NO-COST FIRST.
+
+The objective is to prove that a useful autonomous coding workflow can
+run from beginning to end without:
+
+* Anthropic API key
+* OpenAI API key
+* paid LLM API
+* Stripe
+* hosted vector database
+* hosted embeddings
+* paid MCP infrastructure
+* paid observability
+* Redis
+* Kafka
+* cloud object storage
+* cloud KMS
+* commercial analytics
+
+External providers remain OPTIONAL adapters.
+
+================================================================
+MISSION
+=======
+
+Build and verify a genuinely self-hosted AI execution layer:
+
+ZCoder
+│
+├── Local Model Gateway
+│     ├── Ollama
+│     ├── vLLM
+│     ├── OpenAI-compatible local servers
+│     └── future local engines through adapters
+│
+├── Hardware Profiler
+│     ├── CPU
+│     ├── RAM
+│     ├── GPU
+│     └── VRAM
+│
+├── Model Discovery
+├── Capability Registry
+├── Model Router
+├── Benchmark Engine
+│
+├── Local Embeddings
+├── Local RAG / Repository Index
+│
+├── MCP Registry
+│     ├── local stdio
+│     └── HTTP MCP
+│
+└── Autonomous Coding Runtime
+│
+├── inspect
+├── plan
+├── edit
+├── test
+├── review
+└── validate
+
+The highest-level acceptance scenario is:
+
+fresh machine
+→ install ZCoder
+→ detect local AI backend
+→ discover model
+→ benchmark capabilities
+→ index repository locally
+→ execute coding task
+→ use tools
+→ modify isolated worktree
+→ run tests
+→ validate result
+→ store artifacts locally
+→ zero paid API calls
+
+================================================================
+PHASE 0 — FORENSICALLY VERIFY UPGRADE-13
+========================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+
+python main.py --version
+python -m build
+
+git diff --check
+
+Run existing release gates.
+
+Specifically inspect:
+
+no_cost_platform.py
+agent_runtime.py
+coder.py
+claude_router.py
+config.py
+skills.py
+MCP-related modules
+local model/provider modules
+webapp/
+tests/
+
+Produce:
+
+UPGRADE-13 LOCAL-AI EVIDENCE AUDIT
+
+Capability
+Previous Claim
+Implementation
+Mock Test
+Real Local Runtime Test
+Evidence Tier
+Correct Verdict
+
+Allowed verdicts:
+
+PROVEN
+CONTRACT_ONLY
+MOCK_ONLY
+CONFIG_ONLY
+NOT_EXECUTED
+MISSING
+INCORRECT
+
+================================================================
+
+1. CORRECT LOCAL MODEL CLAIMS
+   ================================================================
+
+Upgrade-13 reports:
+
+LOCAL_MODEL_ROUTE: PASS
+
+Do not accept this merely because model metadata exists.
+
+Prove separately:
+
+provider discovery
+model discovery
+model metadata
+chat inference
+streaming
+tool calling
+structured output
+cancellation
+timeout
+error mapping
+
+where actually supported.
+
+Do not force one model to support every feature.
+
+================================================================
+2. WEB PRODUCT EVIDENCE CORRECTION
+==================================
+
+Upgrade-13 reports Web tests as optional while WEB_PRODUCT reports PASS.
+
+Define release-profile semantics:
+
+CORE_FREE
+CLI_ONLY
+SELF_HOSTED_WEB
+SAAS
+
+If SELF_HOSTED_WEB is claimed:
+
+Web dependencies and Web tests must execute.
+
+A skipped web test cannot provide E2 evidence.
+
+Correct previous report/gate if necessary.
+
+================================================================
+3. LOCAL MODEL PROVIDER PROTOCOL
+================================
+
+Create or consolidate:
+
+LocalModelProvider
+
+Interface concept:
+
+list_models()
+show_model()
+health()
+chat()
+stream_chat()
+embed()
+capabilities()
+cancel()
+
+Do not make Ollama-specific JSON the domain model.
+
+================================================================
+4. OLLAMA ADAPTER
+=================
+
+Implement a clean Ollama adapter against current official local API.
+
+Audit current documentation first.
+
+Support only documented behavior.
+
+At minimum verify:
+
+health / connectivity
+model listing
+model details
+chat/generation
+streaming
+
+Use model capability metadata where available.
+
+Do not require Ollama Cloud.
+
+Local mode must not require:
+
+OLLAMA_API_KEY
+
+================================================================
+5. REAL OLLAMA TEST
+===================
+
+Create separately identifiable integration test.
+
+Example marker:
+
+pytest -m ollama_local
+
+Test must connect to an actual local Ollama server.
+
+Verify:
+
+list models
+select installed model
+small inference
+stream terminal event
+token/runtime metadata where available
+
+Do not automatically download a multi-GB model in default CI.
+
+If no model installed:
+
+report:
+
+LOCAL_RUNTIME_AVAILABLE
+MODEL_NOT_AVAILABLE
+
+not:
+
+PASS
+
+================================================================
+6. SMALL TEST MODEL PROFILE
+===========================
+
+Provide configurable test model.
+
+Do not hardcode one huge model.
+
+Environment:
+
+ZCODER_LOCAL_TEST_MODEL
+
+If unset:
+
+discover suitable installed model.
+
+Never download without explicit opt-in.
+
+================================================================
+7. VLLM ADAPTER
+===============
+
+Implement vLLM as a separate backend.
+
+Use its documented OpenAI-compatible server.
+
+Audit current APIs first.
+
+Potential supported capability surfaces include:
+
+chat
+responses
+embeddings
+
+but detect actual server/model support.
+
+Do not infer all capabilities merely because endpoint exists.
+
+================================================================
+8. VLLM REAL TEST
+=================
+
+Optional marker:
+
+pytest -m vllm_local
+
+Run only when local vLLM server configured.
+
+Test:
+
+models/health where available
+chat
+streaming
+capability mismatch behavior
+
+Do not require GPU for default CI.
+
+================================================================
+9. GENERIC OPENAI-COMPATIBLE LOCAL ADAPTER
+==========================================
+
+Support configurable:
+
+base_url
+optional local token
+model
+
+Do not assume compatibility means feature parity.
+
+Probe/declare capability explicitly.
+
+================================================================
+10. PROVIDER AUTO-DISCOVERY
+===========================
+
+Add local discovery.
+
+Possible probes:
+
+Ollama localhost
+configured vLLM
+configured local OpenAI-compatible endpoint
+
+Never scan arbitrary network ranges.
+
+Only probe:
+
+localhost
+configured addresses
+explicit trusted endpoints
+
+================================================================
+11. MODEL DISCOVERY
+===================
+
+Create normalized:
+
+LocalModelInfo:
+provider
+model_id
+family
+parameter_size
+quantization
+context_window
+capabilities
+disk_size
+loaded_state
+metadata
+
+Unknown fields remain UNKNOWN.
+
+Do not fabricate metadata.
+
+================================================================
+12. CAPABILITY REGISTRY
+=======================
+
+Normalize:
+
+TEXT
+TOOLS
+STRUCTURED_OUTPUT
+THINKING
+VISION
+EMBEDDINGS
+STREAMING
+PARALLEL_TOOLS
+
+Do not assume:
+
+model family
+→ capability
+
+without provider/model evidence.
+
+================================================================
+13. CAPABILITY SOURCE
+=====================
+
+Track:
+
+PROVIDER_REPORTED
+PROBED
+CONFIGURED
+INFERRED
+UNKNOWN
+
+Routing should prefer stronger evidence.
+
+================================================================
+14. CAPABILITY PROBES
+=====================
+
+Where safe and inexpensive, support explicit probes.
+
+Example:
+
+tool-call probe
+JSON/structured-output probe
+context probe
+
+Do NOT run probes automatically on every startup.
+
+================================================================
+15. HARDWARE PROFILER
+=====================
+
+Create:
+
+HardwareProfile
+
+Fields:
+
+CPU architecture
+logical cores
+physical cores where detectable
+RAM total/available
+GPU vendor
+GPU device
+VRAM
+driver/runtime
+OS
+architecture
+
+Do not require GPU libraries merely for CPU usage.
+
+================================================================
+16. GPU DETECTION
+=================
+
+Detect only installed hardware/runtime.
+
+Potential vendors:
+
+NVIDIA
+AMD
+Apple
+CPU-only
+
+Do not install drivers automatically.
+
+================================================================
+17. NVIDIA
+==========
+
+Use safe local mechanisms where available.
+
+Examples:
+
+nvidia-smi
+
+Do not require CUDA Python library just for detection.
+
+================================================================
+18. AMD
+=======
+
+Detect ROCm-capable environment where actually available.
+
+Do not classify every AMD GPU as ROCm-compatible.
+
+================================================================
+19. APPLE
+=========
+
+Detect Apple Silicon architecture.
+
+Do not claim CUDA/ROCm semantics.
+
+================================================================
+20. CPU-ONLY MODE
+=================
+
+CPU must remain a supported profile.
+
+Do not fail startup because no GPU exists.
+
+Recommend smaller/quantized models.
+
+================================================================
+21. MEMORY SAFETY
+=================
+
+Model recommendation must account for:
+
+RAM
+VRAM
+quantization
+context
+
+Do not start a model known to exceed configured safety threshold.
+
+================================================================
+22. RESOURCE POLICY
+===================
+
+Allow:
+
+max_ram_percent
+max_vram_percent
+max_cpu_threads
+
+Avoid exhausting developer machine.
+
+================================================================
+23. MODEL FIT ESTIMATOR
+=======================
+
+Build conservative estimator:
+
+model size
+quantization
+runtime overhead
+context memory
+
+Output:
+
+FITS
+MAYBE
+DOES_NOT_FIT
+UNKNOWN
+
+Do not promise exact VRAM requirements unless measured.
+
+================================================================
+24. MODEL ROUTER
+================
+
+Inputs:
+
+task capabilities
+cost policy
+hardware
+provider availability
+model capabilities
+context
+residency
+benchmark history
+
+Output:
+
+candidate list
+selected model
+reason
+
+================================================================
+25. NO-COST ROUTING
+===================
+
+For:
+
+cost_policy=zero
+
+only:
+
+FREE_LOCAL
+explicit FREE_REMOTE
+
+may be selected.
+
+CUSTOMER_KEY
+PAID_PLATFORM
+UNKNOWN
+
+must not silently execute.
+
+================================================================
+26. LOCAL-FIRST ROUTING
+=======================
+
+Add preference:
+
+LOCAL_FIRST
+
+Possible chain:
+
+best compatible local
+→ explicit free remote
+→ BYO if allowed
+→ paid only if explicitly allowed
+
+================================================================
+27. FALLBACK SAFETY
+===================
+
+If local inference fails:
+
+do not automatically fall back to paid Anthropic/OpenAI.
+
+Policy evaluation first.
+
+Record fallback reason.
+
+================================================================
+28. MODEL BENCHMARK ENGINE
+==========================
+
+Create local benchmark framework.
+
+No external benchmark service.
+
+Measure:
+
+startup/load time
+time to first token
+tokens/sec
+total latency
+tool-call correctness
+structured-output correctness
+coding validation result
+
+================================================================
+29. BENCHMARK SAFETY
+====================
+
+Benchmarks must have:
+
+timeout
+token/output cap
+resource cap
+
+Do not benchmark forever.
+
+================================================================
+30. BENCHMARK PROFILES
+======================
+
+Provide small representative profiles:
+
+CHAT
+CODING
+TOOLS
+JSON
+EMBEDDING
+
+Avoid giant academic benchmark suites by default.
+
+================================================================
+31. CODING BENCHMARK
+====================
+
+Create deterministic mini repository.
+
+Task:
+
+repair one or more controlled bugs.
+
+Score based on:
+
+tests passing
+diff validity
+scope
+
+Do not score based on subjective prose.
+
+================================================================
+32. TOOL BENCHMARK
+==================
+
+Test whether model can correctly emit/call a safe tool.
+
+Measure:
+
+valid schema
+correct tool choice
+valid arguments
+
+================================================================
+33. STRUCTURED OUTPUT BENCHMARK
+===============================
+
+Validate actual schema.
+
+No forgiving parser that turns invalid output into success.
+
+================================================================
+34. BENCHMARK DATABASE
+======================
+
+Persist locally:
+
+model
+provider
+hardware profile
+benchmark version
+result
+timestamp
+
+Use for local recommendations.
+
+================================================================
+35. BENCHMARK VERSIONING
+========================
+
+Benchmark definitions need version IDs.
+
+Do not compare incompatible benchmark versions silently.
+
+================================================================
+36. RECOMMENDER
+===============
+
+CostOptimizer should evolve to consider measured local results.
+
+Example:
+
+Model A:
+free
+fast
+tool benchmark pass
+coding benchmark 8/10
+
+Model B:
+free
+slow
+tool unsupported
+
+Explain selection.
+
+================================================================
+37. LOCAL EMBEDDING PROVIDER
+============================
+
+Create:
+
+EmbeddingProvider
+
+Implement local backend first.
+
+Possible source:
+
+local model server supporting embeddings.
+
+Do not require hosted embeddings API.
+
+================================================================
+38. EMBEDDING CAPABILITY
+========================
+
+Embeddings model must be separate from generation model where necessary.
+
+Do not assume every chat model provides embeddings.
+
+================================================================
+39. EMBEDDING METADATA
+======================
+
+Track:
+
+model
+dimension
+provider
+normalization behavior where relevant
+version
+
+Index must know which embedding configuration created it.
+
+================================================================
+40. LOCAL REPOSITORY INDEX
+==========================
+
+Implement repository indexing locally.
+
+No external vector database required.
+
+Pipeline:
+
+discover files
+→ ignore exclusions
+→ parse/chunk
+→ hash
+→ embed
+→ store local index
+
+================================================================
+41. RESPECT IGNORE FILES
+========================
+
+Honor:
+
+.gitignore
+
+and ZCoder-specific exclusions.
+
+Default exclude:
+
+.git
+node_modules
+venv
+dist
+build
+binary files
+secrets
+
+Do not index .env by default.
+
+================================================================
+42. SECRET-AWARE INDEXING
+=========================
+
+Before embedding content:
+
+apply secret/path policy.
+
+Never embed detected credentials merely for retrieval.
+
+================================================================
+43. LOCAL INDEX BACKEND
+=======================
+
+Prefer simple local solution first.
+
+Possible:
+
+SQLite metadata
+local vector/index file
+in-process nearest-neighbor library
+
+Do not introduce hosted vector DB.
+
+Do not introduce heavy vector infrastructure without need.
+
+================================================================
+44. VECTOR BACKEND INTERFACE
+============================
+
+Abstract:
+
+VectorStore
+
+LocalVectorStore first.
+
+External adapters optional.
+
+================================================================
+45. INCREMENTAL INDEXING
+========================
+
+Use file hashes.
+
+Only reindex changed files.
+
+Support deletion cleanup.
+
+================================================================
+46. INDEX IDENTITY
+==================
+
+Index key must include:
+
+repository
+commit/worktree
+embedding model/version
+
+Do not accidentally reuse stale index for unrelated branch.
+
+================================================================
+47. BRANCH AWARENESS
+====================
+
+Agent worktree changes may invalidate source index.
+
+Support incremental update during coding job.
+
+================================================================
+48. RETRIEVAL
+=============
+
+RAG should retrieve bounded relevant chunks.
+
+Do not dump entire repository into context.
+
+================================================================
+49. HYBRID RETRIEVAL
+====================
+
+Consider local hybrid:
+
+symbol/path/text
++
+embedding similarity
+
+Do not rely exclusively on vector similarity for code.
+
+================================================================
+50. CODE-AWARE SEARCH
+=====================
+
+Use cheap deterministic signals:
+
+filename
+symbol
+imports
+grep/text
+
+before embeddings where appropriate.
+
+================================================================
+51. RAG COST POLICY
+===================
+
+Local RAG must make zero paid calls under zero-cost policy.
+
+Hosted embedding fallback forbidden unless explicitly allowed.
+
+================================================================
+52. INDEX CLI
+=============
+
+Target:
+
+zcoder index build
+zcoder index status
+zcoder index update
+zcoder index clear
+
+Use project conventions.
+
+================================================================
+53. SEARCH CLI
+==============
+
+Target:
+
+zcoder search "authentication middleware"
+
+Show:
+
+file
+location
+score/source
+
+================================================================
+54. LOCAL RAG E2E
+=================
+
+Create temporary repository.
+
+Build index using local/fake embedding backend.
+
+Query relevant function.
+
+Verify correct file retrieved.
+
+No network.
+
+================================================================
+55. MCP AUDIT
+=============
+
+Re-fetch current official Model Context Protocol specification.
+
+The current protocol must be treated independently from older MCP
+assumptions already present in ZCoder.
+
+Create:
+
+docs/MCP-CONFORMANCE.md
+
+================================================================
+56. MCP VERSION REGISTRY
+========================
+
+Track supported MCP protocol versions.
+
+Do not hardcode one old protocol forever.
+
+================================================================
+57. MCP 2026-07-28
+==================
+
+Audit ZCoder against current MCP specification.
+
+Specifically review:
+
+protocol lifecycle
+stateless request semantics
+header routing
+authorization
+extensions
+tasks
+deprecated surfaces
+
+Do not preserve obsolete stateful assumptions without compatibility
+reason.
+
+================================================================
+58. MCP CLIENT ABSTRACTION
+==========================
+
+Create/consolidate:
+
+MCPClient
+
+with transport adapters.
+
+Do not mix MCP server process management with domain tool registry.
+
+================================================================
+59. LOCAL MCP STDIO
+===================
+
+Support local stdio servers.
+
+This is core no-cost mode.
+
+Lifecycle:
+
+spawn
+handshake/protocol operation as current spec requires
+request
+timeout
+terminate
+
+================================================================
+60. MCP HTTP
+============
+
+Support current documented HTTP transport where applicable.
+
+Do not assume remote MCP is trusted.
+
+================================================================
+61. MCP REGISTRY
+================
+
+Persist configured servers:
+
+id
+name
+transport
+endpoint/command
+trust
+capabilities
+enabled
+scope
+
+================================================================
+62. MCP TOOL DISCOVERY
+======================
+
+Cache tool catalogs only according to current MCP semantics.
+
+Invalidation must be supported.
+
+================================================================
+63. MCP AUTHORIZATION
+=====================
+
+Audit current MCP authorization spec.
+
+Do not send credentials to arbitrary discovered server.
+
+Secrets referenced through SecretRef.
+
+================================================================
+64. MCP TRUST LEVEL
+===================
+
+Classify:
+
+LOCAL_TRUSTED
+LOCAL_UNTRUSTED
+REMOTE_TRUSTED
+REMOTE_UNTRUSTED
+
+Tool policy uses trust level.
+
+================================================================
+65. MCP TOOL POLICY
+===================
+
+Every MCP tool maps into standard ZCoder policy.
+
+Imported MCP cannot bypass:
+
+approval
+network
+filesystem
+secrets
+paid-provider policy
+
+================================================================
+66. MCP PROMPT INJECTION
+========================
+
+Treat MCP output as untrusted external content.
+
+Never elevate instructions contained in tool output to system policy.
+
+================================================================
+67. MCP OUTPUT LIMITS
+=====================
+
+Bound:
+
+response size
+duration
+artifact spill
+
+Do not inject multi-megabyte tool output into model context.
+
+================================================================
+68. MCP PROCESS SANDBOX
+=======================
+
+Local MCP server process should inherit only intended:
+
+environment
+cwd
+secrets
+network
+
+Do not hand entire ZCoder environment to every MCP subprocess.
+
+================================================================
+69. MCP E2E
+===========
+
+Build deterministic local MCP test server.
+
+Expose one safe tool.
+
+Test:
+
+discovery
+call
+schema validation
+timeout
+policy denial
+process cleanup
+
+No internet.
+
+================================================================
+70. LOCAL TOOL REGISTRY
+=======================
+
+Unify:
+
+native tools
+MCP tools
+skills
+
+through normalized ToolDescriptor.
+
+Do not collapse their implementation details.
+
+================================================================
+71. TOOL CAPABILITY REQUIREMENTS
+================================
+
+Routing must know:
+
+task requires tools
+
+If selected local model cannot reliably call tools:
+
+either choose another free model
+
+or use a controlled alternative workflow.
+
+Do not blindly send tool schema.
+
+================================================================
+72. TOOL CALL REPAIR
+====================
+
+If local model emits malformed tool arguments:
+
+support bounded repair.
+
+Do not loop forever.
+
+================================================================
+73. TOOL CALL VALIDATION
+========================
+
+Always validate against schema before execution.
+
+Never execute model-generated shell/tool payload directly without tool
+boundary.
+
+================================================================
+74. LOCAL AGENT RUNTIME
+=======================
+
+Create/consolidate:
+
+LocalAgentRuntime
+
+independent from Anthropic Agent SDK.
+
+It may use ZCoder's own safe tool loop around LocalModelProvider.
+
+================================================================
+75. AGENT LOOP
+==============
+
+Support:
+
+model response
+→ tool request
+→ policy
+→ tool execution
+→ result
+→ model
+
+Bound by:
+
+max turns
+timeout
+budget
+no-progress detection
+
+================================================================
+76. LOCAL AGENT CONTEXT
+=======================
+
+Use:
+
+repository search/RAG
+job history
+tool results
+
+without paid services.
+
+================================================================
+77. CONTEXT BUDGET
+==================
+
+Respect local model context window.
+
+Truncate/select intelligently.
+
+Do not assume flagship-cloud context size.
+
+================================================================
+78. CONTEXT STRATEGY
+====================
+
+Prioritize:
+
+task
+critical project instructions
+relevant code
+recent tool results
+
+Avoid repeatedly reinjecting entire history.
+
+================================================================
+79. LOCAL MEMORY
+================
+
+Use existing local/project memory systems.
+
+Do not require remote memory provider.
+
+Security/trust rules remain.
+
+================================================================
+80. AUTONOMOUS CODING PIPELINE
+==============================
+
+Required pipeline:
+
+inspect repository
+→ retrieve relevant code
+→ create plan
+→ isolated worktree
+→ edit
+→ run validation
+→ diagnose
+→ bounded fix loop
+→ review diff
+→ final validation
+→ artifact/report
+
+All local.
+
+================================================================
+81. LOCAL EDITING
+=================
+
+Prefer structured patch/edit tool.
+
+Do not let model invent arbitrary unsafe filesystem path.
+
+Workspace boundary mandatory.
+
+================================================================
+82. SHELL POLICY
+================
+
+Shell remains policy controlled.
+
+Examples:
+
+pytest
+npm test
+ruff
+
+may be allowed according to project policy.
+
+Dangerous commands still require approval/deny.
+
+================================================================
+83. NO PAID FALLBACK TEST
+=========================
+
+Instrument paid provider adapters with fail-fast spy.
+
+Run full autonomous job under:
+
+max_cost=0
+
+Assert:
+
+Anthropic calls = 0
+OpenAI paid calls = 0
+Stripe calls = 0
+hosted embedding calls = 0
+
+================================================================
+84. REAL LOCAL CODING TEST
+==========================
+
+Optional but highly important E4 test.
+
+Using actual installed local model:
+
+temporary repo with known failing test
+→ local model agent
+→ patch
+→ pytest
+→ final result
+
+Report success/failure honestly.
+
+Do not make the test pass by replacing model output with FakeRuntime.
+
+================================================================
+85. FAKE VS REAL EVIDENCE
+=========================
+
+Separate:
+
+FakeRuntime test
+LocalProvider contract test
+Real Ollama inference
+Real local autonomous coding
+
+They represent different evidence levels.
+
+================================================================
+86. MODEL QUALITY LIMITATIONS
+=============================
+
+If local model fails coding benchmark:
+
+do not call runtime broken automatically.
+
+Record model capability/quality result.
+
+Platform correctness and model quality are separate.
+
+================================================================
+87. HARDWARE BENCHMARK CLI
+==========================
+
+Target:
+
+zcoder hardware
+zcoder models local
+zcoder models benchmark MODEL
+zcoder models recommend --task coding
+
+================================================================
+88. LOCAL AI DOCTOR
+===================
+
+Expand:
+
+zcoder doctor local-ai
+
+Report:
+
+Ollama
+vLLM
+configured endpoints
+hardware
+models
+embedding model
+MCP servers
+
+No secret values.
+
+================================================================
+89. AUTO CONFIG
+===============
+
+Provide:
+
+zcoder local-ai detect
+
+It may propose configuration.
+
+Do not automatically modify config unless user explicitly requests
+apply.
+
+================================================================
+90. LOCAL MODEL DOWNLOAD
+========================
+
+Do NOT auto-download.
+
+If supported:
+
+show command
+model size
+disk requirements
+source/license metadata where available
+
+User decides.
+
+================================================================
+91. MODEL LICENSE
+=================
+
+Display upstream model license metadata where provider makes it
+available.
+
+Do not label model "open source" without evidence.
+
+================================================================
+92. MODEL TRUST
+===============
+
+Locally downloaded model artifacts are a supply-chain input.
+
+Track:
+
+source
+digest where available
+model ID
+modified time
+
+================================================================
+93. MODEL DIGEST
+================
+
+Use provider-reported digest/hash when available.
+
+Benchmark/config should reference model identity strongly enough to
+detect replacement.
+
+================================================================
+94. LOCAL SERVER SECURITY
+=========================
+
+Do not expose Ollama/vLLM externally by default.
+
+Local-free profile assumes loopback.
+
+If remote LAN server configured:
+
+warn about authentication/network boundary.
+
+================================================================
+95. SSRF
+========
+
+Configured local model URLs still pass endpoint policy.
+
+Prevent attacker-controlled repository/job from changing base_url to
+metadata/private endpoints.
+
+================================================================
+96. NETWORK OFFLINE GUARANTEE
+=============================
+
+For strict offline profile:
+
+only loopback/local IPC allowed for AI provider.
+
+Explicitly deny external model endpoints.
+
+================================================================
+97. OFFLINE ENFORCEMENT TEST
+============================
+
+Use transport interception.
+
+Assert zero outbound non-loopback network during local autonomous E2E.
+
+================================================================
+98. EMBEDDING PRIVACY
+=====================
+
+Repository source used for local embeddings stays local.
+
+Document this as architecture behavior.
+
+Do not make broader privacy/legal claims.
+
+================================================================
+99. INDEX ENCRYPTION
+====================
+
+Local repository index may contain source-derived data.
+
+Apply existing local filesystem permission/security policy.
+
+Do not leave globally readable index files.
+
+================================================================
+100. INDEX DELETION
+===================
+
+When project deleted/index cleared:
+
+remove relevant local index according to retention policy.
+
+================================================================
+101. MCP CONFIG SECURITY
+========================
+
+MCP registry config must not embed secret plaintext in generated
+diagnostics.
+
+Use SecretRef.
+
+================================================================
+102. UI — LOCAL AI PAGE
+=======================
+
+If Web profile enabled, add real service-backed page:
+
+Hardware
+Local Providers
+Installed Models
+Capabilities
+Benchmarks
+Embedding Index
+MCP Servers
+
+No mock cards.
+
+================================================================
+103. MODEL SELECTOR
+===================
+
+UI should show:
+
+provider
+cost class
+capabilities
+benchmark
+fit
+availability
+
+Do not rank merely by model name.
+
+================================================================
+104. COST INDICATOR
+===================
+
+Clearly show:
+
+FREE LOCAL
+FREE REMOTE
+BYO
+PAID
+UNKNOWN
+
+Unknown must never display FREE.
+
+================================================================
+105. RAG PAGE
+=============
+
+Show:
+
+index status
+embedding model
+files/chunks
+last update
+branch/commit
+
+Allow rebuild/update.
+
+================================================================
+106. MCP PAGE
+=============
+
+Show:
+
+server
+transport
+trust
+tools
+status
+protocol version
+
+Mutating configuration requires authorization.
+
+================================================================
+107. BENCHMARK PAGE
+===================
+
+Display actual measured values with:
+
+hardware
+model digest
+benchmark version
+
+Do not compare results across incompatible hardware without context.
+
+================================================================
+108. WEB TEST RECLASSIFICATION
+==============================
+
+If self-hosted Web is a released feature:
+
+install web dependencies in SELF_HOSTED CI.
+
+Execute tests.
+
+Only CORE_FREE CLI may classify Web absent as optional.
+
+================================================================
+109. TEST PROFILES
+==================
+
+Required:
+
+core
+self-hosted
+real-local-optional
+
+Example:
+
+CORE:
+no external service
+
+SELF_HOSTED:
+web + local DB
+
+LOCAL_RUNTIME:
+actual Ollama/vLLM when available
+
+================================================================
+110. CI NO-COST
+===============
+
+Default CI must not require paid credentials.
+
+Potential jobs:
+
+unit
+offline
+local-provider-contract
+MCP-local
+RAG-local
+workflow
+package
+web-self-hosted
+
+Optional runner-specific:
+
+ollama-real
+vllm-real
+
+================================================================
+111. CI REAL OLLAMA
+===================
+
+If feasible, add scheduled/manual test with small explicitly configured
+model.
+
+Do not silently download large model on every PR.
+
+Cache rules should not hide model identity.
+
+================================================================
+112. GPU CI
+===========
+
+Not required for standard release.
+
+If unavailable:
+
+GPU_REAL = NOT_TESTED
+
+not PASS.
+
+================================================================
+113. CPU E2E
+============
+
+At least one no-cost system path must work CPU-only with fake/small local
+runtime architecture.
+
+Do not require accelerator for product startup.
+
+================================================================
+114. RAG TEST MATRIX
+====================
+
+Test:
+
+build
+incremental update
+delete
+branch change
+embedding model change
+secret exclusion
+path exclusion
+retrieval
+
+================================================================
+115. MCP TEST MATRIX
+====================
+
+Test:
+
+local server
+tool discovery
+call
+invalid schema
+timeout
+process crash
+policy denial
+large output
+secret isolation
+protocol version handling
+
+================================================================
+116. ROUTER TEST MATRIX
+=======================
+
+Test:
+
+tools required
+vision required
+context too large
+model unavailable
+GPU unavailable
+zero-cost
+unknown cost
+residency conflict
+benchmark preference
+
+================================================================
+117. HARDWARE TESTS
+===================
+
+Mock OS probes for portability.
+
+Separately test actual host detection.
+
+Do not make tests depend on one vendor.
+
+================================================================
+118. AUTONOMOUS PIPELINE TEST MATRIX
+====================================
+
+Fake local model:
+deterministic system test
+
+Real local model:
+optional quality/system test
+
+Test:
+
+success
+test failure
+repair
+tool malformed
+timeout
+no progress
+cancel
+
+================================================================
+119. PERFORMANCE
+================
+
+Measure local overhead separately from model generation:
+
+routing
+RAG retrieval
+tool execution
+event persistence
+
+Do not attribute model latency to ZCoder platform.
+
+================================================================
+120. BENCHMARK EXPORT
+=====================
+
+Allow JSON/CSV export.
+
+No external benchmark account.
+
+================================================================
+121. PRODUCT INTELLIGENCE
+=========================
+
+Use benchmark/outcome history locally to improve recommendation.
+
+Do not train/upload customer code.
+
+================================================================
+122. FREE-FIRST DEFAULT
+=======================
+
+Fresh setup must recommend:
+
+LOCAL FREE
+
+before commercial API configuration.
+
+Cloud providers remain visible alternatives.
+
+================================================================
+123. QUICKSTART
+===============
+
+README should have:
+
+Local Free Quickstart
+
+before:
+
+Anthropic/OpenAI paid provider setup
+
+when product direction is no-cost-first.
+
+================================================================
+124. INSTALLER
+==============
+
+Do not bundle third-party model runtimes illegally or unsafely.
+
+Detect installed runtimes.
+
+Provide documented install guidance.
+
+================================================================
+125. PORTABILITY
+================
+
+Test at least logical support paths for:
+
+Linux
+Windows
+macOS
+
+Actual GPU support varies.
+
+Do not claim cross-platform GPU support without evidence.
+
+================================================================
+126. RELEASE GATES
+==================
+
+Add:
+
+LOCAL_PROVIDER_CONTRACT
+LOCAL_MODEL_DISCOVERY
+LOCAL_MODEL_REAL
+HARDWARE_PROFILE
+MODEL_ROUTER
+ZERO_PAID_CALLS
+
+LOCAL_EMBEDDINGS
+LOCAL_RAG
+
+MCP_CONFORMANCE
+MCP_LOCAL
+
+LOCAL_AGENT_RUNTIME
+AUTONOMOUS_LOCAL_PIPELINE
+
+WEB_SELF_HOSTED
+
+================================================================
+127. GATE SEMANTICS
+===================
+
+Example:
+
+LOCAL_PROVIDER_CONTRACT: PASS E2
+LOCAL_MODEL_DISCOVERY: PASS E2
+LOCAL_MODEL_REAL: NOT_TESTED
+
+ZERO_PAID_CALLS: PASS E3
+
+LOCAL_RAG: PASS E3
+MCP_LOCAL: PASS E3
+
+AUTONOMOUS_LOCAL_PIPELINE:
+E3 with FakeLocalModel
+E4 only if real model executed
+
+Do not merge evidence tiers.
+
+================================================================
+128. RELEASE PROFILE
+====================
+
+CORE_FREE can PASS without actual heavyweight real model in CI if:
+
+provider contracts
+offline pipeline
+zero paid calls
+
+are proven.
+
+But report:
+
+REAL_LOCAL_MODEL = NOT_TESTED
+
+until executed.
+
+================================================================
+129. E4 LOCAL RELEASE PROFILE
+=============================
+
+Optionally define:
+
+LOCAL_AI_VERIFIED
+
+Requires actual local model server + inference.
+
+This is stronger than CORE_FREE.
+
+================================================================
+130. DOCUMENTATION
+==================
+
+Add:
+
+docs/UPGRADE-14.md
+docs/LOCAL-AI.md
+docs/LOCAL-PROVIDERS.md
+docs/HARDWARE-ROUTING.md
+docs/MODEL-BENCHMARKS.md
+docs/LOCAL-EMBEDDINGS.md
+docs/RAG.md
+docs/MCP-CONFORMANCE.md
+docs/MCP-SECURITY.md
+docs/LOCAL-AGENT-RUNTIME.md
+docs/ZERO-COST-AUTONOMOUS-PIPELINE.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+docs/NO-COST-MATRIX.md
+
+================================================================
+131. VERSION DECISION
+=====================
+
+Inspect actual published release history.
+
+Upgrade-14 is a significant new self-hosted AI subsystem.
+
+Select appropriate SemVer.
+
+Do not keep 1.40.0 automatically merely because previous unreleased
+iterations did.
+
+Explain:
+
+published state
+API compatibility
+CLI compatibility
+DB compatibility
+new feature surface
+
+================================================================
+132. REQUIRED COMMANDS
+======================
+
+Run:
+
+python -m pytest -q -ra
+
+python main.py --version
+python main.py --help
+
+python -m build
+
+clean wheel install
+
+zcoder --version
+
+git diff --check
+
+Run separately:
+
+offline E2E
+zero-paid-call E2E
+local provider contracts
+hardware profiler
+RAG
+MCP
+local agent pipeline
+self-hosted Web tests
+
+Run actual Ollama/vLLM tests if environment supports them.
+
+Never fake their execution.
+
+================================================================
+133. DEFINITION OF DONE
+=======================
+
+Upgrade-14 is complete only when:
+
+[ ] Upgrade-13 local-model evidence is corrected
+[ ] Web release-profile evidence is corrected
+[ ] local provider abstraction exists
+[ ] Ollama adapter exists
+[ ] vLLM/local OpenAI adapter exists
+[ ] discovery is bounded to trusted endpoints
+[ ] model metadata is normalized
+[ ] capabilities include evidence source
+[ ] CPU-only mode works
+[ ] hardware profiler works
+[ ] router considers hardware
+[ ] zero-cost route never selects UNKNOWN/PAID
+[ ] fallback cannot silently spend
+[ ] benchmark engine exists
+[ ] benchmark results include hardware/model identity
+[ ] local embeddings exist
+[ ] local repository index exists
+[ ] indexing excludes secrets
+[ ] RAG is branch/model aware
+[ ] MCP implementation audited against current specification
+[ ] local MCP server can execute
+[ ] MCP tools use ZCoder policy
+[ ] MCP cannot bypass secret/network policy
+[ ] local agent runtime exists independent of paid provider SDK
+[ ] bounded local tool loop exists
+[ ] autonomous coding pipeline runs offline
+[ ] zero-paid-call assertion passes
+[ ] no external paid dependency required
+[ ] real local runtime evidence is reported honestly
+[ ] inherited tenant/security tests remain green
+
+================================================================
+134. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-13 Evidence Corrections
+
+## 3. Version Decision
+
+## 4. Local AI Architecture
+
+## 5. Hardware Profile
+
+Actual host:
+CPU:
+RAM:
+GPU:
+VRAM:
+Runtime:
+
+## 6. Local Providers
+
+Provider | Available | Real Tested | Capabilities | Evidence
+
+## 7. Local Models
+
+Model | Provider | Size | Quantization | Context | Capabilities | Cost
+
+## 8. Model Router
+
+## 9. Zero-Paid-Call Proof
+
+Report actual transport call counts.
+
+## 10. Benchmark Engine
+
+## 11. Benchmark Results
+
+Include hardware/model identity.
+
+## 12. Local Embeddings
+
+## 13. Repository Index / RAG
+
+## 14. MCP Conformance
+
+Current supported MCP spec:
+Transports:
+Auth:
+Extensions:
+Deprecated behavior:
+
+## 15. MCP Security
+
+## 16. Local Agent Runtime
+
+## 17. Autonomous Coding Pipeline
+
+## 18. Self-Hosted Web
+
+## 19. Security Review
+
+## 20. Tests
+
+Report exact:
+
+passed
+failed
+required skipped
+optional skipped
+xfailed
+deselected
+
+Break down:
+
+core
+offline
+local provider
+hardware
+RAG
+MCP
+local agent
+Web
+real Ollama
+real vLLM
+
+## 21. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 22. Release Profiles
+
+CORE_FREE:
+SELF_HOSTED:
+LOCAL_AI_VERIFIED:
+SAAS:
+
+## 23. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+TENANCY:
+SECURITY:
+
+LOCAL_PROVIDER_CONTRACT:
+LOCAL_MODEL_DISCOVERY:
+LOCAL_MODEL_REAL:
+HARDWARE_PROFILE:
+MODEL_ROUTER:
+ZERO_PAID_CALLS:
+
+LOCAL_EMBEDDINGS:
+LOCAL_RAG:
+
+MCP_CONFORMANCE:
+MCP_LOCAL:
+
+LOCAL_AGENT_RUNTIME:
+AUTONOMOUS_LOCAL_PIPELINE:
+
+WEB_SELF_HOSTED:
+
+PITR:
+
+FINAL:
+
+## 24. Files Changed
+
+## 25. Remaining Limitations
+
+Explicitly state:
+
+real Ollama inference executed?
+real vLLM executed?
+real GPU tested?
+CPU-only coding quality?
+large repository RAG tested?
+MCP remote auth live-tested?
+paid provider calls made?
+PITR?
+PostgreSQL HA?
+multi-region control plane?
+
+## 26. Final Verdict
+
+Do not say:
+
+FULLY LOCAL AI VERIFIED
+
+if only FakeRuntime was tested.
+
+Do not say:
+
+GPU SUPPORTED
+
+unless actual hardware/runtime evidence exists.
+
+Do not say:
+
+OLLAMA VERIFIED
+
+if only HTTP adapter mocks ran.
+
+Do not say:
+
+ZERO PAID COST
+
+unless the tested autonomous execution produced zero commercial
+provider transport calls.
+
+The target is not feature count.
+
+The target is:
+
+a real coding workflow can run entirely on hardware controlled by the
+user with no mandatory commercial API dependency.

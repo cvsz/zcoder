@@ -1,0 +1,60 @@
+# Anthropic Release Gate for ZCoder
+
+Perform a fresh Anthropic release gate before releasing ZCoder.
+
+Do not begin by modifying code.
+
+First retrieve the current Anthropic Platform release notes and determine the newest entry available today.
+
+Compare every release-note item newer than the date recorded in ZCoder's most recent Anthropic audit document.
+
+For every item output exactly one disposition:
+
+* IMPLEMENTED_AND_VERIFIED
+* IMPLEMENTED_BUT_NEEDS_UPDATE
+* MISSING_IMPLEMENTABLE
+* BREAKING_CHANGE
+* MODEL_DEPRECATION
+* PRICING_ONLY
+* DOCUMENTATION_ONLY
+* CONSOLE_ONLY
+* PRIVATE_OR_LIMITED_PREVIEW
+* NOT_APPLICABLE
+
+For anything other than `IMPLEMENTED_AND_VERIFIED`, investigate and take the appropriate action.
+
+Also re-check:
+
+* current Models API
+* model deprecations
+* model aliases
+* pricing
+* supported tools
+* beta headers
+* Agent SDK
+* Claude Code
+* Managed Agents
+* Admin API
+* Compliance API
+* Agent Skills
+* MCP
+* data residency
+* ZDR requirements
+
+Never trust ZCoder's hardcoded model table over the current Anthropic source of truth.
+
+After the audit:
+
+1. implement actionable gaps
+2. fix compatibility regressions
+3. update tests
+4. update docs
+5. update model/deprecation registries
+6. update pricing only where program logic depends on it
+7. run the complete test suite
+8. run `git diff --check`
+9. produce a release-gate report
+
+Do not release while any P0/P1 Anthropic compatibility defect remains.
+
+A release is PASS only if every new Anthropic item has an explicit documented disposition.

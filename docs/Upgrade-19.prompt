@@ -1,0 +1,2609 @@
+# UPGRADE-19
+# Autonomous Project Bootstrap & Developer Experience
+#
+# One-command repository onboarding,
+# stack/framework detection,
+# validation discovery,
+# local model selection,
+# project quality profiles,
+# RAG bootstrap,
+# MCP/tool discovery,
+# AGENTS.md generation,
+# safe configuration generation,
+# baseline verification,
+# readiness scoring,
+# and zero-cost autonomous first task.
+#
+# PRIMARY PRINCIPLES
+#
+# NO-COST FIRST
+# LOCAL-FIRST
+# DRY-RUN FIRST
+# NO SILENT REPOSITORY MUTATION
+# NO SILENT MODEL DOWNLOAD
+# NO SILENT PACKAGE INSTALL
+# NO SILENT PAID FALLBACK
+# NO INVENTED BUILD/TEST COMMANDS
+# DETECT -> VERIFY -> PROPOSE -> APPLY
+
+You are operating directly inside ZCoder after Upgrade-18.
+
+================================================================
+MISSION
+================================================================
+
+The platform now reportedly contains:
+
+- enterprise tenant/RLS architecture
+- durable engineering jobs
+- GitHub automation
+- self-hosted/no-cost core
+- local model gateway
+- hardware profiler
+- model factory
+- RAG/indexing
+- MCP
+- local agent runtime
+- model pool
+- inference scheduler
+- quality engineering
+- model promotion/quarantine
+- quality-first routing
+
+Upgrade-19 must turn all of that into a coherent developer workflow.
+
+Target user experience:
+
+git clone REPOSITORY
+cd REPOSITORY
+
+zcoder init
+
+        ↓
+
+Repository Scanner
+        ↓
+Stack Detection
+        ↓
+Project Type
+        ↓
+Build/Test/Lint Discovery
+        ↓
+Security/Policy Discovery
+        ↓
+Hardware Detection
+        ↓
+Local Runtime Detection
+        ↓
+Installed Model Detection
+        ↓
+Model Recommendation
+        ↓
+Repository Index / RAG
+        ↓
+Tool / MCP / Skills Discovery
+        ↓
+Baseline Validation
+        ↓
+Quality Profile
+        ↓
+Generated Project Configuration
+        ↓
+Readiness Report
+
+Then:
+
+zcoder run "Fix the failing tests"
+
+with a safe zero-cost local-first execution plan.
+
+A developer should not need to manually configure twenty subsystems
+before their first useful run.
+
+================================================================
+PHASE 0 — VERIFY UPGRADE-18
+================================================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+
+python main.py --version
+python -m build
+
+git diff --check
+
+Run current release gate.
+
+Inspect:
+
+local_ai_stack.py
+no_cost_platform.py
+agent_runtime.py
+quality engineering code
+project configuration code
+skills.py
+MCP modules
+RAG/index modules
+release_gate.py
+CLI
+tests/
+
+Produce:
+
+UPGRADE-18 EVIDENCE AUDIT
+
+Capability
+Claim
+Actual Model Type
+Actual Runtime
+Fixture Type
+Evidence Tier
+Verdict
+
+================================================================
+1. CORRECT QUALITY EVIDENCE FIRST
+================================================================
+
+Upgrade-18 reportedly assigns:
+
+qwen2.5-coder:7b
+quality = 0.935
+confidence = HIGH
+
+Do not preserve HIGH confidence unless evidence proves:
+
+actual model artifact
+actual digest
+actual runtime
+actual generated output
+actual benchmark fixture
+actual validator execution
+
+If deterministic FakeLocalModel or simulation produced it:
+
+classify:
+
+SIMULATED_MODEL
+
+and downgrade confidence/evidence appropriately.
+
+================================================================
+2. CONFIDENCE ENUM CORRECTION
+================================================================
+
+Do not mix:
+
+confidence
+
+with:
+
+severity.
+
+Use confidence:
+
+LOW
+MEDIUM
+HIGH
+
+Use separate severity:
+
+INFO
+WARNING
+HIGH
+CRITICAL
+
+A quarantined model does not have:
+
+confidence = CRITICAL
+
+unless "CRITICAL" belongs to a separately named severity field.
+
+================================================================
+3. PROJECT BOOTSTRAP SERVICE
+================================================================
+
+Create:
+
+ProjectBootstrapService
+
+Responsibilities:
+
+scan
+detect
+verify
+recommend
+generate plan
+apply approved bootstrap
+baseline
+index
+profile
+readiness
+
+It should orchestrate existing subsystem services.
+
+Do not duplicate their core logic.
+
+================================================================
+4. BOOTSTRAP PHASES
+================================================================
+
+Use explicit stages:
+
+DISCOVER
+ANALYZE
+VERIFY
+PLAN
+APPLY
+VALIDATE
+INDEX
+READY
+
+Persist stage/results where useful.
+
+================================================================
+5. BOOTSTRAP MUST BE RESUMABLE
+================================================================
+
+If bootstrap fails at:
+
+INDEX
+
+rerunning must not recreate every configuration blindly.
+
+Operations must be idempotent.
+
+================================================================
+6. DRY-RUN DEFAULT
+================================================================
+
+Primary behavior:
+
+zcoder init
+
+should detect/analyze and propose.
+
+Repository mutation should require:
+
+zcoder init --apply
+
+or equivalent explicit action.
+
+Follow existing CLI conventions if different.
+
+================================================================
+7. NO SILENT FILE CREATION
+================================================================
+
+Before writing:
+
+AGENTS.md
+.zcoder/*
+configuration
+
+show planned files and whether they:
+
+CREATE
+UPDATE
+LEAVE_UNCHANGED
+
+================================================================
+8. EXISTING CONFIG SAFETY
+================================================================
+
+Never overwrite existing:
+
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+README
+CI configuration
+editor config
+project tool config
+
+without merge strategy and explicit permission.
+
+================================================================
+9. PROJECT INVENTORY
+================================================================
+
+Scan bounded repository metadata.
+
+Detect:
+
+languages
+frameworks
+package managers
+build tools
+test frameworks
+linters
+formatters
+type checkers
+containers
+CI
+workspace/monorepo layout
+deployment files
+
+================================================================
+10. FILE LIMITS
+================================================================
+
+Do not read the entire repository into memory blindly.
+
+Use:
+
+path metadata
+manifest parsing
+bounded sample inspection
+
+then targeted analysis.
+
+================================================================
+11. LANGUAGE DETECTION
+================================================================
+
+Use deterministic signals:
+
+file extensions
+manifest files
+lockfiles
+build configuration
+
+Output evidence.
+
+Example:
+
+Python:
+  pyproject.toml
+  120 *.py files
+
+TypeScript:
+  package.json
+  tsconfig.json
+
+================================================================
+12. LANGUAGE CONFIDENCE
+================================================================
+
+Every detection has:
+
+confidence
+evidence
+
+Do not claim framework from directory name alone.
+
+================================================================
+13. MONOREPO DETECTION
+================================================================
+
+Support:
+
+multiple packages
+multiple languages
+multiple validators
+
+Represent workspace components explicitly.
+
+================================================================
+14. WORKSPACE MODEL
+================================================================
+
+Create:
+
+ProjectComponent
+
+Fields:
+
+path
+language
+framework
+package_manager
+build
+tests
+lint
+typecheck
+
+================================================================
+15. PACKAGE MANAGER DETECTION
+================================================================
+
+Examples:
+
+Python:
+uv
+pip
+poetry
+pdm
+
+Node:
+npm
+pnpm
+yarn
+bun
+
+Infer from actual lock/config files.
+
+Do not invent preferred package manager.
+
+================================================================
+16. PYTHON DETECTION
+================================================================
+
+Inspect:
+
+pyproject.toml
+requirements files
+setup.cfg
+tox.ini
+pytest.ini
+uv.lock
+poetry.lock
+
+================================================================
+17. NODE DETECTION
+================================================================
+
+Inspect:
+
+package.json
+lockfiles
+workspace files
+tsconfig
+framework config
+
+================================================================
+18. GO / RUST / JAVA ETC.
+================================================================
+
+Provide extensible detector architecture.
+
+Do not put every language detector in one giant conditional function.
+
+================================================================
+19. DETECTOR INTERFACE
+================================================================
+
+Create:
+
+ProjectDetector
+
+with specialized detectors.
+
+Detection result includes:
+
+value
+confidence
+evidence
+source paths
+
+================================================================
+20. VALIDATION DISCOVERY
+================================================================
+
+Discover existing commands.
+
+Examples:
+
+pytest
+ruff
+mypy
+npm test
+npm run lint
+npm run typecheck
+go test
+cargo test
+
+Do not invent commands merely because tool is popular.
+
+================================================================
+21. VALIDATION SOURCE
+================================================================
+
+Record where command came from:
+
+package script
+CI workflow
+project config
+documented command
+detector inference
+
+================================================================
+22. VALIDATION CONFIDENCE
+================================================================
+
+Prefer:
+
+configured commands
+
+over:
+
+inferred commands.
+
+================================================================
+23. CI AS EVIDENCE
+================================================================
+
+Existing CI is valuable evidence.
+
+Extract:
+
+test
+lint
+build
+security
+typecheck
+
+from trusted workflow definitions.
+
+Do not blindly execute every CI shell fragment.
+
+================================================================
+24. COMMAND SAFETY
+================================================================
+
+Discovered commands still pass through command policy.
+
+Detection != execution authorization.
+
+================================================================
+25. BASELINE VALIDATION PLAN
+================================================================
+
+Build ordered validation plan:
+
+cheap checks
+→ unit tests
+→ lint
+→ typecheck
+→ build
+→ expensive checks
+
+according to repository evidence.
+
+================================================================
+26. BASELINE MUST PRECEDE AUTONOMOUS EDIT
+================================================================
+
+Before first engineering job:
+
+know baseline.
+
+If tests already fail:
+
+record failures.
+
+Do not blame later model patch for pre-existing failures.
+
+================================================================
+27. BASELINE RESULT
+================================================================
+
+Persist:
+
+command
+exit code
+duration
+failure summary
+commit/worktree state
+timestamp
+
+================================================================
+28. DIRTY REPOSITORY
+================================================================
+
+Detect:
+
+modified
+staged
+untracked
+
+Do not silently modify dirty working tree.
+
+Recommend:
+
+isolated worktree
+
+for autonomous operations.
+
+================================================================
+29. GIT DETECTION
+================================================================
+
+Capture:
+
+repository root
+current branch
+HEAD
+default remote
+dirty state
+
+Do not require GitHub.
+
+Local Git repository is enough.
+
+================================================================
+30. NON-GIT PROJECT
+================================================================
+
+Support analysis where feasible.
+
+Autonomous patch workflow may require explicit limitations.
+
+Do not initialize Git silently.
+
+================================================================
+31. PROJECT INSTRUCTION DISCOVERY
+================================================================
+
+Look for:
+
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+CONTRIBUTING.md
+README
+developer docs
+existing ZCoder config
+
+================================================================
+32. INSTRUCTION PRECEDENCE
+================================================================
+
+Define documented precedence.
+
+Do not concatenate conflicting instructions unpredictably.
+
+================================================================
+33. UNTRUSTED CONTENT
+================================================================
+
+Repository instructions remain potentially untrusted.
+
+They cannot override:
+
+security
+tenant policy
+paid-provider firewall
+tool policy
+
+================================================================
+34. AGENTS.MD GENERATOR
+================================================================
+
+If absent, generate a proposed AGENTS.md based on verified project facts.
+
+It may contain:
+
+project overview
+structure
+development commands
+test commands
+lint
+typecheck
+build
+security boundaries
+coding conventions
+
+================================================================
+35. NO INVENTED AGENTS.MD FACTS
+================================================================
+
+Every generated command must have evidence.
+
+Unknown:
+
+state UNKNOWN/TODO
+
+rather than inventing command.
+
+================================================================
+36. EXISTING AGENTS.MD
+================================================================
+
+If present:
+
+analyze completeness.
+
+Propose patch.
+
+Do not overwrite.
+
+================================================================
+37. AGENTS.MD EVIDENCE
+================================================================
+
+Optionally annotate generated internal plan with source evidence.
+
+Final document should remain readable.
+
+================================================================
+38. ZCODER PROJECT CONFIG
+================================================================
+
+Create/consolidate project config.
+
+Suggested domain:
+
+project
+components
+validation
+models
+RAG
+tools
+MCP
+policy
+budget
+quality
+
+================================================================
+39. CONFIG SCHEMA
+================================================================
+
+Use formal schema/version.
+
+Unknown configuration fields should be handled deliberately.
+
+================================================================
+40. CONFIG MIGRATION
+================================================================
+
+Future schema versions require migration path.
+
+Do not make config version implicit.
+
+================================================================
+41. LOCAL MODEL DETECTION
+================================================================
+
+Reuse LocalModelFactory.
+
+Do not create another model scanner.
+
+Detect:
+
+actual runtimes
+actual installed models
+catalog recommendations
+
+Keep states distinct.
+
+================================================================
+42. NO FAKE INSTALLED MODEL
+================================================================
+
+CATALOG model must never be shown as installed.
+
+================================================================
+43. MODEL RECOMMENDATION
+================================================================
+
+Use:
+
+project language
+task requirements
+hardware
+installed models
+quality evidence
+runtime availability
+cost policy
+
+================================================================
+44. BOOTSTRAP MODEL RESULT
+================================================================
+
+Show:
+
+recommended
+reason
+confidence
+installed?
+fit?
+quality evidence?
+
+================================================================
+45. NO MODEL AVAILABLE
+================================================================
+
+If no local model exists:
+
+bootstrap can still complete infrastructure/config analysis.
+
+State:
+
+LOCAL_MODEL_REQUIRED_FOR_EXECUTION
+
+Then provide optional acquisition recommendation.
+
+Do not download.
+
+================================================================
+46. MODEL ACQUISITION PLAN
+================================================================
+
+Show:
+
+candidate
+size
+fit
+source
+license metadata
+download command
+
+No mutation without explicit action.
+
+================================================================
+47. COST POLICY DEFAULT
+================================================================
+
+For no-cost-first profile:
+
+cost policy:
+
+ZERO_COST_ONLY
+
+No paid fallback.
+
+================================================================
+48. PROJECT MODEL PROFILE
+================================================================
+
+Generate recommendation:
+
+coding
+review
+embedding
+
+Use:
+
+AUTO
+
+where evidence is insufficient.
+
+================================================================
+49. QUALITY PROFILE BOOTSTRAP
+================================================================
+
+Choose quality profile from actual project stack.
+
+Examples:
+
+python
+typescript
+go
+rust
+generic
+
+================================================================
+50. QUALITY VALIDATORS
+================================================================
+
+Populate from discovered project validation.
+
+Do not insert pytest into Node project.
+
+================================================================
+51. QUALITY BASELINE
+================================================================
+
+Initial project quality baseline includes:
+
+baseline validators
+current HEAD
+profile version
+
+Model quality baseline can remain empty until benchmark occurs.
+
+================================================================
+52. DO NOT FAKE MODEL QUALITY
+================================================================
+
+Bootstrap cannot assign:
+
+quality = 0.93
+
+without actual quality run.
+
+Use:
+
+UNMEASURED
+
+================================================================
+53. RAG BOOTSTRAP
+================================================================
+
+Reuse LocalRepositoryIndexer.
+
+Plan:
+
+ignore rules
+secret filtering
+chunking/index strategy
+embedding strategy
+
+================================================================
+54. INDEX SAFETY
+================================================================
+
+Default exclude:
+
+.env
+private keys
+credential files
+.git
+dependencies/build outputs
+
+Reuse existing security rules.
+
+================================================================
+55. INDEX DRY RUN
+================================================================
+
+Show:
+
+files eligible
+files excluded
+estimated chunks
+embedding strategy
+
+before expensive index build where appropriate.
+
+================================================================
+56. INDEX APPLY
+================================================================
+
+During apply:
+
+build local index.
+
+No hosted embeddings under zero-cost policy.
+
+================================================================
+57. INDEX BASELINE
+================================================================
+
+Persist:
+
+commit
+model/index profile
+timestamp
+
+================================================================
+58. MCP DISCOVERY
+================================================================
+
+Discover existing project/user MCP configuration only from approved
+locations.
+
+Do not scan arbitrary machine config.
+
+================================================================
+59. MCP REGISTRY INTEGRATION
+================================================================
+
+Reuse existing MCP registry.
+
+================================================================
+60. MCP TRUST
+================================================================
+
+Newly discovered external MCP servers are not automatically trusted.
+
+State:
+
+DISCOVERED_DISABLED
+
+or equivalent.
+
+================================================================
+61. MCP TOOL PREVIEW
+================================================================
+
+Show:
+
+server
+transport
+tools
+trust
+credentials needed
+
+before enabling.
+
+================================================================
+62. SKILLS DISCOVERY
+================================================================
+
+Detect existing ZCoder-compatible skills/project skills.
+
+Do not import arbitrary scripts as trusted skills.
+
+================================================================
+63. SKILL TRUST
+================================================================
+
+Classify:
+
+BUILT_IN
+PROJECT_TRUSTED
+PROJECT_UNTRUSTED
+EXTERNAL
+
+================================================================
+64. TOOL PLAN
+================================================================
+
+Generate minimal tool set required for project.
+
+Do not enable every tool.
+
+================================================================
+65. TOOL PERMISSION CEILING
+================================================================
+
+Bootstrap recommendations cannot weaken organization/global policy.
+
+================================================================
+66. SHELL TOOL
+================================================================
+
+Only allow expected project commands.
+
+Dangerous shell remains approval-controlled.
+
+================================================================
+67. WORKFLOW RECOMMENDATION
+================================================================
+
+Recommend built-in workflows based on project evidence.
+
+Examples:
+
+Fix failing tests
+CI repair
+PR review
+Documentation update
+
+Do not auto-run.
+
+================================================================
+68. PROJECT WORKFLOW
+================================================================
+
+Generate default project workflow references, not duplicate execution
+engine.
+
+================================================================
+69. FIRST TASK SUGGESTION
+================================================================
+
+After successful bootstrap, suggest low-risk tasks based on baseline.
+
+Examples:
+
+"Fix 2 failing unit tests"
+
+"Run code review"
+
+"Generate missing developer docs"
+
+Do not invent failures.
+
+================================================================
+70. BOOTSTRAP READINESS
+================================================================
+
+Create:
+
+ProjectReadinessReport
+
+================================================================
+71. READINESS DIMENSIONS
+================================================================
+
+Potential dimensions:
+
+repository
+validation
+runtime
+model
+RAG
+tools
+MCP
+quality
+security
+cost policy
+
+================================================================
+72. READINESS STATUS
+================================================================
+
+Use:
+
+READY
+READY_WITH_LIMITATIONS
+BLOCKED
+
+Do not compress everything into arbitrary percentage only.
+
+================================================================
+73. READINESS SCORE
+================================================================
+
+Optional score may supplement status.
+
+Never let high score hide critical security blocker.
+
+================================================================
+74. BLOCKERS
+================================================================
+
+Examples:
+
+no valid project root
+unsupported configuration
+unsafe dirty workspace
+required validation unavailable
+policy conflict
+
+No local model may be:
+
+LIMITATION
+
+rather than bootstrap blocker if analysis-only functionality works.
+
+================================================================
+75. DOCTOR PROJECT
+================================================================
+
+Add:
+
+zcoder doctor project
+
+Report:
+
+stack
+validators
+local AI
+index
+tools
+policy
+readiness
+
+================================================================
+76. INIT CLI
+================================================================
+
+Target:
+
+zcoder init
+
+Options conceptually:
+
+--dry-run
+--apply
+--profile local-free
+--no-index
+--json
+
+Default should remain safe.
+
+================================================================
+77. ANALYZE COMMAND
+================================================================
+
+Optional:
+
+zcoder project analyze
+
+Read-only analysis.
+
+================================================================
+78. PROJECT STATUS
+================================================================
+
+Add:
+
+zcoder project status
+
+Show:
+
+bootstrap version
+HEAD drift
+index status
+validation baseline
+model profile
+readiness
+
+================================================================
+79. REANALYZE
+================================================================
+
+Add:
+
+zcoder project refresh
+
+Re-detect changed project facts.
+
+Do not overwrite manual config without merge policy.
+
+================================================================
+80. DRIFT DETECTION
+================================================================
+
+Detect changes:
+
+package manager
+manifest
+CI
+runtime config
+AGENTS.md
+validators
+language composition
+
+================================================================
+81. BASELINE STALENESS
+================================================================
+
+Baseline becomes stale after relevant source/config change.
+
+Do not claim current green baseline forever.
+
+================================================================
+82. INDEX STALENESS
+================================================================
+
+Existing RAG index drift detection remains.
+
+================================================================
+83. QUALITY STALENESS
+================================================================
+
+Project model evidence should be invalidated according to Upgrade-18
+rules.
+
+================================================================
+84. BOOTSTRAP MANIFEST
+================================================================
+
+Persist a manifest of detected evidence and generated decisions.
+
+Example concept:
+
+.zcoder/bootstrap.json
+
+or existing config location.
+
+Do not duplicate secrets.
+
+================================================================
+85. MANIFEST CONTENT
+================================================================
+
+Store:
+
+bootstrap schema version
+timestamp
+repository fingerprint
+detectors
+evidence
+decisions
+generated files
+baseline references
+
+================================================================
+86. NO SECRETS
+================================================================
+
+Never store:
+
+API keys
+tokens
+private key contents
+passwords
+
+inside bootstrap manifest.
+
+================================================================
+87. BOOTSTRAP REPRODUCIBILITY
+================================================================
+
+Given same repository state/config:
+
+bootstrap analysis should be largely deterministic.
+
+================================================================
+88. STRUCTURED DECISION
+================================================================
+
+Every recommendation has:
+
+decision
+reason
+evidence
+confidence
+
+No hidden chain-of-thought.
+
+================================================================
+89. MACHINE-READABLE OUTPUT
+================================================================
+
+Support:
+
+zcoder init --json
+
+Useful for automation.
+
+================================================================
+90. BOOTSTRAP PLAN OBJECT
+================================================================
+
+Create:
+
+BootstrapPlan
+
+containing ordered actions.
+
+Each action:
+
+id
+type
+mutation
+risk
+reason
+dependencies
+
+================================================================
+91. APPLY TRANSACTION SEMANTICS
+================================================================
+
+Filesystem changes should be staged safely.
+
+If later write fails:
+
+avoid partially corrupted config.
+
+Use temp/write/rename or suitable atomic patterns.
+
+================================================================
+92. BACKUP EXISTING CONFIG
+================================================================
+
+When modifying existing ZCoder-owned config:
+
+safe backup/version or patch strategy.
+
+Do not create endless backup clutter.
+
+================================================================
+93. MERGE LOGIC
+================================================================
+
+Existing manually configured values generally win unless explicitly
+changed.
+
+================================================================
+94. BOOTSTRAP AUDIT
+================================================================
+
+Record:
+
+analysis
+apply
+files created/changed
+operator
+baseline
+
+================================================================
+95. LOCAL FREE PROFILE
+================================================================
+
+First-class:
+
+local-free
+
+Requires no:
+
+Anthropic
+OpenAI
+Stripe
+cloud object storage
+hosted embeddings
+paid identity
+
+================================================================
+96. SELF-HOSTED PROFILE
+================================================================
+
+May add:
+
+Web
+API
+PostgreSQL
+external local model servers
+
+Still no mandatory commercial provider.
+
+================================================================
+97. SAAS PROFILE
+================================================================
+
+Existing enterprise/SaaS configuration remains separate.
+
+Do not make it default for local repo bootstrap.
+
+================================================================
+98. PROFILE SEPARATION
+================================================================
+
+No SaaS setup should be needed for:
+
+zcoder init --profile local-free
+
+================================================================
+99. ONE-COMMAND FIRST RUN
+================================================================
+
+Target:
+
+zcoder init --apply
+zcoder run "Fix failing tests"
+
+No twenty-command manual setup.
+
+================================================================
+100. OPTIONAL AUTO-FIRST-TASK
+================================================================
+
+Do NOT automatically execute an agent during init by default.
+
+Optional explicit:
+
+zcoder init --apply --run-first-task
+
+only if safely designed.
+
+================================================================
+101. NO SILENT PACKAGE INSTALL
+================================================================
+
+If test/lint tool unavailable:
+
+report missing dependency/tool.
+
+Do not execute:
+
+pip install
+npm install
+apt install
+
+without explicit action.
+
+================================================================
+102. DEPENDENCY INSTALL PLAN
+================================================================
+
+Provide suggested command derived from project package manager.
+
+Do not run it automatically.
+
+================================================================
+103. VIRTUAL ENVIRONMENT
+================================================================
+
+Detect project environment.
+
+Do not create/replace blindly.
+
+================================================================
+104. GENERATED COMMAND SAFETY
+================================================================
+
+Never use shell interpolation with untrusted path/input.
+
+Structured argv preferred.
+
+================================================================
+105. PROJECT PATH SECURITY
+================================================================
+
+Protect against:
+
+symlink escape
+path traversal
+workspace boundary escape
+
+================================================================
+106. REPOSITORY SIZE
+================================================================
+
+Large repo bootstrap must remain bounded.
+
+Detect size.
+
+Adjust scanning/indexing strategy.
+
+================================================================
+107. LARGE REPO MODE
+================================================================
+
+Use:
+
+manifest-first
+directory sampling
+incremental indexing
+component selection
+
+Do not ingest entire monorepo immediately.
+
+================================================================
+108. COMPONENT SELECTION
+================================================================
+
+User/project can bootstrap one component.
+
+Example:
+
+zcoder init --component services/api
+
+================================================================
+109. MONOREPO QUALITY
+================================================================
+
+Each component can have independent:
+
+validators
+model profile
+quality profile
+
+================================================================
+110. ROOT POLICY
+================================================================
+
+Global project policy can still constrain all components.
+
+================================================================
+111. PROJECT TEMPLATES
+================================================================
+
+Bootstrap may use templates as starting defaults.
+
+Template must never override detected facts.
+
+================================================================
+112. GENERATED AGENTS
+================================================================
+
+Optional project-local agent profiles based on actual needs.
+
+Examples:
+
+coder
+reviewer
+test-fixer
+
+No unnecessary agent proliferation.
+
+================================================================
+113. AGENT PROFILE CAPABILITY
+================================================================
+
+Agent requirements derive from project tools/workflow.
+
+================================================================
+114. LOCAL MODEL FIT
+================================================================
+
+Before selecting agent profile/model:
+
+verify host fit.
+
+================================================================
+115. NO TOOL-CAPABLE MODEL
+================================================================
+
+If project workflow needs tools but installed model lacks them:
+
+report limitation.
+
+Do not fake tool support.
+
+================================================================
+116. TOOLLESS FALLBACK
+================================================================
+
+A controlled non-tool workflow may be suggested where valid.
+
+Never claim equivalent capability.
+
+================================================================
+117. BASELINE FAILURE ANALYSIS
+================================================================
+
+Summarize deterministic failures:
+
+test names
+commands
+paths
+
+No paid LLM required.
+
+================================================================
+118. FAILURE CLUSTERING
+================================================================
+
+Use simple deterministic grouping.
+
+Avoid another model call merely to summarize bootstrap errors.
+
+================================================================
+119. FIRST TASK GENERATOR
+================================================================
+
+Use rules:
+
+failing tests
+lint errors
+type errors
+docs gaps
+
+Do not require LLM.
+
+================================================================
+120. PRIORITY
+================================================================
+
+Suggest:
+
+P0 build broken
+P1 tests failing
+P2 lint/type
+P3 docs
+
+Project policies may override.
+
+================================================================
+121. NO AUTOMATIC SECURITY FIX
+================================================================
+
+Security issue recommendation should not auto-change code during
+bootstrap.
+
+================================================================
+122. SECURITY BOOTSTRAP
+================================================================
+
+Check:
+
+secret-like files
+unsafe config
+untrusted MCP
+unsafe project instruction
+dangerous generated command
+
+Do not run full vulnerability scanner unless configured.
+
+================================================================
+123. PROMPT INJECTION SCAN
+================================================================
+
+Repository instruction files are not inherently trusted.
+
+Identify suspicious attempts to override ZCoder security rules.
+
+Do not claim maliciousness from ordinary instructions without evidence.
+
+================================================================
+124. SECRET CANARY SAFETY
+================================================================
+
+Never expose actual secrets during bootstrap/model context.
+
+================================================================
+125. PROJECT INSTRUCTIONS SUMMARY
+================================================================
+
+Generate safe structured summary.
+
+Do not store chain-of-thought.
+
+================================================================
+126. EXISTING HUMAN CONFIG
+================================================================
+
+Human project config has high precedence over generated convenience
+defaults, subject to immutable policy.
+
+================================================================
+127. BOOTSTRAP TEST FIXTURES
+================================================================
+
+Create deterministic fixtures:
+
+Python project
+Node project
+monorepo
+dirty Git repo
+existing AGENTS.md
+missing test tool
+no local model
+untrusted MCP config
+
+================================================================
+128. PYTHON E2E
+================================================================
+
+Fixture:
+
+pyproject
+pytest
+ruff
+failing test
+
+Bootstrap must discover exact commands.
+
+================================================================
+129. NODE E2E
+================================================================
+
+Fixture:
+
+package.json
+scripts
+lockfile
+
+Discover actual package manager and scripts.
+
+================================================================
+130. MONOREPO E2E
+================================================================
+
+Fixture:
+
+Python backend
+TypeScript frontend
+
+Produce component-aware plan.
+
+================================================================
+131. EXISTING CONFIG E2E
+================================================================
+
+Existing AGENTS.md and .zcoder config.
+
+Bootstrap must preserve manual values.
+
+================================================================
+132. DIRTY WORKTREE E2E
+================================================================
+
+Bootstrap analysis:
+
+allowed.
+
+Mutation:
+
+safe/limited.
+
+Autonomous edit:
+
+isolated worktree recommendation.
+
+================================================================
+133. NO MODEL E2E
+================================================================
+
+Host without model daemon/model:
+
+bootstrap still produces useful project analysis.
+
+Execution readiness:
+
+READY_WITH_LIMITATIONS.
+
+================================================================
+134. ZERO-COST E2E
+================================================================
+
+No paid credentials.
+
+Bootstrap
+→ profile
+→ baseline
+→ index
+→ Fake/local runtime
+→ first engineering workflow
+
+Commercial transports:
+
+0.
+
+================================================================
+135. REAL LOCAL FIRST-TASK E2E
+================================================================
+
+If real model exists:
+
+bootstrap real project fixture
+→ router
+→ actual local model
+→ code repair
+→ validation
+
+Report separately as E4.
+
+Never fake.
+
+================================================================
+136. TEST EXPANSION
+================================================================
+
+Upgrade-18 added only 3 new tests.
+
+Upgrade-19 must add a substantial suite.
+
+Cover:
+
+language detection
+framework detection
+package manager
+validator discovery
+CI evidence
+instruction discovery
+AGENTS generation
+config merge
+dry-run
+apply
+resume
+drift
+monorepo
+dirty repo
+no model
+MCP trust
+RAG plan
+quality profile
+model recommendation
+readiness
+zero-paid E2E
+
+================================================================
+137. PROPERTY INVARIANTS
+================================================================
+
+Examples:
+
+dry-run never mutates repo
+catalog model never becomes installed
+missing tenant/profile never enables paid provider
+existing manual config never disappears silently
+generated command always has evidence
+untrusted MCP never auto-enables
+
+================================================================
+138. SNAPSHOT TESTS
+================================================================
+
+Use carefully for generated config/docs.
+
+Avoid snapshots so broad that real mistakes are blindly accepted.
+
+================================================================
+139. WINDOWS PATH TESTS
+================================================================
+
+Project path logic must work on Windows-style semantics where portable.
+
+================================================================
+140. LINUX/MAC PATH TESTS
+================================================================
+
+Test path/symlink handling.
+
+================================================================
+141. CLI UX
+================================================================
+
+Output should be concise and actionable.
+
+Example:
+
+ZCoder Project Analysis
+
+Project:
+  Python 3.12
+  pytest
+  ruff
+
+Validation:
+  ✓ pytest -q
+  ✓ ruff check .
+
+Local AI:
+  llama.cpp: unavailable
+  Ollama: available
+  model: qwen... installed
+  fit: SAFE
+
+Index:
+  184 files
+  26 excluded
+  local only
+
+Readiness:
+  READY
+
+Planned files:
+  CREATE .zcoder/project.yaml
+  CREATE AGENTS.md
+
+Run:
+  zcoder init --apply
+
+================================================================
+142. READINESS EXPLAIN
+================================================================
+
+Provide:
+
+zcoder project readiness --explain
+
+================================================================
+143. WEB BOOTSTRAP WIZARD
+================================================================
+
+If SELF_HOSTED Web is part of release:
+
+create service-backed wizard for same bootstrap service.
+
+Do not duplicate business logic in frontend.
+
+================================================================
+144. WIZARD STEPS
+================================================================
+
+Repository
+Stack
+Validation
+Local AI
+Tools/MCP
+Index
+Policy
+Review
+Apply
+
+================================================================
+145. WEB DRY RUN
+================================================================
+
+Review page shows exact mutations.
+
+================================================================
+146. WEB EVIDENCE
+================================================================
+
+If Web product remains optional-skipped in default suite:
+
+do not report WEB_BOOTSTRAP E2/E3 unless self-hosted Web tests actually
+run.
+
+================================================================
+147. API
+================================================================
+
+Expose project analysis/bootstrap planning through internal/public API
+only where appropriate.
+
+Mutation requires authorization.
+
+================================================================
+148. PUBLIC API SAFETY
+================================================================
+
+Remote bootstrap cannot point server at arbitrary host filesystem.
+
+Restrict repositories/workspaces to authorized roots.
+
+================================================================
+149. GITHUB BOOTSTRAP
+================================================================
+
+Optional integration:
+
+GitHub-connected project can reuse repository metadata.
+
+Core bootstrap must not require GitHub.
+
+================================================================
+150. LOCAL REPO FIRST
+================================================================
+
+A plain local Git repository must be fully supported.
+
+================================================================
+151. PERFORMANCE
+================================================================
+
+Measure bootstrap on:
+
+small repo
+medium fixture
+monorepo fixture
+
+Report scan/index timing.
+
+No fabricated benchmark.
+
+================================================================
+152. SCAN CACHE
+================================================================
+
+Reuse detection results where repository fingerprint unchanged.
+
+================================================================
+153. INCREMENTAL REFRESH
+================================================================
+
+Refresh only affected components where possible.
+
+================================================================
+154. OBSERVABILITY
+================================================================
+
+Track:
+
+bootstrap_runs
+bootstrap_failures
+baseline_duration
+index_duration
+
+No high-cardinality repository names in Prometheus labels.
+
+================================================================
+155. AUDIT
+================================================================
+
+Audit mutating bootstrap apply.
+
+Read-only local analysis need not create excessive enterprise audit
+noise in single-user local mode.
+
+================================================================
+156. RELEASE PROFILES
+================================================================
+
+Maintain:
+
+CORE_FREE
+LOCAL_PRODUCTION_RUNTIME
+QUALITY_ENGINEERING
+LOCAL_RUNTIME_VERIFIED
+LOCAL_CODING_VERIFIED
+SELF_HOSTED
+SAAS
+
+Add:
+
+PROJECT_BOOTSTRAP
+LOCAL_DX_READY
+
+================================================================
+157. PROJECT_BOOTSTRAP
+================================================================
+
+Requires:
+
+detection
+validation discovery
+dry-run
+config generation
+safe apply
+baseline
+RAG planning
+quality profile
+readiness
+
+Can PASS without a real local LLM.
+
+================================================================
+158. LOCAL_DX_READY
+================================================================
+
+Requires:
+
+PROJECT_BOOTSTRAP
+local-free profile
+zero paid calls
+usable first-task workflow
+CLI experience
+project status/doctor
+
+================================================================
+159. REAL_BOOTSTRAP_CODING
+================================================================
+
+Optional stronger E4 evidence:
+
+actual model completes first task after bootstrap.
+
+================================================================
+160. RELEASE GATES
+================================================================
+
+Add:
+
+PROJECT_SCAN
+STACK_DETECTION
+PACKAGE_MANAGER_DETECTION
+VALIDATOR_DISCOVERY
+CI_DISCOVERY
+
+INSTRUCTION_DISCOVERY
+AGENTS_GENERATION
+CONFIG_SCHEMA
+CONFIG_MERGE
+
+BOOTSTRAP_DRY_RUN
+BOOTSTRAP_APPLY
+BOOTSTRAP_RESUME
+DRIFT_DETECTION
+
+MODEL_RECOMMENDATION
+QUALITY_PROFILE_BOOTSTRAP
+RAG_BOOTSTRAP
+MCP_TRUST
+
+BASELINE_VALIDATION
+READINESS
+
+ZERO_COST_BOOTSTRAP
+
+PROJECT_BOOTSTRAP
+LOCAL_DX_READY
+
+================================================================
+161. GATE EXAMPLE
+================================================================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+NO_COST_CORE: PASS
+ZERO_PAID_CALLS: PASS
+OFFLINE_EXECUTION: PASS
+
+PROJECT_SCAN: PASS
+STACK_DETECTION: PASS
+PACKAGE_MANAGER_DETECTION: PASS
+VALIDATOR_DISCOVERY: PASS
+CI_DISCOVERY: PASS
+
+INSTRUCTION_DISCOVERY: PASS
+AGENTS_GENERATION: PASS
+
+CONFIG_SCHEMA: PASS
+CONFIG_MERGE: PASS
+
+BOOTSTRAP_DRY_RUN: PASS
+BOOTSTRAP_APPLY: PASS
+BOOTSTRAP_RESUME: PASS
+DRIFT_DETECTION: PASS
+
+MODEL_RECOMMENDATION: PASS
+QUALITY_PROFILE_BOOTSTRAP: PASS
+RAG_BOOTSTRAP: PASS
+MCP_TRUST: PASS
+
+BASELINE_VALIDATION: PASS
+READINESS: PASS
+
+ZERO_COST_BOOTSTRAP: PASS
+
+PROJECT_BOOTSTRAP: PASS
+LOCAL_DX_READY: PASS
+
+REAL_LOCAL_RUNTIME:
+  evidence-derived
+
+REAL_LOCAL_CODING:
+  evidence-derived
+
+REAL_BOOTSTRAP_CODING:
+  evidence-derived
+
+WEB_SELF_HOSTED:
+  evidence-derived
+
+PITR:
+  PASS_WITH_LIMITATIONS
+
+SECURITY: PASS
+DOCS: PASS
+
+FINAL:
+  evidence-derived
+
+================================================================
+162. DOCUMENTATION
+================================================================
+
+Add:
+
+docs/UPGRADE-19.md
+docs/PROJECT-BOOTSTRAP.md
+docs/PROJECT-DETECTION.md
+docs/VALIDATION-DISCOVERY.md
+docs/AGENTS-GENERATION.md
+docs/PROJECT-CONFIG.md
+docs/PROJECT-READINESS.md
+docs/LOCAL-FIRST-RUN.md
+docs/MONOREPO-BOOTSTRAP.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+
+docs/LOCAL-AI.md
+docs/QUALITY-ENGINEERING.md
+docs/NO-COST-MATRIX.md
+
+================================================================
+163. README QUICKSTART
+================================================================
+
+Make actual first-run flow obvious.
+
+Example:
+
+pip install ...
+
+cd my-project
+
+zcoder init
+zcoder init --apply
+zcoder run "Fix failing tests"
+
+Do not put paid provider setup before local-free quickstart.
+
+================================================================
+164. VERSION DECISION
+================================================================
+
+Inspect actual tags/releases.
+
+Do not mechanically keep 1.40.0 forever.
+
+This upgrade materially improves CLI/DX but need not be major if
+backward-compatible.
+
+Explain SemVer from actual publication state.
+
+================================================================
+165. REQUIRED FINAL COMMANDS
+================================================================
+
+Run:
+
+python -m pytest -q -ra
+
+python main.py --version
+python -m build
+
+clean wheel install
+
+zcoder --version
+zcoder init --help
+zcoder doctor project
+
+git diff --check
+git status --short
+
+Run separately:
+
+Python bootstrap E2E
+Node bootstrap E2E
+monorepo E2E
+existing-config E2E
+dirty-repo E2E
+no-local-model E2E
+offline bootstrap E2E
+zero-paid bootstrap E2E
+self-hosted Web bootstrap tests
+
+If real local model exists:
+
+run real bootstrap -> coding E2E separately.
+
+================================================================
+166. DEFINITION OF DONE
+================================================================
+
+Upgrade-19 is complete only when:
+
+[ ] Upgrade-18 model-quality evidence is truth-audited
+[ ] simulated quality cannot be called real measured quality
+[ ] confidence/severity fields are semantically correct
+[ ] project bootstrap service exists
+[ ] init is dry-run safe
+[ ] init apply is explicit
+[ ] no silent package installation exists
+[ ] no silent model download exists
+[ ] project stack detection is evidence-backed
+[ ] package manager detection is correct
+[ ] validator discovery uses real configuration
+[ ] CI commands are treated as evidence, not blindly executed
+[ ] baseline exists before autonomous modification
+[ ] pre-existing failures are recorded
+[ ] dirty working tree is handled safely
+[ ] AGENTS.md generation is evidence-backed
+[ ] existing AGENTS.md is preserved
+[ ] project config is versioned
+[ ] config merges preserve manual values
+[ ] local model recommendation uses real installed state
+[ ] no fake model quality is generated
+[ ] quality profile bootstraps from actual project
+[ ] RAG bootstrap remains secret-safe
+[ ] untrusted MCP never auto-enables
+[ ] minimal tool plan is generated
+[ ] readiness report exists
+[ ] monorepos/components work
+[ ] bootstrap is resumable/idempotent
+[ ] drift is detectable
+[ ] local-free profile requires no commercial credentials
+[ ] zero-paid bootstrap proves prohibited calls = 0
+[ ] first useful workflow is reachable in minimal commands
+[ ] inherited tenant/security/runtime/quality gates remain green
+
+================================================================
+167. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-18 Evidence Corrections
+
+Model-quality evidence must distinguish:
+SIMULATED
+REAL_LOCAL
+
+## 3. Version Decision
+
+## 4. Bootstrap Architecture
+
+## 5. Repository Detection
+
+Languages:
+Frameworks:
+Components:
+Evidence:
+
+## 6. Package / Build Tool Detection
+
+## 7. Validation Discovery
+
+Command | Source | Confidence | Executed | Result
+
+## 8. Git / Workspace State
+
+## 9. Project Instructions
+
+Existing:
+Generated:
+Preserved:
+
+## 10. AGENTS.md
+
+## 11. Project Configuration
+
+## 12. Local AI Detection
+
+Runtime:
+Installed models:
+Catalog models:
+Recommended:
+Confidence:
+
+## 13. Quality Profile Bootstrap
+
+## 14. RAG Bootstrap
+
+## 15. MCP / Skills / Tools
+
+## 16. Baseline Validation
+
+Tests before autonomous edits:
+Lint:
+Typecheck:
+Build:
+
+## 17. Readiness
+
+Status:
+Blockers:
+Limitations:
+Recommendations:
+
+## 18. Dry Run
+
+Planned changes:
+
+## 19. Apply
+
+Actual changes:
+
+## 20. Drift / Refresh
+
+## 21. First Task Recommendation
+
+## 22. Zero-Paid Proof
+
+Anthropic:
+OpenAI paid:
+Stripe:
+Hosted embeddings:
+External analytics:
+Other prohibited:
+
+## 23. Real Bootstrap Coding Evidence
+
+Status:
+Runtime:
+Model:
+Digest:
+Task:
+Tests before:
+Tests after:
+Evidence tier:
+
+If no real model:
+NOT_TESTED
+
+## 24. Security Review
+
+## 25. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+detectors
+validators
+config
+AGENTS
+bootstrap
+monorepo
+security
+offline
+Web
+real local
+
+## 26. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 27. Release Profiles
+
+CORE_FREE:
+LOCAL_PRODUCTION_RUNTIME:
+QUALITY_ENGINEERING:
+PROJECT_BOOTSTRAP:
+LOCAL_DX_READY:
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_CODING_VERIFIED:
+SELF_HOSTED:
+SAAS:
+
+## 28. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+NO_COST_CORE:
+ZERO_PAID_CALLS:
+OFFLINE_EXECUTION:
+
+PROJECT_SCAN:
+STACK_DETECTION:
+PACKAGE_MANAGER_DETECTION:
+VALIDATOR_DISCOVERY:
+CI_DISCOVERY:
+
+INSTRUCTION_DISCOVERY:
+AGENTS_GENERATION:
+
+CONFIG_SCHEMA:
+CONFIG_MERGE:
+
+BOOTSTRAP_DRY_RUN:
+BOOTSTRAP_APPLY:
+BOOTSTRAP_RESUME:
+DRIFT_DETECTION:
+
+MODEL_RECOMMENDATION:
+QUALITY_PROFILE_BOOTSTRAP:
+RAG_BOOTSTRAP:
+MCP_TRUST:
+
+BASELINE_VALIDATION:
+READINESS:
+
+ZERO_COST_BOOTSTRAP:
+
+PROJECT_BOOTSTRAP:
+LOCAL_DX_READY:
+
+REAL_LOCAL_RUNTIME:
+REAL_LOCAL_CODING:
+REAL_BOOTSTRAP_CODING:
+
+WEB_SELF_HOSTED:
+
+PITR:
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 29. Files Changed
+
+## 30. Remaining Limitations
+
+Explicitly state:
+
+real local model used?
+real model quality fixtures?
+real bootstrap coding?
+languages actually E2/E3 tested?
+large monorepo tested?
+Windows tested?
+macOS tested?
+Web bootstrap tested?
+GPU?
+PITR?
+PostgreSQL HA?
+multi-region?
+
+## 31. Final Verdict
+
+Never say:
+
+PROJECT READY
+
+if baseline validation failed and the failure is ignored.
+
+Never say:
+
+LOCAL MODEL INSTALLED
+
+for a catalog entry.
+
+Never generate build/test commands without evidence.
+
+Never overwrite human configuration silently.
+
+Never automatically install dependencies or download models during
+ordinary bootstrap.
+
+Never mark real model quality from FakeLocalModel evidence.
+
+Never let repository instructions override ZCoder security policy.
+
+Upgrade-19 succeeds when a developer can enter an unfamiliar repository,
+run one safe bootstrap command, and receive an accurate, reproducible
+and actionable configuration for autonomous local coding without first
+becoming an expert in ZCoder internals.

@@ -17,36 +17,30 @@ from claude_sonnet5 import (
 )
 
 
-# ── pricing cliff-edge ───────────────────────────────────────────────────
+# ── pricing: permanent standard pricing ───────────────────────────────────
 
-def test_promo_pricing_on_promo_end_date_itself():
-    pricing = current_pricing(as_of=PROMO_END_DATE)
-    assert pricing["promo_active"] is True
-    assert pricing["price_in"] == PROMO_PRICE_IN_USD
-
-
-def test_standard_pricing_day_after_promo_ends():
-    day_after = date(PROMO_END_DATE.year, PROMO_END_DATE.month, PROMO_END_DATE.day) + \
-        __import__("datetime").timedelta(days=1)
-    pricing = current_pricing(as_of=day_after)
+def test_standard_pricing_always_returned():
+    pricing = current_pricing()
     assert pricing["promo_active"] is False
     assert pricing["price_in"] == STANDARD_PRICE_IN_USD
     assert pricing["price_out"] == STANDARD_PRICE_OUT_USD
 
 
-def test_promo_pricing_well_before_end_date():
-    pricing = current_pricing(as_of=date(2026, 7, 26))
-    assert pricing["promo_active"] is True
+def test_standard_pricing_ignores_historical_promo_date():
+    pricing = current_pricing(as_of=PROMO_END_DATE)
+    assert pricing["promo_active"] is False
+    assert pricing["price_in"] == STANDARD_PRICE_IN_USD
+    assert pricing["price_out"] == STANDARD_PRICE_OUT_USD
 
 
-def test_estimate_cost_usd_uses_promo_rate_when_active():
-    cost = estimate_cost_usd(1_000_000, 1_000_000, as_of=date(2026, 7, 26))
-    assert cost == pytest.approx(PROMO_PRICE_IN_USD + PROMO_PRICE_OUT_USD)
+def test_estimate_cost_usd_uses_standard_rate():
+    cost = estimate_cost_usd(1_000_000, 1_000_000)
+    assert cost == pytest.approx(STANDARD_PRICE_IN_USD + STANDARD_PRICE_OUT_USD)
 
 
 def test_estimate_cost_usd_applies_geo_multiplier():
-    base = estimate_cost_usd(1_000_000, 1_000_000, as_of=date(2026, 7, 26), use_geo=False)
-    geo = estimate_cost_usd(1_000_000, 1_000_000, as_of=date(2026, 7, 26), use_geo=True)
+    base = estimate_cost_usd(1_000_000, 1_000_000, use_geo=False)
+    geo = estimate_cost_usd(1_000_000, 1_000_000, use_geo=True)
     assert geo == pytest.approx(base * 1.1)
 
 

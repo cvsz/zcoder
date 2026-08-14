@@ -23,7 +23,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from personalities import PERSONALITIES
 
-VERSION = "1.39.0"
+VERSION = "1.40.0"
 BANNER  = f"\033[94mAI Model Coder CLI v{VERSION}\033[0m"
 
 # Named agent roles. Previously these seven names only existed as a
@@ -408,20 +408,19 @@ def build_parser():
     o5.add_argument("--opus5-fast", action="store_true", dest="opus5_fast",
                     help="Send speed:\"fast\" with --opus5 (supported on this model)")
     o5.add_argument("--opus5-geo", action="store_true", dest="opus5_geo",
-                    help="Send inference_geo:\"us\" with --opus5 (support unconfirmed for this "
-                         "model — see --opus5-info)")
+                    help="Send inference_geo:\"us\" with --opus5 (confirmed supported; 1.1x pricing)")
 
     s5 = p.add_argument_group("Claude Sonnet 5 (deep model-specific support)")
     s5.add_argument("--sonnet5-info", action="store_true", dest="sonnet5_info",
-                    help="Show Sonnet 5's capability table and today's pricing "
-                         "(introductory $2/$10 through 2026-08-31, then $3/$15 standard)")
+                    help="Show Sonnet 5's capability table and current pricing "
+                         "($2/$10 per MTok permanently; Sep 1 increase was cancelled 2026-08-10)")
     s5.add_argument("--sonnet5", metavar="PROMPT", dest="sonnet5",
                     help="Call Claude Sonnet 5")
     s5.add_argument("--sonnet5-geo", action="store_true", dest="sonnet5_geo",
                     help="Send inference_geo:\"us\" with --sonnet5 (supported; 1.1x pricing)")
     s5.add_argument("--sonnet5-cost", metavar="IN,OUT", dest="sonnet5_cost",
-                    help="Estimate cost in USD for IN input / OUT output tokens on Sonnet 5, "
-                         "using whichever pricing tier (introductory/standard) applies today")
+                    help="Estimate cost in USD for IN input / OUT output tokens on Sonnet 5 "
+                         "at the permanent $2/$10 per MTok standard rate")
 
     h45 = p.add_argument_group("Claude Haiku 4.5 (deep model-specific support)")
     h45.add_argument("--haiku45-info", action="store_true", dest="haiku45_info",
@@ -621,6 +620,15 @@ def build_parser():
                     help="List RBAC/SCIM groups")
     cp.add_argument("--compliance-group-members", metavar="GROUP_ID", dest="compliance_group_members",
                     help="List a group's members")
+    cp.add_argument("--compliance-local-sessions-list", action="store_true",
+                    dest="compliance_local_sessions_list",
+                    help="List Cowork/Claude Code local sessions (filter with --compliance-user-ids)")
+    cp.add_argument("--compliance-local-session-info", metavar="SESSION_ID",
+                    dest="compliance_local_session_info",
+                    help="Show metadata for one local Cowork/Claude Code session")
+    cp.add_argument("--compliance-local-session-messages", metavar="SESSION_ID",
+                    dest="compliance_local_session_messages",
+                    help="Print full transcript/messages for one local Cowork/Claude Code session")
     cp.add_argument("--compliance-yes", action="store_true", dest="compliance_yes",
                     help="Actually execute a --compliance-*-delete (default: dry-run preview only)")
     cp.add_argument("--compliance-output", metavar="PATH", dest="compliance_output",
@@ -1465,6 +1473,8 @@ def main():
         args.compliance_project_attachments, args.compliance_project_delete,
         args.compliance_orgs_list, args.compliance_org_users, args.compliance_org_roles,
         args.compliance_org_settings, args.compliance_groups_list, args.compliance_group_members,
+        args.compliance_local_sessions_list, args.compliance_local_session_info,
+        args.compliance_local_session_messages,
     )
     if any(_compliance_flags):
         compliance_key = (args.compliance_api_key
@@ -1540,6 +1550,15 @@ def main():
         if args.compliance_group_members:
             from claude_compliance_api import cmd_compliance_group_members
             cmd_compliance_group_members(compliance_key, args.compliance_group_members); return
+        if args.compliance_local_sessions_list:
+            from claude_compliance_api import cmd_compliance_local_sessions_list
+            cmd_compliance_local_sessions_list(compliance_key, user_ids=user_ids); return
+        if args.compliance_local_session_info:
+            from claude_compliance_api import cmd_compliance_local_session_info
+            cmd_compliance_local_session_info(compliance_key, args.compliance_local_session_info); return
+        if args.compliance_local_session_messages:
+            from claude_compliance_api import cmd_compliance_local_session_messages
+            cmd_compliance_local_session_messages(compliance_key, args.compliance_local_session_messages); return
 
     if args.check_deprecated:
         from claude_models import cmd_check_deprecated

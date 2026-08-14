@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+pytest.importorskip("fastapi", reason="optional dependency for webapp, see webapp/requirements-web.txt")
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]

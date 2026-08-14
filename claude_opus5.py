@@ -43,13 +43,11 @@ What's specific to Opus 5, concretely:
   • service_tier ("auto" / "standard_only"): Opus 5 is NOT in
     claude_models.SERVICE_TIER_UNSUPPORTED, so Priority Tier capacity
     (for orgs with an existing commitment) applies normally.
-  • inference_geo ("us" / "global"): as of this catalog's last check,
-    claude-opus-5 is NOT listed in claude_models.INFERENCE_GEO_SUPPORTED.
-    That set was last updated 2026-07-02, three weeks before Opus 5
-    existed, so this is very plausibly a documentation gap rather than a
-    deliberate exclusion — but until it's confirmed one way or the other,
-    this module treats `inference_geo` on Opus 5 as UNCONFIRMED and warns
-    rather than silently allowing or silently blocking it.
+  • inference_geo ("us" / "global"): claude-opus-5 IS in
+    claude_models.INFERENCE_GEO_SUPPORTED as of the 2026-08-13 re-check.
+    (The previous note said "unconfirmed" because the 2026-07-02 catalog
+    check predated this model's 2026-07-24 launch; the 2026-08-13 audit
+    confirmed it is supported at the standard 1.1x US-pin pricing.)
 
 CLI flags:
   --opus5-info                  Show Opus 5's capability table (effort ladder,
@@ -134,17 +132,19 @@ def validate_effort_thinking(effort: Optional[str], disable_thinking: bool) -> O
 
 
 def validate_inference_geo(use_geo: bool) -> Optional[str]:
-    """Opus 5 is absent from claude_models.INFERENCE_GEO_SUPPORTED as of
-    the 2026-07-02 catalog check, which predates this model's 2026-07-24
-    launch — so treat this as unconfirmed rather than a confident yes/no."""
+    """Return None if inference_geo usage is safe for Opus 5, or a reason
+    string if it is not supported. As of 2026-08-13, claude-opus-5 IS in
+    INFERENCE_GEO_SUPPORTED (confirmed via live docs — the previous 'unconfirmed'
+    note is now superseded)."""
     if not use_geo:
         return None
     if OPUS5_MODEL_ID in INFERENCE_GEO_SUPPORTED:
         return None
-    return ("inference_geo support for claude-opus-5 is unconfirmed (the shared "
-            "INFERENCE_GEO_SUPPORTED list predates this model's launch by three "
-            "weeks and has not been re-checked against live docs). Sending "
-            "inference_geo may 400. Verify at platform.claude.com/docs before relying on this.")
+    # Defensive: if for some reason the model were later removed from the set,
+    # surface a clear message rather than silently allowing a 400.
+    return (f"inference_geo is not listed as supported for {OPUS5_MODEL_ID} "
+            f"in claude_models.INFERENCE_GEO_SUPPORTED — verify against "
+            f"platform.claude.com/docs/en/manage-claude/data-residency.")
 
 
 class Opus5Client:
@@ -236,7 +236,7 @@ def cmd_opus5_info():
     print(f"  Effort ladder:     {', '.join(info['effort_levels'])}")
     print(f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'not supported'}")
     print(f"  Priority Tier:     {'supported' if info['service_tier_supported'] else 'not supported'}")
-    print(f"  Data residency:    {'supported' if info['inference_geo_supported'] else 'unconfirmed — see module notes'}")
+    print(f"  Data residency:    {'supported (confirmed; 1.1x multiplier)' if info['inference_geo_supported'] else 'not supported'}")
     print(f"\n  \033[93m⚠ Breaking change vs Opus 4.8:\033[0m thinking can only be disabled")
     print(f"    at effort high or below. --opus5-disable-thinking + --opus5-effort")
     print(f"    xhigh/max is rejected client-side here rather than sent as a 400.")

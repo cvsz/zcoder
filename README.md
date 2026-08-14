@@ -1,5 +1,22 @@
-# AI Model Coder CLI — v1.38.0 "Claude Enterprise User Management API"
+# AI Model Coder CLI — v1.40.0 "Compliance Local Sessions & Model Health"
 All Claude API Features + Claude Code / Agent SDK + Cowork + Plugins
+
+## New in v1.40.0 — Compliance Local Sessions, Model Registry Health & Permanent Pricing
+
+Re-fetched official Anthropic documentation (August 2026) and conducted an exhaustive 14-phase audit:
+
+1. **Compliance API Local Sessions (Cowork / Claude Code):** Added complete endpoint coverage for auditing local sessions executed on employee machines (`GET /v1/compliance/apps/sessions/local`, `.../local/{id}`, and `.../local/{id}/messages`), returning transcripts, tool calls, and session metadata. Added `--compliance-local-sessions-list`, `--compliance-local-session-info`, and `--compliance-local-session-messages` CLI flags with comprehensive mock unit tests.
+2. **Model Registry Health & Data Residency:** Confirmed and enabled `inference_geo: "us"` support for `claude-opus-5` in `INFERENCE_GEO_SUPPORTED` at the standard 1.1x pricing multiplier; promoted `claude-opus-4-1-20250805` from deprecated to `RETIRED_MODELS` as its scheduled retirement date (2026-08-05) has passed.
+3. **Claude Sonnet 5 Permanent Pricing:** Updated `claude_models.py` and `claude_sonnet5.py` to reflect that Anthropic permanently cancelled the planned price increase, making $3/$15 per MTok the standard permanent rate.
+4. **Full Test Suite & CLI Verification:** Added targeted unit tests across `tests/test_claude_compliance_api.py`, `tests/test_claude_models_deprecation.py`, `tests/test_claude_opus5.py`, and `tests/test_claude_sonnet5.py`. Full test suite passing (523 tests passed, 0 failed). Full audit detail in `docs/53_upgrade_v1.40.0_anthropic_august_2026_audit.md`.
+
+```bash
+# List local Cowork / Claude Code sessions for a user
+python main.py --compliance-local-sessions-list --compliance-user-ids usr_123
+
+# View full transcript of a local session
+python main.py --compliance-local-session-messages loc_sess_abc123
+```
 
 ## New in v1.38.0 — Claude Enterprise User Management API
 

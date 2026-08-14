@@ -297,3 +297,111 @@ def test_cmd_project_delete_with_yes_surfaces_409_hint(monkeypatch, capsys):
     assert result is None
     out = capsys.readouterr().out
     assert "still has chats attached" in out
+
+
+# ── Local sessions (Cowork / Claude Code) ────────────────────────────────
+
+def test_list_local_sessions_endpoint_and_params(monkeypatch):
+    client = ComplianceApiClient("sk-ant-api01-test")
+    captured = {}
+
+    def fake_get(path, params=None):
+        captured["path"] = path
+        captured["params"] = params
+        return {"data": [{"id": "loc_sess_1", "type": "local_session"}], "has_more": False}
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    res = client.list_local_sessions(user_ids=["usr_123"], limit=50, page="p2")
+    assert captured["path"] == "/apps/sessions/local"
+    assert captured["params"] == {"limit": 50, "user_ids": ["usr_123"], "page": "p2"}
+    assert res["data"][0]["id"] == "loc_sess_1"
+
+
+def test_get_local_session_endpoint(monkeypatch):
+    client = ComplianceApiClient("sk-ant-api01-test")
+    captured = {}
+
+    def fake_get(path, params=None):
+        captured["path"] = path
+        return {"id": "loc_sess_1", "app_type": "claude_code", "user_id": "usr_1"}
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    res = client.get_local_session("loc_sess_1")
+    assert captured["path"] == "/apps/sessions/local/loc_sess_1"
+    assert res["id"] == "loc_sess_1"
+
+
+def test_get_local_session_messages_endpoint(monkeypatch):
+    client = ComplianceApiClient("sk-ant-api01-test")
+    captured = {}
+
+    def fake_get(path, params=None):
+        captured["path"] = path
+        captured["params"] = params
+        return {"data": [{"id": "msg_1", "role": "user", "content": [{"type": "text", "text": "hello"}]}]}
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    res = client.get_local_session_messages("loc_sess_1", limit=20, page="p1")
+    assert captured["path"] == "/apps/sessions/local/loc_sess_1/messages"
+    assert captured["params"] == {"limit": 20, "page": "p1"}
+    assert len(res["data"]) == 1
+
+
+def test_cmd_compliance_local_sessions_list(capsys, monkeypatch):
+    from claude_compliance_api import cmd_compliance_local_sessions_list
+
+    class FakeClient:
+        def __init__(self, api_key):
+            pass
+        def list_local_sessions(self, user_ids=None, limit=100):
+            return {
+                "data": [
+                    {"id": "loc_sess_1", "app_type": "cowork", "user_id": "usr_1", "created_at": "2026-08-10T12:00:00Z", "title": "Analyze logs"}
+                ],
+                "has_more": False
+            }
+
+    monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
+    res = cmd_compliance_local_sessions_list("sk-ant-api01-test", user_ids=["usr_1"])
+    out = capsys.readouterr().out
+    assert "loc_sess_1" in out
+    assert "cowork" in out
+    assert res is not None
+
+
+def test_cmd_compliance_local_session_info(capsys, monkeypatch):
+    from claude_compliance_api import cmd_compliance_local_session_info
+
+    class FakeClient:
+        def __init__(self, api_key):
+            pass
+        def get_local_session(self, session_id):
+            return {"id": session_id, "app_type": "claude_code", "user_id": "usr_2"}
+
+    monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
+    res = cmd_compliance_local_session_info("sk-ant-api01-test", "loc_sess_2")
+    out = capsys.readouterr().out
+    assert "loc_sess_2" in out
+    assert "claude_code" in out
+
+
+def test_cmd_compliance_local_session_messages(capsys, monkeypatch):
+    from claude_compliance_api import cmd_compliance_local_session_messages
+
+    class FakeClient:
+        def __init__(self, api_key):
+            pass
+        def get_local_session_messages(self, session_id):
+            return {
+                "data": [
+                    {"role": "user", "created_at": "2026-08-10T12:00:00Z", "content": [{"type": "text", "text": "build test"}]},
+                    {"role": "assistant", "created_at": "2026-08-10T12:00:05Z", "content": [{"type": "tool_use", "name": "run_command", "input": {"cmd": "pytest"}}]}
+                ]
+            }
+
+    monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
+    res = cmd_compliance_local_session_messages("sk-ant-api01-test", "loc_sess_1")
+    out = capsys.readouterr().out
+    assert "Transcript for Local Session loc_sess_1" in out
+    assert "build test" in out
+    assert "TOOL USE" in out

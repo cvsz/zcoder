@@ -43,16 +43,15 @@ def test_unknown_effort_level_is_rejected():
     assert "ultra" in err
 
 
-# ── validate_inference_geo: unconfirmed, not blocked or silently allowed ─
+# ── validate_inference_geo: confirmed supported for Opus 5 ──────────────
 
 def test_inference_geo_not_requested_is_fine():
     assert validate_inference_geo(False) is None
 
 
-def test_inference_geo_requested_warns_unconfirmed():
-    warning = validate_inference_geo(True)
-    assert warning is not None
-    assert "unconfirmed" in warning.lower()
+def test_inference_geo_requested_confirmed_supported():
+    # As of v1.40.0 audit, claude-opus-5 is in INFERENCE_GEO_SUPPORTED (1.1x pricing)
+    assert validate_inference_geo(True) is None
 
 
 # ── Opus5Client.call: client-side validation happens before any HTTP call ─
@@ -86,11 +85,18 @@ def test_call_sends_expected_payload_shape(monkeypatch):
     assert data["content"][0]["text"] == "hello"
 
 
-def test_call_geo_warning_attached_but_not_blocking(monkeypatch):
+def test_call_geo_sends_payload_cleanly(monkeypatch):
     client = Opus5Client(api_key="k")
-    monkeypatch.setattr(client, "_post", lambda payload: {"content": [], "stop_reason": "end_turn"})
+    captured = {}
+
+    def fake_post(payload):
+        captured.update(payload)
+        return {"content": [{"type": "text", "text": "hi"}], "stop_reason": "end_turn"}
+
+    monkeypatch.setattr(client, "_post", fake_post)
     data = client.call("hi", use_geo=True)
-    assert data["_geo_warning"] is not None
+    assert captured["inference_geo"] == "us"
+    assert data.get("_geo_warning") is None
     assert data.get("error") is None
 
 
