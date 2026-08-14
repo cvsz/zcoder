@@ -1,5 +1,3 @@
-from utils import sampling_kwargs
-
 """
 claude_prompt_optimizer.py — Prompt Optimizer & A/B Tester
 AI Model Coder CLI v1.9.1
@@ -25,7 +23,21 @@ from typing import Optional
 
 import anthropic
 
+from utils import sampling_kwargs
+
 PROMPT_LIB_PATH = Path(os.path.expanduser("~/.ai-coder/prompt_library.json"))
+
+
+def _strip_json_fence(text: str) -> str:
+    """Remove an optional Markdown JSON/code fence without character stripping."""
+    cleaned = text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned.removeprefix("```json")
+    elif cleaned.startswith("```"):
+        cleaned = cleaned.removeprefix("```")
+    if cleaned.rstrip().endswith("```"):
+        cleaned = cleaned.rstrip().removesuffix("```")
+    return cleaned.strip()
 
 
 def _call(client: anthropic.Anthropic, model: str, system: str, user: str, max_tokens: int = 2048) -> str:
@@ -58,8 +70,7 @@ def score(prompt: str, client: anthropic.Anthropic, model: str) -> dict:
     )
     raw = _call(client, model, system, f"Prompt to score:\n{prompt}", max_tokens=512)
     try:
-        cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-        return json.loads(cleaned)
+        return json.loads(_strip_json_fence(raw))
     except json.JSONDecodeError:
         return {"error": "Could not parse score", "raw": raw}
 
@@ -90,8 +101,7 @@ def ab_test(prompt_a: str, prompt_b: str, task: str, client: anthropic.Anthropic
         client, model, "You are an objective evaluator of AI responses.", judge_prompt, max_tokens=512
     )
     try:
-        cleaned = judge_raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-        judgment = json.loads(cleaned)
+        judgment = json.loads(_strip_json_fence(judge_raw))
     except json.JSONDecodeError:
         judgment = {"winner": "unknown", "reason": judge_raw}
 
@@ -104,9 +114,6 @@ def ab_test(prompt_a: str, prompt_b: str, task: str, client: anthropic.Anthropic
         "time_b": time_b,
         "judgment": judgment,
     }
-
-
-# ── Prompt Library ───────────────────────────────────────────────────────────
 
 
 def _load_lib() -> dict:
@@ -139,9 +146,6 @@ def lib_list() -> list[dict]:
 
 def lib_get(tag: str) -> Optional[str]:
     return _load_lib().get(tag, {}).get("prompt")
-
-
-# ── CLI entry points ─────────────────────────────────────────────────────────
 
 
 def cmd_optimize(prompt: str, api_key: str, model: str):
@@ -186,6 +190,6 @@ def cmd_prompt_lib_list():
         print("Prompt library is empty. Use --prompt-lib-add with --tag to save prompts.")
         return
     print(f"\n\033[94mPrompt Library ({len(entries)} entries)\033[0m")
-    for e in entries:
-        print(f"  \033[1m{e['tag']:<20}\033[0m {e['preview']}")
+    for entry in entries:
+        print(f"  \033[1m{entry['tag']:<20}\033[0m {entry['preview']}")
     print()
