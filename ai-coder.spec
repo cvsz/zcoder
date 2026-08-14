@@ -1,46 +1,37 @@
+# Compatibility PyInstaller spec for callers that still run `pyinstaller ai-coder.spec`.
+# Canonical spec: spec/ai-coder.spec
 # -*- mode: python ; coding: utf-8 -*-
-"""
-PyInstaller spec file for AI Model Coder CLI standalone executable
-Run: pyinstaller ai-coder.spec
-"""
+import os
 
+project_root = os.path.abspath(SPECPATH)
+src_root = os.path.join(project_root, "src")
+entrypoint = os.path.join(project_root, "main.py")
 block_cipher = None
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [entrypoint],
+    pathex=[project_root, src_root],
     binaries=[],
-    datas=[],
-    hiddenimports=['anthropic'],
+    datas=[(os.path.join(src_root, "zcoder", "api", "anthropic-conformance.yaml"), "zcoder/api")],
+    hiddenimports=["anthropic", "zcoder.main"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludedimports=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
-
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
-    name='ai-coder',
+    name="ai-coder",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
 )

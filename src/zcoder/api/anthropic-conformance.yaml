@@ -1,0 +1,96 @@
+version: "1.40.0"
+verified_at: "2026-08-13T19:56:00Z"
+release_notes_latest: "2026-08-11"
+sources:
+  - "https://docs.anthropic.com/en/release-notes/api"
+  - "https://docs.anthropic.com/en/docs/about-claude/models"
+  - "https://docs.anthropic.com/en/docs/pricing"
+  - "https://docs.anthropic.com/en/docs/agents-and-tools/managed-agents"
+  - "https://docs.anthropic.com/en/docs/compliance/overview"
+
+models:
+  claude-opus-5:
+    display_name: "Claude Opus 5"
+    status: "GA"
+    price_in_usd: 5.0
+    price_out_usd: 25.0
+    context_window: 1000000
+    max_output_tokens: 128000
+    thinking: "adaptive"
+    inference_geo_supported: true
+    inference_geo_multiplier: 1.1
+
+  claude-sonnet-5:
+    display_name: "Claude Sonnet 5"
+    status: "GA"
+    price_in_usd: 2.0
+    price_out_usd: 10.0
+    context_window: 1000000
+    max_output_tokens: 128000
+    thinking: "adaptive"
+    inference_geo_supported: true
+    service_tier_supported: false
+    custom_sampling_params_supported: false
+
+  claude-haiku-4-5-20251001:
+    display_name: "Claude Haiku 4.5"
+    status: "GA"
+    price_in_usd: 1.0
+    price_out_usd: 5.0
+    context_window: 200000
+    max_output_tokens: 64000
+    thinking: "extended"
+
+  claude-fable-5:
+    display_name: "Claude Fable 5"
+    status: "GA"
+    price_in_usd: 10.0
+    price_out_usd: 50.0
+    context_window: 1000000
+    max_output_tokens: 128000
+    thinking: "adaptive_always_on"
+
+  claude-mythos-5:
+    display_name: "Claude Mythos 5"
+    status: "limited_preview"
+    price_in_usd: 10.0
+    price_out_usd: 50.0
+    context_window: 1000000
+    max_output_tokens: 128000
+    thinking: "adaptive_always_on"
+
+retirements:
+  claude-opus-4-1-20250805:
+    retired_at: "2026-08-05"
+    replacement: "claude-opus-4-8"
+    first_party_api: "rejected_400"
+  claude-opus-4-0:
+    retired_at: "2026-06-30"
+    replacement: "claude-opus-4-8"
+  claude-sonnet-4-0:
+    retired_at: "2026-06-30"
+    replacement: "claude-sonnet-5"
+  claude-haiku-3-20240307:
+    retired_at: "2026-03-31"
+    replacement: "claude-haiku-4-5-20251001"
+
+compliance:
+  local_sessions_api: true
+  endpoints:
+    - "/v1/compliance/apps/sessions/local"
+    - "/v1/compliance/apps/sessions/local/{id}"
+    - "/v1/compliance/apps/sessions/local/{id}/messages"
+  required_scope: "read:compliance_user_data"
+
+managed_agents:
+  hard_spend_budget: true
+  budget_field: "budget_usd_cents"
+  pause_stop_reason: "budget_reached"
+  advisor_roster: true
+  agent_inference_geo: true
+
+response_metadata:
+  workspace_id_header: "anthropic-workspace-id"
+  request_id_header: "request-id"
+  rate_limit_requests_remaining_header: "anthropic-ratelimit-requests-remaining"
+  rate_limit_tokens_remaining_header: "anthropic-ratelimit-tokens-remaining"
