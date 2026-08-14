@@ -166,9 +166,7 @@ class ContinuousEngineeringPipeline:
         self.work_sources = tuple(work_sources)
         self.policy = policy or LoopPolicy()
         self.retry_blocked = retry_blocked
-        self.run_lease = run_lease or UpgradeRunLease(
-            ledger.path.with_name(f"{ledger.path.name}.run.lock")
-        )
+        self.run_lease = run_lease or UpgradeRunLease(ledger.path.with_name(f"{ledger.path.name}.run.lock"))
         self._items_by_id: dict[str, UpgradeWorkItem] = {}
 
     def run(self, seed_items: Iterable[UpgradeWorkItem] = ()) -> LoopReport:
