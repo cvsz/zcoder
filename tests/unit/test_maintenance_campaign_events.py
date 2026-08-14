@@ -23,9 +23,7 @@ class Recommendation:
 
 class Intelligence:
     def __init__(self, recommendations=None):
-        self.recommendations = (
-            [Recommendation()] if recommendations is None else list(recommendations)
-        )
+        self.recommendations = [Recommendation()] if recommendations is None else list(recommendations)
 
     def generate_recommendations(self):
         return list(self.recommendations)
