@@ -20,7 +20,7 @@ class TaskStatus(str, enum.Enum):
 
 @dataclass
 class EngineeringTask:
-    id: str = field(default_factory=lambda: f"task_{uuid.uuid4().hex[:8]}")
+    id: str = field(default_factory=lambda: f"task_{uuid.uuid4().hex}")
     task_description: str = ""
     status: TaskStatus = TaskStatus.CREATED
     created_at: float = field(default_factory=time.time)
@@ -30,7 +30,7 @@ class EngineeringTask:
 
 @dataclass
 class Attempt:
-    id: str = field(default_factory=lambda: f"att_{uuid.uuid4().hex[:8]}")
+    id: str = field(default_factory=lambda: f"att_{uuid.uuid4().hex}")
     task_id: str = ""
     generation: int = 1
     status: str = "PENDING"
@@ -40,7 +40,7 @@ class Attempt:
 
 @dataclass
 class Checkpoint:
-    id: str = field(default_factory=lambda: f"chk_{uuid.uuid4().hex[:8]}")
+    id: str = field(default_factory=lambda: f"chk_{uuid.uuid4().hex}")
     task_id: str = ""
     attempt_id: str = ""
     sequence: int = 0

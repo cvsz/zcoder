@@ -1,0 +1,2851 @@
+# UPGRADE-22
+# Durable Autonomous Engineering Fleet
+# & Multi-Repository Portfolio Management
+#
+# P0:
+# Complete Upgrade-21 durability proof with
+# real process crashes, real PostgreSQL concurrency,
+# real Git/worktree/commit reconciliation,
+# and durable external-operation journal.
+#
+# THEN:
+# Multi-repository task fleet,
+# portfolio scheduling,
+# repository health,
+# maintenance campaigns,
+# dependency/security campaigns,
+# fleet capacity,
+# cross-repository coordination,
+# durable campaign execution,
+# and portfolio observability.
+#
+# PRIMARY PRINCIPLES
+#
+# NO-COST FIRST
+# LOCAL-FIRST
+# REAL DURABILITY BEFORE SCALE
+# DATABASE-BACKED COORDINATION
+# NO REDIS/KAFKA REQUIRED
+# NO SILENT PAID FALLBACK
+# NO SILENT REPOSITORY MUTATION
+# NO SILENT PUSH/MERGE
+# FAIRNESS BETWEEN REPOSITORIES
+# SECURITY/QUALITY OVERRIDE THROUGHPUT
+# EVERY EXTERNAL MUTATION MUST BE RECONCILABLE
+
+You are operating directly inside ZCoder after Upgrade-21.
+
+================================================================
+MISSION
+================================================================
+
+Upgrade-21 reportedly introduced:
+
+engineering_models.py
+engineering_store_interface.py
+SQLiteEngineeringStore
+PostgresEngineeringStore
+EngineeringOrchestrator
+
+with durable:
+
+EngineeringTask
+Attempt
+Checkpoint
+
+However, the reported verification currently proves primarily:
+
+- SQLite task/attempt/checkpoint persistence
+- simulated restart behavior
+- store/orchestrator integration
+
+Before scaling to a fleet, Upgrade-22 MUST prove the durability
+properties required for distributed execution.
+
+After those gates pass, build:
+
+Repository Portfolio
+        │
+        ▼
+Engineering Campaign
+        │
+        ▼
+Portfolio Scheduler
+        │
+        ├── Repo A Queue
+        ├── Repo B Queue
+        ├── Repo C Queue
+        └── ...
+              │
+              ▼
+        Fleet Workers
+              │
+      ┌───────┼─────────┐
+      ▼       ▼         ▼
+   Worker A Worker B  Worker C
+      │       │         │
+      └───────┼─────────┘
+              ▼
+      Durable Engineering Store
+              │
+              ├── tasks
+              ├── attempts
+              ├── checkpoints
+              ├── leases
+              ├── operations
+              ├── campaigns
+              └── repo health
+              │
+              ▼
+      Local Model Runtime Fleet
+
+The system must support many repositories and many durable autonomous
+tasks without duplicate execution, starvation, uncontrolled mutation,
+or commercial infrastructure requirements.
+
+================================================================
+PHASE 0 — FORENSIC UPGRADE-21 AUDIT
+================================================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+git diff --check
+
+Inspect:
+
+engineering_models.py
+engineering_store_interface.py
+SQLiteEngineeringStore
+PostgresEngineeringStore
+engineering_orchestrator.py
+agent_runtime.py
+control_plane.py
+github_orchestrator.py
+release_gate.py
+tests/
+
+Produce:
+
+UPGRADE-21 DURABILITY TRUTH MATRIX
+
+Capability
+Claim
+Implementation
+Same-Process Test?
+Separate-Process Test?
+Real PostgreSQL?
+Real Git?
+Correct Tier
+Verdict
+
+Allowed verdicts:
+
+PROVEN
+PARTIAL
+CONTRACT_ONLY
+SIMULATED
+NOT_TESTED
+FAILED
+
+================================================================
+P0.1 — REAL PROCESS RESTART
+================================================================
+
+Upgrade-21 report says:
+
+"simulated process restarts"
+
+This is not sufficient for HARD_CRASH_RECOVERY.
+
+Create an actual subprocess test.
+
+Process A:
+
+open SQLite store
+create task
+create attempt
+create checkpoints
+flush/commit
+
+then terminate process.
+
+Process B:
+
+fresh Python interpreter
+open same SQLite file
+load task
+attempt
+checkpoint
+
+Verify:
+
+same IDs
+same state
+same sequence
+same attempt history
+
+No shared Python memory.
+
+================================================================
+P0.2 — HARD CRASH
+================================================================
+
+Test abrupt termination.
+
+Use controlled fault-injection subprocess.
+
+Crash points:
+
+after task persistence
+after attempt persistence
+after checkpoint
+after edit metadata
+after validation metadata
+
+Do not rely only on graceful close.
+
+================================================================
+P0.3 — SQLITE CRASH SAFETY
+================================================================
+
+Use actual SQLite file.
+
+Verify transaction boundaries.
+
+A partially written transition must not create impossible state.
+
+Inspect use of:
+
+transactions
+foreign keys
+journaling/WAL
+
+Document actual decision.
+
+================================================================
+P0.4 — POSTGRESQL REAL INTEGRATION
+================================================================
+
+PostgresEngineeringStore must not be called verified solely because
+class exists.
+
+Run against actual PostgreSQL.
+
+No fake cursor/database.
+
+Verify:
+
+schema
+CRUD
+tenant scoping
+transactions
+claims
+leases
+checkpoints
+
+================================================================
+P0.5 — POSTGRESQL RLS
+================================================================
+
+Any tenant-owned engineering tables require real database policies.
+
+Verify using non-superuser application role:
+
+Org A cannot:
+
+SELECT
+INSERT
+UPDATE
+DELETE
+
+Org B rows.
+
+================================================================
+P0.6 — MULTI-PROCESS CLAIM
+================================================================
+
+Launch at least 3 independent worker processes.
+
+Create multiple runnable engineering tasks.
+
+Workers contend simultaneously.
+
+Expected:
+
+each task claimed once
+duplicate execution = 0
+
+Persist worker/lease evidence.
+
+================================================================
+P0.7 — STALE WORKER FENCING
+================================================================
+
+Worker A claims task.
+
+Lose/expire lease.
+
+Worker B claims newer generation.
+
+A attempts mutation afterward.
+
+Expected:
+
+rejected.
+
+Test DB mutation and external-operation precondition.
+
+================================================================
+P0.8 — REAL GIT REPOSITORY
+================================================================
+
+Create actual temporary repository using git CLI.
+
+No fake git abstraction.
+
+Record:
+
+git version
+baseline SHA
+branch
+
+================================================================
+P0.9 — REAL GIT WORKTREE
+================================================================
+
+Run actual git worktree creation.
+
+Verify:
+
+actual .git/worktree registration
+actual branch
+actual base SHA
+primary workspace unchanged
+
+================================================================
+P0.10 — WORKTREE RESTART RECONCILIATION
+================================================================
+
+Process A:
+
+create actual worktree
+persist registry
+crash
+
+Process B:
+
+load durable state
+run git worktree list
+reconcile existing worktree
+
+Expected:
+
+no duplicate worktree
+no lost task
+
+================================================================
+P0.11 — REAL EDIT
+================================================================
+
+Modify actual source file inside actual worktree.
+
+Verify primary repository remains unchanged.
+
+================================================================
+P0.12 — REAL VALIDATION
+================================================================
+
+Create controlled failing project.
+
+Baseline:
+
+pytest fails
+
+Patch:
+
+actual source edit
+
+Final:
+
+pytest succeeds
+
+Record actual subprocess output/exit state.
+
+================================================================
+P0.13 — REAL COMMIT
+================================================================
+
+Create actual Git commit.
+
+Persist actual SHA.
+
+No synthetic commit object.
+
+================================================================
+P0.14 — COMMIT CRASH WINDOW
+================================================================
+
+Critical test:
+
+git commit succeeds
+process crashes before EngineeringStore records success
+
+Fresh process restarts.
+
+Reconcile:
+
+worktree HEAD
+parent
+tree
+operation journal
+
+Expected:
+
+detect existing commit
+do not create duplicate commit
+
+================================================================
+P0.15 — DURABLE OPERATION JOURNAL
+================================================================
+
+Create:
+
+EngineeringOperation
+
+Operations:
+
+COMMIT
+PUSH
+CREATE_PR
+UPDATE_PR
+MERGE
+CI_REPAIR_PUSH
+
+Fields:
+
+operation_id
+task_id
+attempt_id
+operation_type
+target
+payload_fingerprint
+state
+created_at
+started_at
+completed_at
+result_reference
+error
+generation/fence
+
+States:
+
+PLANNED
+STARTED
+SUCCEEDED
+FAILED
+UNKNOWN
+RECONCILING
+
+================================================================
+P0.16 — UNKNOWN IS FIRST-CLASS
+================================================================
+
+If process/network dies after side effect may have happened:
+
+state = UNKNOWN
+
+Never:
+
+UNKNOWN
+→ blindly execute same mutation
+
+Instead:
+
+UNKNOWN
+→ RECONCILING
+→ SUCCEEDED / RETRYABLE_FAILED
+
+================================================================
+P0.17 — REAL LOCAL REMOTE
+================================================================
+
+Create local bare Git repository.
+
+Use it as actual remote.
+
+Push actual branch.
+
+Verify remote ref.
+
+No GitHub needed.
+
+================================================================
+P0.18 — PUSH CRASH WINDOW
+================================================================
+
+Remote accepts push.
+
+Process dies before durable success write.
+
+Restart.
+
+Inspect remote ref.
+
+Mark operation SUCCEEDED.
+
+Do not push divergent duplicate.
+
+================================================================
+P0.19 — APPROVAL DURABILITY
+================================================================
+
+Persist approvals.
+
+Restart.
+
+Verify approval remains bound to:
+
+task
+attempt
+operation
+payload hash
+policy version
+expiry
+
+================================================================
+P0.20 — UPGRADE-21 DURABILITY GATE
+================================================================
+
+Do not proceed to fleet implementation unless at minimum:
+
+SQLITE_DURABILITY = PASS
+PROCESS_RESTART_RECOVERY = PASS
+HARD_CRASH_RECOVERY = PASS
+REAL_GIT_REPOSITORY = PASS
+REAL_GIT_WORKTREE = PASS
+REAL_VALIDATION = PASS
+REAL_COMMIT = PASS
+OPERATION_JOURNAL = PASS
+COMMIT_RECONCILIATION = PASS
+LOCAL_REMOTE_PUSH = PASS
+
+PostgreSQL may be separately environment-dependent, but if
+distributed/multi-worker claims are made, PostgreSQL tests become
+required.
+
+================================================================
+PART 2 — REPOSITORY PORTFOLIO MODEL
+================================================================
+
+Create:
+
+RepositoryPortfolio
+
+A portfolio is a collection of repositories managed by an organization
+or local operator.
+
+Fields conceptually:
+
+id
+organization_id
+name
+description
+policy_profile
+default_cost_policy
+created_at
+
+================================================================
+22. REPOSITORY RESOURCE
+================================================================
+
+Create/consolidate:
+
+ManagedRepository
+
+Fields:
+
+id
+portfolio_id
+organization_id
+project_id optional
+name
+local_path
+remote_provider
+remote_reference
+default_branch
+status
+health
+policy_profile
+last_scan_at
+
+================================================================
+23. REPOSITORY STATUS
+================================================================
+
+States:
+
+DISCOVERED
+ACTIVE
+DEGRADED
+PAUSED
+DISABLED
+ARCHIVED
+
+Do not delete repository history just because it becomes inactive.
+
+================================================================
+24. REPOSITORY SOURCE TYPES
+================================================================
+
+Support:
+
+LOCAL_GIT
+GITHUB
+future provider
+
+Core operation must support LOCAL_GIT.
+
+GitHub remains optional.
+
+================================================================
+25. PORTFOLIO DISCOVERY
+================================================================
+
+Allow explicit repository registration.
+
+Do NOT scan entire home directory automatically.
+
+Example:
+
+zcoder portfolio add /path/repo
+
+================================================================
+26. BULK IMPORT
+================================================================
+
+Support explicit directory/root import with:
+
+dry-run
+depth limit
+repository limit
+ignore rules
+
+Never recursively crawl entire filesystem without scope.
+
+================================================================
+27. GITHUB PORTFOLIO IMPORT
+================================================================
+
+Optional:
+
+import repositories visible to configured GitHub installation.
+
+Do not automatically enable autonomous mutation.
+
+Imported repos begin:
+
+DISCOVERED
+or
+READ_ONLY
+
+until policy permits.
+
+================================================================
+28. REPOSITORY READINESS
+================================================================
+
+Reuse ProjectBootstrapService.
+
+Each ManagedRepository has readiness dimensions:
+
+ANALYSIS_READY
+VALIDATION_READY
+LOCAL_AI_READY
+EDIT_READY
+GIT_WRITE_READY
+PR_READY
+
+================================================================
+29. REPOSITORY HEALTH
+================================================================
+
+Create:
+
+RepositoryHealthSnapshot
+
+Signals:
+
+bootstrap readiness
+default branch
+dirty/local condition
+test baseline
+CI state
+security findings
+dependency status
+last autonomous run
+model readiness
+
+================================================================
+30. HEALTH STATUS
+================================================================
+
+Use:
+
+HEALTHY
+DEGRADED
+FAILING
+UNKNOWN
+
+Do not reduce everything to one arbitrary percentage.
+
+================================================================
+31. HEALTH EVIDENCE
+================================================================
+
+Every status references actual evidence/timestamp.
+
+Stale data becomes STALE/UNKNOWN.
+
+================================================================
+32. ENGINEERING CAMPAIGN
+================================================================
+
+Create:
+
+EngineeringCampaign
+
+A campaign creates coordinated tasks across repository portfolio.
+
+Examples:
+
+CI_REPAIR
+DEPENDENCY_UPDATE
+SECURITY_PATCH
+DOCUMENTATION_REFRESH
+TEST_MAINTENANCE
+CUSTOM
+
+================================================================
+33. CAMPAIGN IS NOT ONE GIANT AGENT
+================================================================
+
+Campaign creates bounded per-repository EngineeringTasks.
+
+Reuse Upgrade-20/21 execution loop.
+
+================================================================
+34. CAMPAIGN STATE
+================================================================
+
+States:
+
+DRAFT
+PLANNED
+RUNNING
+PAUSED
+COMPLETED
+PARTIAL
+FAILED
+CANCELLED
+
+================================================================
+35. CAMPAIGN POLICY
+================================================================
+
+Campaign defines:
+
+scope
+repository selection
+task template
+max repositories
+concurrency
+cost policy
+mutation policy
+PR policy
+approval policy
+failure policy
+
+================================================================
+36. DRY RUN
+================================================================
+
+Campaign defaults to planning/dry-run where mutation is significant.
+
+Show:
+
+repositories targeted
+tasks
+expected mutations
+validators
+models
+remote actions
+
+================================================================
+37. REPOSITORY SELECTION
+================================================================
+
+Select by explicit criteria.
+
+Examples:
+
+tag
+language
+health state
+CI failure
+dependency
+project
+
+Do not allow arbitrary unsafe query execution.
+
+================================================================
+38. CAMPAIGN SNAPSHOT
+================================================================
+
+Persist exact repository set selected when campaign starts.
+
+Changing portfolio later must not silently change active campaign.
+
+================================================================
+39. CAMPAIGN TASK
+================================================================
+
+Each repository gets separate durable EngineeringTask.
+
+No shared mutable attempt between repositories.
+
+================================================================
+40. CAMPAIGN RESUME
+================================================================
+
+Restart ZCoder.
+
+Campaign + child task progress survives.
+
+================================================================
+41. CAMPAIGN CANCEL
+================================================================
+
+Stop new task dispatch.
+
+Handle running tasks using cancellation policy.
+
+================================================================
+42. CAMPAIGN RETRY
+================================================================
+
+Retry failed repository tasks only.
+
+Do not rerun already successful ones unless explicitly requested.
+
+================================================================
+43. PORTFOLIO SCHEDULER
+================================================================
+
+Create:
+
+PortfolioScheduler
+
+Responsibilities:
+
+campaign task dispatch
+repository fairness
+worker capacity
+local inference capacity
+per-repository concurrency
+priority
+maintenance windows
+
+================================================================
+44. SCHEDULER DOES NOT EXECUTE TASK
+================================================================
+
+It dispatches durable EngineeringTasks to existing EngineeringOrchestrator.
+
+================================================================
+45. FLEET WORKER
+================================================================
+
+Create/consolidate:
+
+EngineeringWorker
+
+It:
+
+claims durable task
+verifies fence
+loads project state
+executes attempt
+writes checkpoints
+releases claim
+
+================================================================
+46. WORKER IDENTITY
+================================================================
+
+Persist:
+
+worker_id
+instance
+host
+pid
+started_at
+last_heartbeat
+capabilities
+
+Do not rely on PID globally.
+
+================================================================
+47. WORKER CAPABILITIES
+================================================================
+
+Examples:
+
+LOCAL_GIT
+GITHUB
+CPU_LOCAL_AI
+GPU_LOCAL_AI
+PYTHON
+NODE
+DOCKER
+
+Capabilities constrain dispatch.
+
+================================================================
+48. WORKER REGISTRATION
+================================================================
+
+Workers register durably.
+
+Missing heartbeat eventually becomes unavailable.
+
+================================================================
+49. HEARTBEAT
+================================================================
+
+Use bounded heartbeat interval.
+
+Do not create excessive DB write load.
+
+================================================================
+50. WORKER LEASE
+================================================================
+
+Reuse authoritative lease/fencing.
+
+No new competing ownership system.
+
+================================================================
+51. FLEET CAPACITY
+================================================================
+
+Track:
+
+total workers
+busy
+idle
+queued tasks
+local AI slots
+RAM pressure
+
+================================================================
+52. LOCAL MODEL CAPACITY
+================================================================
+
+Integrate Upgrade-17 LocalInferenceScheduler.
+
+Do not dispatch more local AI tasks than hardware safely supports.
+
+================================================================
+53. CPU HOST FAIRNESS
+================================================================
+
+Current known host class may be CPU-only.
+
+Avoid queueing 20 simultaneous LLM jobs on 8 cores.
+
+================================================================
+54. REPOSITORY FAIRNESS
+================================================================
+
+One broken repo cannot consume whole fleet indefinitely.
+
+Use bounded per-repository concurrency.
+
+================================================================
+55. ORGANIZATION FAIRNESS
+================================================================
+
+In multi-tenant mode:
+
+prevent one organization from starving another.
+
+================================================================
+56. CAMPAIGN FAIRNESS
+================================================================
+
+Large campaign cannot block interactive engineering task indefinitely.
+
+Priority classes:
+
+INTERACTIVE
+NORMAL
+CAMPAIGN
+BACKGROUND
+
+================================================================
+57. STARVATION PREVENTION
+================================================================
+
+Use aging or suitable bounded strategy.
+
+================================================================
+58. GLOBAL CONCURRENCY
+================================================================
+
+Configurable:
+
+max_running_tasks
+
+================================================================
+59. PER-REPOSITORY CONCURRENCY
+================================================================
+
+Default conservative value.
+
+Multiple worktrees are possible, but excessive simultaneous edits on
+same repository increase conflict probability.
+
+================================================================
+60. PER-CAMPAIGN CONCURRENCY
+================================================================
+
+Campaign can have independent cap.
+
+================================================================
+61. MODEL CAPACITY AS RESOURCE
+================================================================
+
+Scheduler considers:
+
+runtime
+model
+resident state
+slots
+RAM
+quality requirements
+
+================================================================
+62. NO OVERSUBSCRIPTION
+================================================================
+
+Portfolio scheduler cannot bypass LocalInferenceScheduler admission.
+
+================================================================
+63. WORKER FAILURE
+================================================================
+
+Worker dies.
+
+Lease expires.
+
+Another worker resumes task from durable checkpoint.
+
+================================================================
+64. WORKER DRAIN
+================================================================
+
+Support:
+
+DRAINING
+
+No new tasks.
+
+Current task may finish.
+
+================================================================
+65. WORKER DISABLE
+================================================================
+
+Operator can disable unhealthy worker.
+
+================================================================
+66. REPOSITORY LOCK
+================================================================
+
+Some operations require exclusive repository-level mutation slot.
+
+Do not globally lock repo for read-only analysis unnecessarily.
+
+================================================================
+67. CONFLICT DOMAIN
+================================================================
+
+Track:
+
+base branch
+target branch
+files likely touched
+
+Use it as advisory scheduling evidence.
+
+Do not claim conflict prediction is perfect.
+
+================================================================
+68. SAME-REPO TASKS
+================================================================
+
+Two isolated worktrees allowed where policies permit.
+
+Before push/PR:
+
+perform drift/conflict checks.
+
+================================================================
+69. CROSS-REPO DEPENDENCIES
+================================================================
+
+Create optional dependency graph.
+
+Example:
+
+library repo
+→ service repo
+
+Do not infer dependencies purely from repository names.
+
+================================================================
+70. DEPENDENCY SOURCE
+================================================================
+
+Evidence can come from:
+
+package manifests
+workspace config
+explicit configuration
+artifact references
+
+================================================================
+71. REPOSITORY GRAPH
+================================================================
+
+Represent:
+
+RepositoryDependency
+
+source
+target
+type
+evidence
+confidence
+
+================================================================
+72. DEPENDENCY CYCLES
+================================================================
+
+Handle safely.
+
+Do not assume portfolio graph is DAG.
+
+================================================================
+73. DEPENDENCY-AWARE CAMPAIGN
+================================================================
+
+Example:
+
+update shared library
+→ validate dependent repos
+
+But only if explicit/evidence-backed dependency exists.
+
+================================================================
+74. CROSS-REPO TASK GRAPH
+================================================================
+
+Support dependencies between tasks where needed.
+
+Reuse workflow/dependency primitives.
+
+================================================================
+75. DO NOT OVERBUILD DAG ENGINE
+================================================================
+
+If existing WorkflowEngine supports it, reuse it.
+
+================================================================
+76. DEPENDENCY UPDATE CAMPAIGN
+================================================================
+
+Implement safe architecture for dependency maintenance.
+
+Do not blindly update every dependency to latest.
+
+================================================================
+77. DEPENDENCY DETECTION
+================================================================
+
+Use ecosystem files.
+
+Examples:
+
+pyproject
+requirements
+package.json
+lockfiles
+
+================================================================
+78. UPDATE POLICY
+================================================================
+
+Support:
+
+PATCH_ONLY
+MINOR_ALLOWED
+EXPLICIT_VERSION
+SECURITY_ONLY
+
+================================================================
+79. NO AUTO-MAJOR
+================================================================
+
+Major version updates require explicit policy/approval.
+
+================================================================
+80. LOCKFILE
+================================================================
+
+Respect native package manager.
+
+Do not manually fabricate lockfile changes.
+
+================================================================
+81. INSTALL COMMAND
+================================================================
+
+Use detected package manager.
+
+No silent global installs.
+
+================================================================
+82. DEPENDENCY CAMPAIGN VALIDATION
+================================================================
+
+Each repository independently:
+
+baseline
+update
+tests
+review
+
+Failure does not imply every repository must stop.
+
+================================================================
+83. SECURITY CAMPAIGN
+================================================================
+
+Architecture can create security repair tasks.
+
+Do not claim vulnerability detection completeness.
+
+================================================================
+84. SECURITY INPUT
+================================================================
+
+Potential sources:
+
+existing scanner output
+dependency advisory input
+manual finding
+CI result
+
+Core should not require paid scanner.
+
+================================================================
+85. SECURITY FIX PRIORITY
+================================================================
+
+Critical/high may receive higher queue priority.
+
+Still preserve safety/approval.
+
+================================================================
+86. CI REPAIR CAMPAIGN
+================================================================
+
+Find repositories with failing CI evidence.
+
+Create bounded CI repair tasks.
+
+================================================================
+87. CI DISCOVERY REQUIRED
+================================================================
+
+Upgrade-21 P0 must have completed CI discovery before this campaign is
+called verified.
+
+================================================================
+88. DOCUMENTATION CAMPAIGN
+================================================================
+
+Low-risk example campaign.
+
+Can identify missing/stale docs using deterministic project signals.
+
+Do not auto-push by default.
+
+================================================================
+89. TEST MAINTENANCE CAMPAIGN
+================================================================
+
+Examples:
+
+fix known failing tests
+modernize test configuration
+
+Never weaken tests to make campaign green.
+
+================================================================
+90. CODE QUALITY CAMPAIGN
+================================================================
+
+Lint/type failures may be targeted.
+
+Do not reformat entire portfolio unexpectedly.
+
+================================================================
+91. AUTONOMOUS MAINTENANCE WINDOW
+================================================================
+
+Allow campaign schedule configuration.
+
+Core system does not require external scheduler SaaS.
+
+================================================================
+92. DURABLE CAMPAIGN SCHEDULE
+================================================================
+
+Store schedule/next run durably.
+
+================================================================
+93. MISSED RUN
+================================================================
+
+Define policy:
+
+SKIP
+RUN_ON_START
+RESCHEDULE
+
+Do not execute hundreds of missed campaigns after long downtime by
+accident.
+
+================================================================
+94. PORTFOLIO BASELINE
+================================================================
+
+Create periodic repository health snapshot.
+
+Do not continuously run expensive tests.
+
+================================================================
+95. HEALTH REFRESH
+================================================================
+
+Trigger:
+
+manual
+campaign
+task
+scheduled low-frequency
+
+================================================================
+96. STALE HEALTH
+================================================================
+
+Old health snapshot must display freshness.
+
+================================================================
+97. REPOSITORY RISK
+================================================================
+
+Optional risk classification:
+
+LOW
+MEDIUM
+HIGH
+
+Based on configuration.
+
+Do not infer business criticality automatically without evidence.
+
+================================================================
+98. PROTECTED REPOSITORIES
+================================================================
+
+Allow policy:
+
+NO_AUTONOMOUS_WRITE
+APPROVAL_REQUIRED
+LOCAL_ONLY
+PR_ONLY
+
+================================================================
+99. REPOSITORY POLICY PRECEDENCE
+================================================================
+
+Global
+→ organization
+→ portfolio
+→ repository
+→ task
+
+More restrictive policy wins.
+
+================================================================
+100. CAMPAIGN CANNOT OVERRIDE SECURITY
+================================================================
+
+A campaign cannot grant itself additional permissions.
+
+================================================================
+101. REMOTE MUTATION POLICY
+================================================================
+
+Portfolio-wide default:
+
+LOCAL_ONLY
+
+Unless explicitly changed.
+
+================================================================
+102. PR CAMPAIGN MODE
+================================================================
+
+Optional:
+
+LOCAL_ONLY
+DRAFT_PR
+PR
+NO_AUTO_MERGE
+
+================================================================
+103. NO AUTO-MERGE DEFAULT
+================================================================
+
+Fleet maintenance must not mass-merge by default.
+
+================================================================
+104. BLAST RADIUS
+================================================================
+
+Campaign has:
+
+max_repositories
+max_concurrent_mutations
+max_PRs
+max_failures
+
+================================================================
+105. FAILURE CIRCUIT BREAKER
+================================================================
+
+If campaign failure rate exceeds threshold:
+
+pause campaign.
+
+================================================================
+106. SECURITY CIRCUIT BREAKER
+================================================================
+
+Any critical security invariant violation can immediately pause campaign.
+
+================================================================
+107. QUALITY CIRCUIT BREAKER
+================================================================
+
+Repeated regressions may pause campaign.
+
+================================================================
+108. COST CIRCUIT BREAKER
+================================================================
+
+For no-cost profile:
+
+paid transport call attempt = hard stop.
+
+================================================================
+109. CAMPAIGN ROLLOUT
+================================================================
+
+Support:
+
+CANARY
+BATCHED
+ALL
+
+Default for large portfolio:
+
+CANARY or bounded batch.
+
+================================================================
+110. CANARY
+================================================================
+
+Run small repository subset first.
+
+Evaluate:
+
+success
+validation
+security
+repair attempts
+
+Then proceed.
+
+================================================================
+111. CANARY PROMOTION
+================================================================
+
+Operator/policy can promote campaign to next batch.
+
+================================================================
+112. AUTOMATIC PROMOTION
+================================================================
+
+Allowed only under explicit rules.
+
+Never based solely on model self-assessment.
+
+================================================================
+113. BATCH SIZE
+================================================================
+
+Configurable.
+
+================================================================
+114. CAMPAIGN ROLLBACK
+================================================================
+
+Do not promise automatic cross-repo rollback.
+
+For local unpushed commits, cleanup/revert is possible.
+
+For already-merged changes, separate remediation campaign may be
+required.
+
+Document truthfully.
+
+================================================================
+115. CAMPAIGN CHECKPOINTS
+================================================================
+
+Persist:
+
+selected repos
+completed
+failed
+running
+next batch
+policy version
+
+================================================================
+116. PORTFOLIO EVENTS
+================================================================
+
+Events:
+
+CAMPAIGN_CREATED
+CAMPAIGN_STARTED
+REPO_TASK_CREATED
+REPO_TASK_SUCCEEDED
+REPO_TASK_FAILED
+CAMPAIGN_PAUSED
+CAMPAIGN_COMPLETED
+
+================================================================
+117. DURABLE CAMPAIGN OUTBOX
+================================================================
+
+Any remote mutation still uses EngineeringOperation journal.
+
+No campaign-specific bypass.
+
+================================================================
+118. OPERATION RECONCILIATION
+================================================================
+
+Fleet restart:
+
+reconcile UNKNOWN push/PR operations before dispatching retry.
+
+================================================================
+119. PORTFOLIO RESTART
+================================================================
+
+Kill fleet coordinator.
+
+Restart.
+
+Campaign progress remains.
+
+No duplicate tasks.
+
+================================================================
+120. CAMPAIGN TASK IDEMPOTENCY
+================================================================
+
+Stable key:
+
+campaign
+repository
+task template/version
+
+prevents duplicate task creation.
+
+================================================================
+121. SCHEDULER RESTART
+================================================================
+
+Scheduler can rebuild queues from durable runnable task state.
+
+Queue itself need not be persisted separately if safely reconstructable.
+
+================================================================
+122. NO RAM-ONLY SOURCE OF TRUTH
+================================================================
+
+Critical fleet state must remain reconstructable from durable storage.
+
+================================================================
+123. PORTFOLIO API
+================================================================
+
+Expose authorized API for:
+
+repositories
+health
+campaigns
+tasks
+workers
+fleet status
+
+================================================================
+124. CLI
+================================================================
+
+Target commands:
+
+zcoder repos list
+zcoder repos add PATH
+zcoder repos status REPO
+zcoder repos health REPO
+
+zcoder portfolio status
+
+zcoder campaign create
+zcoder campaign plan ID
+zcoder campaign run ID
+zcoder campaign pause ID
+zcoder campaign resume ID
+zcoder campaign cancel ID
+zcoder campaign status ID
+
+zcoder fleet status
+zcoder fleet workers
+zcoder fleet queue
+
+================================================================
+125. DRY RUN CLI
+================================================================
+
+Example:
+
+zcoder campaign create dependency-update \
+  --policy patch-only \
+  --dry-run
+
+Must not mutate repositories.
+
+================================================================
+126. CAMPAIGN PLAN OUTPUT
+================================================================
+
+Show:
+
+repositories
+task
+validation
+local model
+cost
+push policy
+approval
+batching
+
+================================================================
+127. PORTFOLIO DASHBOARD
+================================================================
+
+If Web self-hosted profile is real:
+
+Portfolio
+Repositories
+Health
+Campaigns
+Fleet
+Queue
+Workers
+Failures
+Approvals
+
+No fake metrics.
+
+================================================================
+128. PORTFOLIO SUMMARY
+================================================================
+
+Show:
+
+repositories total
+healthy
+degraded
+failing
+active tasks
+queued tasks
+campaigns
+
+================================================================
+129. REPOSITORY VIEW
+================================================================
+
+Show:
+
+readiness
+health
+latest baseline
+recent tasks
+CI
+model profile
+policy
+
+================================================================
+130. CAMPAIGN VIEW
+================================================================
+
+Show:
+
+scope
+batch
+progress
+success/failure
+paused reason
+remote mutations
+
+================================================================
+131. FLEET VIEW
+================================================================
+
+Show:
+
+workers
+capacity
+queues
+local model capacity
+memory pressure
+
+================================================================
+132. APPROVAL INBOX
+================================================================
+
+Portfolio campaigns may generate multiple approval requests.
+
+Support grouped view.
+
+But approval remains bound individually or to safe exact campaign
+action set.
+
+================================================================
+133. BULK APPROVAL
+================================================================
+
+Do not implement unrestricted "approve all".
+
+If batch approval exists:
+
+bind exact task/action hashes.
+
+================================================================
+134. SECURITY
+================================================================
+
+Audit:
+
+repository path
+remote URL
+task source
+campaign query
+branch naming
+operation journal
+lease/fencing
+tenant scoping
+worker impersonation
+API authorization
+MCP
+secrets
+
+================================================================
+135. TENANT ISOLATION
+================================================================
+
+Portfolio, repositories, campaigns and fleet task metadata must be
+organization scoped under SaaS/multi-tenant mode.
+
+================================================================
+136. RLS
+================================================================
+
+Add real RLS policies for tenant-owned portfolio/fleet tables.
+
+Test with actual application role.
+
+================================================================
+137. WORKER AUTHENTICATION
+================================================================
+
+Multi-host workers require authenticated identity.
+
+Do not trust arbitrary worker_id from request body.
+
+For local single-host mode, use appropriate local trust boundary.
+
+================================================================
+138. WORKER CAPABILITY TRUST
+================================================================
+
+Capabilities should derive from trusted registration/attestation config,
+not task payload.
+
+================================================================
+139. FLEET SECRET DISTRIBUTION
+================================================================
+
+Workers receive only required SecretRef scope.
+
+No global secret dump.
+
+================================================================
+140. REPOSITORY CREDENTIALS
+================================================================
+
+Git credentials scoped per repository/provider.
+
+================================================================
+141. NO CROSS-REPO SECRET LEAK
+================================================================
+
+Task for Repo A cannot receive Repo B credentials.
+
+================================================================
+142. LOCAL MODEL CONTEXT ISOLATION
+================================================================
+
+Shared local model weights okay.
+
+Prompt/context remains task/repository scoped.
+
+================================================================
+143. RAG INDEX ISOLATION
+================================================================
+
+Repository A RAG results cannot appear in Repo B task.
+
+================================================================
+144. WORKTREE ISOLATION
+================================================================
+
+Every task has independent managed workspace.
+
+================================================================
+145. RESOURCE QUOTAS
+================================================================
+
+Optional:
+
+tasks per org
+campaign concurrency
+worker slots
+
+No paid billing required.
+
+================================================================
+146. PORTFOLIO PERFORMANCE
+================================================================
+
+Measure:
+
+task queue latency
+campaign throughput
+claim latency
+resume latency
+
+No fabricated numbers.
+
+================================================================
+147. FLEET SCALE FIXTURE
+================================================================
+
+Create dozens/hundreds of lightweight fake tasks.
+
+Use FakeLocalModel.
+
+Measure orchestration scalability without expensive inference.
+
+================================================================
+148. MULTI-REPO FIXTURE
+================================================================
+
+Create multiple actual temporary Git repositories.
+
+Not merely repository objects in memory.
+
+================================================================
+149. REAL MULTI-REPO E2E
+================================================================
+
+At least several actual local Git repositories:
+
+campaign
+→ tasks
+→ actual worktrees
+→ actual validation
+→ commits
+
+No GitHub required.
+
+================================================================
+150. FLEET CRASH E2E
+================================================================
+
+Start campaign.
+
+Kill coordinator/worker.
+
+Restart.
+
+Prove:
+
+no duplicate task
+no duplicate commit
+campaign resumes
+
+================================================================
+151. POSTGRES MULTI-WORKER E2E
+================================================================
+
+Required to claim distributed fleet.
+
+Real PostgreSQL.
+
+Multiple processes.
+
+No duplicate claims.
+
+================================================================
+152. SQLITE MODE
+================================================================
+
+Single-host local fleet may use SQLite with documented concurrency
+constraints.
+
+Do not call it multi-node distributed.
+
+================================================================
+153. STORAGE CAPABILITIES
+================================================================
+
+Expose:
+
+supports_multi_process
+supports_multi_host
+supports_skip_locked
+supports_fencing
+
+Scheduler refuses unsupported deployment topology.
+
+================================================================
+154. NO FALSE DISTRIBUTED CLAIM
+================================================================
+
+SQLite local mode:
+
+SINGLE_HOST
+
+PostgreSQL proven multi-process:
+
+MULTI_PROCESS
+
+Multi-host only if executed/proven or architecture limitation stated.
+
+================================================================
+155. DEPENDENCY CAMPAIGN TEST
+================================================================
+
+Synthetic multi-repo portfolio.
+
+Patch-only dependency update.
+
+Verify:
+
+correct package manager
+lockfile handling
+validators
+separate commits
+
+================================================================
+156. CI REPAIR CAMPAIGN TEST
+================================================================
+
+Use fake CI provider.
+
+Repositories with PASS CI are skipped.
+
+FAIL repos get tasks.
+
+================================================================
+157. SECURITY CAMPAIGN TEST
+================================================================
+
+Use deterministic fake finding.
+
+Critical policy violation stops rollout.
+
+================================================================
+158. CAMPAIGN CANARY TEST
+================================================================
+
+10 repos.
+
+Canary 2.
+
+Canary failure threshold reached.
+
+Remaining 8 must not start.
+
+================================================================
+159. CAMPAIGN RESUME TEST
+================================================================
+
+Crash after 4/10 complete.
+
+Restart.
+
+Exactly remaining 6 eligible.
+
+================================================================
+160. CAMPAIGN CANCEL TEST
+================================================================
+
+No new tasks after cancel.
+
+================================================================
+161. FAIRNESS TEST
+================================================================
+
+Large campaign + interactive task.
+
+Interactive task receives bounded service.
+
+================================================================
+162. NOISY REPO TEST
+================================================================
+
+Repo A repeatedly fails.
+
+Repos B/C still progress.
+
+================================================================
+163. CROSS-TENANT TEST
+================================================================
+
+Org A cannot:
+
+list
+read
+schedule
+cancel
+
+Org B campaigns/tasks/repos.
+
+================================================================
+164. WORKER FENCING TEST
+================================================================
+
+Stale worker attempts commit/push.
+
+Denied.
+
+================================================================
+165. OPERATION JOURNAL E2E
+================================================================
+
+Crash after local remote push.
+
+Restart fleet.
+
+Operation reconciled.
+
+No duplicate.
+
+================================================================
+166. TEST STRUCTURE
+================================================================
+
+Create substantial separate suites.
+
+Do not implement Upgrade-22 as three tests.
+
+Suggested:
+
+test_upgrade22_durability_real_process.py
+test_upgrade22_real_git.py
+test_upgrade22_postgres_fleet.py
+test_upgrade22_portfolio.py
+test_upgrade22_campaigns.py
+test_upgrade22_scheduler.py
+test_upgrade22_security.py
+test_upgrade22_recovery.py
+
+================================================================
+167. RELEASE PROFILES
+================================================================
+
+Maintain:
+
+CORE_FREE
+PROJECT_BOOTSTRAP
+LOCAL_DX_READY
+AUTONOMOUS_ENGINEERING
+LOCAL_PRODUCTION_RUNTIME
+QUALITY_ENGINEERING
+
+Upgrade:
+
+DURABLE_ENGINEERING
+REAL_GIT_ENGINEERING
+
+Add:
+
+PORTFOLIO_MANAGEMENT
+ENGINEERING_FLEET
+DISTRIBUTED_ENGINEERING_FLEET
+MAINTENANCE_CAMPAIGNS
+
+================================================================
+168. DURABLE_ENGINEERING
+================================================================
+
+Must have real subprocess restart evidence.
+
+Not same-process reload.
+
+================================================================
+169. REAL_GIT_ENGINEERING
+================================================================
+
+Must use actual Git CLI/worktree/commit/local remote.
+
+================================================================
+170. PORTFOLIO_MANAGEMENT
+================================================================
+
+Requires:
+
+repo registry
+health
+readiness
+portfolio views/API/CLI
+
+================================================================
+171. ENGINEERING_FLEET
+================================================================
+
+Requires:
+
+durable task dispatch
+workers
+capacity
+fairness
+restart
+campaign scheduling
+
+Single-host allowed.
+
+================================================================
+172. DISTRIBUTED_ENGINEERING_FLEET
+================================================================
+
+Requires:
+
+real PostgreSQL
+multi-process claims
+fencing
+restart
+no duplicates
+
+Do not mark PASS from SQLite.
+
+================================================================
+173. MAINTENANCE_CAMPAIGNS
+================================================================
+
+Requires:
+
+durable campaign
+snapshot scope
+batching
+canary
+failure circuit breaker
+resume/cancel
+
+================================================================
+174. REAL LOCAL MODEL REMAINS SEPARATE
+================================================================
+
+Fleet orchestration can PASS E3/E4 using deterministic model runtime.
+
+LOCAL_ENGINEERING_VERIFIED still requires actual local LLM.
+
+================================================================
+175. REAL GITHUB REMAINS SEPARATE
+================================================================
+
+PR_AUTOMATION_VERIFIED still requires actual sandbox.
+
+================================================================
+176. RELEASE GATES
+================================================================
+
+SOURCE_TRUTH
+VERSION_INTEGRITY
+TEST_ACCOUNTING
+
+NO_COST_CORE
+ZERO_PAID_CALLS
+OFFLINE_EXECUTION
+
+ENGINEERING_STORE
+SQLITE_DURABILITY
+POSTGRES_ENGINEERING_STORE
+
+PROCESS_RESTART_RECOVERY
+HARD_CRASH_RECOVERY
+
+REAL_GIT_REPOSITORY
+REAL_GIT_WORKTREE
+REAL_VALIDATION
+REAL_COMMIT
+LOCAL_REMOTE_PUSH
+
+OPERATION_JOURNAL
+COMMIT_RECONCILIATION
+PUSH_RECONCILIATION
+
+POSTGRES_MULTI_PROCESS
+LEASE_FENCING
+STALE_WORKER_FENCE
+
+PORTFOLIO
+REPOSITORY_HEALTH
+
+CAMPAIGN_MODEL
+CAMPAIGN_SCOPE
+CAMPAIGN_CANARY
+CAMPAIGN_RESUME
+CAMPAIGN_CANCEL
+CAMPAIGN_CIRCUIT_BREAKER
+
+FLEET_WORKERS
+FLEET_CAPACITY
+FLEET_FAIRNESS
+FLEET_RECOVERY
+
+REPOSITORY_ISOLATION
+TENANT_FLEET_ISOLATION
+
+MAINTENANCE_CAMPAIGNS
+
+================================================================
+177. RELEASE GATE EXAMPLE
+================================================================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+NO_COST_CORE: PASS
+ZERO_PAID_CALLS: PASS
+OFFLINE_EXECUTION: PASS
+
+ENGINEERING_STORE: PASS
+SQLITE_DURABILITY: PASS
+POSTGRES_ENGINEERING_STORE: PASS
+
+PROCESS_RESTART_RECOVERY: PASS
+HARD_CRASH_RECOVERY: PASS
+
+REAL_GIT_REPOSITORY: PASS
+REAL_GIT_WORKTREE: PASS
+REAL_VALIDATION: PASS
+REAL_COMMIT: PASS
+LOCAL_REMOTE_PUSH: PASS
+
+OPERATION_JOURNAL: PASS
+COMMIT_RECONCILIATION: PASS
+PUSH_RECONCILIATION: PASS
+
+POSTGRES_MULTI_PROCESS: PASS
+LEASE_FENCING: PASS
+STALE_WORKER_FENCE: PASS
+
+PORTFOLIO: PASS
+REPOSITORY_HEALTH: PASS
+
+CAMPAIGN_MODEL: PASS
+CAMPAIGN_SCOPE: PASS
+CAMPAIGN_CANARY: PASS
+CAMPAIGN_RESUME: PASS
+CAMPAIGN_CANCEL: PASS
+CAMPAIGN_CIRCUIT_BREAKER: PASS
+
+FLEET_WORKERS: PASS
+FLEET_CAPACITY: PASS
+FLEET_FAIRNESS: PASS
+FLEET_RECOVERY: PASS
+
+REPOSITORY_ISOLATION: PASS
+TENANT_FLEET_ISOLATION: PASS
+
+MAINTENANCE_CAMPAIGNS: PASS
+
+LOCAL_RUNTIME_VERIFIED:
+    evidence-derived
+
+LOCAL_ENGINEERING_VERIFIED:
+    evidence-derived
+
+PR_AUTOMATION_VERIFIED:
+    evidence-derived
+
+REAL_GITHUB_SANDBOX:
+    evidence-derived
+
+WEB_SELF_HOSTED:
+    evidence-derived
+
+PITR:
+    PASS_WITH_LIMITATIONS
+
+SECURITY: PASS
+DOCS: PASS
+
+FINAL:
+    evidence-derived
+
+================================================================
+178. DOCUMENTATION
+================================================================
+
+Add:
+
+docs/UPGRADE-22.md
+
+docs/fleet/ARCHITECTURE.md
+docs/fleet/WORKERS.md
+docs/fleet/SCHEDULER.md
+docs/fleet/CAPACITY.md
+docs/fleet/FAIRNESS.md
+docs/fleet/RECOVERY.md
+
+docs/portfolio/PORTFOLIO.md
+docs/portfolio/REPOSITORY-HEALTH.md
+
+docs/campaigns/CAMPAIGNS.md
+docs/campaigns/DEPENDENCY-UPDATES.md
+docs/campaigns/CI-REPAIR.md
+docs/campaigns/SECURITY.md
+docs/campaigns/CANARY.md
+
+docs/REAL-DURABILITY-EVIDENCE.md
+docs/OPERATION-RECONCILIATION.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+docs/ENGINEERING-DURABILITY.md
+docs/AUTONOMOUS-ENGINEERING.md
+
+================================================================
+179. CLI QUICKSTART
+================================================================
+
+Local no-cost portfolio:
+
+zcoder repos add ~/projects/project-a
+zcoder repos add ~/projects/project-b
+
+zcoder portfolio status
+
+zcoder campaign create ci-repair --dry-run
+zcoder campaign run CAMPAIGN_ID
+
+zcoder fleet status
+
+No cloud account required.
+
+================================================================
+180. VERSION DECISION
+================================================================
+
+Inspect actual repository release history.
+
+The system has reportedly accumulated many substantial subsystems under
+v1.40.0.
+
+Explicitly determine:
+
+latest Git tag
+published release
+package version
+whether 1.40.0 is released or pre-release
+
+If already published:
+
+bump SemVer appropriately.
+
+Never mutate the meaning of an immutable released version.
+
+================================================================
+181. REQUIRED FINAL VERIFICATION
+================================================================
+
+Run:
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+
+clean wheel install
+
+zcoder --version
+zcoder fleet status --help
+zcoder campaign --help
+zcoder repos --help
+
+git diff --check
+git status --short
+
+Run separately:
+
+REAL subprocess SQLite crash/restart
+
+REAL Git repository
+REAL Git worktree
+REAL pytest fail -> pass
+REAL commit
+REAL local bare remote push
+operation reconciliation
+
+REAL PostgreSQL multi-process tests
+stale worker fencing
+
+portfolio tests
+campaign tests
+canary tests
+fairness tests
+fleet restart tests
+cross-tenant tests
+
+offline fleet E2E
+zero-paid fleet E2E
+
+Optional:
+
+real local LLM
+real GitHub sandbox
+real CI sandbox
+Web
+
+================================================================
+182. REQUIRED DURABILITY EVIDENCE
+================================================================
+
+Report actual:
+
+Process A PID
+crash point
+Process B PID
+SQLite DB path
+task ID
+attempt ID
+checkpoint sequence
+recovered state
+
+For PostgreSQL:
+
+number of worker processes
+tasks
+claims
+duplicates
+stale mutations
+
+================================================================
+183. REQUIRED REAL GIT EVIDENCE
+================================================================
+
+Report:
+
+git version
+repository path
+baseline SHA
+worktree path
+branch
+test before
+actual diff
+test after
+commit SHA
+bare remote ref
+
+================================================================
+184. DEFINITION OF DONE
+================================================================
+
+Upgrade-22 is complete only when:
+
+[ ] Upgrade-21 claims are truth-audited
+[ ] real subprocess restart is tested
+[ ] hard crash is tested
+[ ] SQLite persists across separate processes
+[ ] PostgreSQL backend is executed if distributed fleet claimed
+[ ] PostgreSQL multi-process claims produce zero duplicates
+[ ] stale worker fencing is real
+[ ] actual Git repository is exercised
+[ ] actual git worktree is exercised
+[ ] actual validator fail->pass is executed
+[ ] actual commit is created
+[ ] actual local remote push is executed
+[ ] commit/push UNKNOWN states reconcile
+[ ] durable operation journal exists
+[ ] repository portfolio exists
+[ ] repository health is evidence-based
+[ ] campaign scope is snapshotted
+[ ] campaign tasks are idempotent
+[ ] campaign restart works
+[ ] canary rollout works
+[ ] circuit breaker works
+[ ] portfolio scheduler is fair
+[ ] interactive jobs are not starved
+[ ] fleet workers are durably registered
+[ ] worker crash recovery works
+[ ] local inference capacity constrains dispatch
+[ ] per-repository concurrency is bounded
+[ ] no campaign bypasses tool/security/cost policy
+[ ] repository secrets are isolated
+[ ] tenant fleet isolation passes
+[ ] no Redis/Kafka/cloud dependency is introduced
+[ ] zero-cost fleet mode makes zero paid calls
+[ ] real model/GitHub/Web evidence remains separately classified
+[ ] inherited RLS/security gates remain green
+
+================================================================
+185. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-21 Truth Corrections
+
+Capability | Previous Claim | Executed Evidence | Tier | Verdict
+
+## 3. Version Decision
+
+## 4. Real Durability Evidence
+
+SQLite:
+Process A:
+Crash:
+Process B:
+Recovered:
+
+## 5. PostgreSQL Multi-Process Evidence
+
+PostgreSQL version:
+Processes:
+Tasks:
+Duplicates:
+Stale mutations:
+
+## 6. Real Git Evidence
+
+Git version:
+Repository:
+Baseline SHA:
+Worktree:
+Branch:
+Commit:
+Remote:
+
+## 7. Operation Journal
+
+## 8. Crash Reconciliation
+
+Commit:
+Push:
+PR:
+
+## 9. Portfolio Architecture
+
+## 10. Repositories
+
+Repository | Type | Readiness | Health | Policy
+
+## 11. Repository Health
+
+## 12. Campaign Architecture
+
+## 13. Campaign Types
+
+## 14. Campaign Canary / Batching
+
+## 15. Campaign Resume / Cancel
+
+## 16. Campaign Circuit Breakers
+
+## 17. Fleet Architecture
+
+## 18. Workers
+
+Worker | Host | State | Capabilities | Active Task
+
+## 19. Fleet Capacity
+
+## 20. Scheduler / Fairness
+
+## 21. Same-Repository Concurrency
+
+## 22. Dependency Graph
+
+## 23. Maintenance Campaign E2E
+
+Dependency:
+CI repair:
+Security:
+Documentation:
+
+## 24. Tenant / Repository Isolation
+
+## 25. Offline / Zero-Paid Proof
+
+Anthropic:
+OpenAI paid:
+Stripe:
+Hosted embeddings:
+Other paid:
+
+## 26. Real Local Model
+
+Status:
+Runtime:
+Model:
+Digest:
+Evidence tier:
+
+## 27. Real GitHub / CI
+
+GitHub sandbox:
+PR:
+CI:
+Evidence tier:
+
+## 28. Security Review
+
+## 29. Failure Injection
+
+Coordinator crash:
+Worker crash:
+SQLite crash:
+PostgreSQL worker loss:
+Unknown push:
+Campaign restart:
+
+## 30. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+durability
+SQLite
+PostgreSQL
+real Git
+operation journal
+portfolio
+campaign
+scheduler
+fleet
+fairness
+recovery
+security
+tenant isolation
+offline
+real local model
+GitHub
+Web
+
+## 31. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 32. Release Profiles
+
+CORE_FREE:
+AUTONOMOUS_ENGINEERING:
+DURABLE_ENGINEERING:
+REAL_GIT_ENGINEERING:
+PORTFOLIO_MANAGEMENT:
+ENGINEERING_FLEET:
+DISTRIBUTED_ENGINEERING_FLEET:
+MAINTENANCE_CAMPAIGNS:
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_ENGINEERING_VERIFIED:
+PR_AUTOMATION_VERIFIED:
+SELF_HOSTED:
+
+## 33. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+NO_COST_CORE:
+ZERO_PAID_CALLS:
+OFFLINE_EXECUTION:
+
+ENGINEERING_STORE:
+SQLITE_DURABILITY:
+POSTGRES_ENGINEERING_STORE:
+
+PROCESS_RESTART_RECOVERY:
+HARD_CRASH_RECOVERY:
+
+REAL_GIT_REPOSITORY:
+REAL_GIT_WORKTREE:
+REAL_VALIDATION:
+REAL_COMMIT:
+LOCAL_REMOTE_PUSH:
+
+OPERATION_JOURNAL:
+COMMIT_RECONCILIATION:
+PUSH_RECONCILIATION:
+
+POSTGRES_MULTI_PROCESS:
+LEASE_FENCING:
+STALE_WORKER_FENCE:
+
+PORTFOLIO:
+REPOSITORY_HEALTH:
+
+CAMPAIGN_MODEL:
+CAMPAIGN_SCOPE:
+CAMPAIGN_CANARY:
+CAMPAIGN_RESUME:
+CAMPAIGN_CANCEL:
+CAMPAIGN_CIRCUIT_BREAKER:
+
+FLEET_WORKERS:
+FLEET_CAPACITY:
+FLEET_FAIRNESS:
+FLEET_RECOVERY:
+
+REPOSITORY_ISOLATION:
+TENANT_FLEET_ISOLATION:
+
+MAINTENANCE_CAMPAIGNS:
+
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_ENGINEERING_VERIFIED:
+
+PR_AUTOMATION_VERIFIED:
+REAL_GITHUB_SANDBOX:
+REAL_CI_SANDBOX:
+
+WEB_SELF_HOSTED:
+
+PITR:
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 34. Files Changed
+
+## 35. Remaining Limitations
+
+Explicitly state:
+
+real subprocess crash?
+real SQLite recovery?
+real PostgreSQL?
+real multi-process workers?
+real Git worktree?
+real commit?
+real push?
+real local model?
+real GitHub?
+real CI?
+real merge?
+Windows?
+macOS?
+GPU?
+PITR?
+PostgreSQL HA?
+multi-host hardware?
+multi-region?
+
+## 36. Final Verdict
+
+Never call simulated restart a hard-crash durability proof.
+
+Never claim distributed fleet from a PostgreSQL adapter that was not
+executed against real PostgreSQL.
+
+Never claim REAL_GIT_ENGINEERING without actual git CLI worktree,
+validation, commit and remote evidence.
+
+Never retry UNKNOWN external mutations blindly.
+
+Never allow a campaign to amplify an unsafe operation across dozens of
+repositories.
+
+Never optimize throughput ahead of security, quality, tenant isolation
+or zero-paid policy.
+
+Upgrade-22 succeeds when ZCoder can reliably coordinate autonomous
+engineering across many repositories while surviving coordinator and
+worker failures without duplicate engineering work or uncontrolled
+remote mutations.

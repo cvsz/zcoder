@@ -1,0 +1,2298 @@
+# UPGRADE-23
+# Autonomous Maintenance Intelligence
+#
+# Repository Health Intelligence
+# Dependency Graph
+# Dependency Staleness
+# Vulnerability / Advisory Ingestion
+# CI Failure Intelligence
+# Maintenance Recommendation Engine
+# Risk Prioritization
+# Campaign Planner
+# Portfolio Engineering Intelligence
+#
+# PRIMARY PRINCIPLES
+#
+# NO-COST FIRST
+# LOCAL-FIRST
+# DETERMINISTIC ANALYSIS BEFORE LLM
+# EVIDENCE-BACKED RECOMMENDATIONS
+# NO SILENT CODE MUTATION
+# NO SILENT DEPENDENCY UPDATE
+# NO AUTOMATIC MAJOR VERSION UPGRADE
+# NO SILENT PAID FALLBACK
+# SECURITY / QUALITY > CAMPAIGN THROUGHPUT
+
+You are operating directly inside ZCoder after Upgrade-22.
+
+================================================================
+MISSION
+================================================================
+
+Upgrade-22 reportedly completed the durable engineering fleet:
+
+- SQLite WAL durability
+- PostgreSQL distributed coordination
+- subprocess crash recovery
+- multi-process worker contention
+- RLS
+- repository portfolio
+- engineering campaigns
+- worker fleet
+- campaign scheduler
+- durable recovery
+
+Upgrade-23 must make that fleet INTELLIGENT.
+
+Current system can execute work.
+
+Upgrade-23 answers:
+
+"What work should we do next, and why?"
+
+Target:
+
+Repository Portfolio
+        │
+        ▼
+Evidence Collectors
+        │
+        ├── Git
+        ├── CI
+        ├── Dependency manifests
+        ├── Test baselines
+        ├── Security advisories
+        ├── Runtime/support metadata
+        └── Project configuration
+        │
+        ▼
+Maintenance Intelligence Engine
+        │
+        ├── Dependency Graph
+        ├── CI Failure Clustering
+        ├── Risk Scoring
+        ├── Staleness Detection
+        ├── Repository Health
+        └── Opportunity Detection
+        │
+        ▼
+Recommendation Engine
+        │
+        ▼
+Campaign Planner
+        │
+        ├── CI repair
+        ├── security remediation
+        ├── dependency maintenance
+        ├── test maintenance
+        ├── documentation
+        └── repository hygiene
+        │
+        ▼
+Upgrade-22 Durable Engineering Fleet
+
+The intelligence layer recommends and plans.
+
+The existing engineering runtime executes.
+
+Do NOT build another execution engine.
+
+================================================================
+PHASE 0 — FINAL UPGRADE-22 RELEASE AUDIT
+================================================================
+
+Before adding intelligence, independently verify the Upgrade-22
+foundation.
+
+Run:
+
+git status --short
+git log -40 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+git diff --check
+
+Run all current release gates.
+
+Verify separately:
+
+SQLite durability
+real subprocess restart
+hard crash recovery
+PostgreSQL integration
+multi-process task claiming
+RLS
+stale worker fencing
+real Git repository
+real git worktree
+real commit
+local bare remote
+operation reconciliation
+campaign restart
+fleet fairness
+
+Produce:
+
+UPGRADE-22 FINAL FOUNDATION MATRIX
+
+Capability
+Implementation
+Execution Evidence
+Evidence Tier
+Required Skip?
+Verdict
+
+Do not begin Upgrade-23 implementation if a P0 durability or tenant
+isolation regression exists.
+
+================================================================
+1. RELEASE VERSION TRUTH
+================================================================
+
+The repository has accumulated many major subsystems under v1.40.0.
+
+Inspect actual:
+
+Git tags
+package metadata
+release metadata
+wheel version
+
+Determine whether 1.40.0 is:
+
+UNRELEASED DEVELOPMENT
+PRE-RELEASE
+PUBLISHED RELEASE
+
+If it has already been published:
+
+select a new SemVer.
+
+Do not mutate an already released immutable version indefinitely.
+
+================================================================
+2. MAINTENANCE INTELLIGENCE DOMAIN
+================================================================
+
+Create:
+
+MaintenanceIntelligenceService
+
+Responsibilities:
+
+collect evidence
+normalize signals
+calculate repository health
+identify maintenance opportunities
+rank recommendations
+create campaign proposals
+
+It MUST NOT directly mutate repositories.
+
+================================================================
+3. EVIDENCE FIRST
+================================================================
+
+Every recommendation needs:
+
+recommendation
+reason
+source evidence
+confidence
+risk
+estimated scope
+
+No recommendation may be:
+
+"AI thinks this is probably useful"
+
+without evidence.
+
+================================================================
+4. MAINTENANCE SIGNAL
+================================================================
+
+Create:
+
+MaintenanceSignal
+
+Fields conceptually:
+
+id
+repository
+type
+severity
+source
+evidence
+detected_at
+freshness
+confidence
+status
+
+================================================================
+5. SIGNAL TYPES
+================================================================
+
+Initial signals:
+
+CI_FAILURE
+TEST_FAILURE
+LINT_FAILURE
+TYPECHECK_FAILURE
+BUILD_FAILURE
+
+DEPENDENCY_OUTDATED
+DEPENDENCY_SECURITY
+DEPENDENCY_UNPINNED
+
+UNSUPPORTED_RUNTIME
+STALE_CONFIGURATION
+
+DOCUMENTATION_STALE
+
+SECURITY_FINDING
+
+REPOSITORY_INACTIVE
+REPOSITORY_HEALTH_DEGRADED
+
+================================================================
+6. SIGNAL IS NOT TASK
+================================================================
+
+Signal:
+
+"dependency is outdated"
+
+does not automatically mean:
+
+"update dependency"
+
+The Recommendation Engine decides whether action is justified.
+
+================================================================
+7. SIGNAL FRESHNESS
+================================================================
+
+Track:
+
+FRESH
+STALE
+UNKNOWN
+
+Do not prioritize stale evidence as if current.
+
+================================================================
+8. EVIDENCE PROVENANCE
+================================================================
+
+Every signal records source.
+
+Examples:
+
+package.json
+pyproject.toml
+GitHub Actions
+test baseline
+advisory database
+Git history
+
+================================================================
+9. REPOSITORY DEPENDENCY INVENTORY
+================================================================
+
+Build normalized dependency inventory.
+
+Support at minimum detected ecosystems already understood by ZCoder.
+
+Examples:
+
+Python
+Node/TypeScript
+
+Extensible architecture for:
+
+Go
+Rust
+Java
+others
+
+================================================================
+10. DEPENDENCY RECORD
+================================================================
+
+Fields:
+
+ecosystem
+name
+declared_constraint
+resolved_version
+source_manifest
+lockfile
+direct_or_transitive
+development_dependency
+evidence
+
+================================================================
+11. DIRECT VS TRANSITIVE
+================================================================
+
+Keep distinct.
+
+Do not propose editing direct manifest for a purely transitive issue
+without understanding resolution mechanism.
+
+================================================================
+12. LOCKFILE EVIDENCE
+================================================================
+
+Use actual lockfiles when present.
+
+Do not infer resolved dependency version from declared range only.
+
+================================================================
+13. PACKAGE MANAGER
+================================================================
+
+Reuse Upgrade-19 package manager detection.
+
+No duplicated detector.
+
+================================================================
+14. DEPENDENCY GRAPH
+================================================================
+
+Create:
+
+DependencyGraph
+
+Nodes:
+
+repositories
+packages
+internal artifacts
+
+Edges:
+
+DEPENDS_ON
+DEV_DEPENDS_ON
+BUILDS_FROM
+CONSUMES_ARTIFACT
+
+================================================================
+15. EVIDENCE-BACKED EDGES
+================================================================
+
+Every dependency edge records source evidence.
+
+Do not infer:
+
+repo-name similarity
+→ dependency.
+
+================================================================
+16. INTERNAL REPOSITORY DEPENDENCY
+================================================================
+
+Detect internal dependencies where clear evidence exists.
+
+Examples:
+
+workspace configuration
+package reference
+path dependency
+internal package coordinates
+
+================================================================
+17. GRAPH CONFIDENCE
+================================================================
+
+Use:
+
+HIGH
+MEDIUM
+LOW
+
+Do not treat low-confidence graph edges as hard ordering constraints.
+
+================================================================
+18. DEPENDENCY CYCLES
+================================================================
+
+Graph may contain cycles.
+
+Algorithms must tolerate them.
+
+================================================================
+19. IMPACT ANALYSIS
+================================================================
+
+When dependency/repository changes:
+
+identify evidence-backed downstream repositories.
+
+Do not claim complete blast-radius detection unless proven.
+
+================================================================
+20. OUTDATED DEPENDENCY DETECTOR
+================================================================
+
+Create provider-neutral dependency version intelligence.
+
+Do not hardcode one commercial service.
+
+================================================================
+21. CURRENT VERSION
+================================================================
+
+Determine current installed/resolved version from repository evidence.
+
+================================================================
+22. AVAILABLE VERSION
+================================================================
+
+External lookup is optional/provider-backed.
+
+If network unavailable:
+
+status:
+
+VERSION_LOOKUP_UNAVAILABLE
+
+not:
+
+UP_TO_DATE.
+
+================================================================
+23. NO RANDOM SCRAPING
+================================================================
+
+Use official ecosystem registries/APIs where integration exists.
+
+================================================================
+24. VERSION POLICY
+================================================================
+
+Classify available update:
+
+PATCH
+MINOR
+MAJOR
+PRERELEASE
+UNKNOWN
+
+================================================================
+25. DEFAULT UPDATE POLICY
+================================================================
+
+No-cost maintenance default:
+
+PATCH_ONLY
+
+unless project configuration specifies otherwise.
+
+================================================================
+26. MAJOR UPDATE
+================================================================
+
+Never create automatic major-upgrade campaign without explicit policy.
+
+================================================================
+27. PRERELEASE
+================================================================
+
+Do not recommend prerelease upgrade by default.
+
+================================================================
+28. PINNING INTELLIGENCE
+================================================================
+
+Detect:
+
+exact pin
+range
+unpinned
+floating/latest-like configuration
+
+Do not assume exact pin is always best.
+
+Report policy implication.
+
+================================================================
+29. STALE DEPENDENCY
+================================================================
+
+Separate:
+
+OUTDATED
+
+from:
+
+VULNERABLE.
+
+They have different priority.
+
+================================================================
+30. SECURITY ADVISORY PROVIDER
+================================================================
+
+Create:
+
+AdvisoryProvider
+
+No-cost/open provider first.
+
+Commercial scanners remain optional adapters.
+
+================================================================
+31. ADVISORY RECORD
+================================================================
+
+Normalize:
+
+ecosystem
+package
+affected range
+fixed versions
+severity
+identifier
+source
+published/modified
+reference
+
+================================================================
+32. NO FALSE VULNERABILITY MATCH
+================================================================
+
+Match against actual resolved dependency version where possible.
+
+Do not mark package vulnerable simply because advisory mentions package
+name.
+
+================================================================
+33. UNKNOWN RESOLUTION
+================================================================
+
+If exact installed version cannot be determined:
+
+VULNERABILITY_STATUS_UNKNOWN
+
+not vulnerable-by-default.
+
+================================================================
+34. ADVISORY DEDUPLICATION
+================================================================
+
+Multiple sources may describe same issue.
+
+Normalize identifiers where possible.
+
+Do not inflate risk score by counting duplicate advisories.
+
+================================================================
+35. SECURITY SEVERITY
+================================================================
+
+Preserve source severity.
+
+Do not invent CVSS scores.
+
+================================================================
+36. FIX AVAILABILITY
+================================================================
+
+Distinguish:
+
+FIX_AVAILABLE
+NO_FIX
+UNKNOWN
+
+================================================================
+37. SECURITY RECOMMENDATION
+================================================================
+
+High-severity + fix available:
+
+strong candidate for remediation campaign.
+
+Still require:
+
+project compatibility
+policy
+validation
+
+================================================================
+38. SECURITY CAMPAIGN PRIORITY
+================================================================
+
+Security may outrank ordinary maintenance.
+
+But critical project policy/approval still applies.
+
+================================================================
+39. CI INTELLIGENCE
+================================================================
+
+Upgrade CI discovery into:
+
+CIFailureIntelligenceService
+
+================================================================
+40. CI FAILURE RECORD
+================================================================
+
+Normalize:
+
+repository
+workflow
+job
+step
+commit
+failure class
+message fingerprint
+timestamp
+
+================================================================
+41. FAILURE TAXONOMY
+================================================================
+
+Classify:
+
+TEST
+LINT
+TYPECHECK
+BUILD
+DEPENDENCY
+CONFIGURATION
+SECURITY
+INFRASTRUCTURE
+FLAKE
+UNKNOWN
+
+================================================================
+42. DO NOT FIX INFRA FAILURE AS CODE
+================================================================
+
+Infrastructure outage must not automatically generate code repair.
+
+================================================================
+43. FAILURE FINGERPRINT
+================================================================
+
+Create deterministic fingerprint using bounded normalized evidence.
+
+================================================================
+44. CI FAILURE CLUSTERING
+================================================================
+
+Group identical/similar failures across:
+
+runs
+branches
+repositories
+
+Start deterministic.
+
+Do not require embedding/LLM clustering.
+
+================================================================
+45. CROSS-REPO FAILURE CLUSTER
+================================================================
+
+Example:
+
+20 repos fail because shared CI action version broke.
+
+Recognize common pattern where evidence supports it.
+
+================================================================
+46. CLUSTER CONFIDENCE
+================================================================
+
+Report:
+
+HIGH
+MEDIUM
+LOW
+
+================================================================
+47. ROOT-CAUSE CANDIDATE
+================================================================
+
+Cluster may nominate likely common cause.
+
+Label:
+
+CANDIDATE
+
+not confirmed root cause unless evidence proves it.
+
+================================================================
+48. FLAKE INTELLIGENCE
+================================================================
+
+Track recurring test failures with inconsistent outcomes.
+
+Do not label a test flaky from one failure.
+
+================================================================
+49. FLAKE EVIDENCE
+================================================================
+
+Require repeated history.
+
+================================================================
+50. BASELINE INTELLIGENCE
+================================================================
+
+Reuse repository baseline history.
+
+Track:
+
+test status
+lint
+typecheck
+build
+
+over time.
+
+================================================================
+51. HEALTH TREND
+================================================================
+
+Create trend:
+
+IMPROVING
+STABLE
+DEGRADING
+UNKNOWN
+
+Based on evidence.
+
+================================================================
+52. REPOSITORY HEALTH MODEL V2
+================================================================
+
+Health dimensions:
+
+BUILD
+TEST
+CI
+SECURITY
+DEPENDENCIES
+MAINTENANCE
+READINESS
+
+================================================================
+53. HEALTH HARD GATES
+================================================================
+
+Critical security failure cannot be hidden by green documentation score.
+
+================================================================
+54. HEALTH SUMMARY
+================================================================
+
+Top-level:
+
+HEALTHY
+DEGRADED
+FAILING
+CRITICAL
+UNKNOWN
+
+================================================================
+55. HEALTH SCORE
+================================================================
+
+Optional numerical score.
+
+Always expose dimensions.
+
+================================================================
+56. MAINTENANCE DEBT
+================================================================
+
+Create evidence-backed maintenance debt signals.
+
+Examples:
+
+persistent CI red
+very stale patch dependencies
+deprecated runtime
+known security issues
+repeated repair failures
+
+Do not invent financial "debt cost."
+
+================================================================
+57. REPOSITORY AGE IS NOT DEBT
+================================================================
+
+An old stable repository may be healthy.
+
+Do not penalize age alone.
+
+================================================================
+58. ENGINEERING RECOMMENDATION
+================================================================
+
+Create:
+
+MaintenanceRecommendation
+
+Fields:
+
+id
+repository/campaign scope
+type
+priority
+risk
+confidence
+reason
+evidence
+estimated files/repositories
+proposed campaign
+status
+
+================================================================
+59. RECOMMENDATION TYPES
+================================================================
+
+Examples:
+
+REPAIR_CI
+PATCH_DEPENDENCY
+SECURITY_REMEDIATION
+UPDATE_RUNTIME
+FIX_TESTS
+IMPROVE_VALIDATION
+REFRESH_DOCUMENTATION
+NO_ACTION
+
+================================================================
+60. NO_ACTION IS VALID
+================================================================
+
+Intelligence system must be capable of deciding:
+
+no maintenance action recommended.
+
+================================================================
+61. PRIORITY MODEL
+================================================================
+
+Priority inputs:
+
+security severity
+CI/build impact
+project policy
+repository health
+dependency blast radius
+confidence
+age/freshness
+repair history
+
+================================================================
+62. PRIORITY IS EXPLAINABLE
+================================================================
+
+Never output opaque priority number alone.
+
+================================================================
+63. BUSINESS CRITICALITY
+================================================================
+
+Use only if explicitly configured.
+
+Do not infer business importance from repository stars/activity.
+
+================================================================
+64. RISK MODEL
+================================================================
+
+Risk considers:
+
+scope
+major version change
+workflow/deployment files
+security-sensitive code
+dependency blast radius
+historical repair failure
+
+================================================================
+65. RECOMMENDATION CONFIDENCE
+================================================================
+
+Confidence derives from evidence quality.
+
+Not LLM certainty.
+
+================================================================
+66. RECOMMENDATION EXPLAIN
+================================================================
+
+CLI/API should show:
+
+why
+evidence
+risk
+confidence
+affected repos
+suggested campaign
+
+================================================================
+67. MAINTENANCE PLANNER
+================================================================
+
+Create:
+
+MaintenancePlanner
+
+Turns approved recommendations into EngineeringCampaign proposals.
+
+================================================================
+68. PLAN ONLY BY DEFAULT
+================================================================
+
+Intelligence should not automatically run campaign merely because it
+found issue.
+
+Default:
+
+recommend
+→ plan
+→ explicit run/policy
+
+================================================================
+69. SAFE AUTO-MAINTENANCE
+================================================================
+
+Optional policy may auto-run selected low-risk campaign types.
+
+Example:
+
+documentation
+patch dependency
+
+only under explicit configuration.
+
+================================================================
+70. NO AUTO-MAJOR
+================================================================
+
+Hard invariant unless explicit override.
+
+================================================================
+71. CAMPAIGN DEDUPLICATION
+================================================================
+
+Same open recommendation must not generate repeated identical campaign.
+
+================================================================
+72. CAMPAIGN SUPERSESSION
+================================================================
+
+New evidence may supersede old recommendation.
+
+Track history.
+
+================================================================
+73. RECOMMENDATION STATES
+================================================================
+
+NEW
+ACKNOWLEDGED
+PLANNED
+RUNNING
+RESOLVED
+DISMISSED
+STALE
+SUPERSEDED
+
+================================================================
+74. RESOLUTION VERIFICATION
+================================================================
+
+Do not mark recommendation RESOLVED because commit exists.
+
+Recollect evidence.
+
+Verify condition disappeared.
+
+================================================================
+75. POST-CAMPAIGN VERIFICATION
+================================================================
+
+Example dependency security issue:
+
+campaign succeeds
+→ rerun dependency/advisory analysis
+→ advisory no longer matches
+→ RESOLVED
+
+================================================================
+76. FAILED MAINTENANCE
+================================================================
+
+Campaign failure updates recommendation evidence.
+
+Do not loop endlessly.
+
+================================================================
+77. REPAIRABILITY HISTORY
+================================================================
+
+Track:
+
+attempt count
+historical success
+failure category
+
+Use in future planning.
+
+================================================================
+78. CAMPAIGN RECOMMENDATION ENGINE
+================================================================
+
+Examples:
+
+10 repos same CI failure
+→ one campaign proposal
+
+5 repos vulnerable dependency
+→ security campaign
+
+Do not manually require per-repo task creation.
+
+================================================================
+79. CROSS-REPO CONSOLIDATION
+================================================================
+
+Combine recommendations only when action is sufficiently similar.
+
+================================================================
+80. DIFFERENT PACKAGE MANAGERS
+================================================================
+
+Same dependency issue across npm/Python ecosystems does NOT imply same
+campaign implementation.
+
+================================================================
+81. CAMPAIGN TEMPLATE VERSIONING
+================================================================
+
+Recommendation references exact campaign template version.
+
+================================================================
+82. INTELLIGENCE WITHOUT LLM
+================================================================
+
+All core detection/ranking must operate without model inference.
+
+No-cost mode remains functional if no LLM daemon exists.
+
+================================================================
+83. OPTIONAL LOCAL LLM ENRICHMENT
+================================================================
+
+Optional local model may:
+
+summarize evidence
+generate human-readable explanation
+suggest investigation
+
+It cannot override deterministic security/policy findings.
+
+================================================================
+84. NO LLM AS VULNERABILITY SCANNER
+================================================================
+
+Never infer vulnerability solely from model output.
+
+================================================================
+85. NO LLM VERSION INVENTION
+================================================================
+
+Package versions come from registries/manifests, not language model.
+
+================================================================
+86. NO LLM CI STATUS INVENTION
+================================================================
+
+CI evidence must come from provider/local records.
+
+================================================================
+87. PORTFOLIO INTELLIGENCE
+================================================================
+
+Aggregate:
+
+repo health
+CI failure clusters
+security exposure
+dependency update opportunities
+campaign state
+engineering throughput
+
+================================================================
+88. PORTFOLIO PRIORITY QUEUE
+================================================================
+
+Show recommended maintenance ordered by explicit priority policy.
+
+================================================================
+89. PORTFOLIO RISK MAP
+================================================================
+
+Group repositories:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+with reasons.
+
+Do not fabricate heatmap metrics.
+
+================================================================
+90. DEPENDENCY BLAST RADIUS
+================================================================
+
+For internal package change:
+
+show known downstream repositories.
+
+================================================================
+91. SHARED FAILURE INTELLIGENCE
+================================================================
+
+If same failure cluster affects many repositories:
+
+surface shared remediation candidate.
+
+================================================================
+92. CAMPAIGN SAVINGS
+================================================================
+
+Do not fabricate monetary savings.
+
+May report:
+
+repositories affected
+tasks avoided
+duplicate investigation avoided
+
+based on actual counts.
+
+================================================================
+93. MAINTENANCE WINDOW
+================================================================
+
+Recommendation may respect repository/campaign maintenance policies.
+
+================================================================
+94. INTERACTIVE WORK PRECEDENCE
+================================================================
+
+Maintenance intelligence should not overwhelm interactive engineering
+queue.
+
+================================================================
+95. STALE RECOMMENDATIONS
+================================================================
+
+Re-evaluate before campaign starts.
+
+================================================================
+96. REPOSITORY CHANGED
+================================================================
+
+If manifest/HEAD materially changed after recommendation:
+
+revalidate evidence.
+
+================================================================
+97. ADVISORY UPDATE
+================================================================
+
+Changed advisory can invalidate recommendation.
+
+================================================================
+98. INTELLIGENCE CACHE
+================================================================
+
+Cache provider results responsibly.
+
+Track freshness.
+
+================================================================
+99. OFFLINE MODE
+================================================================
+
+Offline intelligence supports:
+
+repository analysis
+stored dependency data
+CI history
+local health
+existing advisory cache
+
+External latest lookup unavailable.
+
+Report it.
+
+================================================================
+100. ZERO-PAID INTELLIGENCE
+================================================================
+
+No commercial API required.
+
+Core dependencies:
+
+local DB
+Git
+project files
+optional open/free advisory/registry access
+
+================================================================
+101. PROVIDER COST POLICY
+================================================================
+
+Any future commercial intelligence provider must use existing cost
+policy.
+
+================================================================
+102. NO SECRET UPLOAD
+================================================================
+
+Do not send source code to dependency/advisory registry.
+
+Only package metadata needed.
+
+================================================================
+103. PRIVACY
+================================================================
+
+Portfolio intelligence remains local by default.
+
+================================================================
+104. TENANT ISOLATION
+================================================================
+
+Signals
+recommendations
+dependency graphs
+CI evidence
+health snapshots
+
+must remain tenant scoped.
+
+================================================================
+105. POSTGRES RLS
+================================================================
+
+Add RLS for new tenant-owned intelligence tables.
+
+Test with non-superuser application role.
+
+================================================================
+106. CROSS-TENANT GRAPH
+================================================================
+
+Org A cannot infer Org B repositories or dependencies through graph
+queries.
+
+================================================================
+107. PORTFOLIO API
+================================================================
+
+Expose:
+
+health
+signals
+recommendations
+dependency graph
+CI clusters
+campaign suggestions
+
+with authorization.
+
+================================================================
+108. CLI
+================================================================
+
+Target:
+
+zcoder intelligence status
+
+zcoder health portfolio
+zcoder health repo REPO
+
+zcoder maintenance list
+zcoder maintenance show ID
+zcoder maintenance plan ID
+zcoder maintenance dismiss ID
+
+zcoder deps status REPO
+zcoder deps graph REPO
+zcoder deps outdated REPO
+zcoder deps security REPO
+
+zcoder ci failures
+zcoder ci clusters
+
+================================================================
+109. EXPLAIN MODE
+================================================================
+
+Example:
+
+zcoder maintenance explain ID
+
+Return:
+
+recommendation
+priority
+risk
+confidence
+evidence
+affected repositories
+suggested campaign
+
+================================================================
+110. JSON OUTPUT
+================================================================
+
+Machine-readable output for automation.
+
+================================================================
+111. WEB PORTFOLIO INTELLIGENCE
+================================================================
+
+If Web profile is verified:
+
+Dashboard:
+
+Portfolio Health
+Maintenance Recommendations
+Security
+Dependencies
+CI Failure Clusters
+Campaign Suggestions
+Repository Risk
+
+No frontend-only analytics.
+
+================================================================
+112. RECOMMENDATION INBOX
+================================================================
+
+Allow:
+
+acknowledge
+plan
+dismiss
+
+Mutations authorized.
+
+================================================================
+113. DISMISSAL
+================================================================
+
+Record:
+
+reason
+actor
+timestamp
+
+New materially different evidence may create new recommendation later.
+
+================================================================
+114. DEPENDENCY GRAPH VIEW
+================================================================
+
+Show evidence and confidence.
+
+Avoid unreadable giant graph for thousands of nodes.
+
+Support filtering.
+
+================================================================
+115. HEALTH HISTORY
+================================================================
+
+Show evidence-based trend.
+
+================================================================
+116. SECURITY VIEW
+================================================================
+
+Show:
+
+affected dependency
+current version
+affected range
+fixed version
+source advisory
+repositories
+
+================================================================
+117. CI CLUSTER VIEW
+================================================================
+
+Show:
+
+fingerprint
+repositories
+runs
+failure class
+latest occurrence
+
+================================================================
+118. RECOMMENDED CAMPAIGN PREVIEW
+================================================================
+
+Before launch show:
+
+repositories
+action
+policy
+canary
+validators
+remote mutation policy
+
+================================================================
+119. NO ONE-CLICK MASS MUTATION DEFAULT
+================================================================
+
+Review/plan step mandatory by default.
+
+================================================================
+120. DEPENDENCY UPDATE EXECUTOR
+================================================================
+
+Do NOT create a new executor.
+
+Use Upgrade-22 campaign + Upgrade-20 engineering task.
+
+================================================================
+121. SECURITY REMEDIATION EXECUTOR
+================================================================
+
+Same rule.
+
+================================================================
+122. CI REPAIR EXECUTOR
+================================================================
+
+Same rule.
+
+================================================================
+123. DOCUMENTATION EXECUTOR
+================================================================
+
+Same rule.
+
+================================================================
+124. OUTCOME FEEDBACK
+================================================================
+
+After campaign:
+
+feed objective outcome into intelligence.
+
+================================================================
+125. SIGNAL RESOLUTION
+================================================================
+
+Campaign success alone is insufficient.
+
+Recompute signal.
+
+================================================================
+126. FALSE POSITIVE HANDLING
+================================================================
+
+Support user/operator suppression with scope.
+
+================================================================
+127. SUPPRESSION
+================================================================
+
+Fields:
+
+signal type
+repository/package
+reason
+expiry optional
+actor
+
+================================================================
+128. SUPPRESSION SECURITY
+================================================================
+
+Critical security suppressions may require higher permission.
+
+================================================================
+129. NO PERMANENT SILENT SUPPRESSION
+================================================================
+
+UI/CLI surfaces active suppressions.
+
+================================================================
+130. BASELINE RECOMMENDATION TESTS
+================================================================
+
+Create synthetic fixtures.
+
+Repo A:
+green
+
+Expected:
+NO_ACTION
+
+Repo B:
+failing tests
+
+Expected:
+repair recommendation
+
+Repo C:
+outdated patch dependency
+
+Expected:
+patch recommendation
+
+Repo D:
+major update only
+
+Expected:
+no auto-update recommendation
+
+================================================================
+131. ADVISORY MATCH TESTS
+================================================================
+
+Affected resolved version.
+
+Fixed resolved version.
+
+Unknown version.
+
+Multiple advisories same vulnerability.
+
+================================================================
+132. DEPENDENCY GRAPH TESTS
+================================================================
+
+Direct
+transitive
+internal repo
+cycle
+missing evidence
+
+================================================================
+133. CI CLUSTER TESTS
+================================================================
+
+Same failure multiple repos.
+
+Different failures.
+
+Infrastructure outage.
+
+Flaky pattern.
+
+================================================================
+134. PRIORITY TESTS
+================================================================
+
+Security high severity outranks documentation stale.
+
+But LOW-confidence stale security evidence must be surfaced correctly.
+
+================================================================
+135. NO-ACTION TEST
+================================================================
+
+Healthy repository should not get fabricated work.
+
+================================================================
+136. RECOMMENDATION DEDUP TEST
+================================================================
+
+Repeated scan:
+
+one active recommendation.
+
+================================================================
+137. RESOLUTION TEST
+================================================================
+
+Create recommendation.
+
+Run deterministic campaign.
+
+Recollect evidence.
+
+Verify recommendation RESOLVED only after evidence clears.
+
+================================================================
+138. STALE TEST
+================================================================
+
+Repository changes before execution.
+
+Recommendation becomes stale/revalidated.
+
+================================================================
+139. CAMPAIGN GENERATION TEST
+================================================================
+
+Multiple compatible recommendations produce one bounded campaign plan.
+
+================================================================
+140. CANARY INTEGRATION TEST
+================================================================
+
+Recommended maintenance campaign uses existing Upgrade-22 canary
+mechanism.
+
+================================================================
+141. FAILURE CIRCUIT TEST
+================================================================
+
+Canary fails.
+
+Recommendation remains unresolved.
+
+Campaign stops.
+
+================================================================
+142. OFFLINE TEST
+================================================================
+
+Disable external network.
+
+Intelligence still processes local cached evidence.
+
+No paid calls.
+
+================================================================
+143. CROSS-TENANT TEST
+================================================================
+
+Org A cannot read:
+
+Org B health
+signals
+recommendations
+dependency graph
+CI clusters
+
+================================================================
+144. SCALE TEST
+================================================================
+
+Synthetic portfolio:
+
+100+ repositories
+thousands of dependency nodes
+many signals
+
+Measure deterministic analysis overhead.
+
+No LLM required.
+
+================================================================
+145. PERFORMANCE
+================================================================
+
+Bound:
+
+scan concurrency
+registry lookup concurrency
+database queries
+
+Avoid one network request per dependency if bulk API/cache exists.
+
+================================================================
+146. CACHE STAMPEDE
+================================================================
+
+Concurrent repos requesting same package metadata should reuse cached
+result where safe.
+
+================================================================
+147. RATE LIMIT
+================================================================
+
+Handle registry/advisory provider rate limits gracefully.
+
+Do not classify failure as no vulnerability.
+
+================================================================
+148. PROVIDER FAILURE
+================================================================
+
+Status:
+
+DATA_UNAVAILABLE
+
+not:
+
+HEALTHY.
+
+================================================================
+149. OBSERVABILITY
+================================================================
+
+Metrics:
+
+maintenance_signals_total
+maintenance_recommendations_total
+recommendations_resolved_total
+ci_failure_clusters_total
+advisory_matches_total
+intelligence_scan_failures_total
+
+Avoid package/repo IDs as high-cardinality labels.
+
+================================================================
+150. AUDIT
+================================================================
+
+Audit mutating decisions:
+
+dismiss
+suppress
+plan campaign
+approve automatic policy
+
+Read-only detection need not flood audit.
+
+================================================================
+151. SECURITY
+================================================================
+
+Audit:
+
+manifest path safety
+registry URL policy
+advisory parsing
+CI log untrusted content
+tenant isolation
+recommendation injection
+campaign scope
+suppression permissions
+
+================================================================
+152. CI LOGS ARE UNTRUSTED
+================================================================
+
+CI failure text may contain adversarial content.
+
+It cannot override policy.
+
+================================================================
+153. ADVISORY DATA IS UNTRUSTED INPUT
+================================================================
+
+Parse safely.
+
+Do not execute advisory-provided commands.
+
+================================================================
+154. PACKAGE NAMES ARE DATA
+================================================================
+
+Never construct shell commands unsafely from package names.
+
+================================================================
+155. UPDATE COMMAND SAFETY
+================================================================
+
+Campaign executor continues using structured package-manager command
+generation and policy.
+
+================================================================
+156. RELEASE PROFILES
+================================================================
+
+Maintain existing profiles.
+
+Add:
+
+MAINTENANCE_INTELLIGENCE
+PORTFOLIO_INTELLIGENCE
+DEPENDENCY_INTELLIGENCE
+CI_INTELLIGENCE
+
+================================================================
+157. MAINTENANCE_INTELLIGENCE
+================================================================
+
+Requires:
+
+signals
+recommendations
+priority
+risk
+confidence
+resolution verification
+
+================================================================
+158. DEPENDENCY_INTELLIGENCE
+================================================================
+
+Requires:
+
+inventory
+graph
+version state
+security advisory matching
+
+================================================================
+159. CI_INTELLIGENCE
+================================================================
+
+Requires:
+
+failure normalization
+fingerprinting
+classification
+clustering
+
+================================================================
+160. PORTFOLIO_INTELLIGENCE
+================================================================
+
+Requires:
+
+health aggregation
+priority queue
+cross-repo analysis
+campaign recommendations
+
+================================================================
+161. RELEASE GATES
+================================================================
+
+Add:
+
+DEPENDENCY_INVENTORY
+DEPENDENCY_GRAPH
+DEPENDENCY_VERSION_STATE
+DEPENDENCY_SECURITY
+
+ADVISORY_PROVIDER
+ADVISORY_MATCHING
+
+CI_FAILURE_NORMALIZATION
+CI_FAILURE_CLASSIFICATION
+CI_FAILURE_CLUSTERING
+
+REPOSITORY_HEALTH_V2
+HEALTH_FRESHNESS
+
+MAINTENANCE_SIGNALS
+MAINTENANCE_RECOMMENDATIONS
+RECOMMENDATION_DEDUP
+RECOMMENDATION_RESOLUTION
+
+PRIORITY_MODEL
+RISK_MODEL
+
+CAMPAIGN_PLANNER
+
+PORTFOLIO_INTELLIGENCE
+
+TENANT_INTELLIGENCE_ISOLATION
+
+ZERO_PAID_INTELLIGENCE
+
+================================================================
+162. RELEASE GATE EXAMPLE
+================================================================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+UPGRADE_22_FOUNDATION: PASS
+
+DEPENDENCY_INVENTORY: PASS
+DEPENDENCY_GRAPH: PASS
+DEPENDENCY_VERSION_STATE: PASS
+DEPENDENCY_SECURITY: PASS
+
+ADVISORY_PROVIDER: PASS
+ADVISORY_MATCHING: PASS
+
+CI_FAILURE_NORMALIZATION: PASS
+CI_FAILURE_CLASSIFICATION: PASS
+CI_FAILURE_CLUSTERING: PASS
+
+REPOSITORY_HEALTH_V2: PASS
+HEALTH_FRESHNESS: PASS
+
+MAINTENANCE_SIGNALS: PASS
+MAINTENANCE_RECOMMENDATIONS: PASS
+RECOMMENDATION_DEDUP: PASS
+RECOMMENDATION_RESOLUTION: PASS
+
+PRIORITY_MODEL: PASS
+RISK_MODEL: PASS
+
+CAMPAIGN_PLANNER: PASS
+
+PORTFOLIO_INTELLIGENCE: PASS
+
+TENANT_INTELLIGENCE_ISOLATION: PASS
+ZERO_PAID_INTELLIGENCE: PASS
+
+REAL_LOCAL_RUNTIME:
+    inherited evidence
+
+REAL_GITHUB:
+    inherited evidence
+
+WEB_SELF_HOSTED:
+    evidence-derived
+
+PITR:
+    inherited limitation
+
+SECURITY: PASS
+DOCS: PASS
+
+FINAL:
+    evidence-derived
+
+================================================================
+163. TEST STRUCTURE
+================================================================
+
+Create substantial suites.
+
+Suggested:
+
+test_upgrade23_dependencies.py
+test_upgrade23_advisories.py
+test_upgrade23_ci_intelligence.py
+test_upgrade23_health.py
+test_upgrade23_recommendations.py
+test_upgrade23_campaign_planner.py
+test_upgrade23_portfolio_intelligence.py
+test_upgrade23_security.py
+test_upgrade23_tenant_isolation.py
+
+Do not implement Upgrade-23 as 3 tests.
+
+================================================================
+164. DOCUMENTATION
+================================================================
+
+Add:
+
+docs/UPGRADE-23.md
+
+docs/intelligence/ARCHITECTURE.md
+docs/intelligence/MAINTENANCE-SIGNALS.md
+docs/intelligence/RECOMMENDATIONS.md
+docs/intelligence/PRIORITIZATION.md
+
+docs/dependencies/INVENTORY.md
+docs/dependencies/GRAPH.md
+docs/dependencies/VERSION-INTELLIGENCE.md
+docs/dependencies/SECURITY.md
+
+docs/ci/FAILURE-INTELLIGENCE.md
+docs/ci/CLUSTERING.md
+
+docs/portfolio/INTELLIGENCE.md
+docs/portfolio/HEALTH-V2.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+
+================================================================
+165. REQUIRED FINAL COMMANDS
+================================================================
+
+Run:
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+
+clean wheel install
+zcoder --version
+
+git diff --check
+git status --short
+
+Run separately:
+
+dependency inventory
+dependency graph
+advisory matching
+CI classification
+CI clustering
+health
+recommendation
+priority/risk
+campaign planner
+portfolio
+tenant isolation
+offline intelligence
+zero-paid intelligence
+
+================================================================
+166. DEFINITION OF DONE
+================================================================
+
+Upgrade-23 is complete only when:
+
+[ ] Upgrade-22 foundation is independently reverified
+[ ] dependency inventory uses real manifest evidence
+[ ] direct/transitive are distinct
+[ ] dependency graph edges carry evidence
+[ ] graph cycles are supported
+[ ] available-version failure does not mean up-to-date
+[ ] patch/minor/major are distinct
+[ ] major updates are not automatic
+[ ] security advisories match actual resolved versions
+[ ] duplicate advisories do not inflate findings
+[ ] CI failures are normalized
+[ ] CI infrastructure failures are not treated as code failures
+[ ] CI clustering works deterministically
+[ ] repository health is evidence-based
+[ ] stale evidence is visible
+[ ] maintenance signals are durable
+[ ] recommendations explain why
+[ ] recommendations carry confidence and risk
+[ ] healthy repositories can produce NO_ACTION
+[ ] recommendations deduplicate
+[ ] recommendations become stale when evidence changes
+[ ] resolved state requires evidence recollection
+[ ] campaign planner reuses Upgrade-22 execution
+[ ] no new execution engine exists
+[ ] no LLM is required for core intelligence
+[ ] optional LLM cannot override deterministic policy
+[ ] offline intelligence works from local/cached data
+[ ] zero-paid intelligence generates zero commercial calls
+[ ] tenant intelligence isolation passes
+[ ] no customer source code is uploaded
+[ ] inherited durability/security/RLS gates remain green
+
+================================================================
+167. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-22 Final Foundation Audit
+
+## 3. Version Decision
+
+## 4. Maintenance Intelligence Architecture
+
+## 5. Dependency Inventory
+
+## 6. Dependency Graph
+
+Nodes:
+Edges:
+Cycles:
+Evidence:
+
+## 7. Dependency Version Intelligence
+
+Package | Current | Available | Update Type | Evidence
+
+## 8. Security Advisories
+
+Package | Current | Advisory | Severity | Fixed | Status
+
+## 9. CI Failure Intelligence
+
+## 10. CI Failure Clusters
+
+Cluster | Repositories | Failure Type | Confidence
+
+## 11. Repository Health V2
+
+Repository | Build | Test | CI | Security | Dependencies | Overall
+
+## 12. Maintenance Signals
+
+## 13. Recommendations
+
+Recommendation | Priority | Risk | Confidence | Evidence
+
+## 14. Recommendation Deduplication
+
+## 15. Recommendation Resolution
+
+## 16. Priority Model
+
+## 17. Risk Model
+
+## 18. Campaign Planner
+
+## 19. Recommended Campaigns
+
+## 20. Portfolio Intelligence
+
+## 21. Cross-Repository Impact
+
+## 22. Offline Intelligence
+
+## 23. Zero-Paid Proof
+
+Anthropic:
+OpenAI paid:
+Stripe:
+Commercial scanner:
+Hosted embeddings:
+Other paid:
+
+## 24. Tenant Isolation
+
+## 25. Security Review
+
+## 26. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+dependencies
+advisories
+CI
+health
+recommendations
+campaign planning
+portfolio
+security
+tenant
+offline
+
+## 27. Evidence Tiers
+
+Capability | Status | Tier | Evidence | Limitation
+
+## 28. Release Profiles
+
+DURABLE_ENGINEERING:
+ENGINEERING_FLEET:
+MAINTENANCE_CAMPAIGNS:
+DEPENDENCY_INTELLIGENCE:
+CI_INTELLIGENCE:
+MAINTENANCE_INTELLIGENCE:
+PORTFOLIO_INTELLIGENCE:
+SELF_HOSTED:
+
+## 29. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+UPGRADE_22_FOUNDATION:
+
+DEPENDENCY_INVENTORY:
+DEPENDENCY_GRAPH:
+DEPENDENCY_VERSION_STATE:
+DEPENDENCY_SECURITY:
+
+ADVISORY_PROVIDER:
+ADVISORY_MATCHING:
+
+CI_FAILURE_NORMALIZATION:
+CI_FAILURE_CLASSIFICATION:
+CI_FAILURE_CLUSTERING:
+
+REPOSITORY_HEALTH_V2:
+HEALTH_FRESHNESS:
+
+MAINTENANCE_SIGNALS:
+MAINTENANCE_RECOMMENDATIONS:
+RECOMMENDATION_DEDUP:
+RECOMMENDATION_RESOLUTION:
+
+PRIORITY_MODEL:
+RISK_MODEL:
+
+CAMPAIGN_PLANNER:
+
+PORTFOLIO_INTELLIGENCE:
+
+TENANT_INTELLIGENCE_ISOLATION:
+ZERO_PAID_INTELLIGENCE:
+
+WEB_SELF_HOSTED:
+
+PITR:
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 30. Files Changed
+
+## 31. Remaining Limitations
+
+Explicitly state:
+
+dependency ecosystems actually tested?
+live registries queried?
+real advisory source?
+real GitHub CI data?
+real local model?
+real GitHub?
+Web?
+Windows?
+macOS?
+PITR?
+PostgreSQL HA?
+multi-host?
+multi-region?
+
+## 32. Final Verdict
+
+Never label package CURRENT if registry lookup failed.
+
+Never claim vulnerability from package name alone.
+
+Never call a CI infrastructure outage a code regression without evidence.
+
+Never recommend a major dependency upgrade automatically.
+
+Never generate maintenance work merely to keep agents busy.
+
+Never use an LLM's opinion as the authoritative security finding.
+
+Never allow maintenance intelligence to bypass Upgrade-22 campaign
+safety, approval, canary, fencing or zero-cost policies.
+
+Upgrade-23 succeeds when ZCoder not only executes engineering work
+reliably, but can determine — from evidence — which maintenance work is
+actually worth doing next.

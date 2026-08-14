@@ -29,7 +29,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
-from agent_runtime import Job, JobStatus
+from legacy_job_models import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 

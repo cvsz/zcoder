@@ -19,8 +19,14 @@ class SQLiteEngineeringStore(EngineeringStore):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        # Enable WAL mode for better concurrency and crash-safety
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY,
@@ -55,7 +61,7 @@ class SQLiteEngineeringStore(EngineeringStore):
 
     def save_task(self, task: EngineeringTask) -> None:
         task.updated_at = time.time()
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO tasks (id, task_description, status, created_at, updated_at, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -65,7 +71,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             ))
 
     def get_task(self, task_id: str) -> Optional[EngineeringTask]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
             row = cur.fetchone()
@@ -77,14 +83,14 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def create_attempt(self, attempt: Attempt) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("""
                 INSERT INTO attempts (id, task_id, generation, status, started_at, completed_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (attempt.id, attempt.task_id, attempt.generation, attempt.status, attempt.started_at, attempt.completed_at))
 
     def save_checkpoint(self, checkpoint: Checkpoint) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute("""
                 INSERT INTO checkpoints (id, task_id, attempt_id, sequence, phase, state_snapshot, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -94,7 +100,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             ))
 
     def get_latest_checkpoint(self, attempt_id: str) -> Optional[Checkpoint]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("""
                 SELECT * FROM checkpoints 
@@ -110,7 +116,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def list_tasks(self, status: Optional[str] = None) -> List[EngineeringTask]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cur = conn.cursor()
             if status:
                 cur.execute("SELECT * FROM tasks WHERE status = ? ORDER BY created_at DESC", (status,))

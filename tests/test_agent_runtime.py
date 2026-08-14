@@ -4,13 +4,15 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from agent_runtime import (
+from legacy_job_models import (
     ApprovalRequest,
-    FakeRuntime,
     Job,
-    JobOrchestrator,
     JobStatus,
     JobStore,
+)
+from agent_runtime import (
+    FakeRuntime,
+    JobOrchestrator,
     PolicyEngine,
     ToolPolicy,
 )
