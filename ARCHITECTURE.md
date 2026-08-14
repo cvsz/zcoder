@@ -1,155 +1,327 @@
 # Architecture
 
-## Overview
+## Status
 
-zcoder is a single-process Python CLI that wraps the Anthropic Messages
-API, plus a modular set of feature areas (one `claude_*.py` file per API
-surface: files, batches, vision, RAG, agents, etc). `main.py` is the only
-entrypoint; every feature is reachable as a CLI flag, there is no
-long-running server component. Two of those modules —
-`claude_admin_api.py` and `claude_compliance_api.py` — talk to
-organization-level endpoints under different key types than the rest of
-the CLI; see "Admin & Compliance APIs" below.
+As of 2026-08-14, zcoder is migrating from a flat-module repository to a
+package-based `src/zcoder` layout. `Artifacts-zcoder.md` is the migration source
+of truth for the target topology. This document describes the architecture that
+the runtime now uses and the compatibility boundaries that remain while legacy
+imports are retired.
 
+The key rule is simple: **canonical implementation code lives under
+`src/zcoder/`**. The repository-root `main.py` is only a source-checkout launcher,
+and temporary top-level compatibility modules under `src/` alias historical
+imports such as `coder`, `claude_models`, and `config` to their canonical
+`zcoder.*` modules.
+
+## System context
+
+zcoder has several presentation/runtime surfaces over one application core:
+
+```text
+                         ┌────────────────────────────┐
+                         │        Interfaces           │
+                         │ CLI / TUI / SDK / Web API  │
+                         └──────────────┬─────────────┘
+                                        │
+                                        v
+                         ┌────────────────────────────┐
+                         │     Application services    │
+                         │ coder / agents / projects   │
+                         │ engineering / GitHub / jobs │
+                         └──────────────┬─────────────┘
+                                        │
+                         ┌──────────────┴─────────────┐
+                         v                            v
+              ┌────────────────────┐       ┌────────────────────┐
+              │       Domain       │       │ Claude integration  │
+              │ models / policies  │       │ models / tools /    │
+              │ ports / invariants │       │ RAG / enterprise    │
+              └─────────┬──────────┘       └─────────┬──────────┘
+                        │                            │
+                        └─────────────┬──────────────┘
+                                      v
+                         ┌────────────────────────────┐
+                         │      Infrastructure         │
+                         │ stores / auth / telemetry  │
+                         │ filesystem / external APIs │
+                         └──────────────┬─────────────┘
+                                        │
+                    ┌───────────────────┼────────────────────┐
+                    v                   v                    v
+               Anthropic API        PostgreSQL /         OIDC / SCIM /
+                                    SQLite / files        GitHub / OTEL
 ```
-                         ┌─────────────┐
-   CLI args ───────────► │   main.py   │  argparse dispatch, no business
-                         │             │  logic of its own
-                         └──────┬──────┘
-                                │
-              ┌─────────────────┼─────────────────────┐
-              ▼                 ▼                      ▼
-        ┌───────────┐   ┌──────────────┐      ┌────────────────┐
-        │ coder.py  │   │ claude_*.py  │      │ projects.py /   │
-        │ (core     │   │ (one file    │      │ artifacts.py /  │
-        │  generate │   │  per API     │      │ personalities.py│
-        │  call)    │   │  feature)    │      │ (local state)   │
-        └─────┬─────┘   └──────┬───────┘      └────────┬────────┘
-              │                │                        │
-              └────────┬───────┴────────────────────────┘
-                        ▼
-              ┌───────────────────┐
-              │  Cross-cutting     │
-              │  infrastructure:   │
-              │  resilience.py     │  retry + circuit breaker
-              │  logging_config.py │  structured logs, redaction
-              │  security.py       │  path/URL/input validation
-              │  exceptions.py     │  typed error hierarchy
-              └─────────┬──────────┘
-                        ▼
-              api.anthropic.com (HTTPS, urllib — no SDK
-              dependency for the core path; the `anthropic`
-              package is only required for the Managed
-              Agents beta client)
 
-              Most modules hit /v1/messages (or /v1/files,
-              /v1/batches, ...) with a regular API key.
-              claude_admin_api.py hits /v1/organizations/*
-              and claude_compliance_api.py hits /v1/compliance/*
-              — both need an Admin API key (sk-ant-admin01-...)
-              or, for the Compliance module, a Compliance
-              Access Key (sk-ant-api01-... with compliance
-              scopes) instead of the regular API key everything
-              else uses.
+The CLI remains the primary user-facing entry point, but it is no longer the
+architectural root of the codebase. `zcoder.main` performs argument parsing and
+dispatch; business behavior belongs in services, domain code, or integration
+adapters.
+
+## Canonical package layout
+
+```text
+src/zcoder/
+├── main.py
+├── config/
+│   ├── settings.py
+│   ├── production.py
+│   └── logging.py
+├── core/
+│   ├── exceptions.py
+│   ├── security.py
+│   ├── resilience.py
+│   ├── health.py
+│   └── utils.py
+├── domain/
+│   ├── models/
+│   ├── services/
+│   └── interfaces/
+├── claude/
+│   ├── models/
+│   ├── capabilities/
+│   ├── tools/
+│   ├── integrations/
+│   ├── orchestration/
+│   ├── optimization/
+│   ├── memory/
+│   ├── rag/
+│   ├── eval/
+│   └── enterprise/
+├── infrastructure/
+│   ├── stores/
+│   ├── auth/
+│   ├── observability/
+│   └── artifacts.py
+├── services/
+├── api/
+│   └── public/
+├── interfaces/
+│   ├── cli/
+│   └── sdk/
+├── enterprise/
+└── worker/
 ```
 
-## Cross-cutting infrastructure
+### Configuration and core
 
-These four modules exist so every feature module gets the same behavior
-for free instead of re-implementing it:
+`config/` owns runtime configuration, production policy, and logging setup.
+`core/` contains cross-cutting primitives that are intentionally independent of
+presentation layers: typed errors, retry/circuit-breaker support, input/path
+security helpers, health probes, and shared utilities.
 
-- **`exceptions.py`** — every deliberate error is an `AICoderError`
-  subclass with a stable `error_code` and a `RETRYABLE` flag. This is the
-  contract `resilience.retry()` reads to decide what to retry.
-- **`resilience.py`** — `retry()` (exponential backoff with full jitter)
-  and `CircuitBreaker` (fail-fast during an outage), plus
-  `raise_for_http_error()` / `urlopen_json()` / `urlopen_text()`, shared
-  helpers that translate a raw `urllib` HTTP/network exception into the
-  `AICoderError` hierarchy `retry()` reads. Wired into every module that
-  makes direct HTTP calls (`coder.py`, `claude_files.py`,
-  `claude_tools.py`, `claude_code.py`, `claude_models.py`, and 15 others
-  — one `CircuitBreaker` per module/downstream, since a GitHub outage
-  shouldn't trip the breaker that guards Anthropic API calls, or vice
-  versa). Two exceptions by design: `claude_batch.py` and
-  `claude_rag.py` call through the `anthropic` SDK client, which retries
-  internally, so there's nothing to wire. A handful of call sites that
-  fetch an arbitrary caller-supplied URL rather than one fixed dependency
-  (`claude_chrome.py`'s page fetch, `claude_research.py`'s source fetch,
-  `claude_code.py`'s `WebFetch` tool, `claude_plugins.py`'s marketplace
-  fetch) use `retry()` without a `CircuitBreaker`, since a breaker keyed
-  on "this one dependency is down" doesn't mean anything when every call
-  targets a different host.
-- **`logging_config.py`** — one structured logger per module via
-  `get_logger(__name__)`, a correlation ID set once per CLI invocation,
-  and automatic secret redaction on every log record regardless of what
-  gets passed to `logger.info(...)`.
-- **`security.py`** — path traversal guards, name/URL/size validation.
-  Anything that turns user input into a filesystem path or outbound
-  request should go through here rather than string-concatenating paths
-  directly.
+### Domain
 
-## Admin & Compliance APIs — a deliberately separate contract
+`domain/models/` contains business state such as engineering tasks, tenants,
+portfolio state, product state, residency, and intelligence models.
+`domain/interfaces/` defines ports that infrastructure adapters implement.
+Domain code must not depend on FastAPI, CLI/TUI code, concrete databases, or
+provider SDKs.
 
-`claude_admin_api.py` and `claude_compliance_api.py` don't route through
-`coder.py` or `resilience.py`. They're org-level surfaces, not model
-calls, and each has its own documented retry contract (429 + retryable
-5xx back off exponentially; 400/401/403/404/409 never retry) implemented
-directly in the module rather than reusing `resilience.retry()` — the
-two contracts happen to look similar but are specified independently in
-Anthropic's docs, so keeping them separate avoids a false coupling if
-one changes later.
+### Application services
 
-Key model, since it's easy to get wrong and the failure mode is a 403,
-not a crash:
-- A regular API key (`sk-ant-api03-...`) — everything else in this CLI
-  — cannot call either module.
-- An **Admin API key** (`sk-ant-admin01-...`) unlocks all of
-  `claude_admin_api.py`, plus *only* the Activity Feed endpoint
-  (`--compliance-activities`) in `claude_compliance_api.py`.
-- A **Compliance Access Key** (`sk-ant-api01-...`, created in claude.ai
-  with specific scopes at creation time — scopes are immutable
-  afterward) unlocks the rest of `claude_compliance_api.py`: reading or
-  hard-deleting chats, files, and projects, plus directory endpoints.
-  It cannot call `claude_admin_api.py`.
+`services/` coordinates use cases. Examples include model generation, project
+and artifact workflows, engineering orchestration, GitHub orchestration,
+maintenance intelligence, backup/restore, and background work submission.
+Services may depend on domain abstractions and provider/infrastructure ports, but
+presentation-specific behavior should stay outside this layer.
 
-`claude_compliance_api.py`'s destructive operations (chat/file/project
-hard-delete) are permanent with no recovery window, so every `cmd_*` that
-deletes something is dry-run unless the caller passes `yes=True`
-(`--compliance-yes` on the CLI) — the same opt-in-execution pattern
-`claude_models.py` uses for `--upgrade-all`/`--upgrade-yes`, rather than
-a new confirmation convention. Pagination in both modules only advances
-its cursor after a page is *successfully* fetched, so a failed request
-never silently skips data on retry.
+### Claude integration
 
-## Why `generate()` still returns strings on error
+The former `claude_*.py` flat surface is grouped by responsibility:
 
-`Coder.generate()` returns `"[ERROR] ..."` / `"[API ERROR 429] ..."` /
-`"[REFUSED] ..."` strings rather than raising, even though the new
-internals (`exceptions.py`) are exception-based. This preserves the
-existing contract every call site in `main.py` and the `claude_*.py`
-modules already depends on (`result = c.generate(...); print(result)`).
-Internally, the network call raises typed exceptions so retry/circuit-
-breaking/logging can key off `error_code` and `RETRYABLE`; they're caught
-and converted back to the legacy string format at the boundary. A future
-major version could flip this to raise-by-default with a
-`generate(..., raise_on_error=True)` opt-in during the transition.
+- `claude/models/` — model registry, preflight, and model-specific behavior.
+- `claude/capabilities/` — coding, execution, vision, thinking, structured
+  output, search, embeddings, streaming, citations, and advisory behavior.
+- `claude/tools/` — tool registry, MCP, plugins, and sandbox support.
+- `claude/integrations/` — GitHub, Git, files, Excel, PowerPoint, Chrome, WIF.
+- `claude/orchestration/` — routing, workflows, managed agents, batch, live,
+  interactive, and sessions.
+- `claude/optimization/` — cost, prompt, and token optimization.
+- `claude/memory/` and `claude/rag/` — memory/cache and retrieval/research.
+- `claude/eval/` — evaluation and output-style support.
+- `claude/enterprise/` — Admin API, Compliance API, Skills API, settings,
+  permission planning, and metrics.
 
-## State & persistence
+This topology lets new provider capabilities be added without increasing the
+root namespace or coupling unrelated features.
 
-All local state is flat JSON files under the user's home directory —
-`~/.ai-coder-config.json` (config), `~/.ai-coder/` (projects, artifacts,
-files registry, sessions). There is no database. This keeps the tool
-zero-install beyond Python + `pip install -r requirements.txt`, at the
-cost of no concurrent-writer safety — two CLI invocations writing to the
-same project file at once can race. Not addressed in this pass; noted
-here so it isn't rediscovered as a surprise.
+## Dependency rules
 
-## Packaging
+The target dependency direction is:
 
-Two ways to run this:
-1. **From source**: `setup.sh`/`setup.bat` create a venv and `.env`.
-2. **Standalone binary**: `build.sh`/`build.bat` + `ai-coder.spec` produce
-   a PyInstaller single-file executable with no local Python required.
-3. **Container**: `Dockerfile` (multi-stage, non-root, healthcheck) +
-   `docker-compose.yml` for anything that wants to run this as a service
-   dependency rather than a local CLI. See `docs/deployment.md`.
+```text
+interfaces/ + api/
+        |
+        v
+     services/
+        |
+        v
+      domain/ <--------- infrastructure/
+        ^
+        |
+   provider ports/adapters
+```
+
+Rules for new and modified code:
+
+1. `domain/` must not import from `infrastructure/`, `interfaces/`, `api/`, or
+   web-framework modules.
+2. Infrastructure implements domain/application ports; it does not define
+   business invariants.
+3. CLI, TUI, SDK, and HTTP layers translate input/output and delegate use cases.
+4. Provider-specific behavior stays under its integration boundary rather than
+   leaking into domain models.
+5. New internal imports must use canonical `zcoder.*` module names.
+
+### Transitional compatibility boundary
+
+Existing v1.40.0 modules contain many historical absolute imports such as
+`from config import ...` or `from claude_models import ...`. To avoid a flag-day
+rewrite, those names are installed as thin aliases under `src/`. Each alias
+loads the canonical `zcoder.*` implementation and binds the legacy name to the
+same module object. This is important for monkeypatching and stateful module
+singletons: callers using old and new names must not receive two independent
+module instances.
+
+The compatibility aliases are transitional. They may be removed only after:
+
+- internal imports use `zcoder.*` consistently;
+- tests no longer require historical names;
+- documented downstream SDK/import contracts have a deprecation window; and
+- a release gate verifies both source and installed-package execution.
+
+## Runtime entry points
+
+### Installed CLI
+
+`pyproject.toml` exposes both commands through the package entry point:
+
+```text
+zcoder   -> zcoder.main:main
+ai-coder -> zcoder.main:main
+```
+
+### Source checkout
+
+`python main.py` remains supported. The root launcher prepends `src/` and then
+delegates to `zcoder.main`. It contains no business logic.
+
+### Container
+
+The container runs `python -m zcoder.main` with `/app/src` on `PYTHONPATH`.
+Health probes use the same package entry point, preventing a container-only
+fallback to deleted root implementation modules.
+
+### Web adapter
+
+`webapp.backend.server` remains a thin FastAPI adapter over the same application
+modules. `webapp/__init__.py` exposes `src/` for direct source-checkout uvicorn
+execution; installed deployments resolve the package normally.
+
+### Worker
+
+Background worker process behavior is canonical under `zcoder.worker.process`.
+Application services submit/coordinate work; the worker owns process execution
+and lifecycle concerns.
+
+## Cross-cutting reliability and security
+
+`zcoder.core.exceptions` defines the typed error contract used by retry and
+caller boundaries. `zcoder.core.resilience` provides retry/backoff, HTTP error
+translation, and circuit-breaker behavior. `zcoder.config.logging` centralizes
+structured logging, correlation IDs, and secret redaction. `zcoder.core.security`
+contains filesystem, URL, input, and size validation helpers.
+
+Circuit breakers should remain scoped to a stable downstream dependency. Calls
+to arbitrary user-selected hosts may use bounded retry but should not share one
+breaker whose state could incorrectly block unrelated hosts.
+
+## Admin and Compliance APIs
+
+Admin and Compliance endpoints remain separate enterprise contracts rather than
+ordinary model-generation calls. They use organization/compliance credentials
+and preserve their own retry/error semantics. Destructive compliance operations
+remain explicit opt-in operations; a packaging move must not weaken dry-run or
+confirmation behavior.
+
+Credential types must remain separated at the boundary:
+
+- regular model API credentials are for normal model/API surfaces;
+- Admin API credentials are for organization administration surfaces; and
+- Compliance Access credentials are for compliance-scoped data access where the
+  upstream account grants those scopes.
+
+No credential should be copied into client-side web code or persisted in
+repository configuration.
+
+## State and persistence
+
+zcoder has more than one persistence mode, so the old statement "there is no
+database" is no longer accurate.
+
+- Local CLI configuration, projects, artifacts, and session-oriented state retain
+  lightweight filesystem/JSON behavior under the user's home directory where
+  those features define it.
+- Engineering and enterprise features have concrete SQLite/PostgreSQL adapters
+  under `infrastructure/stores/`.
+- Domain/application code should depend on store interfaces rather than selecting
+  a concrete backend directly.
+
+Concurrent-writer, transaction, durability, and HA guarantees therefore depend
+on the selected store. File-backed local state must not be described as having
+the same durability semantics as PostgreSQL-backed services.
+
+## Packaging and CI
+
+The distribution uses a PEP 517/518 setuptools build with a `src` package layout.
+CI installs the project with `pip install -e .` before tests, then performs a
+package/legacy import smoke test. This prevents the repository working only
+because the current directory happens to contain importable source files.
+
+The test matrix remains Python 3.9 through 3.12. Docker validation executes the
+same package module used by the production container. Build outputs, bytecode,
+virtual environments, SQLite test databases/WAL files, coverage outputs, and
+local secrets are ignored by `.gitignore` and must not be committed.
+
+## Migration ledger from `Artifacts-zcoder.md`
+
+| Step | Scope | Status in this migration |
+|---|---|---|
+| 1 | `.gitignore` + tracked artifact cleanup | Executed; existing ignore policy extended and tracked SQLite WAL/SHM artifacts removed |
+| 2 | Create `src/zcoder` and move core bootstrap/config | Executed |
+| 3 | Move domain models/services/ports | Executed |
+| 4 | Move infrastructure stores/auth/observability | Executed |
+| 5 | Group `claude_*` by capability | Executed |
+| 6 | Move TUI/SDK/API interfaces | Executed |
+| 7 | Split tests into unit/integration/e2e | Deferred to a path-audited follow-up; test files currently contain path-sensitive assumptions |
+| 8 | Re-taxonomize documentation | Deferred to a link-audited follow-up to avoid breaking existing references |
+| 9 | Convert `pyproject.toml` to src packaging | Executed |
+| 10 | Full tests + CI/container verification | Required release gate on the migration PR |
+
+Steps 7 and 8 are intentionally rename-only follow-ups after the runtime cutover
+is green. Mixing hundreds of path changes with import/packaging changes would make
+failures harder to localize and rollback.
+
+## Migration tooling
+
+`scripts/migrate_src_layout.py` is the executable mapping manifest from legacy
+root source paths to canonical package paths. It is dry-run by default and only
+moves a source when the destination does not already exist. The script is safe
+to use as an audit after this migration because completed destinations are
+reported as `already-migrated`.
+
+## Architectural decision summary
+
+The migration deliberately prefers **compatibility-first strangulation** over a
+flag-day rewrite:
+
+- one canonical package tree;
+- temporary aliases for the old import surface;
+- package-aware CI and container execution;
+- explicit dependency direction for new code; and
+- independent follow-up commits for path-only test/document reorganization.
+
+This gives zcoder a maintainable Clean Architecture/DDD-oriented package
+structure while preserving the v1.40.0 command and import contracts long enough
+to migrate callers safely.

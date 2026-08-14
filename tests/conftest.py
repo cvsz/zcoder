@@ -1,8 +1,17 @@
 """tests/conftest.py — shared fixtures"""
-import os
+from pathlib import Path
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+# Keep repository-only helpers importable, but prefer the installed/src import
+# surface so tests catch packaging mistakes rather than accidentally importing
+# deleted flat implementation modules.
+for path in (ROOT, SRC):
+    value = str(path)
+    if value in sys.path:
+        sys.path.remove(value)
+    sys.path.insert(0, value)
 
 import pytest
 
