@@ -45,7 +45,9 @@ class PostgresUpgradeFence:
     exists, a stale token can no longer persist work or checkpoint state.
     """
 
-    def __init__(self, connection_scope: ConnectionScopeFactory, *, namespace: str, control_task_id: str) -> None:
+    def __init__(
+        self, connection_scope: ConnectionScopeFactory, *, namespace: str, control_task_id: str
+    ) -> None:
         normalized_namespace = namespace.strip()
         normalized_control_id = control_task_id.strip()
         if not normalized_namespace:
