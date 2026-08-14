@@ -400,7 +400,9 @@ def work_from_maintenance_recommendation(recommendation: Any) -> UpgradeWorkItem
     )
 
 
-def feature_work(title: str, description: str, *, priority: int = 50, risk: str = "medium") -> UpgradeWorkItem:
+def feature_work(
+    title: str, description: str, *, priority: int = 50, risk: str = "medium"
+) -> UpgradeWorkItem:
     """Convenience constructor for feature implementation work."""
 
     return UpgradeWorkItem(
