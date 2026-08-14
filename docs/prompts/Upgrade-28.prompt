@@ -1,0 +1,15 @@
+Implement Upgrade-28 as a safe vertical slice for cvsz/zcoder.
+
+Objective: add an EngineeringStore-backed durable ledger for continuous upgrade/update/feature/repair work while reusing the existing Upgrade-21 storage boundary.
+
+Requirements:
+- do not create a second task engine or database schema;
+- persist work identity/state in versioned namespaced EngineeringTask metadata;
+- keep normal engineering workers from treating ledger carrier records as executable tasks;
+- preserve completed-work deduplication and explicit blocked retry semantics;
+- isolate multiple ledger namespaces sharing one store;
+- bound persisted checkpoint history;
+- fail closed on malformed schema, metadata, namespace, identity, or fingerprint data;
+- preserve Upgrade-20 execution authority and Upgrade-24 retry/regression/no-progress policy;
+- test with the existing SQLiteEngineeringStore and keep the adapter compatible with the EngineeringStore interface used by PostgreSQL;
+- do not weaken Ruff, Black, Bandit, pytest coverage, Docker, CodeQL, dependency review, Helm, SDK/TypeScript, or release gates.
