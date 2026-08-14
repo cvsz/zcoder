@@ -1,6 +1,7 @@
 """Regression guards for the cross-process Upgrade-26 run lease."""
 
 import json
+import os
 
 import pytest
 
@@ -29,6 +30,32 @@ def test_run_lease_releases_after_context_exit(tmp_path):
         assert payload["host"]
         assert payload["token"]
 
+    assert not path.exists()
+
+
+def test_run_lease_rolls_back_partial_acquisition_on_write_failure(tmp_path, monkeypatch):
+    path = tmp_path / "upgrade.lock"
+    real_write = os.write
+    failed = False
+
+    def fail_first_write(fd, data):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("simulated lease write failure")
+        return real_write(fd, data)
+
+    monkeypatch.setattr(os, "write", fail_first_write)
+
+    with pytest.raises(UpgradeRunLeaseError, match="simulated lease write failure"):
+        UpgradeRunLease(path).acquire()
+
+    assert not path.exists()
+
+    replacement = UpgradeRunLease(path)
+    replacement.acquire()
+    assert path.exists()
+    replacement.release()
     assert not path.exists()
 
 
