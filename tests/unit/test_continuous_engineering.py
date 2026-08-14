@@ -16,6 +16,7 @@ from zcoder.services.continuous_engineering import (
     github_ci_repair_hook,
     maintenance_work_source,
 )
+from zcoder.services.upgrade_lease import UpgradeRunLeaseError
 from zcoder.services.upgrade_loop import LoopPolicy, LoopState, UpgradeWorkItem, WorkKind, feature_work
 from zcoder.services.upgrade_state import UpgradeLedgerError
 
@@ -76,6 +77,28 @@ def test_feature_runs_through_upgrade20_and_persists_success(tmp_path):
     assert engineering_loop.created[0]["risk"] == "HIGH"
     assert engineering_loop.runs[0]["codebase"]["app.py"] == "print('ok')\n"
     assert ledger.state_for(item.fingerprint) == "SUCCEEDED"
+    assert not pipeline.run_lease.path.exists()
+
+
+def test_competing_runner_fails_before_ledger_or_upgrade20(tmp_path, monkeypatch):
+    first, _, _ = build_pipeline(tmp_path)
+    second, second_engineering_loop, second_ledger = build_pipeline(tmp_path)
+    item = feature_work("Concurrent feature", "Must not start while another runner owns the lease")
+
+    def fail_if_ledger_read(*args, **kwargs):
+        pytest.fail("competing runner touched durable ledger")
+
+    monkeypatch.setattr(second_ledger, "load_resumable", fail_if_ledger_read)
+    assert second.run_lease.wait_seconds == 0.0
+
+    with first.run_lease:
+        with pytest.raises(UpgradeRunLeaseError, match="already held"):
+            second.run([item])
+
+    assert not second_ledger.path.exists()
+    assert second_engineering_loop.created == []
+    assert second_engineering_loop.runs == []
+    assert not first.run_lease.path.exists()
 
 
 def test_restart_skips_already_completed_fingerprint(tmp_path):
