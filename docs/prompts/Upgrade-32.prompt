@@ -1,0 +1,15 @@
+Implement Upgrade-32 as a bounded PostgreSQL runtime-composition slice for cvsz/zcoder.
+
+Objective: compose the existing EngineeringStore upgrade ledger, PostgreSQL advisory run lease, and monotonic fence into one fail-closed runtime boundary before CLI/backend exposure.
+
+Requirements:
+- acquire PostgreSQL advisory exclusivity before issuing a fence generation;
+- roll back advisory ownership if fence acquisition fails;
+- make the fence token available only during the composed run lease lifetime;
+- route EngineeringStoreUpgradeLedger task/control writes through PostgresUpgradeFence.save_task using the current token;
+- fail closed for mutation surfaces that would bypass fencing;
+- expose a public transactional connection scope from PostgresEngineeringStore instead of using protected connection internals from services;
+- add unit tests for ordering, rollback, token lifetime, fenced write routing, fail-closed mutations, reads, and cleanup;
+- add live DATABASE_URL integration coverage proving a stale generation cannot create a ledger item through EngineeringStoreUpgradeLedger after a newer owner advances the fence;
+- do not expose --state-backend postgres yet;
+- preserve Upgrade-20 execution authority, Upgrade-24 budgets, JSON/SQLite behavior, local-only push default, and all CI/security gates.

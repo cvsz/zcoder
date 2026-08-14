@@ -65,6 +65,10 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
             with conn.cursor() as cur:
                 cur.execute(schema)
 
+    def connection_scope(self):
+        """Return a transactional connection scope for PostgreSQL infrastructure adapters."""
+        return self._get_conn()
+
     def claim_task(self) -> EngineeringTask | None:
         """Atomically claim a CREATED task for processing."""
         with self._get_conn() as conn:
