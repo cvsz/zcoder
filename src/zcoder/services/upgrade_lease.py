@@ -74,7 +74,7 @@ class UpgradeRunLease:
         except (OSError, json.JSONDecodeError) as exc:
             raise UpgradeRunLeaseError(f"unable to release upgrade run lease: {exc}") from exc
 
-    def __enter__(self) -> "UpgradeRunLease":
+    def __enter__(self) -> UpgradeRunLease:
         self.acquire()
         return self
 
