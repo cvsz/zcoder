@@ -115,7 +115,9 @@ def test_request_retries_429_then_succeeds(monkeypatch):
             import io
             import urllib.error
 
-            raise urllib.error.HTTPError(req.full_url, 429, "rate limited", {"request-id": "r1"}, io.BytesIO(b""))
+            raise urllib.error.HTTPError(
+                req.full_url, 429, "rate limited", {"request-id": "r1"}, io.BytesIO(b"")
+            )
         return FakeResp(json.dumps({"data": [], "has_more": False}).encode())
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)

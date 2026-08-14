@@ -39,7 +39,9 @@ sys.exit(0)
         repo_root = Path(__file__).resolve().parents[2]
         src_path = repo_root / "src"
         existing_pp = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = f"{src_path}:{repo_root}:{existing_pp}" if existing_pp else f"{src_path}:{repo_root}"
+        env["PYTHONPATH"] = (
+            f"{src_path}:{repo_root}:{existing_pp}" if existing_pp else f"{src_path}:{repo_root}"
+        )
         result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
 
