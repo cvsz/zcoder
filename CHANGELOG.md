@@ -6,6 +6,28 @@ high-level index. Two project lineages (`ai-coder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## v1.40.0 — Compliance Local Sessions, Model Registry Health & Permanent Pricing
+
+Full detail in `docs/53_upgrade_v1.40.0_anthropic_august_2026_audit.md`.
+
+**New feature:** Compliance API Local Sessions (Cowork / Claude Code) — added
+`ComplianceApiClient.list_local_sessions()`, `get_local_session()`, and
+`get_local_session_messages()` supporting enterprise audit of employee-machine
+sessions. Added CLI commands `--compliance-local-sessions-list`,
+`--compliance-local-session-info`, and `--compliance-local-session-messages`.
+
+**Model Registry Health:**
+* Confirmed and added `claude-opus-5` to `INFERENCE_GEO_SUPPORTED` in
+  `claude_models.py` and updated `claude_opus5.py` to remove the obsolete
+  "unconfirmed" warning.
+* Promoted `claude-opus-4-1-20250805` from `DEPRECATED_MODELS` to
+  `RETIRED_MODELS` since its scheduled retirement date (2026-08-05) has passed.
+* Updated `claude_models.py` and `claude_sonnet5.py` to reflect permanent $3/$15
+  pricing for Sonnet 5 after Anthropic cancelled the planned price increase.
+
+**Testing:** 68 tests passing across updated model and compliance suites; full
+test suite passes (523 passed, 0 failed).
+
 ## v1.39.0 — Managed Agents session budgets, `inference_geo`, advisor roster, and a CLI wiring gap
 
 Full detail in `docs/52_upgrade_v1.39.0_managed_agents_session_budgets.md`.

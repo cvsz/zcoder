@@ -29,10 +29,10 @@ from claude_models import (
 )
 
 
-def test_check_deprecated_known_id():
-    rec = check_deprecated("claude-opus-4-1-20250805")
+def test_check_retired_opus_4_1():
+    rec = check_retired("claude-opus-4-1-20250805")
     assert rec is not None
-    assert rec["retirement_scheduled"] == "2026-08-05"
+    assert rec["retired"] == "2026-08-05"
     assert rec["replacement"] == "claude-opus-4-8"
 
 
@@ -46,7 +46,7 @@ def test_deprecated_and_retired_are_disjoint():
     assert set(DEPRECATED_MODELS.keys()).isdisjoint(set(RETIRED_MODELS.keys()))
 
 
-def test_cmd_model_info_warns_on_deprecated_id(capsys, monkeypatch):
+def test_cmd_model_info_warns_on_retired_id(capsys, monkeypatch):
     class _FakeModelsAPI:
         def __init__(self, api_key=None):
             pass
@@ -58,19 +58,18 @@ def test_cmd_model_info_warns_on_deprecated_id(capsys, monkeypatch):
     monkeypatch.setattr("claude_models.ModelsAPI", _FakeModelsAPI)
     cmd_model_info("claude-opus-4-1-20250805", api_key="k")
     out = capsys.readouterr().out
-    assert "deprecated" in out.lower()
+    assert "retired" in out.lower()
     assert "2026-08-05" in out
     assert "claude-opus-4-8" in out
 
 
-def test_cmd_check_deprecated_reports_deprecated_hit(capsys, tmp_path):
+def test_cmd_check_deprecated_reports_retired_hit(capsys, tmp_path):
     f = tmp_path / "config.py"
     f.write_text('MODEL = "claude-opus-4-1-20250805"\n')
     cmd_check_deprecated(str(tmp_path))
     out = capsys.readouterr().out
     assert "claude-opus-4-1-20250805" in out
-    assert "retiring 2026-08-05" in out
-    assert "Retired model IDs" not in out  # not conflated with actual retirements
+    assert "retired" in out.lower()
 
 
 def test_cmd_check_deprecated_clean_tree(capsys, tmp_path):
@@ -81,7 +80,7 @@ def test_cmd_check_deprecated_clean_tree(capsys, tmp_path):
     assert "No retired or deprecated model IDs found" in out
 
 
-def test_upgrade_source_ids_includes_deprecated():
+def test_upgrade_source_ids_includes_retired():
     ids = _upgrade_source_ids("claude-fable-5")
     assert "claude-opus-4-1-20250805" in ids
 

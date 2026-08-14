@@ -1,0 +1,2909 @@
+# UPGRADE-10
+
+# Enterprise SaaS Control Plane
+
+# Hard Multi-Tenancy, Organizations/Projects,
+
+# SSO/SCIM, Service Accounts, Policy-as-Code,
+
+# Quotas/Metering/Billing Boundary & Enterprise Audit
+
+You are working directly inside ZCoder after Upgrade-09.
+
+Reported baseline includes:
+
+* PostgreSQL production backend
+* real multi-process PostgreSQL coordination
+* atomic claims
+* fencing
+* worker recovery
+* GitHub App fleet
+* containerization
+* Docker Compose
+* Kubernetes / Helm
+* OIDC/RBAC
+* OpenTelemetry
+* backup / restore
+* production release gate
+* approximately 694 passing tests
+* two optional skips
+* version still reported as 1.40.0
+
+DO NOT trust any of these claims until verified.
+
+This upgrade has two distinct missions:
+
+1. correct remaining production-evidence overclaims from Upgrade-09;
+2. convert ZCoder from a production-capable single-organization control plane into an enterprise SaaS-ready architecture with hard tenant boundaries.
+
+Do not confuse:
+
+multi-repository
+
+with:
+
+multi-tenant SaaS.
+
+They are different security models.
+
+================================================================
+PHASE 0 — FORENSICALLY VERIFY UPGRADE-09
+========================================
+
+Run first:
+
+```bash
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q
+python main.py --version
+python main.py --help
+python -m build
+git diff --check
+```
+
+Inspect:
+
+```text
+postgres_store.py
+control_plane.py
+worker_process.py
+production_config.py
+auth_oidc.py
+observability_otel.py
+backup_restore.py
+release_gate.py
+deploy/
+.github/workflows/
+tests/
+docs/
+```
+
+Produce:
+
+```text
+UPGRADE-09 EVIDENCE AUDIT
+
+Capability
+Previous Claim
+Evidence Actually Executed
+Environment
+Limitations
+Correct Verdict
+```
+
+Verdicts:
+
+```text
+PROVEN
+PROVEN_WITH_LIMITATION
+CONFIGURED_NOT_EXECUTED
+SIMULATED
+UNIT_ONLY
+MOCK_ONLY
+DOCUMENTED_ONLY
+NOT_PROVEN
+FALSE_POSITIVE
+```
+
+Never convert CONFIGURED_NOT_EXECUTED into PASS.
+
+================================================================
+
+1. CORRECT THE FINAL VERDICT
+   ================================================================
+
+Upgrade-09 reportedly contains:
+
+```text
+PITR: PROVEN_WITH_LIMITATION
+```
+
+and also reports limitations around:
+
+* multi-host simulation
+* external PostgreSQL HA
+* external durable WAL archive
+
+Ensure the final verdict accurately reflects those limitations.
+
+A report must never conclude:
+
+```text
+FULLY VERIFIED
+```
+
+when mandatory or explicitly claimed properties remain limited.
+
+Introduce evidence-aware status:
+
+```text
+PASS
+PASS_WITH_LIMITATIONS
+FAIL
+UNKNOWN
+```
+
+Use:
+
+```text
+PASS_WITH_LIMITATIONS
+```
+
+where appropriate.
+
+================================================================
+2. RELEASE-GATE EVIDENCE MODEL
+==============================
+
+Every gate must contain evidence, not just a boolean.
+
+Concept:
+
+```python
+GateEvidence:
+    gate
+    status
+    command
+    test
+    environment
+    timestamp
+    artifact
+    limitations
+```
+
+A gate cannot become PASS merely because:
+
+```python
+gate = True
+```
+
+exists in source.
+
+================================================================
+3. VERSION DISCIPLINE
+=====================
+
+The project has reportedly accumulated:
+
+Upgrade-04
+Upgrade-05
+Upgrade-06
+Upgrade-07
+Upgrade-08
+Upgrade-09
+
+while still identifying itself as:
+
+```text
+1.40.0
+```
+
+Investigate actual:
+
+* Git tags
+* GitHub releases
+* PyPI releases
+* container tags
+* public API compatibility
+* CLI compatibility
+
+Do not fabricate release history.
+
+Choose a sane release strategy.
+
+If 1.40.0 has never been published, it is permissible to redefine the
+pending release, but explicitly document why.
+
+If public compatibility has materially changed, evaluate whether a
+major version is warranted.
+
+Do not choose v2 merely because the project became larger.
+
+Use actual SemVer reasoning.
+
+================================================================
+4. DEFINE THE TENANT MODEL
+==========================
+
+Introduce explicit hierarchy.
+
+Recommended conceptual model:
+
+```text
+Platform
+  │
+  ├── Organization
+  │     │
+  │     ├── Project
+  │     │     │
+  │     │     ├── Repository
+  │     │     ├── Jobs
+  │     │     ├── Agents
+  │     │     ├── Policies
+  │     │     └── Usage
+  │     │
+  │     ├── Members
+  │     ├── Groups
+  │     ├── Service Accounts
+  │     ├── API Keys
+  │     ├── GitHub Installations
+  │     └── Billing Account
+```
+
+Do not use GitHub organization as ZCoder tenant identity.
+
+GitHub is an integration.
+
+ZCoder organization is the security/billing/administrative boundary.
+
+================================================================
+5. TENANT IDENTIFIERS
+=====================
+
+Every tenant-owned domain entity must have an immutable tenant scope.
+
+Examples:
+
+```text
+organization_id
+project_id
+```
+
+Audit:
+
+jobs
+events
+approvals
+workers where applicable
+repositories
+GitHub installations
+PR mappings
+artifacts
+usage
+budgets
+policies
+audit records
+API keys
+service accounts
+webhooks
+outbox
+memory references
+agent profiles
+
+Do not infer tenant by joining through several optional tables when a
+direct security boundary is appropriate.
+
+================================================================
+6. TENANT CONTEXT
+=================
+
+Introduce a first-class authenticated request context.
+
+Concept:
+
+```python
+RequestContext:
+    principal_id
+    organization_id
+    project_id
+    roles
+    permissions
+    authentication_method
+```
+
+Do not pass organization IDs independently from authenticated identity
+without authorization validation.
+
+================================================================
+7. ZERO TRUST FOR CLIENT TENANT IDS
+===================================
+
+The API must never trust:
+
+```text
+X-Organization-ID
+organization_id in JSON
+project_id in URL
+```
+
+merely because the client sent it.
+
+Every requested tenant/project scope must be checked against the
+authenticated principal.
+
+================================================================
+8. APPLICATION-LAYER TENANT ISOLATION
+=====================================
+
+Every store/service API that accesses tenant-owned data should require
+explicit scope.
+
+Bad:
+
+```python
+get_job(job_id)
+```
+
+Preferred:
+
+```python
+get_job(context, job_id)
+```
+
+or an architecture providing equivalent enforced tenant context.
+
+Prevent accidental global queries.
+
+================================================================
+9. POSTGRESQL ROW-LEVEL SECURITY
+================================
+
+Evaluate PostgreSQL Row-Level Security as defense-in-depth.
+
+Verify current PostgreSQL behavior from official documentation before
+implementing.
+
+For tenant-owned tables, consider:
+
+```sql
+ALTER TABLE ... ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ... FORCE ROW LEVEL SECURITY;
+```
+
+where appropriate.
+
+Create policies for:
+
+```text
+SELECT
+INSERT
+UPDATE
+DELETE
+```
+
+Do not rely solely on SELECT policy.
+
+================================================================
+10. RLS ROLE SAFETY
+===================
+
+Explicitly verify:
+
+* application DB role
+* migration role
+* table owner
+* BYPASSRLS
+* administrative maintenance paths
+
+The normal application role must not accidentally bypass tenant RLS.
+
+Migration/admin roles must remain distinct.
+
+================================================================
+11. DATABASE SESSION TENANT CONTEXT
+===================================
+
+If RLS uses session-local tenant variables:
+
+set them inside a controlled transaction boundary.
+
+Example conceptual mechanism:
+
+```text
+SET LOCAL application.organization_id = ...
+```
+
+Verify exact safe PostgreSQL implementation.
+
+Do not leave tenant context attached to a pooled connection after the
+request.
+
+================================================================
+12. CONNECTION POOL TENANT LEAK TEST
+====================================
+
+Mandatory test:
+
+Request A:
+organization A
+
+connection returned to pool
+
+Request B:
+organization B
+
+same physical DB connection
+
+Prove B cannot observe A's tenant context or data.
+
+This is P0.
+
+================================================================
+13. RLS NEGATIVE TEST MATRIX
+============================
+
+For every tenant-owned table:
+
+Create:
+
+Organization A
+Organization B
+
+Insert records for both.
+
+Then deliberately attempt:
+
+A reads B
+A updates B
+A deletes B
+A inserts using B tenant ID
+
+Every attempt must fail or return no inaccessible record according to
+API contract.
+
+Positive tests are insufficient.
+
+================================================================
+14. RAW SQL ESCAPE AUDIT
+========================
+
+Search for all direct SQL.
+
+Identify queries capable of bypassing normal scoped repositories.
+
+No maintenance helper should silently become a tenant escape hatch.
+
+================================================================
+15. DATABASE BACKUP + RLS
+=========================
+
+Verify backup/restore behavior with RLS.
+
+Do not assume application RLS roles are suitable for backup.
+
+Document privileged backup role separately.
+
+Ensure restored policies and tenant constraints remain present.
+
+================================================================
+16. ORGANIZATIONS
+=================
+
+Implement lifecycle:
+
+```text
+ACTIVE
+SUSPENDED
+DELETING
+DELETED
+```
+
+Support:
+
+create
+read
+update
+suspend
+reactivate where policy allows
+
+Do not implement immediate destructive hard deletion for enterprise
+tenant data without retention policy.
+
+================================================================
+17. PROJECTS
+============
+
+Projects are subdivisions of an organization.
+
+Support:
+
+create
+list
+update
+archive
+
+Project isolation must never override organization boundary.
+
+================================================================
+18. MEMBERSHIP
+==============
+
+Implement explicit organization membership.
+
+Concept:
+
+```python
+Membership:
+    principal_id
+    organization_id
+    role
+    status
+```
+
+States:
+
+```text
+INVITED
+ACTIVE
+SUSPENDED
+REMOVED
+```
+
+================================================================
+19. ENTERPRISE RBAC
+===================
+
+Expand simple global:
+
+```text
+VIEWER
+OPERATOR
+ADMIN
+```
+
+into scoped roles.
+
+Possible initial model:
+
+```text
+OrganizationOwner
+OrganizationAdmin
+ProjectAdmin
+Operator
+Developer
+Viewer
+BillingAdmin
+SecurityAuditor
+```
+
+Do not hardcode UI behavior as authorization.
+
+Server-side permission evaluation is mandatory.
+
+================================================================
+20. PERMISSION MODEL
+====================
+
+Represent concrete permissions separately from role names.
+
+Examples:
+
+```text
+org.read
+org.manage
+member.read
+member.manage
+
+project.read
+project.manage
+
+job.read
+job.create
+job.cancel
+job.approve
+
+repo.read
+repo.manage
+
+policy.read
+policy.manage
+
+billing.read
+billing.manage
+
+audit.read
+```
+
+Role -> permission mapping should be explicit and testable.
+
+================================================================
+21. RESOURCE-LEVEL AUTHORIZATION
+================================
+
+RBAC alone may be insufficient.
+
+Authorization input may include:
+
+```text
+principal
+organization
+project
+resource
+action
+repository trust
+job risk
+environment
+```
+
+Prepare a generic authorization decision boundary.
+
+================================================================
+22. POLICY-AS-CODE
+==================
+
+Introduce policy-as-code architecture.
+
+Do NOT hard-depend on a policy engine simply for fashion.
+
+Provide an interface such as:
+
+```python
+PolicyDecision:
+    allow
+    reason
+    obligations
+```
+
+Potential backends:
+
+```text
+BuiltInPolicyEngine
+ExternalOPA
+```
+
+if justified.
+
+Verify current OPA documentation before implementing its integration.
+
+================================================================
+23. POLICY OBLIGATIONS
+======================
+
+Policy result should be capable of returning requirements such as:
+
+```text
+require_approval
+require_security_review
+max_budget
+allowed_runtime
+deny_secret_access
+require_sandbox
+```
+
+Not just boolean ALLOW/DENY.
+
+================================================================
+24. POLICY VERSIONING
+=====================
+
+Store:
+
+```text
+policy version
+policy hash
+effective time
+actor
+```
+
+Job/event audit should record which policy version produced a sensitive
+decision.
+
+================================================================
+25. POLICY TESTING
+==================
+
+Provide:
+
+```bash
+zcoder policy test
+```
+
+or equivalent.
+
+Policies must have unit tests.
+
+A malformed security policy should fail closed.
+
+================================================================
+26. POLICY SIMULATION
+=====================
+
+Support non-mutating evaluation:
+
+```bash
+zcoder policy explain \
+  --principal ... \
+  --action job.approve \
+  --resource ...
+```
+
+Show:
+
+decision
+matched rules
+obligations
+
+Do not expose secrets/internal tokens.
+
+================================================================
+27. ENTERPRISE SSO
+==================
+
+Existing OIDC should evolve into organization-aware SSO.
+
+Support multiple OIDC provider configurations.
+
+Each organization may configure an IdP.
+
+Do not use one global issuer assumption.
+
+================================================================
+28. OIDC PROVIDER MODEL
+=======================
+
+Persist:
+
+```text
+issuer
+client identifier
+organization
+claim mappings
+domain restrictions
+enabled status
+```
+
+Secrets must remain SecretRef values.
+
+================================================================
+29. OIDC DISCOVERY
+==================
+
+Where supported, use standards-compliant provider discovery.
+
+Validate:
+
+issuer
+authorization endpoint
+token endpoint
+JWKS
+
+Do not blindly trust discovery URLs supplied by unprivileged users.
+
+Protect against SSRF.
+
+================================================================
+30. SSO DOMAIN CLAIMING
+=======================
+
+If organization domain verification is introduced:
+
+do not trust an email domain merely because a user typed it.
+
+Require verification workflow.
+
+Do not automatically move existing users between organizations.
+
+================================================================
+31. ACCOUNT LINKING SECURITY
+============================
+
+Never link identities solely by email without an explicit secure policy.
+
+Persist external identity:
+
+```text
+issuer
+subject
+```
+
+as stable identity key.
+
+================================================================
+32. SCIM 2.0
+============
+
+Add enterprise provisioning boundary using current SCIM standards.
+
+Implement only after re-reading current RFCs.
+
+Initial resources:
+
+```text
+/Users
+/Groups
+```
+
+Support appropriate:
+
+GET
+POST
+PUT/PATCH
+DELETE/deactivation
+filtering
+pagination
+
+Do not invent vendor-specific SCIM semantics unless necessary.
+
+================================================================
+33. SCIM USER MAPPING
+=====================
+
+Map SCIM identity to ZCoder principals and memberships.
+
+Do not make:
+
+SCIM active=false
+
+immediately destroy historical audit/job ownership.
+
+Deactivate access while retaining referential history.
+
+================================================================
+34. SCIM GROUP MAPPING
+======================
+
+Allow SCIM groups to map to ZCoder organization/project roles according
+to explicit configuration.
+
+Do not let arbitrary external group names become admins automatically.
+
+================================================================
+35. SCIM AUTHENTICATION
+=======================
+
+SCIM endpoint authentication must use organization-scoped credential
+or supported enterprise auth method.
+
+Store only secure credential representation.
+
+Never log bearer tokens.
+
+================================================================
+36. SCIM IDEMPOTENCY / VERSIONING
+=================================
+
+Handle retries safely.
+
+Respect resource version semantics where implemented.
+
+Do not duplicate users/groups when provisioning requests repeat.
+
+================================================================
+37. SCIM AUDIT
+==============
+
+Audit:
+
+user provisioned
+user deactivated
+group changed
+role mapping affected
+
+Identify:
+
+organization
+SCIM client
+resource
+result
+
+================================================================
+38. SERVICE ACCOUNTS
+====================
+
+Introduce non-human principals.
+
+Concept:
+
+```python
+ServiceAccount:
+    id
+    organization_id
+    project_id optional
+    name
+    permissions/role
+    status
+```
+
+Never model automated clients as fake human users.
+
+================================================================
+39. API KEYS
+============
+
+Support scoped API credentials.
+
+API keys should have:
+
+```text
+id
+prefix
+secret
+principal
+scopes
+created_at
+expires_at
+last_used_at
+status
+```
+
+Persist only:
+
+```text
+secure hash
+```
+
+of secret material where architecture permits verification by hashing.
+
+Display full key once.
+
+================================================================
+40. API KEY PREFIX
+==================
+
+Use non-secret identifiable prefix so operators can locate a key without
+storing/displaying full value.
+
+Logs may contain key ID/prefix, never secret.
+
+================================================================
+41. API KEY SCOPES
+==================
+
+Keys must not inherit unlimited organization permissions implicitly.
+
+Support explicit scopes.
+
+Example:
+
+```text
+job:read
+job:write
+repo:read
+```
+
+Authorization still obeys organization/project boundary.
+
+================================================================
+42. API KEY ROTATION
+====================
+
+Support:
+
+create replacement
+overlap period
+revoke old
+
+Do not require downtime.
+
+================================================================
+43. API KEY REVOCATION
+======================
+
+Revoked key must fail immediately or according to clearly documented
+cache TTL.
+
+Test cache invalidation.
+
+================================================================
+44. SERVICE-TO-SERVICE AUTH
+===========================
+
+Design machine identity independent from browser session auth.
+
+Potentially support:
+
+service-account API key
+OAuth client flow where appropriate
+
+Do not reuse browser cookies for worker/service authentication.
+
+================================================================
+45. WORKER IDENTITY
+===================
+
+Workers need authenticated machine identity.
+
+A worker claiming jobs must prove identity and capabilities.
+
+Do not trust self-reported:
+
+worker_id
+organization
+capability
+
+from unauthenticated processes.
+
+================================================================
+46. INTERNAL CONTROL-PLANE AUTH
+===============================
+
+Authenticate:
+
+worker -> API
+reconciler -> API
+scheduler -> API
+
+or use trusted direct DB architecture with explicit deployment boundary.
+
+Document which services directly access PostgreSQL.
+
+================================================================
+47. USAGE METERING
+==================
+
+Create immutable usage events.
+
+Concept:
+
+```python
+UsageEvent:
+    id
+    organization_id
+    project_id
+    job_id
+    runtime
+    provider
+    model
+    metric
+    quantity
+    unit
+    occurred_at
+    source
+```
+
+Do not derive financial usage only from current mutable job totals.
+
+================================================================
+48. USAGE SOURCES
+=================
+
+Differentiate:
+
+```text
+PROVIDER_REPORTED
+RUNTIME_REPORTED
+ZCODER_MEASURED
+ESTIMATED
+```
+
+Never combine them silently.
+
+================================================================
+49. IDEMPOTENT METERING
+=======================
+
+Every billable usage event must have stable deduplication identity.
+
+Reconnects/webhook retries must not double count usage.
+
+================================================================
+50. USAGE LEDGER
+================
+
+Provide append-oriented usage ledger.
+
+Corrections should preferably use adjustment events rather than
+rewriting historical usage without trace.
+
+================================================================
+51. USAGE AGGREGATION
+=====================
+
+Aggregate by:
+
+```text
+organization
+project
+repository
+job
+runtime
+model
+period
+```
+
+Keep raw ledger separate from materialized summaries.
+
+================================================================
+52. QUOTAS
+==========
+
+Implement scoped quotas.
+
+Examples:
+
+```text
+monthly spend
+daily spend
+concurrent jobs
+managed runtime hours
+token usage
+repository count
+worker count
+```
+
+Do not make one universal quota model fit all units.
+
+================================================================
+53. QUOTA STATES
+================
+
+Support:
+
+```text
+OK
+WARNING
+SOFT_LIMIT
+HARD_LIMIT
+SUSPENDED
+```
+
+Separate:
+
+notification threshold
+
+from:
+
+enforcement threshold.
+
+================================================================
+54. QUOTA ENFORCEMENT
+=====================
+
+Quota enforcement must occur before new expensive work begins.
+
+Concurrent workers can race.
+
+Use transactional reservation/allocation where necessary.
+
+Do not rely only on:
+
+current_usage < limit
+
+without atomicity.
+
+================================================================
+55. USAGE RESERVATIONS
+======================
+
+For bounded operations, consider reservation:
+
+```text
+reserve budget
+execute
+settle actual
+release unused
+```
+
+This can prevent concurrent overspend.
+
+Do not pretend provider estimates are exact.
+
+================================================================
+56. PROVIDER HARD BUDGET VS ZCODER QUOTA
+========================================
+
+Keep distinct:
+
+```text
+provider hard budget
+ZCoder organization quota
+project quota
+job budget
+```
+
+Document enforcement guarantees for each.
+
+================================================================
+57. BILLING BOUNDARY
+====================
+
+Create billing domain without forcing a payment vendor.
+
+Concept:
+
+```text
+BillingAccount
+Plan
+Entitlement
+UsageLedger
+InvoicePeriod
+```
+
+Do not integrate Stripe/PayPal merely to claim billing support.
+
+Payment processing can remain an adapter.
+
+================================================================
+58. ENTITLEMENTS
+================
+
+Plans should resolve to capabilities.
+
+Examples:
+
+```text
+max_projects
+max_repositories
+managed_agents
+advanced_policy
+SCIM
+audit_export
+retention_days
+```
+
+Feature checks should use entitlement service, not scattered plan-name
+comparisons.
+
+Bad:
+
+```python
+if plan == "enterprise":
+```
+
+Preferred:
+
+```python
+entitlements.has("scim")
+```
+
+================================================================
+59. PLAN VERSIONING
+===================
+
+Do not let editing a plan retroactively change historical billing
+meaning.
+
+Version entitlement/price definitions where needed.
+
+================================================================
+60. BILLING PERIOD
+==================
+
+Support deterministic time boundaries.
+
+Be careful with:
+
+timezone
+month boundaries
+late usage events
+
+Store canonical timestamps in UTC.
+
+================================================================
+61. COST VS PRICE
+=================
+
+Distinguish:
+
+```text
+provider cost
+platform internal cost
+customer billable usage
+customer price
+```
+
+They are not identical.
+
+Do not expose internal cost assumptions as customer invoices accidentally.
+
+================================================================
+62. BILLING EXPORT
+==================
+
+Generate machine-readable usage/billing export.
+
+Examples:
+
+CSV
+JSON
+
+Do not require PDF invoices in this upgrade unless actual billing
+requirements exist.
+
+================================================================
+63. SPEND ALERTS
+================
+
+Support thresholds:
+
+50%
+80%
+100%
+
+per organization/project.
+
+Alert delivery should be idempotent per period/threshold.
+
+================================================================
+64. ORGANIZATION SUSPENSION
+===========================
+
+Suspension policy must define:
+
+new jobs
+running jobs
+API access
+read-only access
+audit export
+billing admin access
+
+Do not lock an enterprise customer out of necessary audit/billing data
+without policy.
+
+================================================================
+65. AUDIT EVENT MODEL
+=====================
+
+Upgrade audit trail into enterprise audit log.
+
+Each record should include:
+
+```text
+event_id
+organization_id
+actor
+actor_type
+action
+resource
+result
+timestamp
+source_ip where appropriate
+request_id
+metadata
+```
+
+Avoid sensitive payloads.
+
+================================================================
+66. AUDIT IMMUTABILITY
+======================
+
+Normal application principals must not update/delete historical audit
+records.
+
+Use append-only application semantics.
+
+Consider DB permissions/constraints.
+
+Do not market this as cryptographic immutability unless implemented.
+
+================================================================
+67. AUDIT HASH CHAIN OPTIONAL
+=============================
+
+If tamper-evidence is desired, optionally implement chained hashes or
+signed export manifests.
+
+Do not claim tamper-proof.
+
+Document threat model.
+
+================================================================
+68. AUDIT EXPORT
+================
+
+Support export by:
+
+organization
+time range
+event type
+
+Formats:
+
+JSONL
+CSV
+
+Provide stable schema/version.
+
+================================================================
+69. SIEM EXPORT
+===============
+
+Create an adapter boundary for enterprise export.
+
+Potential transports:
+
+webhook
+HTTP
+object storage
+syslog-like destination if justified
+
+Do not hardcode Splunk/Datadog/etc as the domain model.
+
+================================================================
+70. AUDIT EXPORT RETRY
+======================
+
+Use durable outbox.
+
+Failed export must not block primary control-plane transaction.
+
+Provide retry/dead-letter visibility.
+
+================================================================
+71. DATA RETENTION
+==================
+
+Introduce configurable retention classes.
+
+Examples:
+
+```text
+job events
+agent logs
+artifacts
+audit events
+usage ledger
+SCIM history
+```
+
+Do not use one retention duration for all data.
+
+================================================================
+72. RETENTION LEGAL HOLD BOUNDARY
+=================================
+
+Design an extensible retention policy.
+
+Do not claim legal-hold compliance unless actually implemented and
+validated.
+
+================================================================
+73. ORGANIZATION DATA DELETION
+==============================
+
+Design safe asynchronous tenant deletion.
+
+Pipeline:
+
+request
+approval if required
+grace period
+disable access
+delete/cryptographically erase where possible
+verify
+audit completion
+
+Do not delete shared provider resources belonging to another tenant.
+
+================================================================
+74. EXPORT BEFORE DELETE
+========================
+
+Optionally support customer data export before deletion.
+
+Do not automatically expose secret/token material.
+
+================================================================
+75. OBJECT STORAGE TENANT BOUNDARY
+==================================
+
+If artifacts/backups/object storage are used, ensure tenant keys/path
+layout cannot collide.
+
+Never rely only on filename prefixes without authorization controls.
+
+================================================================
+76. ARTIFACT AUTHORIZATION
+==========================
+
+Downloading an artifact must re-check tenant/project permission.
+
+Possession of an artifact ID must not grant access.
+
+Use time-bounded signed URLs only where appropriate and scoped.
+
+================================================================
+77. CACHE TENANT ISOLATION
+==========================
+
+Audit caches.
+
+Cache key must include tenant scope where data is tenant-specific.
+
+Test:
+
+A populates cache
+B requests similar ID
+B never receives A data
+
+================================================================
+78. OBSERVABILITY TENANT SAFETY
+===============================
+
+Logs/traces/metrics can leak tenant data.
+
+Review:
+
+repository names
+task prompts
+code paths
+user emails
+organization IDs
+
+Metrics should use low-cardinality/internal dimensions.
+
+Detailed tenant-level data belongs in authorized APIs/storage.
+
+================================================================
+79. ERROR MESSAGE ISOLATION
+===========================
+
+Cross-tenant lookup should avoid revealing whether inaccessible
+resources exist.
+
+Define consistent:
+
+not found
+forbidden
+
+semantics according to threat model.
+
+================================================================
+80. RATE LIMITING
+=================
+
+Add quotas/rate limits at scopes:
+
+principal
+API key
+organization
+expensive endpoint
+
+Do not allow one tenant to exhaust all API/control-plane capacity.
+
+================================================================
+81. FAIR SCHEDULING BETWEEN TENANTS
+===================================
+
+Extend scheduler fairness.
+
+One organization should not monopolize workers.
+
+Possible controls:
+
+```text
+org concurrency
+project concurrency
+weighted scheduling
+```
+
+Preserve priority policy.
+
+================================================================
+82. TENANT-AWARE WORKER ROUTING
+===============================
+
+High-security tenants may require:
+
+dedicated workers
+specific runtime
+specific region
+restricted network
+
+Represent scheduling constraints.
+
+Do not claim dedicated tenancy unless worker isolation is actually
+enforced.
+
+================================================================
+83. DATA RESIDENCY POLICY BOUNDARY
+==================================
+
+Prepare organization/project policy for:
+
+allowed execution regions
+allowed provider regions
+artifact residency
+
+Do not claim regulatory residency based only on an LLM inference setting.
+
+Infrastructure/database/object-storage locations also matter.
+
+================================================================
+84. REGION MODEL
+================
+
+Introduce region metadata without implementing multi-region yet.
+
+Examples:
+
+```text
+control_plane_region
+worker_region
+provider_inference_region
+data_region
+```
+
+Do not collapse them into one `region` value.
+
+================================================================
+85. MULTI-REGION ARCHITECTURE BOUNDARY
+======================================
+
+Design only.
+
+Do not implement active-active multi-region unless explicitly proven.
+
+Document:
+
+what remains single-region
+what state is globally authoritative
+what must be replicated
+
+================================================================
+86. API VERSIONING
+==================
+
+Enterprise customers need API stability.
+
+Define API versioning strategy.
+
+Do not expose internal database models directly as public schemas.
+
+================================================================
+87. PAGINATION
+==============
+
+All enterprise list endpoints need bounded pagination.
+
+Examples:
+
+jobs
+members
+audit
+usage
+repositories
+
+Avoid unbounded organization-wide queries.
+
+================================================================
+88. FILTERING / SORTING
+=======================
+
+Use allowlisted fields.
+
+Never concatenate arbitrary sort/filter input into SQL.
+
+================================================================
+89. IDEMPOTENCY
+===============
+
+Mutation endpoints important to automation should support idempotency
+where meaningful.
+
+Examples:
+
+job create
+organization create
+service-account create
+billing export
+
+================================================================
+90. API ERROR CONTRACT
+======================
+
+Define stable machine-readable errors.
+
+Concept:
+
+```json
+{
+  "error": {
+    "code": "...",
+    "message": "...",
+    "request_id": "..."
+  }
+}
+```
+
+Do not expose SQL/stack traces.
+
+================================================================
+91. ENTERPRISE API KEYS FOR AUTOMATION
+======================================
+
+Document:
+
+creation
+scope
+rotation
+expiration
+revocation
+audit
+
+Never include full key in API list responses.
+
+================================================================
+92. SECURITY ADMIN EXPERIENCE
+=============================
+
+Provide commands/API for:
+
+members
+roles
+service accounts
+API keys
+SSO
+SCIM
+policies
+audit
+
+Use shared services.
+
+Do not implement business logic only in CLI.
+
+================================================================
+93. CLI TARGET
+==============
+
+Aim for coherent commands such as:
+
+```bash
+zcoder orgs list
+zcoder orgs show ORG
+
+zcoder projects list --org ORG
+
+zcoder members list --org ORG
+
+zcoder service-accounts list --org ORG
+zcoder api-keys create ...
+
+zcoder sso status --org ORG
+zcoder scim status --org ORG
+
+zcoder policy explain ...
+
+zcoder usage show --org ORG
+zcoder quotas show --org ORG
+
+zcoder audit export ...
+```
+
+Follow existing CLI design if better.
+
+================================================================
+94. ADMIN WEB CONSOLE
+=====================
+
+Extend operations console.
+
+Views:
+
+```text
+Organizations
+Projects
+Members
+Groups
+SSO
+SCIM
+Service Accounts
+API Keys
+Policies
+Usage
+Quotas
+Audit
+```
+
+Sensitive operations require server-side authorization.
+
+================================================================
+95. ORGANIZATION SWITCHING
+==========================
+
+UI organization switching must update authenticated context safely.
+
+Do not merely set tenant ID in browser local state and trust it.
+
+================================================================
+96. TENANT-SAFE WEBSOCKET/SSE
+=============================
+
+Realtime subscriptions must be authorized by tenant.
+
+Test that reconnect/subscription token cannot access another tenant's
+job stream.
+
+================================================================
+97. BACKGROUND JOB TENANT CONTEXT
+=================================
+
+Async worker jobs must carry signed/trusted internal tenant scope.
+
+Do not accept tenant scope again from untrusted task payload later in
+execution.
+
+================================================================
+98. OUTBOX TENANT SCOPE
+=======================
+
+Outbox messages must contain validated tenant/resource correlation.
+
+Outbox worker must re-check appropriate policy for delayed dangerous
+actions when required.
+
+================================================================
+99. WEBHOOK TENANT ROUTING
+==========================
+
+GitHub webhook:
+
+installation
+→ repository
+→ ZCoder organization/project
+
+Mapping must be authoritative.
+
+Do not route by repository name alone.
+
+================================================================
+100. GITHUB INSTALLATION REASSIGNMENT
+=====================================
+
+If administrators move/reassociate installation mappings, ensure existing
+jobs/audit retain historical tenant identity.
+
+Do not silently transfer historical data.
+
+================================================================
+101. GITHUB APP CROSS-TENANT TESTS
+==================================
+
+Installation A must never mutate repositories assigned to tenant B.
+
+Test intentionally malicious identifiers.
+
+================================================================
+102. SCIM CROSS-TENANT TESTS
+============================
+
+SCIM credential for Organization A must never provision/deactivate users
+in Organization B.
+
+P0 test.
+
+================================================================
+103. API KEY CROSS-TENANT TESTS
+===============================
+
+Project-scoped key:
+
+must not access another project.
+
+Organization-scoped key:
+
+must not access another organization.
+
+P0.
+
+================================================================
+104. AUDIT CROSS-TENANT TESTS
+=============================
+
+Security Auditor A must not query audit records B.
+
+Even if numeric/event IDs are guessed.
+
+================================================================
+105. USAGE CROSS-TENANT TESTS
+=============================
+
+Billing admin A must not view B's cost/usage.
+
+Test aggregate endpoints, not just individual rows.
+
+================================================================
+106. POLICY CROSS-TENANT TESTS
+==============================
+
+A tenant admin cannot install or alter global policy.
+
+A project admin cannot weaken organization immutable policy.
+
+================================================================
+107. RLS BYPASS TEST
+====================
+
+Create a test specifically demonstrating that the normal application
+role cannot bypass RLS through ownership or BYPASSRLS privilege.
+
+This must run against real PostgreSQL.
+
+================================================================
+108. MIGRATION + RLS TEST
+=========================
+
+Run migrations as migration role.
+
+Then switch to application role.
+
+Verify RLS remains active.
+
+Do not accidentally leave migrated tables owned by an application role
+that bypasses intended isolation.
+
+================================================================
+109. BACKUP RESTORE TENANCY TEST
+================================
+
+Backup enterprise dataset containing at least two organizations.
+
+Restore.
+
+Verify:
+
+organization IDs
+RLS
+memberships
+usage
+audit
+policies
+
+remain isolated.
+
+================================================================
+110. LOAD TEST WITH MULTIPLE TENANTS
+====================================
+
+Use FakeRuntime.
+
+Simulate multiple organizations concurrently.
+
+Measure:
+
+queue fairness
+DB contention
+API latency
+usage aggregation
+rate limiting
+
+Do not use live Anthropic calls for load testing.
+
+================================================================
+111. NOISY NEIGHBOR TEST
+========================
+
+Organization A floods job queue.
+
+Organization B submits normal work.
+
+Verify configured fairness/limits prevent total starvation.
+
+================================================================
+112. QUOTA RACE TEST
+====================
+
+Multiple workers simultaneously start operations near a tenant hard
+limit.
+
+Prove aggregate quota cannot be exceeded because of a race beyond the
+explicitly documented tolerance.
+
+Use real PostgreSQL.
+
+================================================================
+113. USAGE DUPLICATION TEST
+===========================
+
+Replay:
+
+runtime event
+webhook
+reconnect
+
+Prove billable usage is not counted twice.
+
+================================================================
+114. BILLING ADJUSTMENT TEST
+============================
+
+Create initial usage then an adjustment.
+
+Historical ledger remains traceable.
+
+Aggregate reflects correction.
+
+================================================================
+115. IDENTITY TEST MATRIX
+=========================
+
+Test:
+
+valid OIDC
+invalid issuer
+invalid audience
+expired token
+unknown subject
+removed membership
+suspended organization
+multiple organization membership
+SCIM deactivated principal
+revoked API key
+expired API key
+
+================================================================
+116. OAUTH/OIDC SECURITY REVIEW
+===============================
+
+Re-check current OAuth/OIDC security best practices from standards
+sources before finalizing implementation.
+
+Do not preserve legacy insecure flows merely because they are easy.
+
+================================================================
+117. SSRF REVIEW
+================
+
+Enterprise-configurable:
+
+OIDC issuer
+webhook destinations
+policy endpoints
+SIEM export
+
+may create SSRF surfaces.
+
+Validate destination schemes/addresses according to security policy.
+
+Protect metadata/private network endpoints.
+
+================================================================
+118. SSO CONFIG APPROVAL
+========================
+
+Changing enterprise identity configuration can lock out an organization.
+
+Require elevated role.
+
+Audit old/new configuration metadata safely.
+
+Consider break-glass behavior.
+
+================================================================
+119. SCIM TOKEN ROTATION
+========================
+
+Allow SCIM credential rotation without losing provisioning continuity.
+
+Audit credential lifecycle.
+
+================================================================
+120. TENANT CREATION TRANSACTION
+================================
+
+Creating organization should atomically create required:
+
+organization
+default project if desired
+owner membership
+policy baseline
+billing account/usage scope
+
+Do not leave partially initialized organizations.
+
+================================================================
+121. DEFAULT-DENY TENANT POLICY
+===============================
+
+If tenant scope is missing unexpectedly:
+
+fail closed.
+
+Never interpret missing tenant as:
+
+all tenants.
+
+================================================================
+122. GLOBAL ADMIN
+=================
+
+If platform-level administration exists:
+
+make it a distinct privileged principal type.
+
+Do not give ordinary OrganizationOwner global access.
+
+All global-admin accesses to tenant data should be heavily audited.
+
+================================================================
+123. IMPERSONATION
+==================
+
+Do not add tenant impersonation casually.
+
+If implemented for support:
+
+explicit reason
+short duration
+visible audit
+strong role requirement
+
+Never silently impersonate.
+
+================================================================
+124. SUPPORT ACCESS
+===================
+
+Design support access as controlled workflow.
+
+Default:
+
+no tenant data access.
+
+Do not assume SaaS operator automatically reads customer source code.
+
+================================================================
+125. DATA MINIMIZATION
+======================
+
+Review whether ZCoder actually needs to persist:
+
+full prompts
+source snippets
+tool output
+GitHub logs
+
+Allow retention/minimization controls.
+
+================================================================
+126. ENCRYPTION BOUNDARY
+========================
+
+Document encryption assumptions:
+
+in transit
+database/storage
+backup
+object storage
+
+Do not claim field-level encryption unless implemented.
+
+================================================================
+127. CUSTOMER-MANAGED KEYS
+==========================
+
+Architecture boundary only unless actually required.
+
+Do not claim BYOK/CMK support because cloud storage is encrypted.
+
+================================================================
+128. AUDIT SCHEMA VERSIONING
+============================
+
+Audit exports need stable schema version.
+
+Consumers must be able to evolve safely.
+
+================================================================
+129. SCIM CONFORMANCE DOCUMENT
+==============================
+
+Document supported:
+
+resources
+attributes
+filters
+patch operations
+pagination
+limitations
+
+Do not claim full SCIM compliance without conformance evidence.
+
+================================================================
+130. ENTERPRISE FEATURE MATRIX
+==============================
+
+Create:
+
+```text
+docs/ENTERPRISE-FEATURE-MATRIX.md
+```
+
+Columns:
+
+```text
+Feature
+Implemented
+Tested
+Live-tested
+Standard
+Limitations
+Entitlement
+```
+
+No marketing-only checkmarks.
+
+================================================================
+131. THREAT MODEL
+=================
+
+Expand threat model with:
+
+cross-tenant read
+cross-tenant mutation
+tenant-ID spoofing
+RLS bypass
+pooled connection contamination
+malicious SCIM client
+stolen API key
+malicious org admin
+billing manipulation
+usage duplication
+audit tampering
+SSRF via enterprise configuration
+noisy neighbor
+support/admin abuse
+
+================================================================
+132. SECURITY GATES
+===================
+
+Add mandatory gates:
+
+```text
+TENANT_MODEL
+APP_SCOPE
+RLS
+RLS_NEGATIVE_TESTS
+POOL_ISOLATION
+
+ENTERPRISE_RBAC
+POLICY
+SSO
+SCIM
+SERVICE_ACCOUNTS
+API_KEYS
+
+USAGE_LEDGER
+QUOTAS
+BILLING_BOUNDARY
+AUDIT_EXPORT
+
+CROSS_TENANT_SECURITY
+```
+
+================================================================
+133. ENTERPRISE RELEASE GATE
+============================
+
+Example:
+
+```text
+SOURCE_TRUTH: PASS
+TESTS: PASS
+BUILD: PASS
+INSTALL: PASS
+
+PRODUCTION_EVIDENCE: PASS_WITH_LIMITATIONS
+
+TENANT_MODEL: PASS
+APP_SCOPE: PASS
+RLS: PASS
+RLS_NEGATIVE_TESTS: PASS
+POOL_ISOLATION: PASS
+
+ENTERPRISE_RBAC: PASS
+POLICY: PASS
+SSO: PASS
+SCIM: PASS
+SERVICE_ACCOUNTS: PASS
+API_KEYS: PASS
+
+USAGE_LEDGER: PASS
+QUOTAS: PASS
+BILLING_BOUNDARY: PASS
+AUDIT_EXPORT: PASS
+
+CROSS_TENANT_SECURITY: PASS
+SECURITY: PASS
+DOCS: PASS
+
+FINAL: PASS
+```
+
+If PITR remains limited, do not make unrelated enterprise gate fail.
+
+But report it correctly.
+
+================================================================
+134. EVIDENCE TIERS
+===================
+
+Introduce explicit evidence levels:
+
+```text
+E0 = implementation only
+E1 = unit tested
+E2 = integration tested
+E3 = multi-process/system tested
+E4 = live external-system tested
+E5 = production observed
+```
+
+Every major capability should state evidence tier.
+
+Do not label E1 as production-proven.
+
+================================================================
+135. REQUIRED POSTGRESQL TESTS
+==============================
+
+Use real PostgreSQL for:
+
+RLS
+role privilege
+pool isolation
+quota race
+cross-tenant queries
+migration ownership
+backup/restore tenant isolation
+
+SQLite tests cannot prove PostgreSQL RLS behavior.
+
+================================================================
+136. REQUIRED END-TO-END TENANT TEST
+====================================
+
+Create:
+
+Organization A
+Organization B
+
+Each has:
+
+user
+project
+repository
+job
+usage
+audit entry
+API key
+
+Authenticate as A.
+
+Attempt access to every B resource class.
+
+Expected:
+
+ZERO cross-tenant data exposure
+ZERO cross-tenant mutation
+
+Repeat in:
+
+API
+store/service
+background worker
+realtime stream
+
+================================================================
+137. REQUIRED SCIM E2E TEST
+===========================
+
+Organization A SCIM client:
+
+provision user
+create/update group
+assign membership
+deactivate user
+
+Verify:
+
+authorization changes
+audit
+historical ownership retained
+
+Then prove credential cannot affect Organization B.
+
+================================================================
+138. REQUIRED QUOTA E2E TEST
+============================
+
+Create hard organization budget.
+
+Run concurrent submissions.
+
+Prove:
+
+reservation/enforcement
+usage settlement
+warning events
+hard-limit behavior
+no silent reset across retries
+
+================================================================
+139. REQUIRED AUDIT E2E TEST
+============================
+
+Perform:
+
+login
+API-key creation
+job create
+approval
+policy update
+SCIM deactivation
+
+Export audit.
+
+Verify:
+
+actor
+tenant
+action
+resource
+result
+timestamps
+schema version
+
+Secrets must not appear.
+
+================================================================
+140. REQUIRED PACKAGE / DEPLOYMENT TEST
+=======================================
+
+Existing:
+
+wheel
+container
+Compose
+Kubernetes
+
+must continue to function with enterprise schema/configuration.
+
+Do not break local SQLite mode.
+
+================================================================
+141. LOCAL MODE COMPATIBILITY
+=============================
+
+Local user should still be able to run:
+
+```bash
+zcoder run "Fix tests"
+```
+
+without:
+
+organization provisioning
+SCIM
+enterprise PostgreSQL
+
+Use an implicit local tenant/context internally if needed.
+
+Do not scatter special cases throughout business logic.
+
+================================================================
+142. LOCAL TENANT
+=================
+
+If implementing implicit local organization:
+
+give it deterministic semantics.
+
+Never let it accidentally be used in production mode.
+
+================================================================
+143. PRODUCTION MODE FAIL-CLOSED
+================================
+
+Production SaaS mode must require:
+
+PostgreSQL
+tenant-aware authentication
+secure secret configuration
+explicit organization context
+
+Do not silently fall back to local/default organization.
+
+================================================================
+144. OBSERVABILITY UPDATE
+=========================
+
+Measure:
+
+tenant auth failures
+RLS denials where safely observable
+quota denials
+SCIM operations
+API-key authentication
+policy denials
+audit export backlog
+
+Avoid raw organization IDs as unrestricted high-cardinality metrics.
+
+================================================================
+145. BILLING OBSERVABILITY
+==========================
+
+Monitor:
+
+usage ingest lag
+aggregation delay
+duplicate rejection
+quota reservation failures
+ledger reconciliation
+
+Do not log billable prompt/source content.
+
+================================================================
+146. RUNBOOKS
+=============
+
+Add:
+
+```text
+docs/runbooks/TENANT-ISOLATION-INCIDENT.md
+docs/runbooks/SSO-LOCKOUT.md
+docs/runbooks/SCIM-FAILURE.md
+docs/runbooks/API-KEY-COMPROMISE.md
+docs/runbooks/USAGE-METERING-ERROR.md
+docs/runbooks/QUOTA-INCIDENT.md
+```
+
+Each must contain real diagnostics/containment steps.
+
+================================================================
+147. DOCUMENTATION
+==================
+
+Update:
+
+```text
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+```
+
+Add:
+
+```text
+docs/UPGRADE-10.md
+docs/MULTI-TENANCY.md
+docs/ORGANIZATIONS.md
+docs/ENTERPRISE-RBAC.md
+docs/POLICY.md
+docs/SSO.md
+docs/SCIM.md
+docs/SERVICE-ACCOUNTS.md
+docs/API-KEYS.md
+docs/USAGE-METERING.md
+docs/QUOTAS.md
+docs/BILLING.md
+docs/AUDIT.md
+docs/ENTERPRISE-FEATURE-MATRIX.md
+```
+
+No placeholder documents.
+
+================================================================
+148. CI MATRIX
+==============
+
+Add appropriate tests/jobs:
+
+```text
+unit
+postgres
+rls
+cross-tenant
+identity
+scim
+policy
+usage-ledger
+quota-concurrency
+audit
+security
+package
+container
+```
+
+Default CI should not require a real enterprise IdP.
+
+Use fake OIDC/SCIM clients for deterministic tests.
+
+Optional live identity-provider tests remain separate.
+
+================================================================
+149. VERSION DECISION
+=====================
+
+At the end, determine version from:
+
+actual published history
+public API compatibility
+CLI compatibility
+database migration compatibility
+enterprise feature scope
+
+Do not automatically keep:
+
+1.40.0
+
+and do not automatically choose:
+
+2.0.0
+
+Explain evidence-based SemVer decision.
+
+================================================================
+150. FINAL REQUIRED COMMANDS
+============================
+
+Run:
+
+```bash
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+git status --short
+```
+
+Also separately run:
+
+```text
+real PostgreSQL suite
+RLS suite
+cross-tenant suite
+quota concurrency suite
+SCIM suite
+identity suite
+backup/restore tenant suite
+package clean-install
+container smoke
+release gate
+```
+
+Run available:
+
+```bash
+ruff check .
+black --check .
+mypy .
+```
+
+Do not hide failed or skipped commands.
+
+================================================================
+151. DEFINITION OF DONE
+=======================
+
+Upgrade-10 is complete only when:
+
+* [ ] Upgrade-09 evidence claims are corrected
+* [ ] evidence tier exists
+* [ ] version strategy is resolved
+* [ ] organization domain exists
+* [ ] project domain exists
+* [ ] every tenant-owned record has enforced scope
+* [ ] application-layer tenant isolation exists
+* [ ] PostgreSQL RLS exists where selected
+* [ ] normal app DB role cannot bypass RLS
+* [ ] pool tenant-leak test passes
+* [ ] cross-tenant negative matrix passes
+* [ ] enterprise RBAC exists
+* [ ] policy engine supports scoped decisions
+* [ ] OIDC is organization-aware
+* [ ] service accounts exist
+* [ ] scoped API keys exist
+* [ ] keys can be rotated/revoked
+* [ ] SCIM Users/Groups boundary works
+* [ ] SCIM cross-tenant isolation passes
+* [ ] immutable-style usage ledger exists
+* [ ] usage deduplication exists
+* [ ] quota race test passes
+* [ ] billing domain is provider-neutral
+* [ ] entitlements are capability-based
+* [ ] enterprise audit log exists
+* [ ] audit export exists
+* [ ] audit export contains no secrets
+* [ ] tenant-aware artifact access exists
+* [ ] tenant-aware realtime access exists
+* [ ] noisy-neighbor protections exist
+* [ ] local mode still works
+* [ ] production mode cannot fall back to local tenant
+* [ ] all P0 cross-tenant tests pass
+* [ ] release gate contains real evidence
+* [ ] docs reflect implementation
+* [ ] no P0/P1 security issue remains
+
+================================================================
+152. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-09 Evidence Corrections
+
+Table:
+
+```text
+Claim | Old Verdict | Actual Evidence | Correct Verdict
+```
+
+## 3. Version Decision
+
+Explain release-history evidence and SemVer.
+
+## 4. Enterprise Architecture
+
+## 5. Tenant Model
+
+Organizations/projects/resources.
+
+## 6. PostgreSQL Tenant Isolation
+
+Include:
+
+RLS
+roles
+FORCE behavior
+connection-pool strategy
+
+## 7. Cross-Tenant Security Tests
+
+Report every resource category tested.
+
+## 8. Enterprise RBAC
+
+## 9. Policy-as-Code
+
+## 10. SSO / OIDC
+
+## 11. SCIM
+
+## 12. Service Accounts / API Keys
+
+## 13. Usage Ledger
+
+## 14. Quotas / Budget Enforcement
+
+## 15. Billing Boundary / Entitlements
+
+## 16. Audit / SIEM Export
+
+## 17. Data Retention / Tenant Deletion
+
+## 18. Scheduler / Noisy Neighbor Controls
+
+## 19. API / CLI / Web Console
+
+## 20. Security Review
+
+## 21. Tests
+
+Exact:
+
+```text
+passed
+failed
+skipped
+xfailed
+deselected
+```
+
+Separately:
+
+```text
+PostgreSQL
+RLS
+cross-tenant
+SCIM
+identity
+quota-concurrency
+audit
+```
+
+## 22. Evidence Levels
+
+For each major subsystem:
+
+```text
+Capability | E0-E5 | Evidence
+```
+
+## 23. Packaging / Deployment Regression
+
+## 24. Release Gate
+
+```text
+SOURCE_TRUTH:
+TESTS:
+BUILD:
+INSTALL:
+
+PRODUCTION_EVIDENCE:
+
+TENANT_MODEL:
+APP_SCOPE:
+RLS:
+RLS_NEGATIVE_TESTS:
+POOL_ISOLATION:
+
+ENTERPRISE_RBAC:
+POLICY:
+SSO:
+SCIM:
+SERVICE_ACCOUNTS:
+API_KEYS:
+
+USAGE_LEDGER:
+QUOTAS:
+BILLING_BOUNDARY:
+AUDIT_EXPORT:
+
+CROSS_TENANT_SECURITY:
+SECURITY:
+DOCS:
+
+FINAL:
+```
+
+## 25. Files Changed
+
+## 26. Remaining Limitations
+
+Explicitly state:
+
+```text
+PITR fully live-proven?
+PostgreSQL HA?
+actual multi-host hardware tested?
+multi-region?
+active-active?
+customer-managed encryption keys?
+SCIM live IdP tested?
+payment processor integrated?
+compliance certifications?
+```
+
+## 27. Final Verdict
+
+Never say:
+
+```text
+ENTERPRISE READY
+MULTI-TENANT SECURE
+COMPLIANT
+SOC 2 READY
+HIPAA READY
+FULLY VERIFIED
+PRODUCTION SAAS READY
+```
+
+unless each exact claim has defined requirements and executed evidence.
+
+A passing unit suite is not evidence of tenant isolation.
+
+A UI organization selector is not multi-tenancy.
+
+An `organization_id` column is not tenant isolation.
+
+RLS alone is not tenant isolation.
+
+The definition of success is:
+
+multiple mutually untrusted organizations can share the same control
+plane while application authorization, PostgreSQL isolation,
+background processing, API credentials, realtime channels, usage,
+billing and audit consistently prevent cross-tenant access.

@@ -91,10 +91,12 @@ MODEL_CATALOG: dict = {
     "claude-sonnet-5": {
         "display_name": "Claude Sonnet 5", "tier": "current",
         "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 3.0, "price_out": 15.0,
+        "price_in": 2.0, "price_out": 10.0,
         "thinking": "adaptive", "effort_default": "high",
         "notes": "Best speed/intelligence balance; builds on Sonnet 4.6. "
-                 "Introductory pricing $2/$10 per MTok through 2026-08-31.",
+                 "Pricing $2/$10 per MTok (permanent — the planned Sep 1 "
+                 "increase was cancelled on 2026-08-10; the introductory rate is "
+                 "now the permanent standard price).",
     },
     "claude-haiku-4-5-20251001": {
         "display_name": "Claude Haiku 4.5", "tier": "current",
@@ -199,12 +201,16 @@ def validate_fast_mode(model_id: str) -> Optional[str]:
 SERVICE_TIER_UNSUPPORTED = {"claude-sonnet-5", "claude-mythos-preview", "claude-mythos-5"}
 
 # ── Data residency / inference_geo ──────────────────────────────────────────
-# Also entirely absent. Per platform.claude.com/docs/en/manage-claude/
-# data-residency (checked 2026-07-02): inference_geo accepts "us" (inference
+# Per platform.claude.com/docs/en/manage-claude/data-residency (checked
+# 2026-07-02, re-confirmed 2026-08-13): inference_geo accepts "us" (inference
 # stays in US data centers, 1.1x pricing on input+output) or "global"
-# (default, standard pricing). Only supported on Claude Opus 4.6, Sonnet
-# 4.6, and later models — earlier models 400 if it's set at all.
+# (default, standard pricing). Supported on Opus 4.6, Sonnet 4.6, and later
+# models — including claude-opus-5 (confirmed 2026-08-13 via live docs search).
+# Earlier models (Haiku 4.5 / Opus 4.5) 400 if it's set at all.
+# claude_opus5.py's old note "inference_geo support for claude-opus-5 is
+# unconfirmed" is now superseded; Opus 5 is confirmed supported at 1.1x.
 INFERENCE_GEO_SUPPORTED = {
+    "claude-opus-5",
     "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
     "claude-sonnet-5", "claude-sonnet-4-6",
     "claude-fable-5", "claude-mythos-5", "claude-mythos-preview",
@@ -218,8 +224,14 @@ INFERENCE_GEO_PRICING_MULTIPLIER = 1.1
 # string gives a migration path instead of a bare 404, and so a codebase
 # grep for these strings has a maintained reference for what to replace them
 # with. Retirement dates per platform.claude.com/docs/en/about-claude/model-deprecations,
-# checked 2026-07-02.
+# checked 2026-08-13.
 RETIRED_MODELS: dict = {
+    "claude-opus-4-1-20250805": {
+        "display_name": "Claude Opus 4.1",
+        "retired": "2026-08-05",
+        "replacement": "claude-opus-4-8",
+        "notes": "Original Opus 4.1 release, retired after the 4.8 rollout.",
+    },
     "claude-opus-4-20250514": {
         "display_name": "Claude Opus 4 (original 4.0)",
         "retired": "2026-06-15",
@@ -267,21 +279,17 @@ def check_retired(model_id: str) -> Optional[dict]:
 # Distinct from RETIRED_MODELS: these IDs still work today but Anthropic has
 # published a future retirement date for them. Added v1.37.0 after the
 # project's own model catalog was found to have no way to represent this
-# state at all — check_retired() only covers "already 404s", so an ID like
-# claude-opus-4-1-20250805, which was never in MODEL_CATALOG to begin with,
-# had nowhere to go even though its retirement is now on the calendar.
+# state at all — check_retired() only covers "already 404s".
 # Per platform.claude.com/docs/en/about-claude/model-deprecations, checked
-# 2026-07-27.
+# 2026-07-27, re-verified 2026-08-13.
+#
+# v1.40.0 audit note: claude-opus-4-1-20250805 had retirement_scheduled
+# 2026-08-05, which has now passed (today is 2026-08-13). Moved to
+# RETIRED_MODELS below. This dict now has no entries but is kept for
+# forward-compatibility with callers that read it.
 DEPRECATED_MODELS: dict = {
-    "claude-opus-4-1-20250805": {
-        "display_name": "Claude Opus 4.1",
-        "deprecation_announced": "2026-06-05",
-        "retirement_scheduled": "2026-08-05",
-        "replacement": "claude-opus-4-8",
-        "notes": "Not in MODEL_CATALOG (predates this project's catalog scope) — "
-                 "listed here purely so --model-info on this ID surfaces the "
-                 "warning instead of falling through to a bare live-API lookup.",
-    },
+    # (empty — all previously-deprecated models have now passed their
+    # retirement dates; see RETIRED_MODELS for their entries)
 }
 
 

@@ -1,0 +1,2097 @@
+# UPGRADE-08
+
+# PostgreSQL Distributed Control Plane, Horizontal Workers,
+
+# GitHub App Multi-Repository Fleet & Operations Console
+
+You are working directly inside ZCoder after Upgrade-07.
+
+Upgrade-07 reported:
+
+* 540 tests passing
+* 2 optional skips
+* SQLite-backed jobs/events
+* worker claims and leases
+* GitHub orchestration
+* PR idempotency
+* CI repair loop
+* webhook verification
+* merge policy
+* FINAL PASS
+
+Do NOT trust those claims automatically.
+
+---
+
+# MISSION
+
+Transform ZCoder from a single-host engineering orchestrator into a **real multi-host control plane** capable of coordinating many repositories, GitHub App installations, workers and Anthropic runtimes safely.
+
+Target architecture:
+
+```text
+                         GitHub
+                           │
+             ┌─────────────┴─────────────┐
+             │ GitHub App + Webhooks     │
+             └─────────────┬─────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────┐
+│                  ZCoder Control Plane                     │
+│                                                           │
+│ API / Web Console / Scheduler / Policy / Reconciler       │
+├───────────────────────────────────────────────────────────┤
+│                   PostgreSQL                              │
+│                                                           │
+│ Jobs │ Events │ Workers │ Leases │ Outbox │ Repositories │
+│ PRs  │ Checks │ Approvals │ Installations │ Audit        │
+└───────────────────────────┬───────────────────────────────┘
+                            │
+          ┌─────────────────┼─────────────────┐
+          ▼                 ▼                 ▼
+      Worker A           Worker B          Worker C
+      Agent SDK          Managed           Direct
+      Local Sandbox      Agents            Runtime
+```
+
+SQLite must remain available as a lightweight local mode.
+
+PostgreSQL becomes the backend required for true multi-host coordination.
+
+---
+
+# 1. FORENSICALLY VERIFY UPGRADE-07 FIRST
+
+Before adding architecture, inspect and prove:
+
+* worker claiming
+* leases
+* heartbeat
+* scheduler
+* GitHub provider
+* PR idempotency
+* CI repair loop
+* webhook verification
+* webhook deduplication
+* merge readiness
+* crash recovery
+
+Run:
+
+```bash
+git status --short
+git log -20 --oneline
+python -m pytest -q
+python main.py --version
+python -m build
+git diff --check
+```
+
+Produce:
+
+```text
+UPGRADE-07 VERIFICATION
+
+Subsystem | Claimed | Evidence | Test Coverage | Verdict
+```
+
+Verdicts:
+
+```text
+VERIFIED
+PARTIAL
+MOCK_ONLY
+SINGLE_HOST_ONLY
+DEAD_WIRING
+INCORRECT
+MISSING
+```
+
+Do not call SQLite-based multi-process orchestration "multi-host distributed".
+
+---
+
+# 2. STORAGE CAPABILITY MODEL
+
+Introduce an explicit storage capability abstraction.
+
+Concept:
+
+```python
+StorageCapabilities(
+    durable=True,
+    multi_process=True,
+    multi_host=False,
+    row_locking=False,
+    advisory_locking=False,
+)
+```
+
+Expected distinction:
+
+```text
+SQLite
+  local/single-host
+  lightweight development
+
+PostgreSQL
+  shared multi-host control plane
+  transactional coordination
+```
+
+Do not pretend the two backends provide identical concurrency guarantees.
+
+---
+
+# 3. STORAGE INTERFACE
+
+Refactor persistence behind clear interfaces if not already done:
+
+```text
+JobStore
+EventStore
+ApprovalStore
+WorkerStore
+LeaseStore
+RepositoryStore
+GitHubStateStore
+OutboxStore
+AuditStore
+```
+
+Avoid one enormous database class.
+
+Do not break existing local mode.
+
+---
+
+# 4. POSTGRESQL BACKEND
+
+Implement a production PostgreSQL backend.
+
+Use a maintained Python PostgreSQL driver consistent with the existing project's architecture.
+
+Do not introduce an ORM merely because PostgreSQL was added.
+
+Use explicit transactions for orchestration-critical operations.
+
+Support configuration through:
+
+```text
+DATABASE_URL
+```
+
+or equivalent secure configuration.
+
+Never print credentials.
+
+---
+
+# 5. SCHEMA MIGRATIONS
+
+Introduce proper database migrations.
+
+Requirements:
+
+```text
+schema version
+forward migrations
+upgrade from Upgrade-07 schema
+migration lock
+migration failure rollback
+```
+
+Do not run destructive automatic schema recreation.
+
+Provide:
+
+```bash
+zcoder db status
+zcoder db migrate
+```
+
+or equivalent.
+
+---
+
+# 6. ATOMIC JOB CLAIMING
+
+Implement PostgreSQL atomic worker claiming.
+
+Use database primitives appropriate to queue-like consumers.
+
+Conceptually:
+
+```sql
+SELECT ...
+FROM jobs
+WHERE state = 'QUEUED'
+ORDER BY priority DESC, created_at
+FOR UPDATE SKIP LOCKED
+LIMIT 1;
+```
+
+Then claim/update inside the same transaction.
+
+Verify exact implementation against current PostgreSQL documentation.
+
+Do not perform:
+
+```text
+SELECT job
+then
+UPDATE job
+```
+
+in separate unprotected operations.
+
+---
+
+# 7. FENCING TOKENS
+
+Leases alone are insufficient against stale workers.
+
+Add monotonically increasing fencing/generation token:
+
+```text
+claim_generation
+```
+
+Every mutation from a worker must prove it still owns the current generation.
+
+Example:
+
+```text
+worker A claims generation 15
+
+lease expires
+
+worker B claims generation 16
+
+late worker A attempts write
+→ rejected
+```
+
+This is mandatory.
+
+---
+
+# 8. LEASE MODEL
+
+Persist:
+
+```text
+worker_id
+claim_generation
+claimed_at
+lease_expires_at
+heartbeat_at
+```
+
+Support:
+
+```text
+claim
+renew
+release
+expire
+reclaim
+```
+
+Use database server time where practical to reduce clock-skew problems.
+
+---
+
+# 9. WORKER REGISTRY
+
+Persist workers centrally:
+
+```python
+Worker:
+    id
+    instance_id
+    hostname
+    started_at
+    heartbeat_at
+    state
+    runtimes
+    capabilities
+    max_concurrency
+    active_jobs
+    version
+```
+
+State:
+
+```text
+ONLINE
+DRAINING
+DEGRADED
+OFFLINE
+```
+
+---
+
+# 10. WORKER DRAINING
+
+Support graceful deployment:
+
+```bash
+zcoder workers drain WORKER_ID
+```
+
+DRAINING workers:
+
+* accept no new jobs
+* finish or checkpoint existing work
+* renew current leases until safe shutdown
+
+Provide timeout/force behavior through explicit operator policy.
+
+---
+
+# 11. VERSION SKEW
+
+Multiple workers may run different ZCoder versions during rolling deployment.
+
+Persist worker version.
+
+Define minimum compatible worker/control-plane protocol.
+
+Do not assign a job requiring newer runtime capability to an incompatible worker.
+
+---
+
+# 12. CAPABILITY-BASED SCHEDULING
+
+Worker selection should account for:
+
+```text
+Direct runtime
+Agent SDK
+Managed Agents
+Docker/container support
+Git
+network mode
+GPU if ever applicable
+OS/platform
+repository access
+```
+
+Do not schedule by hostname.
+
+---
+
+# 13. SCHEDULER LEADER
+
+Prevent multiple scheduler instances from performing conflicting global maintenance.
+
+Use PostgreSQL-coordinated leader ownership or make scheduling naturally multi-consumer/idempotent.
+
+Do not use filesystem locks.
+
+If advisory locks are used, document their exact semantics and failure behavior.
+
+---
+
+# 14. RECONCILER
+
+Create a dedicated reconciliation service.
+
+Its job is to compare:
+
+```text
+desired/local state
+vs
+actual external state
+```
+
+for:
+
+* workers
+* Managed Agent sessions
+* GitHub PRs
+* checks
+* merge state
+* outbox deliveries
+
+Reconciliation must be repeatable and idempotent.
+
+---
+
+# 15. DURABLE OUTBOX
+
+Implement a PostgreSQL outbox for external mutations.
+
+Examples:
+
+```text
+github.create_pr
+github.comment
+github.request_review
+github.merge
+github.enqueue_merge
+runtime.cancel
+```
+
+Transaction:
+
+```text
+update internal state
++
+append event
++
+insert outbox message
+
+COMMIT
+```
+
+Separate worker performs external side effect.
+
+---
+
+# 16. OUTBOX STATE
+
+Model:
+
+```text
+PENDING
+PROCESSING
+DELIVERED
+RETRY
+DEAD
+```
+
+Store:
+
+```text
+attempts
+next_attempt_at
+last_error_class
+external_correlation
+```
+
+Use bounded retry.
+
+---
+
+# 17. INBOX / WEBHOOK DEDUPLICATION
+
+Persist inbound delivery IDs in PostgreSQL.
+
+Unique constraint must prevent duplicate handling across multiple webhook server instances.
+
+Do not rely only on in-memory dedupe.
+
+---
+
+# 18. EXTERNAL ACTION RECONCILIATION
+
+GitHub may successfully perform an action while ZCoder loses the response.
+
+Before retrying:
+
+```text
+reconcile remote state
+```
+
+Especially:
+
+* PR creation
+* comment
+* merge
+* merge queue
+* branch push where practical
+
+---
+
+# 19. GITHUB APP FIRST-CLASS MODEL
+
+Introduce:
+
+```python
+GitHubAppInstallation:
+    installation_id
+    account_id
+    account_login
+    account_type
+    permissions
+    repository_selection
+    suspended
+    created_at
+```
+
+Do not store installation access tokens persistently.
+
+---
+
+# 20. GITHUB APP AUTHENTICATION
+
+Implement current official GitHub App authentication correctly.
+
+Architecture:
+
+```text
+GitHub App private key
+       │
+       ▼
+short-lived JWT
+       │
+       ▼
+installation access token
+       │
+       ▼
+GitHub API
+```
+
+Cache installation tokens only for their safe useful lifetime.
+
+Refresh automatically.
+
+Never save them in:
+
+```text
+jobs
+events
+audit log
+database plaintext
+```
+
+---
+
+# 21. PRIVATE KEY HANDLING
+
+Support secure references such as:
+
+```text
+file
+environment
+secret manager abstraction
+```
+
+Avoid storing private-key text in normal application configuration.
+
+Redact paths/metadata where necessary.
+
+---
+
+# 22. MINIMUM GITHUB APP PERMISSIONS
+
+Derive minimum permissions from actual used operations.
+
+Likely categories include:
+
+```text
+Metadata
+Contents
+Pull requests
+Checks / Actions read
+Issues/comments where used
+```
+
+Workflow mutation must require the GitHub permission currently required for `.github/workflows`.
+
+Do not request organization administration access by default.
+
+---
+
+# 23. INSTALLATION TOKEN SCOPING
+
+When possible, scope installation access tokens to only the repositories and permissions required for the action.
+
+Do not mint broader credentials for convenience.
+
+---
+
+# 24. MULTI-INSTALLATION SUPPORT
+
+Support many GitHub App installations simultaneously.
+
+Correct routing:
+
+```text
+webhook
+ -> installation_id
+ -> installation configuration
+ -> repository
+ -> policy
+ -> job
+```
+
+Do not use one global GitHub credential context.
+
+---
+
+# 25. MULTI-REPOSITORY FLEET
+
+Introduce repository registry:
+
+```python
+Repository:
+    id
+    provider
+    installation_id
+    owner
+    name
+    default_branch
+    automation_enabled
+    trust_level
+    policy_profile
+```
+
+Support:
+
+```bash
+zcoder repos list
+zcoder repos show REPO
+zcoder repos enable REPO
+zcoder repos disable REPO
+```
+
+---
+
+# 26. REPOSITORY ONBOARDING
+
+Support controlled onboarding.
+
+Pipeline:
+
+```text
+GitHub installation
+→ discover accessible repos
+→ operator selects/enables repo
+→ inspect repository
+→ detect configuration
+→ create repository record
+```
+
+Do not automatically enable autonomous mutation on every repository in an installation.
+
+---
+
+# 27. REPOSITORY TRUST LEVEL
+
+Support:
+
+```text
+TRUSTED
+STANDARD
+RESTRICTED
+UNTRUSTED
+```
+
+Trust level should affect:
+
+```text
+tool policy
+network
+secret access
+auto-merge
+workflow-file mutation
+runtime choice
+```
+
+---
+
+# 28. POLICY HIERARCHY
+
+Define:
+
+```text
+global policy
+organization policy
+installation policy
+repository policy
+job override
+```
+
+Lower-level configuration must not weaken immutable security controls without explicit privileged override.
+
+---
+
+# 29. ORGANIZATION MODEL
+
+Prepare for multi-organization use without pretending full SaaS tenancy exists.
+
+Represent:
+
+```text
+Organization
+Installation
+Repository
+```
+
+Do not infer identity/authorization merely from GitHub organization membership unless explicitly implemented.
+
+---
+
+# 30. ROLE-BASED OPERATOR ACCESS
+
+For Web/API operations introduce roles:
+
+```text
+VIEWER
+OPERATOR
+ADMIN
+```
+
+Capabilities:
+
+```text
+viewer:
+  read jobs/events
+
+operator:
+  approve/cancel/retry
+
+admin:
+  repository/policy/worker configuration
+```
+
+Keep local CLI single-user compatibility.
+
+---
+
+# 31. AUTHENTICATION BOUNDARY
+
+Do not invent enterprise identity functionality.
+
+Create pluggable authentication boundary suitable for:
+
+```text
+local mode
+reverse-proxy identity
+OIDC later
+```
+
+Production Web UI must not expose mutation endpoints anonymously.
+
+---
+
+# 32. ROW-LEVEL TENANCY SAFETY
+
+If multiple organizations are represented in one database:
+
+every organization-scoped query must be correctly scoped.
+
+Consider database constraints and tests.
+
+Do not rely only on UI filtering.
+
+---
+
+# 33. GITHUB WEBHOOK SERVICE
+
+Make webhook ingestion horizontally scalable.
+
+Requirements:
+
+```text
+signature verification
+installation routing
+delivery dedupe
+bounded payload size
+event-type allowlist
+fast acknowledgement
+durable processing
+```
+
+Avoid doing expensive agent work in the HTTP request.
+
+---
+
+# 34. WEBHOOK QUEUEING
+
+Webhook handler should:
+
+```text
+authenticate
+validate
+persist inbox/event
+respond
+```
+
+Then asynchronous workers process it.
+
+Do not hold GitHub webhook request open while an LLM runs.
+
+---
+
+# 35. RATE LIMIT COORDINATION
+
+Multiple workers using one installation token share GitHub API capacity.
+
+Create centralized or database-backed rate-limit awareness.
+
+Persist enough metadata to prevent all workers from independently hammering GitHub after a rate-limit event.
+
+---
+
+# 36. ANTHROPIC RATE-LIMIT COORDINATION
+
+Do similar coordination by appropriate Anthropic account/workspace boundary.
+
+Do not create a synchronized retry storm from horizontal workers.
+
+Use jitter and shared backoff state where appropriate.
+
+---
+
+# 37. RUNTIME ROUTING
+
+Control plane decides worker/runtime based on:
+
+```text
+job requirements
+repository trust
+available workers
+provider availability
+budget
+runtime capabilities
+```
+
+Persist routing decision and reason.
+
+---
+
+# 38. RUNTIME FAILOVER
+
+Do NOT automatically move a partially executed job from Agent SDK to Managed Agents simply because a worker failed.
+
+Failover must account for:
+
+```text
+workspace state
+session state
+side effects
+credentials
+runtime portability
+```
+
+Only fail over when recovery semantics are explicitly safe.
+
+---
+
+# 39. MULTI-HOST WORKSPACE STRATEGY
+
+A local worktree cannot magically move between machines.
+
+Define workspace backend.
+
+Example:
+
+```text
+LocalWorkspace
+RemoteRepositoryWorkspace
+ManagedAgentWorkspace
+```
+
+For multi-host workers, job rescheduling must either:
+
+* reconstruct workspace deterministically from Git state, or
+* pin the job to the appropriate worker/storage, or
+* use shared workspace infrastructure
+
+Do not assume shared filesystem.
+
+---
+
+# 40. CHECKPOINT COMMITS
+
+For recoverable engineering jobs, consider safe intermediate job-owned commits/checkpoints.
+
+Never push checkpoint commits to protected branches.
+
+Document when checkpoints are local versus remote.
+
+---
+
+# 41. REPOSITORY LOCKS
+
+Some operations require repository-level exclusivity.
+
+Examples:
+
+```text
+release
+version bump
+migration
+default-branch operation
+```
+
+Implement DB-backed repository operation locks.
+
+Use fencing or transactional ownership.
+
+---
+
+# 42. NO GLOBAL GIT LOCK
+
+Do not serialize all repositories globally.
+
+Lock by actual conflict domain.
+
+---
+
+# 43. POSTGRESQL TRANSACTION TESTS
+
+Add tests for:
+
+```text
+two workers claiming simultaneously
+lease expiration
+fencing rejection
+scheduler race
+outbox race
+webhook duplicate
+repo lock contention
+worker crash
+```
+
+Use a real PostgreSQL test instance for these tests.
+
+Mocks are insufficient for locking semantics.
+
+---
+
+# 44. TEST POSTGRESQL
+
+Use an isolated test PostgreSQL database.
+
+Suitable options include:
+
+```text
+CI service container
+ephemeral local container
+testcontainer
+```
+
+Do not require developers to have a manually provisioned permanent database.
+
+---
+
+# 45. SQLITE PARITY TESTS
+
+Core domain behavior should run against both backends where semantics are shared.
+
+Test matrix:
+
+```text
+SQLite
+PostgreSQL
+```
+
+Distributed-specific tests only apply to PostgreSQL.
+
+---
+
+# 46. DATABASE FAILURE TESTS
+
+Test:
+
+```text
+connection loss
+transaction rollback
+statement timeout
+deadlock/serialization conflict where relevant
+pool exhaustion
+database restart
+```
+
+Do not convert every DB error into generic RuntimeError.
+
+---
+
+# 47. CONNECTION POOL
+
+Use bounded PostgreSQL connection pooling.
+
+Expose configuration:
+
+```text
+pool_min
+pool_max
+acquire_timeout
+```
+
+Do not give every worker unlimited connections.
+
+---
+
+# 48. DB TIMEOUTS
+
+Set appropriate:
+
+```text
+connect timeout
+statement timeout
+lock timeout
+```
+
+for control-plane operations.
+
+A stuck transaction must not freeze the scheduler indefinitely.
+
+---
+
+# 49. TRANSACTION BOUNDARIES
+
+Document critical transaction boundaries explicitly.
+
+Especially:
+
+```text
+claim job
+renew lease
+create approval
+commit event
+enqueue outbox
+dedupe webhook
+```
+
+---
+
+# 50. AUDIT LOG
+
+Create immutable-style application audit records for:
+
+```text
+repo enabled
+policy modified
+approval granted
+job cancelled
+budget changed
+worker drained
+merge authorized
+credential reference changed
+```
+
+Store actor and source.
+
+Do not store secrets.
+
+---
+
+# 51. OPERATIONS API
+
+Expose shared service endpoints such as:
+
+```text
+GET /api/health
+GET /api/ready
+
+GET /api/workers
+GET /api/jobs
+GET /api/repos
+GET /api/installations
+
+GET /api/events
+
+POST /api/workers/{id}/drain
+POST /api/repos/{id}/enable
+POST /api/jobs/{id}/cancel
+```
+
+Follow current code conventions.
+
+---
+
+# 52. HEALTH VS READINESS
+
+Differentiate:
+
+```text
+liveness
+readiness
+dependency health
+```
+
+Examples:
+
+```text
+API process alive
+PostgreSQL reachable
+scheduler active
+GitHub authentication operational
+Anthropic configuration usable
+```
+
+A degraded external provider should not necessarily kill process liveness.
+
+---
+
+# 53. OPERATIONS WEB CONSOLE
+
+Create/upgrade Web UI around the shared API.
+
+Primary views:
+
+```text
+Overview
+Jobs
+Workers
+Repositories
+GitHub Installations
+Pull Requests
+Approvals
+Budgets
+Provider Health
+Events
+Audit
+```
+
+No direct database access from UI.
+
+---
+
+# 54. OVERVIEW DASHBOARD
+
+Display useful operational signals:
+
+```text
+queued jobs
+running jobs
+waiting approvals
+failed jobs
+workers online
+GitHub rate limit
+Anthropic rate status
+today's estimated cost
+active repositories
+```
+
+Do not expose secrets or high-cardinality raw metrics.
+
+---
+
+# 55. JOB DETAIL
+
+Job page should show:
+
+```text
+timeline
+runtime
+worker
+repository
+branch
+PR
+CI
+approvals
+artifacts
+cost
+attempts
+events
+```
+
+---
+
+# 56. REAL-TIME UPDATES
+
+Use SSE/WebSocket/current project mechanism.
+
+Clients reconnecting must not lose durable state.
+
+The database/event store remains source of truth.
+
+Realtime channel is an optimization.
+
+---
+
+# 57. OBSERVABILITY
+
+Add structured metrics:
+
+```text
+job_queue_depth
+job_claim_latency
+job_execution_duration
+lease_expirations
+worker_count
+worker_utilization
+outbox_backlog
+outbox_failures
+webhook_ingest_rate
+github_rate_remaining
+provider_errors
+db_pool_usage
+```
+
+Avoid job/repo IDs as metric labels.
+
+---
+
+# 58. DISTRIBUTED TRACING
+
+Propagate trace/correlation context:
+
+```text
+job
+attempt
+worker
+runtime
+GitHub action
+Anthropic call
+```
+
+Do not put secrets in spans.
+
+---
+
+# 59. LOGGING
+
+All services should emit structured logs.
+
+Include:
+
+```text
+service
+instance
+job_id where relevant
+worker_id
+event
+```
+
+Do not emit installation tokens or private keys.
+
+---
+
+# 60. BACKPRESSURE
+
+Control plane must survive large bursts.
+
+Apply bounded:
+
+```text
+job queue processing
+webhook processing
+outbox execution
+GitHub polling
+provider requests
+```
+
+Do not spawn a task for every database row without limits.
+
+---
+
+# 61. DEAD-LETTER HANDLING
+
+Repeatedly failing outbox/inbox operations should become inspectable.
+
+Support:
+
+```text
+DEAD
+```
+
+with operator retry.
+
+Never retry irreversible failures forever.
+
+---
+
+# 62. ADMIN COMMANDS
+
+Add coherent commands:
+
+```bash
+zcoder db status
+zcoder db migrate
+
+zcoder workers list
+zcoder workers drain ...
+
+zcoder repos list
+zcoder repos enable ...
+
+zcoder installations list
+
+zcoder queue status
+
+zcoder outbox list
+zcoder outbox retry ...
+
+zcoder doctor
+```
+
+Support JSON output.
+
+---
+
+# 63. LOCAL MODE
+
+Preserve easy development:
+
+```bash
+zcoder run "Fix tests"
+```
+
+should continue to work without PostgreSQL when local SQLite mode is selected.
+
+Do not make production architecture destroy local DX.
+
+---
+
+# 64. PRODUCTION MODE
+
+Production configuration should require explicit:
+
+```text
+storage=postgresql
+web authentication
+GitHub App
+secure webhook secret
+secure secret references
+```
+
+Do not silently fall back to SQLite in production mode.
+
+Fail fast.
+
+---
+
+# 65. CONFIG VALIDATION
+
+Provide config validation:
+
+```bash
+zcoder config validate
+```
+
+Detect:
+
+```text
+missing database
+invalid GitHub App configuration
+insecure webhook
+unsupported worker/runtime
+conflicting policies
+```
+
+---
+
+# 66. SECRET REFERENCES
+
+Use abstraction:
+
+```text
+SecretRef
+```
+
+Support environment/file initially if necessary.
+
+Design for secret-manager adapters.
+
+Do not persist secret values in PostgreSQL.
+
+---
+
+# 67. WORKFLOW FILE SECURITY
+
+GitHub App permission model must recognize that modifying:
+
+```text
+.github/workflows/**
+```
+
+is more sensitive than ordinary source edits.
+
+Require explicit permission/policy.
+
+Do not broaden GitHub App permissions globally merely so one repository can edit workflows.
+
+---
+
+# 68. GITHUB APP PER-INSTALLATION POLICY
+
+Different installations may grant different permissions.
+
+Read the actual installation permissions.
+
+Do not assume configured App permissions are always available in every installation context.
+
+---
+
+# 69. REPOSITORY REMOVAL / SUSPENSION
+
+Handle:
+
+```text
+installation suspended
+installation deleted
+repository removed from installation
+repository archived
+repository renamed/transferred
+```
+
+Reconcile local state.
+
+Do not continue mutation jobs with stale authorization.
+
+---
+
+# 70. WEBHOOK INSTALLATION EVENTS
+
+Process relevant installation/repository lifecycle events so fleet state stays accurate.
+
+Do not enable every repository automatically after installation change.
+
+---
+
+# 71. MULTI-REPO JOBS
+
+Do not implement cross-repository mutation until transaction semantics are defined.
+
+For Upgrade-08:
+
+support fleet management across many repos
+
+but each normal engineering job should have one primary repository.
+
+Cross-repo orchestration may be deferred.
+
+---
+
+# 72. FAIR SCHEDULING ACROSS REPOS
+
+One noisy repository must not consume every worker.
+
+Implement configurable concurrency:
+
+```text
+global
+per installation
+per repository
+per runtime
+```
+
+---
+
+# 73. COST QUOTAS
+
+Support policy scopes:
+
+```text
+job
+repository
+installation
+organization
+```
+
+At minimum track usage at these scopes.
+
+Hard provider guarantees should remain distinct from ZCoder advisory quotas.
+
+---
+
+# 74. BUDGET CIRCUIT BREAKER
+
+If unexpected cost/rate behavior occurs:
+
+allow system to pause new jobs for affected scope.
+
+Do not terminate unrelated running jobs without explicit policy.
+
+---
+
+# 75. DISASTER RECOVERY
+
+Document backup requirements for PostgreSQL.
+
+Critical recoverable state includes:
+
+```text
+jobs
+events
+approvals
+GitHub mappings
+outbox
+installations metadata
+audit
+```
+
+Secrets remain outside DB where designed.
+
+---
+
+# 76. BACKUP/RESTORE TEST
+
+Perform at least one integration-level logical backup/restore test if feasible.
+
+Verify restored data preserves:
+
+```text
+job IDs
+event sequence
+PR mappings
+worker-independent state
+```
+
+Do not claim disaster recovery without testing restoration.
+
+---
+
+# 77. HIGH AVAILABILITY CLAIMS
+
+Do not claim HA simply because multiple API processes can start.
+
+Define:
+
+```text
+control-plane horizontal scaling
+worker horizontal scaling
+database HA
+external-provider dependencies
+```
+
+PostgreSQL HA itself may remain deployment responsibility.
+
+State this clearly.
+
+---
+
+# 78. GRACEFUL SHUTDOWN
+
+All service processes must:
+
+```text
+stop accepting new work
+finish/rollback active transaction
+release or allow lease expiry
+flush safe event/outbox state
+close DB pool
+```
+
+Do not abandon a claimed job silently.
+
+---
+
+# 79. ZERO-DOWNTIME MIGRATION PREPARATION
+
+Database migrations used during rolling deployments must account for old/new worker overlap where practical.
+
+Prefer expand/migrate/contract patterns for incompatible schema evolution.
+
+Do not require this complexity for every trivial column addition.
+
+---
+
+# 80. SECURITY THREAT MODEL
+
+Create/update:
+
+```text
+docs/THREAT-MODEL.md
+```
+
+Cover:
+
+```text
+malicious repository
+malicious PR
+prompt injection
+GitHub webhook forgery
+stolen GitHub App key
+database compromise
+worker compromise
+stale worker
+secret exfiltration
+cross-tenant data access
+workflow-file attack
+supply-chain injection
+```
+
+---
+
+# 81. P0 SECURITY TESTS
+
+Mandatory tests:
+
+```text
+cross-org repository access denied
+stale fencing token rejected
+invalid webhook rejected
+duplicate delivery ignored
+suspended installation cannot mutate
+secret never serialized to event
+untrusted repo denied protected secret
+workflow modification policy enforced
+```
+
+---
+
+# 82. POSTGRESQL SECURITY
+
+Use application roles with minimum DB privilege.
+
+Do not connect application as PostgreSQL superuser.
+
+Document required privileges.
+
+---
+
+# 83. SQL INJECTION
+
+All queries must be parameterized.
+
+Dynamic ORDER BY/table names must use validated fixed mappings.
+
+Never concatenate user repository/job identifiers into SQL.
+
+---
+
+# 84. DATABASE TENANT TESTS
+
+If organization isolation exists, tests must attempt cross-scope access deliberately.
+
+Do not trust positive tests only.
+
+---
+
+# 85. TEST MATRIX
+
+Upgrade-08 should add substantially more than a handful of tests.
+
+Required categories:
+
+```text
+storage contract
+PostgreSQL concurrency
+migrations
+job claims
+fencing
+leases
+worker recovery
+scheduler
+outbox
+inbox
+GitHub App auth
+installation routing
+repo lifecycle
+policy
+tenant isolation
+dashboard API
+security
+failure recovery
+```
+
+---
+
+# 86. MULTI-PROCESS INTEGRATION TEST
+
+Launch at least:
+
+```text
+1 PostgreSQL
+1 control-plane service
+2 worker processes
+```
+
+Queue multiple jobs.
+
+Prove:
+
+```text
+no duplicate job execution
+fair claims
+lease recovery
+events persisted
+```
+
+---
+
+# 87. MULTI-HOST SIMULATION
+
+Processes can run in separate containers to simulate hosts.
+
+Do not call this proof of network-partition tolerance.
+
+But prove there is no reliance on:
+
+```text
+shared Python memory
+local lock
+shared local SQLite
+```
+
+---
+
+# 88. WORKER CRASH INTEGRATION TEST
+
+Kill worker A after claim.
+
+Wait for controlled lease expiry.
+
+Worker B must:
+
+```text
+reconcile job
+verify external runtime state
+acquire newer fencing generation
+continue safely
+```
+
+No duplicate Managed Agent session.
+
+---
+
+# 89. CONTROL-PLANE CRASH TEST
+
+Kill API/scheduler while workers continue.
+
+Restart.
+
+Database state must allow reconciliation.
+
+---
+
+# 90. DATABASE RESTART TEST
+
+Restart PostgreSQL during idle/active operation in an integration scenario.
+
+Verify:
+
+```text
+connection recovery
+transaction rollback correctness
+no duplicate external side effect
+```
+
+---
+
+# 91. GITHUB APP FAKE
+
+Maintain deterministic FakeGitHubApp/FakeGitHubProvider for offline tests.
+
+Simulate:
+
+```text
+multiple installations
+different permissions
+token expiry
+installation suspension
+rate limits
+webhooks
+repository removal
+```
+
+---
+
+# 92. OPTIONAL LIVE GITHUB APP TESTS
+
+Keep:
+
+```text
+pytest -m github_live
+```
+
+separate.
+
+Use dedicated test installation/repository.
+
+Do not require credentials for normal CI.
+
+---
+
+# 93. OPTIONAL LIVE ANTHROPIC TESTS
+
+Likewise keep Anthropic live tests separate.
+
+Default CI remains deterministic/offline.
+
+---
+
+# 94. CI SERVICES
+
+GitHub Actions should run PostgreSQL integration tests using a service container or equivalent.
+
+Ensure merge-queue-compatible workflows if merge queue is used.
+
+---
+
+# 95. RELEASE GATE EXPANSION
+
+Add mandatory gates:
+
+```text
+POSTGRES_STORAGE
+MIGRATIONS
+MULTI_HOST_CLAIMS
+FENCING
+LEASE_RECOVERY
+OUTBOX
+GITHUB_APP
+INSTALLATION_ROUTING
+TENANT_ISOLATION
+OPERATIONS_API
+```
+
+Example:
+
+```text
+SOURCE_TRUTH: PASS
+TESTS: PASS
+BUILD: PASS
+INSTALL: PASS
+
+POSTGRES_STORAGE: PASS
+MIGRATIONS: PASS
+MULTI_HOST_CLAIMS: PASS
+FENCING: PASS
+LEASE_RECOVERY: PASS
+OUTBOX: PASS
+
+GITHUB_APP: PASS
+INSTALLATION_ROUTING: PASS
+TENANT_ISOLATION: PASS
+
+OPERATIONS_API: PASS
+SECURITY: PASS
+DOCS: PASS
+
+FINAL: PASS
+```
+
+---
+
+# 96. VERSION DECISION
+
+Inspect actual tags/releases.
+
+Upgrade-08 is significant new architecture.
+
+Do not keep calling everything v1.40.0 if release scope is materially expanding.
+
+Choose a sensible SemVer progression based on what has actually been published.
+
+Do not fabricate release history.
+
+---
+
+# 97. REQUIRED DOCUMENTATION
+
+Update:
+
+```text
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+```
+
+Add substantive:
+
+```text
+docs/UPGRADE-08.md
+docs/CONTROL-PLANE.md
+docs/POSTGRESQL.md
+docs/WORKER-PROTOCOL.md
+docs/GITHUB-APP.md
+docs/MULTI-REPO.md
+docs/OPERATIONS.md
+docs/THREAT-MODEL.md
+docs/DATABASE-MIGRATIONS.md
+```
+
+---
+
+# 98. REQUIRED FINAL COMMANDS
+
+Run actual repository-equivalent commands.
+
+At minimum:
+
+```bash
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+git status --short
+```
+
+Also run:
+
+```text
+SQLite test suite
+PostgreSQL integration suite
+full optional dependency suite
+package clean-install test
+release gate
+```
+
+Run available:
+
+```bash
+ruff check .
+black --check .
+mypy .
+```
+
+Report every failure.
+
+---
+
+# 99. DEFINITION OF DONE
+
+Upgrade-08 is complete only when:
+
+* [ ] SQLite remains functional local mode
+* [ ] PostgreSQL backend exists
+* [ ] schema migrations exist
+* [ ] PostgreSQL claims are atomic
+* [ ] stale workers are blocked by fencing tokens
+* [ ] leases survive multi-process/multi-host coordination
+* [ ] workers are centrally registered
+* [ ] scheduler uses worker capabilities
+* [ ] outbox prevents lost external mutations
+* [ ] webhook dedupe is database-enforced
+* [ ] GitHub App auth uses installation identity correctly
+* [ ] installation tokens are not persistently stored
+* [ ] multi-installation routing works
+* [ ] repositories must be explicitly enabled
+* [ ] GitHub permissions are least-privilege
+* [ ] workflow-file mutations receive stronger policy
+* [ ] horizontal webhook/API processes are safe
+* [ ] multi-repository concurrency is bounded
+* [ ] operations API uses shared services
+* [ ] Web console contains no orchestration business logic
+* [ ] tenant/scope isolation has negative tests
+* [ ] worker crash recovery passes
+* [ ] control-plane crash recovery passes
+* [ ] DB restart behavior is tested
+* [ ] default CI requires no real GitHub/Anthropic credentials
+* [ ] PostgreSQL integration CI executes automatically
+* [ ] release gate covers distributed-control-plane guarantees
+* [ ] no P0/P1 correctness/security defect remains
+
+---
+
+# 100. FINAL REPORT FORMAT
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-07 Claims Reverified
+
+Use:
+
+```text
+Capability | Previous claim | Actual evidence | Verdict
+```
+
+## 3. Storage Architecture
+
+SQLite vs PostgreSQL capabilities.
+
+## 4. PostgreSQL Schema & Migrations
+
+## 5. Atomic Claims / Leases / Fencing
+
+Include exact transaction strategy.
+
+## 6. Worker Control Plane
+
+Worker registration, heartbeat, draining and version compatibility.
+
+## 7. Scheduler
+
+Concurrency, fairness and capability routing.
+
+## 8. Outbox / Inbox / Reconciliation
+
+## 9. GitHub App
+
+Authentication, installation token lifecycle and permissions.
+
+## 10. Multi-Repository Fleet
+
+Installation/repository lifecycle.
+
+## 11. Security & Tenant Isolation
+
+## 12. Operations API
+
+## 13. Web Operations Console
+
+## 14. Observability
+
+## 15. Failure / Crash Recovery
+
+## 16. Tests Added
+
+Report exact:
+
+```text
+passed
+failed
+skipped
+xfailed
+deselected
+```
+
+Also separately report PostgreSQL integration totals.
+
+## 17. CI/CD
+
+## 18. Packaging / Clean Install
+
+## 19. Release Gate
+
+```text
+SOURCE_TRUTH:
+TESTS:
+BUILD:
+INSTALL:
+
+POSTGRES_STORAGE:
+MIGRATIONS:
+MULTI_HOST_CLAIMS:
+FENCING:
+LEASE_RECOVERY:
+OUTBOX:
+
+GITHUB_APP:
+INSTALLATION_ROUTING:
+TENANT_ISOLATION:
+
+OPERATIONS_API:
+SECURITY:
+DOCS:
+
+FINAL:
+```
+
+## 20. Version Decision
+
+## 21. Files Changed
+
+## 22. Remaining Limitations
+
+Explicitly state whether the following are or are not proven:
+
+```text
+multi-process
+multi-host
+network partition tolerance
+PostgreSQL HA
+cross-region operation
+multi-tenant SaaS
+```
+
+## 23. Final Verdict
+
+Do not claim:
+
+```text
+distributed
+highly available
+fault tolerant
+multi-tenant
+production ready
+```
+
+unless each exact claim has corresponding implementation and tests.

@@ -1,0 +1,2407 @@
+# UPGRADE-15
+
+# Local Model Factory & Auto-Tuning
+
+# GGUF / llama.cpp First-Class Runtime,
+
+# Ollama/vLLM Lifecycle, Model Registry,
+
+# Safe Model Acquisition, Quantization Profiles,
+
+# Automatic Hardware Tuning, Benchmark Tournament,
+
+# Per-Project Model Profiles and Real Local-AI Proof
+
+You are operating directly inside ZCoder after Upgrade-14.
+
+PRIMARY PRINCIPLE:
+
+NO-COST FIRST.
+
+PAID PROVIDERS ARE OPTIONAL.
+
+The main objective of Upgrade-15 is not to create more adapters.
+
+The objective is to make ZCoder capable of answering:
+
+"What is the best model that can ACTUALLY run on this machine,
+for this coding task, with zero paid API usage?"
+
+and then execute the job using that model.
+
+============================================================
+PHASE 0 — VERIFY UPGRADE-14
+===========================
+
+Upgrade-14 reportedly concluded:
+
+CORE_FREE: PASS E3
+
+LOCAL_MODEL_REAL: NOT_TESTED
+
+Host:
+
+Linux x86_64
+8 logical CPU cores
+18.49 GB RAM
+12.76 GB available
+CPU_ONLY
+0 GB VRAM
+
+Do not assume this remains true.
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+
+python main.py --version
+python -m build
+git diff --check
+
+Run current release gate.
+
+Inspect:
+
+local_ai_stack.py
+no_cost_platform.py
+agent_runtime.py
+release_gate.py
+model/provider code
+tests/
+webapp/
+
+Produce:
+
+UPGRADE-14 REALITY MATRIX
+
+Capability
+Claim
+Implementation
+Mock Evidence
+Real Runtime Evidence
+Verdict
+
+Use:
+
+PROVEN
+CONTRACT_ONLY
+SIMULATED
+NOT_TESTED
+MISSING
+INCORRECT
+
+============================================================
+
+1. CORRECT MODEL INVENTORY SEMANTICS
+   ============================================================
+
+Upgrade-14 listed models such as:
+
+qwen2.5-coder:7b
+llama3.3:70b
+starcoder2:3b
+
+but did not have a running Ollama daemon.
+
+Therefore distinguish:
+
+CATALOG_MODEL
+DISCOVERED_MODEL
+DOWNLOADED_MODEL
+INSTALLED_MODEL
+LOADED_MODEL
+BENCHMARKED_MODEL
+
+Never display a static catalog entry as installed.
+
+============================================================
+2. MODEL STATE MACHINE
+======================
+
+Create explicit state:
+
+KNOWN
+AVAILABLE_REMOTE
+DOWNLOADING
+DOWNLOADED
+VERIFIED
+LOADABLE
+LOADED
+FAILED
+REMOVED
+
+Do not derive state from filename alone.
+
+============================================================
+3. LOCAL MODEL FACTORY
+======================
+
+Create a coherent:
+
+LocalModelFactory
+
+responsible for:
+
+discovery
+metadata
+acquisition planning
+verification
+runtime preparation
+benchmarking
+profile generation
+selection
+lifecycle
+
+Do not put inference logic directly into the factory.
+
+============================================================
+4. RUNTIME ARCHITECTURE
+=======================
+
+Support first-class adapters:
+
+LlamaCppRuntime
+OllamaRuntime
+VLLMRuntime
+GenericOpenAICompatibleRuntime
+
+Do not duplicate LocalAgentRuntime.
+
+Architecture:
+
+LocalAgentRuntime
+│
+LocalModelGateway
+│
+├── llama.cpp
+├── Ollama
+├── vLLM
+└── Generic
+
+============================================================
+5. LLAMA.CPP FIRST-CLASS SUPPORT
+================================
+
+Audit the CURRENT official llama.cpp repository/server documentation at
+execution time.
+
+Implement documented functionality only.
+
+Support where current server actually permits:
+
+model information
+chat
+streaming
+structured output
+tool calling
+embeddings
+health/server metadata
+
+Do not assume every loaded model supports every server feature.
+
+============================================================
+6. LLAMA.CPP DISCOVERY
+======================
+
+Detect:
+
+llama
+llama-server
+legacy llama.cpp binaries if appropriate
+
+Use:
+
+PATH
+configured executable
+known local installation only
+
+Do not scan arbitrary filesystem.
+
+============================================================
+7. LLAMA.CPP SERVER MANAGEMENT
+==============================
+
+ZCoder may manage a job-owned local server.
+
+Support:
+
+start
+health
+stop
+crash detection
+
+Bind loopback by default.
+
+Do not expose:
+
+0.0.0.0
+
+unless explicitly configured.
+
+============================================================
+8. SERVER PROCESS SAFETY
+========================
+
+Persist:
+
+PID
+model
+port
+runtime
+started_at
+command fingerprint
+
+On restart:
+
+do not kill unrelated user process merely because PID was reused.
+
+Verify process identity.
+
+============================================================
+9. DYNAMIC PORT ALLOCATION
+==========================
+
+Avoid hardcoded shared ports.
+
+Use configured or available local port.
+
+Prevent two ZCoder model servers from colliding.
+
+============================================================
+10. MODEL FILE REGISTRY
+=======================
+
+Introduce:
+
+LocalModelArtifact
+
+Fields:
+
+id
+source
+repo
+revision
+filename
+format
+size_bytes
+digest
+license
+architecture
+parameter_count
+quantization
+created_at
+verified_at
+
+============================================================
+11. GGUF REGISTRY
+=================
+
+GGUF is first-class but not the only future format.
+
+Track actual metadata where available.
+
+Do not infer model capabilities solely from GGUF filename.
+
+============================================================
+12. MODEL ACQUISITION PROVIDER
+==============================
+
+Create:
+
+ModelSource
+
+Potential adapters:
+
+LocalFileSource
+HuggingFaceSource
+OllamaSource
+
+Do not hardcode Hugging Face into model domain.
+
+============================================================
+13. HUGGING FACE DOWNLOAD
+=========================
+
+Use current official Hugging Face Hub APIs/tooling if implemented.
+
+Support revision-pinned acquisition.
+
+Prefer downloading only required files.
+
+Do not download an entire repository when one GGUF is sufficient.
+
+============================================================
+14. MODEL REVISION PINNING
+==========================
+
+Record:
+
+repo
+revision/commit
+filename
+digest
+
+A model benchmark must remain attributable to exact artifact.
+
+============================================================
+15. GATED MODELS
+================
+
+Detect gated/authenticated model requirements.
+
+Do not claim:
+
+NO-COST LOCAL
+
+means:
+
+NO ACCOUNT EVER REQUIRED.
+
+If model is gated:
+
+report:
+
+AUTHORIZATION_REQUIRED
+
+and do not bypass gating.
+
+============================================================
+16. MODEL LICENSE SAFETY
+========================
+
+Read model metadata/license.
+
+Classify:
+
+KNOWN
+CUSTOM
+UNKNOWN
+
+Do not automatically classify every downloadable model as:
+
+open source
+commercially usable
+
+Display limitations.
+
+============================================================
+17. NO AUTO-DOWNLOAD BY DEFAULT
+===============================
+
+Discovery may recommend models.
+
+It must NOT automatically download large files.
+
+Require explicit:
+
+zcoder models pull ...
+
+or equivalent.
+
+============================================================
+18. DOWNLOAD PLAN
+=================
+
+Before download show:
+
+model
+source
+revision
+file
+size
+free disk
+license
+gated status
+estimated fit
+
+============================================================
+19. DRY RUN
+===========
+
+Support:
+
+zcoder models pull MODEL --dry-run
+
+No network/file mutation.
+
+============================================================
+20. RESUMABLE DOWNLOAD
+======================
+
+Use upstream cache/resume behavior where supported.
+
+Do not re-download identical model unnecessarily.
+
+============================================================
+21. DOWNLOAD INTEGRITY
+======================
+
+Validate digest where authoritative digest exists.
+
+Record actual file hash otherwise.
+
+A corrupted/incomplete artifact must not become VERIFIED.
+
+============================================================
+22. STORAGE QUOTA
+=================
+
+Configure local model storage limit.
+
+Before downloading:
+
+available disk
+current cache
+requested model
+
+Warn/fail according to policy.
+
+============================================================
+23. MODEL CACHE
+===============
+
+Centralize model artifact cache.
+
+Do not duplicate 10 GB model for every project.
+
+Project profile references immutable model artifact.
+
+============================================================
+24. CACHE CLEANUP
+=================
+
+Provide:
+
+zcoder models cache
+zcoder models prune
+
+Never delete model currently in use.
+
+Dry-run supported.
+
+============================================================
+25. HARDWARE PROFILE V2
+=======================
+
+Expand HardwareProfile.
+
+CPU:
+
+architecture
+physical/logical cores
+instruction capabilities where safely detectable
+
+Memory:
+
+total
+available
+
+GPU:
+
+vendor
+device
+VRAM
+runtime availability
+
+Storage:
+
+free disk
+model cache disk
+
+============================================================
+26. HOST BENCHMARK
+==================
+
+Measure basic local host capacity without an LLM:
+
+CPU throughput proxy
+memory bandwidth proxy where practical
+disk throughput only if safe
+
+Avoid intrusive benchmarks.
+
+============================================================
+27. MODEL FIT ESTIMATOR V2
+==========================
+
+Estimate:
+
+weights memory
+KV cache
+context memory
+runtime overhead
+
+Inputs:
+
+quantization
+context length
+batch
+parallel slots
+offload configuration
+
+Output:
+
+FITS_COMFORTABLY
+FITS
+MARGINAL
+DOES_NOT_FIT
+UNKNOWN
+
+============================================================
+28. SAFETY MARGIN
+=================
+
+Never consume 100% RAM/VRAM intentionally.
+
+Configurable margins:
+
+min_free_ram
+max_ram_percent
+max_vram_percent
+
+============================================================
+29. CPU-FIRST PROFILE
+=====================
+
+For CPU-only machines:
+
+prefer appropriately quantized smaller models.
+
+Do not recommend 70B model solely because catalog labels it high quality.
+
+============================================================
+30. QUANTIZATION PROFILE
+========================
+
+Normalize quantization metadata.
+
+Do not rank quantization purely by bit count.
+
+Benchmark actual behavior where possible.
+
+============================================================
+31. QUANTIZATION RECOMMENDER
+============================
+
+Inputs:
+
+RAM/VRAM
+quality preference
+speed preference
+task
+runtime
+
+Output:
+
+candidate quantizations
+
+with reasons.
+
+============================================================
+32. LLAMA.CPP AUTO-TUNING
+=========================
+
+Audit CURRENT llama.cpp runtime flags first.
+
+Build controlled tuning abstraction for parameters such as:
+
+context
+threads
+batch
+parallel slots
+GPU offload
+KV behavior
+memory mapping
+flash-attention-like features where documented
+speculative decoding where supported
+
+Never generate flags unsupported by current runtime.
+
+============================================================
+33. TUNING PROFILE
+==================
+
+Persist:
+
+RuntimeTuningProfile:
+model_artifact
+hardware_fingerprint
+runtime_version
+parameters
+benchmark_version
+score
+
+============================================================
+34. HARDWARE FINGERPRINT
+========================
+
+Profile key should include enough host characteristics that a tuning
+result from one machine is not silently used on incompatible hardware.
+
+============================================================
+35. RUNTIME VERSION FINGERPRINT
+===============================
+
+Record:
+
+llama.cpp version/build
+Ollama version
+vLLM version
+
+Tuning result may become stale after runtime change.
+
+============================================================
+36. OLLAMA LIFECYCLE
+====================
+
+Audit current Ollama API/runtime.
+
+Support:
+
+daemon health
+model list
+model metadata
+pull planning
+load/inference
+unload where documented
+
+Do not shell out if API provides safer functionality unless needed.
+
+============================================================
+37. OLLAMA MODEL IDENTITY
+=========================
+
+Use provider-reported digest when available.
+
+Do not benchmark only by mutable model tag.
+
+============================================================
+38. VLLM LIFECYCLE
+==================
+
+Treat vLLM primarily as configurable serving backend.
+
+Do not auto-install CUDA/ROCm drivers.
+
+Inspect hardware compatibility before recommending it.
+
+============================================================
+39. VLLM HARDWARE ELIGIBILITY
+=============================
+
+Use current official vLLM hardware/quantization matrix.
+
+A runtime/model combination that current vLLM does not support:
+
+INELIGIBLE
+
+not:
+
+maybe.
+
+============================================================
+40. GENERIC SERVER PROFILE
+==========================
+
+For generic OpenAI-compatible server:
+
+declare capabilities explicitly or probe.
+
+Do not assume:
+
+# OpenAI-compatible
+
+complete OpenAI feature parity.
+
+============================================================
+41. PROVIDER CAPABILITY PROBE
+=============================
+
+Create optional probes:
+
+CHAT
+STREAMING
+TOOLS
+STRUCTURED_OUTPUT
+EMBEDDINGS
+
+Use bounded tiny requests.
+
+No probe may accidentally call commercial fallback.
+
+============================================================
+42. CAPABILITY DATABASE
+=======================
+
+Persist capability result by:
+
+model artifact
+runtime
+runtime version
+probe version
+
+============================================================
+43. BENCHMARK TOURNAMENT
+========================
+
+Create:
+
+ModelTournament
+
+Input:
+
+candidate local models
+task profile
+hardware
+cost policy
+
+Run bounded benchmark suite.
+
+Rank by measured result.
+
+============================================================
+44. TOURNAMENT TASK PROFILES
+============================
+
+Initial:
+
+CODING_SMALL
+CODING_REPAIR
+TOOLS
+STRUCTURED_OUTPUT
+RAG_QUERY
+
+No enormous benchmark suite.
+
+============================================================
+45. SCORING
+===========
+
+Use objective measures.
+
+Coding:
+
+tests fixed
+validation
+unwanted diff
+attempt count
+
+Tools:
+
+schema correctness
+tool selection
+arguments
+
+Performance:
+
+TTFT
+tokens/sec
+wall time
+peak memory
+
+============================================================
+46. QUALITY VS SPEED
+====================
+
+Keep separate scores:
+
+correctness
+latency
+memory
+tool reliability
+
+Then derive task-specific ranking.
+
+Do not hide tradeoffs behind one opaque number.
+
+============================================================
+47. BENCHMARK REPEATS
+=====================
+
+Support multiple runs to reduce noise.
+
+Report:
+
+median
+variation
+sample count
+
+Do not claim statistically strong results from one run.
+
+============================================================
+48. MODEL WARMUP
+================
+
+Separate:
+
+cold start
+warm inference
+
+in measurements.
+
+============================================================
+49. PEAK MEMORY
+===============
+
+Measure approximate peak host memory where feasible.
+
+Do not present estimate as exact VRAM telemetry.
+
+============================================================
+50. BENCHMARK FAILURE
+=====================
+
+Model failure remains data.
+
+Do not exclude failed model from report.
+
+Record:
+
+timeout
+OOM
+invalid tool call
+test failure
+
+============================================================
+51. AUTOTUNING SEARCH
+=====================
+
+Search only bounded safe parameter combinations.
+
+Do not brute-force hundreds of expensive configurations.
+
+============================================================
+52. EARLY STOPPING
+==================
+
+Stop tuning candidate when:
+
+OOM
+severe slowdown
+quality regression
+timeout
+
+============================================================
+53. BEST PROFILE
+================
+
+Persist best profile per:
+
+model
+hardware
+task
+
+Do not create one universal tuning profile.
+
+============================================================
+54. PER-PROJECT MODEL PROFILE
+=============================
+
+Create:
+
+.zcoder/models.yaml
+
+or appropriate equivalent.
+
+Example concept:
+
+coding:
+policy: zero
+runtime: auto
+model: auto
+
+review:
+runtime: auto
+model: auto
+
+embedding:
+model: ...
+
+Do not force exact filename if existing project config architecture is
+better.
+
+============================================================
+55. AUTO MODEL
+==============
+
+Support:
+
+model=auto
+
+Resolution:
+
+project requirements
+→ policy
+→ hardware
+→ installed models
+→ capability evidence
+→ benchmark history
+→ selected model
+
+============================================================
+56. MODEL EXPLAIN
+=================
+
+Provide:
+
+zcoder models explain --task coding
+
+Output:
+
+selected model
+runtime
+fit
+benchmark
+capabilities
+cost
+rejected candidates
+
+============================================================
+57. NEVER AUTO-SPEND
+====================
+
+Under zero-cost profile:
+
+if no suitable local/free model exists:
+
+NO_ELIGIBLE_ZERO_COST_MODEL
+
+Do not invoke paid provider.
+
+============================================================
+58. OPTIONAL FREE REMOTE
+========================
+
+FREE_REMOTE may be supported only when pricing/access has explicit
+current evidence.
+
+Unknown is not free.
+
+============================================================
+59. MODEL DOWNLOADER UX
+=======================
+
+Commands may include:
+
+zcoder models search
+zcoder models info
+zcoder models pull
+zcoder models remove
+zcoder models list
+zcoder models cache
+
+Follow current CLI architecture.
+
+============================================================
+60. MODEL SEARCH
+================
+
+Do not scrape random model websites.
+
+Use supported model source APIs.
+
+Allow filters:
+
+format
+size
+task
+license metadata
+gated status
+
+============================================================
+61. RECOMMENDED DOWNLOAD
+========================
+
+Provide:
+
+zcoder models recommend-download
+
+based on host profile.
+
+Return several candidates, not one absolute answer.
+
+============================================================
+62. NO SILENT DOWNLOAD
+======================
+
+Recommendation is not execution.
+
+User/operator explicitly triggers acquisition.
+
+============================================================
+63. GGUF MODEL FACTORY
+======================
+
+Where tooling allows, support registration of user-provided GGUF.
+
+Do NOT implement quantization conversion from arbitrary models unless
+the existing stack genuinely supports it safely.
+
+============================================================
+64. QUANTIZATION CONVERSION BOUNDARY
+====================================
+
+If conversion/quantization support is implemented:
+
+make it optional.
+
+Record:
+
+source artifact
+tool version
+quantization
+output digest
+
+Never overwrite original weights.
+
+============================================================
+65. MODEL BUILD REPRODUCIBILITY
+===============================
+
+For locally produced artifacts record:
+
+input digest
+command/config
+tool version
+output digest
+
+Do not claim bit reproducibility unless tested.
+
+============================================================
+66. SPECULATIVE DECODING
+========================
+
+If current runtime supports it:
+
+treat as optional optimization.
+
+Benchmark:
+
+target only
+vs
+target + draft
+
+Only enable when measured improvement exists.
+
+============================================================
+67. DRAFT MODEL FIT
+===================
+
+Account for draft model RAM/VRAM too.
+
+Do not recommend speculative decoding if combined memory becomes unsafe.
+
+============================================================
+68. CONTEXT AUTO-TUNING
+=======================
+
+Do not automatically use model maximum context.
+
+Select context based on:
+
+task
+RAG
+hardware
+memory
+
+Larger context can reduce performance/memory headroom.
+
+============================================================
+69. RAG-AWARE CONTEXT
+=====================
+
+Use local repository retrieval to avoid oversized context.
+
+Benchmark:
+
+larger raw context
+vs
+smaller context + RAG
+
+where useful.
+
+============================================================
+70. LOCAL EMBEDDING FACTORY
+===========================
+
+Upgrade TF-IDF architecture without making neural embeddings mandatory.
+
+Support:
+
+TFIDFEmbedding
+LocalModelEmbedding
+
+Choose based on:
+
+availability
+quality
+cost
+hardware
+
+============================================================
+71. EMBEDDING BENCHMARK
+=======================
+
+Benchmark repository retrieval quality with deterministic fixtures.
+
+Measure:
+
+recall@k
+MRR or another justified ranking metric
+
+Do not benchmark only latency.
+
+============================================================
+72. LOCAL RERANKING
+===================
+
+Optional local reranker adapter.
+
+No hosted reranker required.
+
+If absent:
+
+RAG still works.
+
+============================================================
+73. INDEX PROFILE
+=================
+
+Persist:
+
+embedding provider
+model digest
+dimension
+chunk strategy
+index version
+
+============================================================
+74. INDEX INVALIDATION
+======================
+
+Invalidate/rebuild when:
+
+embedding model changes
+chunking changes
+branch/base changes materially
+
+============================================================
+75. LOCAL MODEL DAEMON MANAGER
+==============================
+
+Introduce service manager boundary.
+
+It may manage ZCoder-owned runtime processes.
+
+Do not terminate user-owned Ollama/vLLM process.
+
+============================================================
+76. OWNERSHIP
+=============
+
+Every managed runtime process records:
+
+owner=ZCODER
+pid
+process fingerprint
+
+External process:
+
+owner=EXTERNAL
+
+Lifecycle semantics differ.
+
+============================================================
+77. LOAD / UNLOAD POLICY
+========================
+
+Keep models loaded based on:
+
+RAM pressure
+recent use
+configured idle timeout
+
+Do not keep every model resident.
+
+============================================================
+78. MEMORY PRESSURE REACTION
+============================
+
+On low memory:
+
+do not start another large local model.
+
+Queue/pause/fail gracefully.
+
+============================================================
+79. CONCURRENT INFERENCE
+========================
+
+Benchmark concurrency safely.
+
+Determine per-profile:
+
+max parallel requests
+
+Do not assume CPU-only host handles many parallel generations well.
+
+============================================================
+80. JOB SCHEDULING + MODEL CAPACITY
+===================================
+
+Scheduler should understand local model slots.
+
+Prevent 10 jobs from launching 10 copies of same 7B model.
+
+============================================================
+81. SHARED MODEL SERVER
+=======================
+
+Multiple jobs may safely share server where runtime supports it.
+
+Respect:
+
+parallel capacity
+tenant/workspace isolation
+context separation
+
+============================================================
+82. TENANT SECURITY
+===================
+
+Shared local model server must not leak prompt/history between jobs or
+tenants.
+
+Add isolation tests.
+
+============================================================
+83. LOCAL MODEL LOGGING
+=======================
+
+Do not log full source/prompt by default.
+
+Diagnostics should be privacy-conscious.
+
+============================================================
+84. OFFLINE GUARANTEE V2
+========================
+
+Strict offline profile permits:
+
+loopback
+local filesystem
+local subprocess
+
+No internet.
+
+Model acquisition obviously requires network unless model already
+exists.
+
+Separate:
+
+OFFLINE_EXECUTION
+from
+ONLINE_MODEL_ACQUISITION
+
+============================================================
+85. AIR-GAPPED MODEL IMPORT
+===========================
+
+Support registering model from local file.
+
+Verify:
+
+digest
+format
+metadata
+
+No internet required.
+
+============================================================
+86. AIR-GAPPED RUNTIME
+======================
+
+Run:
+
+local file
+→ llama.cpp/local runtime
+→ coding job
+
+with network interception proving no outbound traffic.
+
+============================================================
+87. REAL LOCAL INFERENCE EVIDENCE
+=================================
+
+Highest priority.
+
+If llama.cpp or Ollama can be installed/available in environment:
+
+run actual local inference.
+
+Do not substitute FakeRuntime.
+
+Record:
+
+runtime
+runtime version
+model
+model digest
+hardware
+latency
+result
+
+============================================================
+88. REAL CPU MODEL TEST
+=======================
+
+Prefer a small model that realistically fits host.
+
+Do not download a huge model just to obtain E4.
+
+Test:
+
+chat
+stream
+structured response
+coding mini benchmark
+
+where model supports each capability.
+
+============================================================
+89. REAL TOOL-CALL TEST
+=======================
+
+Only mark TOOL_CALL_REAL PASS if actual model produced valid tool call.
+
+Otherwise:
+
+NOT_SUPPORTED
+or
+FAILED_QUALITY
+
+============================================================
+90. REAL AUTONOMOUS REPAIR
+==========================
+
+Create deterministic temporary repo.
+
+Introduce controlled bug.
+
+Actual local model:
+
+inspect
+plan
+edit
+test
+repair if needed
+validate
+
+Record exact result.
+
+No FakeRuntime.
+
+============================================================
+91. QUALITY FAILURE IS ACCEPTABLE
+=================================
+
+If small CPU model cannot solve repair task:
+
+report failure honestly.
+
+Do not weaken benchmark to force PASS.
+
+The platform may still pass runtime integration.
+
+============================================================
+92. MODEL SUCCESS THRESHOLD
+===========================
+
+Separate:
+
+RUNTIME_VERIFIED
+
+from:
+
+CODING_QUALITY_VERIFIED
+
+A model can produce valid inference but fail coding benchmark.
+
+============================================================
+93. MODEL FACTORY TEST MODE
+===========================
+
+No automatic large download in PR CI.
+
+Use:
+
+unit/contract tests
+
+plus optionally scheduled:
+
+REAL_LOCAL_MODEL
+
+test.
+
+============================================================
+94. REAL LOCAL RELEASE PROFILE
+==============================
+
+Define:
+
+LOCAL_RUNTIME_VERIFIED
+
+Requirements:
+
+actual local server
+actual model
+actual generation
+zero paid calls
+
+Define stronger:
+
+LOCAL_CODING_VERIFIED
+
+Requirements additionally:
+
+real autonomous coding repair succeeds.
+
+============================================================
+95. CPU-ONLY PROFILE
+====================
+
+Create explicit:
+
+CPU_LOCAL
+
+release evidence.
+
+Do not make GPU necessary.
+
+============================================================
+96. GPU PROFILE
+===============
+
+GPU remains:
+
+NOT_TESTED
+
+until real GPU runner exists.
+
+============================================================
+97. AMD / NVIDIA / APPLE
+========================
+
+Architecture supports them through HardwareProfile/runtime capabilities.
+
+Do not claim verified acceleration without hardware evidence.
+
+============================================================
+98. WINDOWS
+===========
+
+Model runtime paths/process handling must be portable.
+
+Test mocked/platform-specific code.
+
+Actual real-model Windows test optional unless runner exists.
+
+============================================================
+99. MODEL LICENSE REPORT
+========================
+
+`zcoder models info` should show:
+
+source
+license identifier/status
+gated
+digest
+size
+runtime compatibility
+
+Do not provide legal conclusions.
+
+============================================================
+100. SUPPLY CHAIN
+=================
+
+Treat model artifact like executable dependency.
+
+Record provenance metadata.
+
+Warn on digest change for same mutable tag.
+
+============================================================
+101. MUTABLE TAG DETECTION
+==========================
+
+If:
+
+same provider tag
+different digest
+
+mark benchmark/tuning results stale.
+
+============================================================
+102. TUNING INVALIDATION
+========================
+
+Invalidate auto-tuning profile when:
+
+model digest changes
+runtime version changes
+material hardware fingerprint changes
+benchmark definition changes
+
+============================================================
+103. MODEL PROFILE EXPORT
+=========================
+
+Support portable JSON/YAML profile containing no secrets.
+
+Useful for reproducing setup on another similar host.
+
+============================================================
+104. PROFILE IMPORT
+===================
+
+Imported profile must be revalidated against actual hardware.
+
+Do not blindly trust imported tuning.
+
+============================================================
+105. BENCHMARK EXPORT
+=====================
+
+JSON/CSV.
+
+Include:
+
+model identity
+runtime
+hardware
+settings
+results
+benchmark version
+
+============================================================
+106. MODEL FACTORY CLI
+======================
+
+Target UX:
+
+zcoder hardware
+
+zcoder models list
+zcoder models search
+zcoder models info MODEL
+zcoder models pull MODEL
+zcoder models remove MODEL
+
+zcoder models benchmark MODEL
+zcoder models tournament --task coding
+zcoder models recommend --task coding
+zcoder models explain --task coding
+
+zcoder local-ai status
+zcoder local-ai start
+zcoder local-ai stop
+
+Exact hierarchy may follow current CLI architecture.
+
+============================================================
+107. DOCTOR
+===========
+
+Expand:
+
+zcoder doctor local-ai
+
+Show:
+
+hardware
+disk
+runtimes
+runtime versions
+models
+model state
+embedding
+MCP
+recommended model
+offline eligibility
+
+============================================================
+108. AUTO SETUP PLAN
+====================
+
+Provide:
+
+zcoder local-ai setup --dry-run
+
+It may recommend:
+
+runtime
+model
+quantization
+settings
+disk requirement
+
+It must NOT install/download until explicitly approved.
+
+============================================================
+109. SAFE APPLY
+===============
+
+If:
+
+zcoder local-ai setup --apply
+
+exists:
+
+show intended actions
+require explicit operator action
+log results
+never install GPU drivers automatically
+
+============================================================
+110. WEB LOCAL MODEL FACTORY
+============================
+
+If self-hosted Web profile is supported:
+
+pages:
+
+Hardware
+Runtimes
+Models
+Downloads
+Benchmarks
+Tournament
+Recommended Profile
+
+Use backend services.
+
+============================================================
+111. DOWNLOAD PROGRESS
+======================
+
+UI/CLI can show:
+
+bytes
+percentage
+speed
+remaining bytes
+
+No invented ETA required.
+
+============================================================
+112. RESOURCE WARNING
+=====================
+
+Before loading model show:
+
+expected RAM/VRAM fit
+context
+parallelism
+
+============================================================
+113. BENCHMARK UI
+=================
+
+Never hide hardware context.
+
+Show:
+
+model
+digest
+runtime
+host
+score dimensions
+
+============================================================
+114. PROJECT MODEL SETTINGS
+===========================
+
+Project settings:
+
+coding model
+review model
+embedding model
+cost policy
+
+Default:
+
+AUTO + ZERO COST
+
+for no-cost profile.
+
+============================================================
+115. WORKFLOW INTEGRATION
+=========================
+
+Existing workflows use model requirement, not hardcoded provider.
+
+Example:
+
+requires:
+coding: true
+tools: true
+
+router resolves suitable local model.
+
+============================================================
+116. AGENT PROFILE INTEGRATION
+==============================
+
+Agent profile specifies capability requirements.
+
+No agent may bypass organization paid-provider policy.
+
+============================================================
+117. MCP + MODEL CAPABILITY
+===========================
+
+If workflow requires MCP/tools:
+
+route only to model/runtime strategy capable of tool execution.
+
+If no tool-capable model:
+
+return clear limitation.
+
+============================================================
+118. STRUCTURED OUTPUT FALLBACK
+===============================
+
+A runtime may use server-side grammar/schema capability where available.
+
+Do not treat post-hoc JSON repair as equivalent capability.
+
+============================================================
+119. BENCHMARK-DRIVEN AUTO ROUTING
+==================================
+
+Use historical benchmark only when:
+
+same model digest
+compatible hardware
+compatible runtime
+same benchmark version
+
+============================================================
+120. ROUTING CONFIDENCE
+=======================
+
+Return:
+
+HIGH
+MEDIUM
+LOW
+
+based on evidence.
+
+Example:
+
+actual benchmark on this host
+→ HIGH
+
+catalog only
+→ LOW
+
+============================================================
+121. ROUTING REASON
+===================
+
+Persist routing explanation for job.
+
+Do not expose hidden model reasoning.
+
+============================================================
+122. NO-COST AUDIT
+==================
+
+For every autonomous local job record:
+
+paid_transport_calls
+remote_model_calls
+hosted_embedding_calls
+
+Zero-cost profile success requires all prohibited counters = 0.
+
+============================================================
+123. NETWORK INTERCEPTION TEST
+==============================
+
+Strict offline E2E should fail on attempted external connection.
+
+Do not merely inspect configuration after run.
+
+============================================================
+124. LOCAL MODEL SECURITY
+=========================
+
+Audit:
+
+model URL SSRF
+server binding
+model file permissions
+download paths
+archive traversal
+digest mismatch
+unsafe executable download
+MCP interaction
+
+============================================================
+125. MODEL FILE IS DATA, RUNTIME IS CODE
+========================================
+
+Do not execute arbitrary scripts from model repositories merely to load
+weights.
+
+Avoid trust_remote_code-like behavior unless explicit high-risk policy
+permits it.
+
+============================================================
+126. DOWNLOAD FORMAT ALLOWLIST
+==============================
+
+No-cost GGUF path should download only intended model artifacts and
+metadata.
+
+Do not pull arbitrary executables.
+
+============================================================
+127. HUGGING FACE CACHE
+=======================
+
+Where Hugging Face tooling is used, respect its cache semantics rather
+than copying files unnecessarily.
+
+Support explicit local cache path.
+
+============================================================
+128. DISK CLEANUP SECURITY
+==========================
+
+Deletion stays inside managed model cache.
+
+Path traversal test mandatory.
+
+============================================================
+129. RELEASE TEST PROFILES
+==========================
+
+CORE_FREE
+SELF_HOSTED
+LOCAL_RUNTIME_VERIFIED
+LOCAL_CODING_VERIFIED
+SAAS
+
+Do not collapse them.
+
+============================================================
+130. CORE_FREE
+==============
+
+Requires:
+
+offline core
+zero paid calls
+model provider contracts
+FakeLocalModel pipeline
+local storage
+local RAG
+
+============================================================
+131. LOCAL_RUNTIME_VERIFIED
+===========================
+
+Requires:
+
+real runtime process
+real model file
+real inference
+zero paid call proof
+
+============================================================
+132. LOCAL_CODING_VERIFIED
+==========================
+
+Requires:
+
+real local model
+real repository repair
+real tests passing
+
+============================================================
+133. WEB EVIDENCE
+=================
+
+If Web remains optional in default environment:
+
+do not mark Web E2/E3 merely because route code exists.
+
+SELF_HOSTED Web release CI must install and execute Web tests.
+
+============================================================
+134. RELEASE GATE
+=================
+
+Add:
+
+MODEL_REGISTRY
+MODEL_ARTIFACT_INTEGRITY
+MODEL_LICENSE_METADATA
+MODEL_ACQUISITION
+
+LLAMACPP_CONTRACT
+OLLAMA_CONTRACT
+VLLM_CONTRACT
+
+HARDWARE_PROFILE
+MODEL_FIT
+AUTO_TUNING
+
+BENCHMARK_ENGINE
+MODEL_TOURNAMENT
+AUTO_ROUTING
+
+REAL_LOCAL_RUNTIME
+REAL_LOCAL_CODING
+
+ZERO_PAID_CALLS
+OFFLINE_EXECUTION
+
+============================================================
+135. GATE EXAMPLE
+=================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+NO_COST_CORE: PASS
+ZERO_PAID_CALLS: PASS
+OFFLINE_EXECUTION: PASS
+
+MODEL_REGISTRY: PASS
+MODEL_ARTIFACT_INTEGRITY: PASS
+MODEL_LICENSE_METADATA: PASS
+
+LLAMACPP_CONTRACT: PASS
+OLLAMA_CONTRACT: PASS
+VLLM_CONTRACT: PASS
+
+HARDWARE_PROFILE: PASS
+MODEL_FIT: PASS
+AUTO_TUNING: PASS
+
+BENCHMARK_ENGINE: PASS
+MODEL_TOURNAMENT: PASS
+AUTO_ROUTING: PASS
+
+REAL_LOCAL_RUNTIME:
+NOT_TESTED or PASS
+
+REAL_LOCAL_CODING:
+NOT_TESTED or PASS
+
+WEB_SELF_HOSTED:
+evidence-derived status
+
+PITR:
+PASS_WITH_LIMITATIONS
+
+FINAL:
+PASS_WITH_LIMITATIONS
+
+Do not fail CORE_FREE merely because GPU hardware is unavailable.
+
+============================================================
+136. REAL RUNTIME EVIDENCE TIER
+===============================
+
+Contract/mock:
+
+E2
+
+Local real server:
+
+E4
+
+Actual production observation:
+
+E5
+
+Do not call provider adapter E4 without real daemon/model execution.
+
+============================================================
+137. DOCUMENTATION
+==================
+
+Add:
+
+docs/UPGRADE-15.md
+docs/MODEL-FACTORY.md
+docs/MODEL-REGISTRY.md
+docs/MODEL-ACQUISITION.md
+docs/GGUF.md
+docs/LLAMA-CPP.md
+docs/LOCAL-RUNTIME-MANAGEMENT.md
+docs/AUTO-TUNING.md
+docs/MODEL-TOURNAMENT.md
+docs/MODEL-PROFILES.md
+docs/LOCAL-MODEL-SECURITY.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+docs/LOCAL-AI.md
+docs/NO-COST-MATRIX.md
+
+============================================================
+138. TESTS
+==========
+
+Add substantial tests for:
+
+model registry lifecycle
+catalog vs installed distinction
+digest verification
+mutable tag invalidation
+model cache traversal
+storage quota
+download dry-run
+gated model state
+license metadata
+llama.cpp adapter
+Ollama adapter
+vLLM adapter
+runtime process ownership
+dynamic ports
+fit estimator
+CPU-only routing
+auto tuning
+tuning invalidation
+benchmark tournament
+concurrent model capacity
+offline execution
+paid transport spying
+air-gapped model registration
+project profiles
+
+============================================================
+139. REAL LOCAL TEST
+====================
+
+If environment allows installing/running a lightweight local runtime:
+
+prefer actual llama.cpp or existing Ollama installation.
+
+Do not silently install gigabytes.
+
+Obtain explicit small-model configuration.
+
+If no model is available:
+
+report:
+
+REAL_LOCAL_RUNTIME = NOT_TESTED
+
+without weakening other gates.
+
+============================================================
+140. REQUIRED FINAL COMMANDS
+============================
+
+Run:
+
+python -m pytest -q -ra
+
+python main.py --version
+python -m build
+
+clean wheel install
+
+zcoder --version
+zcoder doctor local-ai
+zcoder hardware
+
+git diff --check
+git status --short
+
+Run:
+
+offline E2E
+zero-paid-call E2E
+model-registry tests
+runtime contracts
+auto-tuning tests
+benchmark tournament
+air-gap tests
+self-hosted Web profile
+
+Run real local runtime test if possible.
+
+Never fabricate it.
+
+============================================================
+141. DEFINITION OF DONE
+=======================
+
+Upgrade-15 is complete only when:
+
+[ ] catalog models cannot appear installed accidentally
+[ ] local model lifecycle is explicit
+[ ] llama.cpp is first-class
+[ ] Ollama remains first-class
+[ ] vLLM remains optional
+[ ] generic local server remains supported
+[ ] model source abstraction exists
+[ ] acquisition is explicit
+[ ] downloads are revision/digest attributable
+[ ] gated-model requirements are respected
+[ ] license metadata is visible
+[ ] no automatic giant model download occurs
+[ ] cache management is safe
+[ ] CPU-only host is fully supported
+[ ] model fit includes context/overhead
+[ ] safety memory margin exists
+[ ] quantization profiles exist
+[ ] runtime auto-tuning exists
+[ ] tuning is hardware/model/runtime-version specific
+[ ] benchmark tournament exists
+[ ] rankings are multi-dimensional
+[ ] project model profiles exist
+[ ] model=auto is explainable
+[ ] paid fallback remains disabled in zero-cost mode
+[ ] air-gapped model import works
+[ ] offline execution permits zero external calls
+[ ] real runtime evidence is clearly separated from simulations
+[ ] model quality failure cannot be hidden
+[ ] inherited tenant/security gates stay green
+
+============================================================
+142. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-14 Evidence Corrections
+
+## 3. Version Decision
+
+## 4. Local Model Factory Architecture
+
+## 5. Actual Hardware
+
+CPU:
+RAM:
+GPU:
+VRAM:
+Disk:
+OS:
+
+## 6. Runtime Inventory
+
+Runtime | Installed | Running | Version | Real Tested | Evidence
+
+## 7. Model Registry
+
+Model | State | Source | Revision | Digest | Format | Quantization | License
+
+## 8. Acquisition System
+
+## 9. GGUF / llama.cpp
+
+## 10. Ollama
+
+## 11. vLLM
+
+## 12. Model Fit / Hardware Routing
+
+## 13. Auto-Tuning
+
+## 14. Tuning Results
+
+## 15. Benchmark Tournament
+
+Model | Correctness | TTFT | Tok/s | Peak Memory | Tool Score | Result
+
+## 16. Automatic Selection
+
+Selected:
+Reason:
+Confidence:
+Rejected candidates:
+
+## 17. Project Model Profiles
+
+## 18. Embeddings / RAG Integration
+
+## 19. Offline / Air-Gapped Operation
+
+## 20. Zero-Paid-Call Proof
+
+Anthropic:
+OpenAI paid:
+Stripe:
+Hosted embeddings:
+Other prohibited transports:
+
+## 21. Real Local Runtime Proof
+
+Runtime:
+Model:
+Digest:
+Actual inference:
+Streaming:
+Tools:
+Structured output:
+Evidence tier:
+
+## 22. Real Autonomous Coding Proof
+
+State honestly:
+
+NOT_TESTED
+FAILED_MODEL_QUALITY
+PASS
+
+## 23. Security Review
+
+## 24. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+core
+registry
+acquisition
+runtime contracts
+hardware
+auto tuning
+benchmark
+offline
+Web
+real local
+
+## 25. Evidence Tiers
+
+## 26. Release Profiles
+
+CORE_FREE:
+SELF_HOSTED:
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_CODING_VERIFIED:
+SAAS:
+
+## 27. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+NO_COST_CORE:
+ZERO_PAID_CALLS:
+OFFLINE_EXECUTION:
+
+MODEL_REGISTRY:
+MODEL_ARTIFACT_INTEGRITY:
+MODEL_LICENSE_METADATA:
+MODEL_ACQUISITION:
+
+LLAMACPP_CONTRACT:
+OLLAMA_CONTRACT:
+VLLM_CONTRACT:
+
+HARDWARE_PROFILE:
+MODEL_FIT:
+AUTO_TUNING:
+
+BENCHMARK_ENGINE:
+MODEL_TOURNAMENT:
+AUTO_ROUTING:
+
+REAL_LOCAL_RUNTIME:
+REAL_LOCAL_CODING:
+
+WEB_SELF_HOSTED:
+PITR:
+
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 28. Files Changed
+
+## 29. Remaining Limitations
+
+Explicitly state:
+
+real llama.cpp executed?
+real Ollama executed?
+real vLLM executed?
+real GGUF model downloaded?
+real model tool calling?
+real coding repair?
+GPU tested?
+AMD tested?
+NVIDIA tested?
+Apple Silicon tested?
+air-gap tested?
+paid calls made?
+PITR?
+PostgreSQL HA?
+
+## 30. Final Verdict
+
+Never say:
+
+LOCAL AI FULLY VERIFIED
+
+if no actual model produced tokens.
+
+Never say:
+
+MODEL INSTALLED
+
+for a static catalog entry.
+
+Never say:
+
+BEST MODEL
+
+unless comparison was performed on compatible measured evidence.
+
+Never say:
+
+ZERO COST
+
+if a hidden paid fallback remains possible.
+
+The required product behavior is:
+
+ZCoder understands this machine,
+knows which local models really exist,
+knows which ones actually fit,
+measures them,
+selects an appropriate one,
+and can execute without silently spending money.

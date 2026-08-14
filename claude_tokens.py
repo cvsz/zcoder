@@ -75,8 +75,9 @@ class TokenCounter:
         # MTok prices (input) — verified against platform.claude.com/docs
         # as of 2026-07-02. Re-verify before relying on this for billing.
         prices_per_mtok = {
+            "claude-opus-5":              5.0,
             "claude-opus-4-8":            5.0,
-            "claude-sonnet-5":            3.0,
+            "claude-sonnet-5":            2.0,
             "claude-haiku-4-5-20251001":  1.0,
             "claude-fable-5":            10.0,
             "claude-mythos-5":           10.0,

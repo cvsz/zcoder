@@ -1,0 +1,181 @@
+# Adversarial review of the completed ZCoder Anthropic upgrade
+
+Act as a skeptical senior API/platform reviewer.
+
+Do NOT assume the previous implementation is correct.
+
+Your objective is to prove or disprove every claim that ZCoder now supports the latest Anthropic capabilities.
+
+## Rules
+
+1. Re-fetch current official Anthropic documentation independently.
+2. Treat implementation comments and existing audit documents as untrusted until verified.
+3. Never accept a feature as complete merely because:
+
+   * a module exists
+   * a CLI flag exists
+   * a README mentions it
+   * a test mocks the wrong request shape successfully
+4. Compare actual wire format against current Anthropic documentation.
+5. Identify duplicated, stale, dead, unreachable, misleading, or speculative functionality.
+6. Make fixes directly when evidence is sufficient.
+
+## Deep checks
+
+For every recently added capability verify:
+
+* exact endpoint
+* HTTP method
+* API host
+* API version
+* beta header
+* authentication type
+* request fields
+* response fields
+* pagination
+* error behavior
+* model compatibility
+* platform compatibility
+* enterprise entitlement
+* ZDR/data-retention behavior
+* pricing implications
+* CLI wiring
+* tests
+
+Specifically attack:
+
+* Managed Agents hard session budgets versus advisory task budgets
+* Managed Agents advisor versus Messages API Advisor Tool
+* Managed Agents inference geography versus Messages API inference geography
+* GitHub-mounted Agent Skills versus local `.claude/skills`
+* Enterprise inference hooks
+* remote Compliance session transcripts
+* local Claude Code/Cowork Compliance transcripts
+* `anthropic-workspace-id`
+* retired models
+* model aliases
+* Sonnet 5 tokenizer accounting
+* adaptive-thinking compatibility
+* invalid sampling parameters
+* fast-mode restrictions
+* Priority Tier restrictions
+* prompt caching minimums
+* stop/refusal handling
+* event delta streaming
+* session overrides
+* initial events
+* webhooks
+* memory stores
+* dreams
+* vault credential injection
+* MCP tunnels
+* current Agent SDK behavior
+
+## Hunt for dead wiring
+
+For every user-facing flag:
+
+Trace:
+
+```text
+argparse
+  -> dispatch
+  -> public function
+  -> client/transport
+  -> request
+  -> response parser
+```
+
+Report anything that stops before the actual implementation.
+
+## Hunt for bypass paths
+
+Look for generic paths that bypass model validation:
+
+* `Coder`
+* interactive mode
+* web console
+* TUI
+* batch
+* structured outputs
+* agent loops
+* direct Messages calls
+* specialized model modules
+* fallback/router paths
+
+A feature is not fixed if only one call path has validation.
+
+## Test the tests
+
+Look for:
+
+* mocks asserting an invented request shape
+* constants copied from implementation into tests
+* tests that can pass even when the endpoint is wrong
+* missing negative tests
+* no CLI wiring test
+* no response parsing test
+* stale beta headers
+* retired model fixtures
+
+Add independent request-capture tests.
+
+## Required commands
+
+Run:
+
+```bash
+python -m pytest -q
+git diff --check
+python main.py --help
+```
+
+Also run available:
+
+```bash
+ruff check .
+black --check .
+mypy .
+```
+
+## Final output
+
+Produce:
+
+### VERIFIED CORRECT
+
+Features proven against current Anthropic documentation.
+
+### DEFECTS FOUND
+
+`Severity | Feature | Defect | Evidence | Fix`
+
+### FALSE COVERAGE
+
+Anything claimed but not actually implemented.
+
+### STALE IMPLEMENTATION
+
+Deprecated headers, endpoints, model IDs, assumptions, or pricing.
+
+### DEAD CLI / DEAD CODE
+
+Anything unreachable.
+
+### TEST WEAKNESSES
+
+Tests that created false confidence.
+
+### FIXES APPLIED
+
+Exact files and behavior.
+
+### FINAL TEST RESULTS
+
+Full command results.
+
+### COVERAGE VERDICT
+
+Give a percentage only if you can define the denominator explicitly.
+
+Do not optimize for agreeing with the previous implementation. Optimize for correctness.

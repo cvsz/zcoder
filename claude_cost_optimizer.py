@@ -5,11 +5,11 @@ can handle it. Tracks cumulative spend across calls.
 AI Model Coder CLI v1.10.3
 
 Pricing below verified against platform.claude.com/docs/en/about-claude/
-models/overview as of 2026-07-02. Claude Sonnet 5 has introductory
-pricing of $2/$10 per MTok through 2026-08-31 — SONNET5_INTRO_PRICE
-reflects that; PRICE["claude-sonnet-5"] holds the standing $3/$15 rate
-used once the intro window ends. Re-verify before relying on this for
-billing-sensitive decisions.
+models/overview as of 2026-07-02, re-verified 2026-08-13. Claude Sonnet 5
+launched at $2/$10 per MTok. On 2026-08-10 Anthropic cancelled the planned
+Sep 1 increase to $3/$15 — the $2/$10 rate is now the permanent standard
+price. PRICE["claude-sonnet-5"] reflects that permanently at $2/$10.
+Re-verify before relying on this for billing-sensitive decisions.
 
 Note: everything in this module is a *local estimate* built from token
 counts this CLI is told about after a call completes — it never queries a
@@ -35,7 +35,8 @@ SPEND_LOG = Path.home() / ".ai-coder" / "cost_log.json"
 PRICE: Dict[str, Dict[str, float]] = {
     # Current
     "claude-haiku-4-5-20251001":  {"in": 1.0,   "out": 5.0},
-    "claude-sonnet-5":            {"in": 3.0,   "out": 15.0},
+    "claude-sonnet-5":            {"in": 2.0,   "out": 10.0},
+    "claude-opus-5":              {"in": 5.0,   "out": 25.0},
     "claude-opus-4-8":            {"in": 5.0,   "out": 25.0},
     "claude-fable-5":             {"in": 10.0,  "out": 50.0},
     "claude-mythos-5":            {"in": 10.0,  "out": 50.0},
@@ -47,15 +48,15 @@ PRICE: Dict[str, Dict[str, float]] = {
     "claude-sonnet-4-6":          {"in": 3.0,   "out": 15.0},
     "claude-sonnet-4-5":          {"in": 3.0,   "out": 15.0},
 }
-SONNET5_INTRO_PRICE = {"in": 2.0, "out": 10.0}  # through 2026-08-31
-TIER_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-4-8"]
+SONNET5_INTRO_PRICE = {"in": 2.0, "out": 10.0}  # permanent standard price
+TIER_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5"]
 
 # Long-context (>200K input) pricing surcharge. Previously missing entirely —
 # estimate_cost() applied flat per-model pricing regardless of input size,
 # which under-quoted cost for any model that has a long-context surcharge.
 #
 # Per platform.claude.com/docs/en/about-claude/pricing (checked 2026-07-02):
-# Claude Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, and Sonnet 5 all get the
+# Claude Opus 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, and Sonnet 5 all get the
 # full 1M-token context window at FLAT standard pricing — no surcharge at
 # any input size. Those models are deliberately absent below. The surcharge
 # only still applies to models on the older 1M-context BETA
@@ -73,14 +74,15 @@ LONG_CONTEXT_SURCHARGE: Dict[str, Dict[str, float]] = {
 }
 
 # Data residency (inference_geo) pricing. Per platform.claude.com/docs
-# (Service tiers / Data residency, checked 2026-07-02): requests with
-# inference_geo:"us" on Claude Opus 4.6, Sonnet 4.6, and later models are
+# (Service tiers / Data residency, checked 2026-07-02, re-verified 2026-08-13): requests with
+# inference_geo:"us" on Claude Opus 4.6, Sonnet 4.6, and later models (including Opus 5) are
 # billed at a flat 1.1x multiplier on both input and output tokens.
 # inference_geo:"global" (the default) is standard pricing. Requesting
 # inference_geo at all on models before Opus 4.6 / Sonnet 4.6 is a 400 —
 # INFERENCE_GEO_SUPPORTED gates that at the call site (see optimized_call).
 INFERENCE_GEO_MULTIPLIER = 1.1
 INFERENCE_GEO_SUPPORTED = {
+    "claude-opus-5",
     "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
     "claude-sonnet-5", "claude-sonnet-4-6",
     "claude-fable-5", "claude-mythos-5",

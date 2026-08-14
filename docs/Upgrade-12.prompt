@@ -1,0 +1,2759 @@
+# UPGRADE-12
+
+# Customer-Facing SaaS Product Layer
+
+# Self-Service Onboarding, Developer Portal,
+
+# Public API & SDKs, Plans/Entitlements,
+
+# Usage-Based Billing Adapter, Customer Webhooks,
+
+# Usage/Cost UX and Enterprise Administration
+
+You are operating directly inside ZCoder after Upgrade-11.
+
+Current reported baseline includes:
+
+* PostgreSQL 16 production backend
+* verified tenant RLS
+* Organization / Project model
+* enterprise RBAC
+* OIDC
+* SCIM
+* service accounts
+* API keys
+* policy engine
+* immutable usage ledger
+* atomic quotas
+* enterprise audit
+* regional/residency model
+* GitHub App fleet
+* autonomous job runtime
+* CI/PR automation
+* Kubernetes / Helm
+* observability
+* evidence-aware release gate
+* 707 passing tests
+* 2 optional UI skips
+* release status PASS_WITH_LIMITATIONS
+* canonical version 1.40.0
+
+Do not trust the report blindly.
+
+Verify repository state first.
+
+================================================================
+MISSION
+=======
+
+Turn ZCoder's enterprise control-plane foundation into a coherent,
+customer-facing SaaS product.
+
+Target user journey:
+
+SIGN UP
+↓
+CREATE ORGANIZATION
+↓
+CREATE PROJECT
+↓
+CHOOSE PLAN
+↓
+CONNECT GITHUB
+↓
+CONFIGURE MODEL / RUNTIME / POLICY
+↓
+CREATE FIRST JOB
+↓
+WATCH AGENT EXECUTION
+↓
+OPEN PR
+↓
+VIEW USAGE / COST
+↓
+CREATE API KEY / WEBHOOK
+↓
+AUTOMATE THROUGH PUBLIC API / SDK
+
+The resulting product must support:
+
+1. self-service onboarding
+2. organizations/projects
+3. GitHub App connection
+4. plans and entitlements
+5. trials
+6. usage-based commercial billing boundary
+7. customer usage dashboard
+8. budget / quota controls
+9. public REST API
+10. API versioning
+11. generated API documentation
+12. Python SDK
+13. TypeScript SDK
+14. customer webhooks
+15. service accounts/API keys
+16. organization administration
+17. enterprise SSO/SCIM configuration
+18. developer portal
+19. audit/security UI
+20. support/admin tooling
+21. lifecycle management
+22. accurate release evidence
+
+Do not build a pretty frontend over fake backend functions.
+
+Every customer-facing capability must trace to real shared services.
+
+================================================================
+PHASE 0 — BASELINE & EVIDENCE AUDIT
+===================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+
+python main.py --version
+python main.py --help
+
+python -m build
+
+git diff --check
+
+Run release gate.
+
+Verify:
+
+VERSION_INTEGRITY
+TEST_ACCOUNTING
+POSTGRES_REQUIRED
+RLS
+CROSS_TENANT
+QUOTA_RACE
+SECURITY
+
+Do not proceed if a P0 tenant-isolation regression exists.
+
+================================================================
+
+1. PRODUCT DOMAIN BOUNDARY
+   ================================================================
+
+Separate:
+
+control-plane domain
+
+from:
+
+commercial SaaS/product domain.
+
+Introduce or consolidate concepts:
+
+CustomerAccount
+Organization
+Project
+Subscription
+Plan
+Entitlement
+Trial
+Usage
+BillingProfile
+PaymentProviderRef
+DeveloperApplication
+WebhookEndpoint
+
+Do not put payment-provider IDs directly into unrelated domain models.
+
+================================================================
+2. USER VS PRINCIPAL
+====================
+
+Keep distinction between:
+
+HumanUser
+ServiceAccount
+APIKeyPrincipal
+PlatformAdmin
+
+A customer account can contain multiple principals.
+
+Do not model machine clients as users.
+
+================================================================
+3. CUSTOMER ACCOUNT
+===================
+
+Create first-class customer/account lifecycle where useful.
+
+Potential states:
+
+PENDING
+ACTIVE
+PAST_DUE
+SUSPENDED
+CANCELLED
+
+Do not automatically suspend tenants solely because a third-party
+payment webhook arrived without reconciliation.
+
+================================================================
+4. SELF-SERVICE SIGNUP
+======================
+
+Implement a secure onboarding flow.
+
+Concept:
+
+create account
+→ verify identity
+→ create organization
+→ create default project
+→ select plan/trial
+→ connect GitHub
+→ create first job
+
+Every step should be resumable.
+
+Do not leave partially initialized organizations.
+
+================================================================
+5. ONBOARDING STATE MACHINE
+===========================
+
+Represent onboarding state.
+
+Example:
+
+ACCOUNT_CREATED
+EMAIL_OR_IDENTITY_VERIFIED
+ORGANIZATION_CREATED
+PLAN_SELECTED
+GITHUB_CONNECTED
+PROJECT_CONFIGURED
+FIRST_JOB_CREATED
+COMPLETED
+
+Do not derive onboarding completion only from UI state.
+
+================================================================
+6. ONBOARDING IDEMPOTENCY
+=========================
+
+Page refresh/retry must not create:
+
+duplicate organization
+duplicate project
+duplicate subscription
+duplicate GitHub mapping
+
+Use durable state and idempotent operations.
+
+================================================================
+7. TRIAL MODEL
+==============
+
+Support trial concept independently from payment provider.
+
+Fields may include:
+
+starts_at
+ends_at
+status
+trial_entitlements
+
+States:
+
+ACTIVE
+EXPIRED
+CONVERTED
+CANCELLED
+
+Do not scatter:
+
+if trial:
+
+through application code.
+
+Resolve through entitlement/billing services.
+
+================================================================
+8. PLANS
+========
+
+Define product plans independently from billing-provider objects.
+
+Example conceptual tiers:
+
+Free
+Developer
+Team
+Business
+Enterprise
+
+Do NOT hardcode these exact names if repository/product requirements
+already define another model.
+
+Plan should reference versioned entitlement bundle.
+
+================================================================
+9. ENTITLEMENT SERVICE
+======================
+
+Every feature decision should use:
+
+EntitlementService
+
+Examples:
+
+max_projects
+max_repositories
+monthly_agent_budget
+concurrent_jobs
+managed_agents
+multiagent
+SCIM
+SSO
+advanced_policy
+audit_export
+retention_days
+regional_controls
+priority_support
+
+Avoid:
+
+if plan == "enterprise"
+
+in runtime code.
+
+================================================================
+10. ENTITLEMENT VERSIONING
+==========================
+
+Plan definitions change over time.
+
+Persist entitlement version/reference associated with subscription.
+
+Do not retroactively alter historical contract behavior without explicit
+migration.
+
+================================================================
+11. ENTITLEMENT CACHE
+=====================
+
+If entitlement results are cached:
+
+scope by organization
+subscription version
+policy version
+
+Changes must invalidate safely.
+
+Do not allow stale entitlement cache to grant revoked premium features
+indefinitely.
+
+================================================================
+12. FEATURE GATING
+==================
+
+Feature gate flow:
+
+authenticated principal
++
+organization
++
+subscription/entitlement
++
+authorization policy
+
+→ allow / deny / obligation
+
+Entitlement is not authorization.
+
+A paid plan must not override RBAC.
+
+================================================================
+13. PRODUCT CATALOG
+===================
+
+Create provider-neutral product catalog.
+
+Concept:
+
+Product
+Plan
+Price
+MeterDefinition
+EntitlementBundle
+
+Separate:
+
+commercial price
+
+from:
+
+provider/Anthropic cost.
+
+================================================================
+14. PRICE VERSIONING
+====================
+
+Pricing definitions need:
+
+currency
+billing interval
+effective_from
+effective_until
+version
+
+Do not mutate historical invoice meaning.
+
+================================================================
+15. MULTI-CURRENCY BOUNDARY
+===========================
+
+If only one currency is implemented:
+
+say so.
+
+Do not claim multi-currency because a currency field exists.
+
+Architecture may support it later.
+
+================================================================
+16. BILLING PROVIDER INTERFACE
+==============================
+
+Create a provider-neutral interface.
+
+Concept:
+
+BillingProvider:
+create_customer()
+update_customer()
+create_subscription()
+change_subscription()
+cancel_subscription()
+report_usage()
+preview_invoice()
+get_invoice()
+get_payment_status()
+reconcile()
+verify_webhook()
+
+Do not make Stripe objects the domain model.
+
+================================================================
+17. STRIPE ADAPTER
+==================
+
+If Stripe is chosen as the first billing implementation:
+
+implement it behind:
+
+StripeBillingProvider
+
+Do not make Stripe mandatory for local/self-hosted mode.
+
+Support FakeBillingProvider for deterministic CI.
+
+================================================================
+18. BILLING CUSTOMER MAPPING
+============================
+
+Store:
+
+ZCoder organization
+↔
+billing-provider customer reference
+
+Mapping must be unique and tenant-scoped.
+
+Never trust provider metadata alone as authorization.
+
+================================================================
+19. SUBSCRIPTION MAPPING
+========================
+
+Persist:
+
+organization
+internal subscription
+provider subscription reference
+plan version
+status
+period
+provider sync timestamp
+
+Do not reconstruct entire business state only from webhooks.
+
+================================================================
+20. SUBSCRIPTION STATES
+=======================
+
+Normalize provider states into ZCoder domain.
+
+Example:
+
+TRIALING
+ACTIVE
+PAST_DUE
+PAUSED
+CANCELLED
+INCOMPLETE
+
+Do not expose provider-specific state everywhere.
+
+================================================================
+21. BILLING RECONCILIATION
+==========================
+
+Webhooks are signals, not the only source of truth.
+
+Implement reconciliation:
+
+local subscription state
++
+provider state
+→ reconciled state
+
+This must be idempotent.
+
+================================================================
+22. BILLING WEBHOOK SECURITY
+============================
+
+Verify signatures using the billing provider's current official
+mechanism.
+
+Persist delivery/event IDs.
+
+Duplicate events must not:
+
+create duplicate subscriptions
+double-charge usage
+change plan twice
+
+================================================================
+23. BILLING EVENT ORDERING
+==========================
+
+Provider webhook events may arrive:
+
+late
+duplicated
+out of order
+
+Reducers must be tolerant.
+
+Store provider event timestamp + ingest timestamp.
+
+Do not rely solely on arrival order.
+
+================================================================
+24. USAGE BILLING BOUNDARY
+==========================
+
+The existing immutable usage ledger remains authoritative for ZCoder
+usage.
+
+Billing provider receives normalized billable events derived from that
+ledger.
+
+Do not make provider meter event storage the only usage history.
+
+================================================================
+25. BILLABLE METERS
+===================
+
+Define explicit internal meters.
+
+Examples:
+
+agent_input_tokens
+agent_output_tokens
+managed_runtime_seconds
+job_executions
+premium_tool_usage
+storage
+
+Do not bill every metric merely because it exists.
+
+Each meter requires product decision.
+
+================================================================
+26. METER MAPPING
+=================
+
+Map:
+
+internal meter
+→ provider meter
+
+through configuration.
+
+Persist provider meter reference.
+
+Do not hardcode external IDs.
+
+================================================================
+27. USAGE EVENT IDEMPOTENCY
+===========================
+
+Each billable event must have stable identity.
+
+Example:
+
+usage_event_id
+
+When exporting to billing provider:
+
+retrying must never duplicate the billable quantity.
+
+================================================================
+28. BILLING OUTBOX
+==================
+
+Use durable outbox:
+
+usage ledger transaction
+→ enqueue billing export
+
+Do not perform third-party billing call inside critical usage DB
+transaction.
+
+================================================================
+29. BILLING EXPORT STATES
+=========================
+
+Use:
+
+PENDING
+DELIVERING
+DELIVERED
+RETRY
+DEAD
+
+Provide operator visibility.
+
+================================================================
+30. BILLING ADJUSTMENTS
+=======================
+
+Corrections must not rewrite usage history silently.
+
+Use:
+
+adjustment event
+
+with:
+
+original event reference
+reason
+actor
+amount
+
+Provider-specific adjustment capability may be used where supported.
+
+================================================================
+31. BILLING RECONCILIATION JOB
+==============================
+
+Periodically compare:
+
+ZCoder aggregate
+provider aggregate
+
+Report discrepancies.
+
+Do not auto-write financial corrections without policy.
+
+================================================================
+32. INVOICE PREVIEW
+===================
+
+Expose customer invoice estimate/preview where provider supports it.
+
+Clearly identify:
+
+estimate
+draft
+final
+
+Do not label preview as final invoice.
+
+================================================================
+33. PAYMENT STATUS
+==================
+
+Surface:
+
+current plan
+next billing date
+status
+outstanding action
+
+Avoid exposing sensitive payment instrument information unnecessarily.
+
+================================================================
+34. CHECKOUT / PAYMENT PORTAL
+=============================
+
+If using Stripe or another provider:
+
+prefer provider-hosted secure checkout/customer portal where appropriate.
+
+Do not collect raw card numbers in ZCoder unless there is a very strong
+PCI-driven reason.
+
+================================================================
+35. BILLING FAILURE POLICY
+==========================
+
+Define what PAST_DUE means.
+
+Possible behavior:
+
+grace period
+disable new premium jobs
+preserve read access
+allow billing/security admins
+continue audit access
+
+Do not instantly destroy running jobs.
+
+================================================================
+36. PLAN CHANGE
+===============
+
+Support:
+
+upgrade
+downgrade
+
+Define when entitlements change:
+
+immediately
+next billing period
+provider-confirmed
+
+Make policy explicit.
+
+================================================================
+37. CANCELLATION
+================
+
+Support:
+
+cancel immediately
+cancel at period end
+
+where product/provider supports it.
+
+Do not delete tenant data on subscription cancellation.
+
+================================================================
+38. FREE / SELF-HOSTED MODE
+===========================
+
+Local/self-hosted usage must remain possible without a billing provider.
+
+Separate:
+
+commercial SaaS mode
+
+from:
+
+local/community deployment mode.
+
+================================================================
+39. PUBLIC API
+==============
+
+Create a stable customer API boundary.
+
+Suggested namespace:
+
+/api/v1/
+
+Do not expose internal ORM/database objects.
+
+================================================================
+40. PUBLIC API RESOURCE MODEL
+=============================
+
+Core resources may include:
+
+organizations
+projects
+repositories
+jobs
+job events
+artifacts
+approvals
+API keys
+service accounts
+usage
+quotas
+webhooks
+audit exports
+
+Only expose resources justified for customer automation.
+
+================================================================
+41. OPENAPI
+===========
+
+Generate/maintain a formal OpenAPI specification.
+
+Verify the current OpenAPI specification and local tooling compatibility.
+
+Do not adopt a newer spec revision if code generators/tooling in this
+repository do not support it reliably.
+
+The API spec should be contract-tested against actual routes.
+
+================================================================
+42. API VERSIONING
+==================
+
+Define strategy before public release.
+
+Possible:
+
+path version
+
+/api/v1/
+
+Keep breaking changes out of a stable version.
+
+Do not version merely internal implementation changes.
+
+================================================================
+43. RESOURCE IDENTIFIERS
+========================
+
+Use opaque stable IDs.
+
+Do not expose sequential database PKs where avoidable.
+
+Never rely on opaque IDs as authorization.
+
+================================================================
+44. PAGINATION
+==============
+
+All potentially large collections must be bounded.
+
+Prefer cursor pagination for high-volume/event-style resources where
+appropriate.
+
+Document:
+
+limit
+cursor
+next cursor
+
+Do not permit unlimited list operations.
+
+================================================================
+45. FILTERS
+===========
+
+Allowlist filter/sort fields.
+
+Never transform arbitrary customer input directly into SQL fragments.
+
+================================================================
+46. IDEMPOTENCY HEADER
+======================
+
+Important create/mutation endpoints should support an idempotency key.
+
+Examples:
+
+job creation
+webhook registration
+service-account creation
+billing-sensitive commands
+
+Store:
+
+key
+principal
+endpoint/action
+request fingerprint
+result
+
+Prevent reuse with different parameters.
+
+================================================================
+47. REQUEST IDS
+===============
+
+Every API response should provide:
+
+request_id
+
+Use it in logs/audit/tracing.
+
+Never use request ID as authentication.
+
+================================================================
+48. API ERROR SCHEMA
+====================
+
+Standardize:
+
+{
+"error": {
+"code": "...",
+"message": "...",
+"request_id": "...",
+"details": ...
+}
+}
+
+Do not expose traceback/SQL/provider secrets.
+
+================================================================
+49. RATE LIMIT RESPONSE
+=======================
+
+Public API should provide useful limit behavior.
+
+Document:
+
+HTTP status
+retry metadata
+
+Do not reveal cross-tenant usage.
+
+================================================================
+50. API AUTHENTICATION
+======================
+
+Support:
+
+human/OIDC session where appropriate
+API keys
+service accounts
+
+Keep authentication method independent from authorization.
+
+================================================================
+51. API KEY UX
+==============
+
+Customer portal:
+
+create
+name
+scope
+expiry
+rotate
+revoke
+last used
+
+Show full secret only once.
+
+Never redisplay.
+
+================================================================
+52. DEVELOPER APPLICATION MODEL
+===============================
+
+If customer integrations need first-class application identity, create:
+
+DeveloperApplication
+
+with:
+
+organization
+name
+credentials
+webhooks
+scopes
+
+Do not prematurely implement OAuth authorization server functionality
+unless there is a concrete need.
+
+================================================================
+53. CUSTOMER WEBHOOKS
+=====================
+
+Allow customers to register outbound webhook endpoints.
+
+Events may include:
+
+job.created
+job.started
+job.completed
+job.failed
+job.approval_required
+job.budget_reached
+pr.created
+pr.merged
+quota.warning
+
+Do not expose internal-only events by default.
+
+================================================================
+54. WEBHOOK SUBSCRIPTIONS
+=========================
+
+Customer chooses event types.
+
+Store:
+
+endpoint
+event subscriptions
+status
+secret reference/hash
+created_at
+
+================================================================
+55. WEBHOOK SIGNATURES
+======================
+
+Sign webhook payloads.
+
+Use established HMAC/signature design.
+
+Include:
+
+event ID
+timestamp
+payload
+
+Prevent replay.
+
+Document verification examples.
+
+================================================================
+56. WEBHOOK ROTATION
+====================
+
+Support webhook signing-secret rotation.
+
+Allow safe overlap where needed.
+
+Do not require downtime.
+
+================================================================
+57. WEBHOOK DELIVERY
+====================
+
+Persist deliveries.
+
+Track:
+
+PENDING
+SUCCESS
+RETRY
+FAILED
+
+Record HTTP status, duration and bounded response metadata.
+
+Never store arbitrary huge customer response bodies.
+
+================================================================
+58. WEBHOOK RETRY
+=================
+
+Use bounded exponential backoff with jitter.
+
+Avoid endless retry.
+
+Dead deliveries must remain inspectable.
+
+================================================================
+59. WEBHOOK REPLAY
+==================
+
+Customer portal should allow authorized replay of historical event.
+
+Replay must create a new delivery attempt while preserving original event
+identity.
+
+================================================================
+60. WEBHOOK SSRF
+================
+
+Outbound customer webhooks are SSRF-sensitive.
+
+Protect:
+
+loopback
+link-local
+cloud metadata
+private ranges according to deployment policy
+redirect chains
+DNS resolution behavior
+
+Provide controlled allowlist exceptions for legitimate enterprise private
+endpoints only when architecture supports them safely.
+
+================================================================
+61. PYTHON SDK
+==============
+
+Provide an official ZCoder Python SDK.
+
+Do not hand-write hundreds of duplicated models if generation from
+OpenAPI is reliable.
+
+SDK should support:
+
+client initialization
+API key auth
+pagination
+idempotency
+request IDs
+typed errors
+timeouts
+retry policy
+
+================================================================
+62. TYPESCRIPT SDK
+==================
+
+Provide equivalent TypeScript/JavaScript SDK.
+
+Support modern Node environments and appropriate browser restrictions.
+
+Never expose service credentials to browser code.
+
+================================================================
+63. SDK VERSIONING
+==================
+
+SDK version is distinct from API version.
+
+Document compatibility:
+
+SDK version
+API version
+
+Do not tie them unnecessarily 1:1.
+
+================================================================
+64. SDK CONTRACT TESTS
+======================
+
+Use generated/fake server tests.
+
+Prove SDKs can:
+
+create job
+get job
+paginate events
+handle errors
+send idempotency key
+verify request ID
+
+================================================================
+65. SDK RELEASE
+===============
+
+Build package artifacts.
+
+Do not publish externally unless explicitly required.
+
+Verify:
+
+Python package build
+Node package build
+
+before claiming release-ready SDK.
+
+================================================================
+66. DEVELOPER PORTAL
+====================
+
+Create customer-facing developer experience.
+
+Pages:
+
+API overview
+Authentication
+Quickstart
+API reference
+SDKs
+Webhooks
+Errors
+Rate limits
+Idempotency
+Examples
+
+Docs must derive from actual API behavior.
+
+================================================================
+67. API EXPLORER
+================
+
+Optionally provide authenticated interactive API explorer.
+
+Never expose secret API keys in generated static HTML or telemetry.
+
+================================================================
+68. QUICKSTART
+==============
+
+A developer should be able to:
+
+create key
+install SDK
+submit first job
+watch status
+retrieve result
+
+with minimal steps.
+
+Quickstart must use actual tested commands.
+
+================================================================
+69. CUSTOMER DASHBOARD
+======================
+
+Build product UI around real APIs/services.
+
+Core customer views:
+
+Overview
+Projects
+Repositories
+Jobs
+Agents/Runtimes
+Usage
+Billing
+API Keys
+Webhooks
+Members
+SSO/SCIM
+Policies
+Audit
+Settings
+
+================================================================
+70. OVERVIEW
+============
+
+Show useful data:
+
+running jobs
+recent failures
+usage this period
+budget remaining
+connected repositories
+PR activity
+
+Avoid decorative fake metrics.
+
+================================================================
+71. JOB UX
+==========
+
+Provide:
+
+submit task
+choose project/repo
+runtime selection where entitlement allows
+budget
+branch/base
+policy preview
+
+Then:
+
+live timeline
+tool/actions
+approval
+validation
+PR
+artifacts
+cost
+
+================================================================
+72. FIRST-JOB EXPERIENCE
+========================
+
+After GitHub connection:
+
+detect accessible repo
+select repository
+analyze project
+recommend safe default validation
+run low-risk first task
+
+Do not automatically mutate repository during onboarding without clear
+user action.
+
+================================================================
+73. APPROVAL UX
+===============
+
+Customer portal must clearly display:
+
+action
+risk
+tool
+arguments
+repository
+agent/job
+policy reason
+
+Allow:
+
+approve once
+deny
+
+Broad approval needs explicit product/security policy.
+
+================================================================
+74. USAGE DASHBOARD
+===================
+
+Show:
+
+current period
+provider-reported usage
+billable usage
+estimated cost
+quota
+plan allowance
+trend
+
+Never present estimate as finalized invoice.
+
+================================================================
+75. USAGE BREAKDOWN
+===================
+
+Support authorized breakdown by:
+
+project
+repository
+runtime
+model
+job
+period
+
+Use scalable aggregation rather than huge raw-query pages.
+
+================================================================
+76. BUDGET UX
+=============
+
+Customers configure:
+
+organization limit
+project limit
+job limit
+alerts
+
+Explain distinction:
+
+quota
+budget
+provider hard cap
+
+================================================================
+77. BILLING PAGE
+================
+
+Show:
+
+plan
+subscription state
+billing period
+usage
+invoice preview/history where available
+payment portal link where applicable
+
+Do not expose provider implementation details unnecessarily.
+
+================================================================
+78. PLAN COMPARISON
+===================
+
+Plan UI must read current product catalog/entitlements.
+
+Do not hardcode plan matrix separately in frontend.
+
+================================================================
+79. MEMBER ADMIN
+================
+
+Support:
+
+invite
+remove
+role change
+project access
+
+Respect SSO/SCIM-managed organizations.
+
+If SCIM owns membership:
+
+UI should not fight authoritative IdP state.
+
+================================================================
+80. SSO/SCIM UI
+===============
+
+Enterprise settings:
+
+configure OIDC
+test configuration
+SCIM token lifecycle
+group mappings
+status
+
+Changing SSO must require elevated authorization.
+
+================================================================
+81. SECURITY PAGE
+=================
+
+Expose:
+
+active API keys
+service accounts
+SSO
+SCIM
+webhooks
+audit export
+recent security events
+data residency
+retention
+
+No raw secrets.
+
+================================================================
+82. AUDIT UX
+============
+
+Filter by:
+
+actor
+action
+resource
+result
+time
+
+Support export.
+
+Pagination mandatory.
+
+================================================================
+83. ORGANIZATION SETTINGS
+=========================
+
+Manage:
+
+name
+billing
+security
+residency
+retention
+integrations
+
+Project-specific settings remain project-scoped.
+
+================================================================
+84. PROJECT SETTINGS
+====================
+
+Manage:
+
+repositories
+agents
+runtime
+budget
+policies
+validation
+webhooks where project-scoped
+
+================================================================
+85. GITHUB INSTALL FLOW
+=======================
+
+Customer portal should guide:
+
+install GitHub App
+select repositories
+return to ZCoder
+map repo to project
+verify permission
+show readiness
+
+Never enable all installation repositories automatically without policy.
+
+================================================================
+86. GITHUB INSTALL CSRF / STATE
+===============================
+
+Use cryptographically secure state correlation.
+
+Return from GitHub must map to intended authenticated organization.
+
+Do not trust installation ID alone.
+
+================================================================
+87. GITHUB PERMISSION UX
+========================
+
+Explain required GitHub permissions.
+
+Show missing permission errors clearly.
+
+Do not silently request broader access.
+
+================================================================
+88. REPOSITORY READINESS
+========================
+
+For connected repository inspect:
+
+default branch
+required checks
+merge policy
+workflow support
+agent config
+security-sensitive paths
+
+Display issues before autonomous jobs.
+
+================================================================
+89. PRODUCT NOTIFICATIONS
+=========================
+
+Introduce internal notification domain.
+
+Possible events:
+
+job failed
+approval needed
+quota warning
+billing problem
+GitHub disconnected
+SCIM error
+
+Delivery adapters may include:
+
+in-app
+email
+webhook
+
+Do not make Gmail or another provider part of domain model.
+
+================================================================
+90. NOTIFICATION PREFERENCES
+============================
+
+Users/organizations control allowed notification channels/events where
+appropriate.
+
+Security-critical notifications may be mandatory.
+
+================================================================
+91. EMAIL ADAPTER
+=================
+
+If email is implemented:
+
+use a provider-neutral EmailProvider interface.
+
+Do not run SMTP credentials through ordinary event payloads.
+
+================================================================
+92. INVITATIONS
+===============
+
+Organization invitation flow:
+
+create invitation
+send link
+accept
+expire
+revoke
+
+Token must be:
+
+random
+time-bounded
+single-use or safely idempotent
+
+Store only safe representation where possible.
+
+================================================================
+93. ACCOUNT RECOVERY
+====================
+
+If local account recovery exists:
+
+design securely.
+
+If authentication is entirely upstream OIDC:
+
+do not invent password recovery.
+
+================================================================
+94. SUPPORT PORTAL BOUNDARY
+===========================
+
+Platform support tooling should allow:
+
+search organization
+view health/status
+view billing synchronization
+view integration state
+
+Do not grant support automatic access to source code/job prompts.
+
+================================================================
+95. SUPPORT ACCESS
+==================
+
+Any exceptional customer-data access requires:
+
+reason
+role
+audit
+time scope
+
+Do not create invisible impersonation.
+
+================================================================
+96. PLATFORM ADMIN PORTAL
+=========================
+
+Separate platform administration from customer portal.
+
+Views:
+
+organizations
+subscriptions
+billing reconciliation
+fleet
+workers
+incidents
+usage
+provider health
+audit/evidence
+
+Strict global-admin authorization.
+
+================================================================
+97. TENANT IMPERSONATION
+========================
+
+Default: do not implement.
+
+If essential:
+
+explicit support session
+customer/organization context
+reason
+duration
+high-quality audit
+
+Never silently impersonate.
+
+================================================================
+98. SEARCH
+==========
+
+Provide tenant-scoped search where useful.
+
+Search index must contain tenant identity.
+
+Cross-tenant results are P0 breach.
+
+Do not launch complex search infrastructure unless needed.
+
+================================================================
+99. UX ERROR MODEL
+==================
+
+UI errors should map API error codes into actionable messages.
+
+Never display raw provider/database stack trace.
+
+================================================================
+100. LOADING / RETRY UX
+=======================
+
+Long-running agent operations should show durable state.
+
+Browser refresh must not lose job status.
+
+Use server job state as source of truth.
+
+================================================================
+101. REALTIME UX
+================
+
+Use SSE/WebSocket shared service.
+
+Reconnect from durable sequence/cursor.
+
+Avoid duplicate timeline entries.
+
+Tenant authorization remains mandatory.
+
+================================================================
+102. ACCESSIBILITY
+==================
+
+Customer UI should support reasonable keyboard and screen-reader
+semantics.
+
+Do not defer basic accessibility solely for visual polish.
+
+================================================================
+103. RESPONSIVE DESIGN
+======================
+
+Operations pages are desktop-heavy but must remain usable on smaller
+screens where reasonable.
+
+Do not sacrifice data density blindly.
+
+================================================================
+104. PRODUCT DESIGN SYSTEM
+==========================
+
+Create reusable components/tokens if frontend already supports a design
+system.
+
+Avoid copying style logic per page.
+
+================================================================
+105. FRONTEND API CLIENT
+========================
+
+Frontend consumes the public/internal authenticated API layer.
+
+Do not call PostgreSQL or provider APIs directly from browser.
+
+Never expose:
+
+Anthropic API key
+GitHub App private key
+billing provider secret
+
+to browser.
+
+================================================================
+106. CSRF / SESSION
+===================
+
+If cookie-authenticated mutation endpoints exist:
+
+enforce appropriate CSRF protections.
+
+Use secure:
+
+HttpOnly
+Secure
+SameSite
+
+settings according to deployment architecture.
+
+================================================================
+107. CSP / XSS
+==============
+
+Maintain CSP and safe output encoding.
+
+Agent-generated text, GitHub comments and repository content are
+untrusted.
+
+Never render arbitrary HTML from agent output without sanitization.
+
+================================================================
+108. PROMPT CONTENT UX SECURITY
+===============================
+
+Agent/tool output may contain deceptive content.
+
+Clearly distinguish:
+
+system status
+user input
+agent output
+external content
+
+Do not let repository text render as privileged UI instruction.
+
+================================================================
+109. PUBLIC API SECURITY
+========================
+
+Audit against current OAuth/API security guidance.
+
+Use exact redirect URI matching for OAuth-style integrations where
+applicable.
+
+Prefer modern authorization-code/PKCE patterns where browser OAuth
+clients are introduced.
+
+Do not implement deprecated implicit/password flows.
+
+================================================================
+110. CUSTOMER WEBHOOK SECURITY TESTS
+====================================
+
+Test:
+
+valid signature
+invalid signature
+expired timestamp
+duplicate event
+redirect
+private IP
+DNS manipulation where feasible
+slow endpoint
+large response
+timeout
+
+================================================================
+111. PUBLIC API IDOR TESTS
+==========================
+
+For every public resource:
+
+Org A authenticated.
+
+Guess Org B identifier.
+
+Expected:
+
+no data disclosure
+no mutation
+
+Test SDK and raw API.
+
+================================================================
+112. PUBLIC API RATE LIMITS
+===========================
+
+Test:
+
+per-principal
+per-organization
+
+One noisy customer must not starve others.
+
+================================================================
+113. PUBLIC API IDEMPOTENCY TESTS
+=================================
+
+Same key + same request
+→ same result
+
+Same key + different request
+→ error
+
+Concurrent duplicate request
+→ one logical operation
+
+================================================================
+114. BILLING TEST MATRIX
+========================
+
+Using FakeBillingProvider, test:
+
+trial start
+trial conversion
+subscription create
+upgrade
+downgrade
+cancel end-of-period
+immediate cancel
+past due
+recovery
+duplicate webhook
+out-of-order webhook
+provider timeout
+reconciliation
+
+No real financial charge in CI.
+
+================================================================
+115. STRIPE CONTRACT TESTS
+==========================
+
+If Stripe adapter is implemented:
+
+mock at HTTP/SDK boundary.
+
+Verify official:
+
+request fields
+idempotency
+meter events
+subscription/customer mapping
+webhook verification
+
+Expected values should be independent of implementation constants.
+
+================================================================
+116. OPTIONAL STRIPE SANDBOX TEST
+=================================
+
+Create separately marked:
+
+pytest -m stripe_live
+
+Use test mode only.
+
+Never use production customer/account objects.
+
+Default CI needs no Stripe credentials.
+
+================================================================
+117. BILLING USAGE E2E
+======================
+
+Offline required test:
+
+create organization
+→ subscribe plan
+→ run FakeRuntime jobs
+→ usage ledger entries
+→ billing outbox
+→ FakeBillingProvider receives meter events
+→ invoice preview
+→ usage dashboard
+
+Prove no duplicate billing after event replay.
+
+================================================================
+118. PLAN ENTITLEMENT E2E
+=========================
+
+Test:
+
+Free tenant requests premium capability
+→ denied
+
+Upgrade plan
+→ entitlement becomes active
+
+Downgrade
+→ behavior follows configured timing
+
+RBAC remains separately enforced.
+
+================================================================
+119. TRIAL E2E
+==============
+
+Create trial.
+
+Run allowed jobs.
+
+Expire trial.
+
+Verify:
+
+policy
+usage
+billing state
+read access
+
+No wall-clock sleeps; use injectable clock.
+
+================================================================
+120. ONBOARDING E2E
+===================
+
+Required deterministic scenario:
+
+new principal
+→ organization
+→ project
+→ plan/trial
+→ fake GitHub install
+→ repository mapping
+→ create first job
+→ FakeRuntime completes
+→ PR created
+→ usage updated
+
+Verify persisted onboarding completion.
+
+================================================================
+121. DEVELOPER API E2E
+======================
+
+Create scoped API key.
+
+Using Python SDK:
+
+create job
+poll/watch
+retrieve artifacts
+
+Using TypeScript SDK:
+
+read same job or execute equivalent scenario.
+
+Cross-tenant key fails.
+
+================================================================
+122. CUSTOMER WEBHOOK E2E
+=========================
+
+Register fake webhook endpoint.
+
+Run job.
+
+Receive:
+
+job.started
+job.completed
+
+Verify signature.
+
+Replay delivery.
+
+Ensure business event not duplicated.
+
+================================================================
+123. CLEAN FRONTEND TEST
+========================
+
+Test primary workflows at component/integration level.
+
+If browser E2E stack exists, cover:
+
+signup/onboarding
+GitHub connection
+first job
+approval
+usage
+API key
+webhook
+billing
+
+Do not add fragile browser automation merely for test count.
+
+================================================================
+124. FRONTEND OPTIONAL DEPENDENCIES
+===================================
+
+Upgrade-11 still had optional TUI/Web skips.
+
+If customer SaaS Web UI is now core product:
+
+web tests can no longer be classified as optional in SaaS release CI.
+
+Reclassify.
+
+Local CLI release may keep UI optional.
+
+Product release profile must require Web.
+
+================================================================
+125. RELEASE PROFILES
+=====================
+
+Separate release gates:
+
+CORE_CLI
+SELF_HOSTED
+SAAS
+
+Example:
+
+CORE_CLI may not require billing/web.
+
+SAAS must require:
+
+WEB
+POSTGRES
+TENANCY
+BILLING_BOUNDARY
+PUBLIC_API
+CUSTOMER_WEBHOOKS
+
+Do not pretend one deployment profile has every feature.
+
+================================================================
+126. PRODUCT ANALYTICS
+======================
+
+If product analytics is implemented:
+
+collect only necessary event metadata.
+
+Do not send:
+
+source code
+agent prompts
+secret values
+
+to analytics by default.
+
+================================================================
+127. PRIVACY SETTINGS
+=====================
+
+Allow deployment/customer policy to control telemetry where appropriate.
+
+Operational/security audit telemetry remains separate from product
+analytics.
+
+================================================================
+128. DATA EXPORT
+================
+
+Provide customer export of appropriate:
+
+organization config
+projects
+usage
+audit
+job metadata
+
+Do not export secret plaintext.
+
+================================================================
+129. ACCOUNT / TENANT DELETION UX
+=================================
+
+Expose asynchronous deletion workflow.
+
+Show:
+
+requested
+retention wait
+deleting
+complete
+
+Billing cancellation and data deletion are distinct.
+
+================================================================
+130. BILLING DATA RETENTION
+===========================
+
+Financial records may have retention requirements distinct from agent
+job data.
+
+Model separately.
+
+Do not automatically erase invoice/accounting references when project
+data is removed.
+
+================================================================
+131. TERMS / PRIVACY BOUNDARY
+=============================
+
+Add product configuration/routes for:
+
+Terms
+Privacy
+Security
+
+Do not invent legal claims.
+
+Mark templates for legal review.
+
+================================================================
+132. STATUS / INCIDENT BOUNDARY
+===============================
+
+Prepare customer-visible service health.
+
+Do not automatically expose internal infrastructure details.
+
+Map internal incidents to customer-impact states.
+
+================================================================
+133. PRODUCT HEALTH
+===================
+
+Expose customer-relevant integration health:
+
+GitHub
+agent runtime
+billing
+webhooks
+
+Do not reveal another tenant's provider state.
+
+================================================================
+134. DEVELOPER PORTAL SEARCH
+============================
+
+Search docs only within public documentation.
+
+Do not index private customer resources into docs search.
+
+================================================================
+135. CHANGELOG
+==============
+
+Create customer-facing API/product changelog separate from internal
+commit history where helpful.
+
+Highlight breaking/deprecation timelines.
+
+================================================================
+136. API DEPRECATION
+====================
+
+Public API requires explicit deprecation policy.
+
+Do not delete fields/endpoints abruptly after launch.
+
+Document:
+
+deprecated_since
+replacement
+removal target
+
+================================================================
+137. SDK DEPRECATION
+====================
+
+SDK should expose deprecated API warnings/documentation without
+inventing incompatible behavior.
+
+================================================================
+138. API CONTRACT SNAPSHOT
+==========================
+
+Store OpenAPI contract in repository.
+
+CI must detect accidental breaking changes.
+
+Use automated diff tooling where reliable.
+
+Human review required for public breaking changes.
+
+================================================================
+139. API COMPATIBILITY GATE
+===========================
+
+Add:
+
+PUBLIC_API_COMPAT
+
+Release fails on unapproved breaking change.
+
+================================================================
+140. BILLING CONTRACT GATE
+==========================
+
+Add:
+
+BILLING_LEDGER
+BILLING_IDEMPOTENCY
+BILLING_RECONCILIATION
+
+No SaaS release if usage can double-charge.
+
+================================================================
+141. ENTITLEMENT GATE
+=====================
+
+Add:
+
+ENTITLEMENTS
+
+Test plan-feature matrix.
+
+No customer should receive feature solely due to frontend state.
+
+================================================================
+142. WEBHOOK GATE
+=================
+
+Add:
+
+CUSTOMER_WEBHOOKS
+
+Must prove:
+
+signature
+replay safety
+idempotent delivery
+SSRF defense
+tenant scoping
+
+================================================================
+143. SDK GATE
+=============
+
+Add:
+
+PYTHON_SDK
+TYPESCRIPT_SDK
+
+Gate means:
+
+build
+install
+smoke test
+contract test
+
+Not necessarily external package publication.
+
+================================================================
+144. SAAS RELEASE GATE
+======================
+
+Example:
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+TENANCY: PASS
+RLS: PASS
+AUTHZ: PASS
+
+ONBOARDING: PASS
+ENTITLEMENTS: PASS
+TRIALS: PASS
+
+PUBLIC_API: PASS
+PUBLIC_API_COMPAT: PASS
+IDEMPOTENCY: PASS
+RATE_LIMITS: PASS
+
+PYTHON_SDK: PASS
+TYPESCRIPT_SDK: PASS
+DEVELOPER_PORTAL: PASS
+
+CUSTOMER_WEBHOOKS: PASS
+
+USAGE_LEDGER: PASS
+BILLING_BOUNDARY: PASS
+BILLING_IDEMPOTENCY: PASS
+BILLING_RECONCILIATION: PASS
+
+WEB_PRODUCT: PASS
+SECURITY: PASS
+DOCS: PASS
+
+INFRA_PITR: PASS_WITH_LIMITATIONS
+
+FINAL: PASS_WITH_LIMITATIONS
+
+Do not hide inherited platform limitations.
+
+================================================================
+145. EVIDENCE TIERS
+===================
+
+Continue Upgrade-11 E0-E5 evidence model.
+
+Customer-facing claims require evidence.
+
+Examples:
+
+PUBLIC_API:
+E3 system tested
+
+STRIPE:
+E2 contract tested
+or E4 sandbox-tested if actual Stripe test account is used
+
+BILLING:
+Do not say LIVE if only FakeBillingProvider was used.
+
+================================================================
+146. TEST ACCOUNTING
+====================
+
+Report:
+
+core unit
+PostgreSQL
+tenant security
+web
+billing
+API
+SDK
+webhooks
+onboarding
+system E2E
+
+Required SaaS web tests cannot be hidden under optional skip.
+
+================================================================
+147. PUBLIC API DOC TEST
+========================
+
+Examples shown in developer docs must be runnable/tested where practical.
+
+Prevent stale:
+
+endpoint
+field
+SDK method
+
+documentation.
+
+================================================================
+148. SECURITY TEST MATRIX
+=========================
+
+Mandatory:
+
+cross-tenant public API
+cross-tenant SDK
+cross-tenant webhook
+API key scope
+revoked key
+idempotency abuse
+rate-limit abuse
+webhook SSRF
+billing webhook forgery
+GitHub install state forgery
+XSS from agent/repository output
+CSRF
+billing replay
+usage duplication
+
+================================================================
+149. PERFORMANCE
+================
+
+Load test without Anthropic/financial external calls.
+
+Use:
+
+FakeRuntime
+FakeBillingProvider
+FakeGitHubProvider
+
+Measure:
+
+API p50/p95/p99
+job submission
+usage page
+webhook ingestion
+billing outbox
+
+Report hardware/environment.
+
+================================================================
+150. DOCUMENTATION
+==================
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+
+Add:
+
+docs/UPGRADE-12.md
+
+docs/product/ONBOARDING.md
+docs/product/PLANS.md
+docs/product/TRIALS.md
+docs/product/BILLING.md
+docs/product/USAGE.md
+
+docs/api/OVERVIEW.md
+docs/api/AUTHENTICATION.md
+docs/api/IDEMPOTENCY.md
+docs/api/PAGINATION.md
+docs/api/ERRORS.md
+docs/api/WEBHOOKS.md
+docs/api/VERSIONING.md
+
+docs/sdk/PYTHON.md
+docs/sdk/TYPESCRIPT.md
+
+docs/DEVELOPER-PORTAL.md
+docs/SAAS-RELEASE-GATE.md
+
+No placeholder docs.
+
+================================================================
+151. VERSION DECISION
+=====================
+
+Inspect real release history.
+
+Upgrade-12 creates major new customer-facing surface area.
+
+This generally deserves at least a MINOR release if backward-compatible.
+
+However:
+
+do not invent releases.
+
+Do not automatically change to 2.0.0.
+
+Explain:
+
+published tags
+current public API
+new public API
+breaking changes
+database migrations
+CLI compatibility
+
+Then choose SemVer.
+
+================================================================
+152. REQUIRED FINAL COMMANDS
+============================
+
+At minimum run:
+
+python -m pytest -q -ra
+
+python main.py --version
+python main.py --help
+
+python -m build
+
+clean wheel install
+
+zcoder --version
+
+git diff --check
+git status --short
+
+Also separately execute:
+
+PostgreSQL
+RLS/cross-tenant
+public API
+web product
+billing
+customer webhooks
+Python SDK
+TypeScript SDK
+onboarding E2E
+billing E2E
+release gate
+
+If Stripe live/sandbox test exists:
+
+report separately.
+
+Do not require it for offline CI unless explicitly configured.
+
+================================================================
+153. DEFINITION OF DONE
+=======================
+
+Upgrade-12 is complete only when:
+
+[ ] Upgrade-11 security guarantees remain green
+[ ] SaaS onboarding persists state
+[ ] organization initialization is atomic/idempotent
+[ ] plans are versioned
+[ ] entitlements drive features
+[ ] entitlement never overrides RBAC
+[ ] trial lifecycle works
+[ ] provider-neutral billing boundary exists
+[ ] FakeBillingProvider exists
+[ ] Stripe adapter exists only if legitimately implemented
+[ ] billing webhooks are signature verified
+[ ] usage export is idempotent
+[ ] usage cannot double-bill on replay
+[ ] billing reconciliation exists
+[ ] public /api/v1 contract exists
+[ ] OpenAPI matches routes
+[ ] pagination exists
+[ ] API idempotency exists
+[ ] API errors are stable
+[ ] API-key scope enforcement exists
+[ ] customer webhooks are signed
+[ ] customer webhook replay protection exists
+[ ] customer webhook SSRF defense exists
+[ ] Python SDK builds/tests
+[ ] TypeScript SDK builds/tests
+[ ] developer portal uses actual API contract
+[ ] GitHub onboarding state is secure
+[ ] customer dashboard uses shared services
+[ ] usage/billing UI distinguishes estimate vs finalized values
+[ ] web tests are required for SaaS release
+[ ] onboarding E2E passes
+[ ] billing E2E passes
+[ ] API/SDK E2E passes
+[ ] customer webhook E2E passes
+[ ] no P0 cross-tenant/product security defect remains
+[ ] inherited PITR/HA/BYOK limitations remain accurately reported
+
+================================================================
+154. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-11 Regression Check
+
+## 3. Version Decision
+
+## 4. SaaS Product Architecture
+
+## 5. Customer Onboarding
+
+## 6. Plans / Trials / Entitlements
+
+## 7. Billing Domain
+
+## 8. Billing Provider Adapter
+
+For each provider:
+
+Status
+Evidence tier
+Live/sandbox tested?
+Limitations
+
+## 9. Usage Metering & Reconciliation
+
+## 10. Public API
+
+API version:
+OpenAPI version:
+Routes:
+Idempotency:
+Pagination:
+Errors:
+
+## 11. Python SDK
+
+## 12. TypeScript SDK
+
+## 13. Developer Portal
+
+## 14. Customer Webhooks
+
+## 15. GitHub Onboarding
+
+## 16. Customer Dashboard
+
+## 17. Usage / Billing UX
+
+## 18. Organization Administration
+
+## 19. Security Review
+
+## 20. Tests
+
+Report exact:
+
+passed
+failed
+required skipped
+optional skipped
+xfailed
+deselected
+
+Break down:
+
+core
+PostgreSQL
+tenant-security
+API
+Web
+billing
+webhooks
+SDK
+E2E
+
+## 21. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 22. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+TENANCY:
+RLS:
+AUTHZ:
+
+ONBOARDING:
+ENTITLEMENTS:
+TRIALS:
+
+PUBLIC_API:
+PUBLIC_API_COMPAT:
+IDEMPOTENCY:
+RATE_LIMITS:
+
+PYTHON_SDK:
+TYPESCRIPT_SDK:
+DEVELOPER_PORTAL:
+
+CUSTOMER_WEBHOOKS:
+
+USAGE_LEDGER:
+BILLING_BOUNDARY:
+BILLING_IDEMPOTENCY:
+BILLING_RECONCILIATION:
+
+WEB_PRODUCT:
+SECURITY:
+DOCS:
+
+INFRA_PITR:
+
+FINAL:
+
+## 23. Files Changed
+
+## 24. Remaining Limitations
+
+Explicitly state:
+
+Stripe sandbox/live tested?
+real payments processed?
+tax/VAT automation?
+multi-currency?
+payment provider failover?
+PITR end-to-end?
+PostgreSQL HA?
+multi-region control plane?
+BYOK/CMEK?
+mobile application?
+external compliance certification?
+
+## 25. Final Verdict
+
+Never say:
+
+FULL SAAS READY
+BILLING VERIFIED
+PAYMENTS PRODUCTION READY
+ENTERPRISE COMMERCIAL READY
+
+unless each exact claim has executed evidence.
+
+Do not call Stripe integration verified if only FakeBillingProvider was
+tested.
+
+Do not call the API stable until compatibility/versioning rules and
+contract tests exist.
+
+Do not call customer onboarding complete if GitHub/billing/job state is
+only stored in frontend state.
+
+The objective of Upgrade-12 is a real product surface over the existing
+control plane — not a mock dashboard.

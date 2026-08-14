@@ -1,0 +1,1438 @@
+# UPGRADE-05 — Production Release Hardening, Full Test Recovery,
+# Anthropic Drift Guard & Reproducible Release
+
+You are working directly inside the current ZCoder repository after
+Upgrade-04 / v1.40.0 Truth Audit.
+
+MISSION
+
+Turn the truth-audited repository into a reproducible, production-grade
+release that cannot pass while tests are ignored, Anthropic source data
+is stale, version metadata is inconsistent, packaging is broken, or
+critical CLI/API wiring is untested.
+
+Do NOT begin by adding unrelated features.
+
+Priority order:
+
+P0 — Full test-suite recovery
+P0 — Release/version integrity
+P0 — Packaging/build/install verification
+P0 — Anthropic conformance automation
+P1 — CI matrix + release gates
+P1 — runtime/transport contract testing
+P1 — model/capability drift detection
+P1 — CLI/web/TUI integration verification
+P2 — observability, performance, DX hardening
+
+Use first-party Anthropic sources only for Anthropic facts.
+
+============================================================
+1. BASELINE — DO NOT MODIFY CODE YET
+============================================================
+
+Record:
+
+git status --short
+git log -20 --oneline
+git tag --sort=-version:refname | head -20
+
+python --version
+
+python -m pytest -q
+python main.py --help
+
+git diff --check
+
+Also inspect:
+
+pyproject.toml
+setup.py
+setup.cfg
+requirements*.txt
+tox.ini
+pytest.ini
+.github/workflows/
+Dockerfile*
+Makefile
+README.md
+CHANGELOG.md
+anthropic-conformance.yaml
+
+Determine whether v1.40.0 already exists as:
+
+- git tag
+- GitHub release
+- package version
+- PyPI release
+- wheel/sdist artifact
+- Docker image tag
+
+DO NOT mutate or recreate an already-published immutable release.
+
+============================================================
+2. P0 — REMOVE THE IGNORED TEST EXCEPTION
+============================================================
+
+Upgrade-04 reported:
+
+python3 -m pytest -q --tb=short --ignore=tests/test_webapp_server.py
+
+This is NOT sufficient evidence of a complete production test suite.
+
+Investigate:
+
+tests/test_webapp_server.py
+
+Determine exactly why it was excluded.
+
+Classify failures as:
+
+- application defect
+- test defect
+- missing optional dependency
+- environment dependency
+- port conflict
+- event-loop issue
+- race condition
+- stale test
+- unsupported platform
+- packaging/import issue
+
+Fix the root cause.
+
+DO NOT:
+
+- permanently ignore the test
+- delete the test
+- weaken assertions without evidence
+- mark it xfail merely to obtain green CI
+- catch all exceptions
+- add arbitrary sleeps
+
+If the functionality is genuinely optional, restructure the test suite:
+
+tests/
+  unit/
+  integration/
+  optional/
+  contract/
+
+and define explicit pytest markers such as:
+
+@pytest.mark.integration
+@pytest.mark.optional
+
+The standard release suite must clearly state what it executes.
+
+Required target:
+
+python -m pytest -q
+
+without --ignore.
+
+If an external integration truly cannot run offline, its behavior must be
+mocked at the transport boundary.
+
+============================================================
+3. TEST COUNT TRUTHFULNESS
+============================================================
+
+Do not report:
+
+"100% tests passing"
+
+when tests were skipped or excluded.
+
+Instead report exact values:
+
+PASSED
+FAILED
+SKIPPED
+XFAILED
+XFAILED-STRICT
+DESELECTED
+
+Create release-gate logic that fails if unexpected:
+
+- ignored files
+- deselected release tests
+- xpass
+- collection errors
+
+A release result should distinguish:
+
+TESTS_GREEN
+OPTIONAL_TESTS_SKIPPED
+TESTS_EXCLUDED
+
+TESTS_EXCLUDED must prevent production release unless explicitly
+approved by release policy.
+
+============================================================
+4. VERSION IMMUTABILITY / SEMVER AUDIT
+============================================================
+
+Upgrade-04 made corrective changes while still calling the result:
+
+v1.40.0
+
+Determine whether v1.40.0 was already published or tagged BEFORE those
+changes.
+
+If yes:
+
+DO NOT rewrite v1.40.0.
+
+Create a corrective release:
+
+v1.40.1
+
+unless additional backward-compatible features justify v1.41.0.
+
+If v1.40.0 was never published/tagged and Upgrade-04 merely prepared the
+release candidate, keeping v1.40.0 may be acceptable.
+
+Prove the decision using repository state.
+
+Synchronize the selected version across every source:
+
+- pyproject.toml
+- package __version__
+- main.py
+- CLI --version
+- README
+- CHANGELOG
+- docs
+- conformance manifest
+- Docker labels
+- package metadata
+- release workflow
+
+Add:
+
+python main.py --version
+
+and a test ensuring all version sources agree.
+
+Prefer ONE canonical package version source.
+
+============================================================
+5. BUILD A REAL RELEASE ARTIFACT
+============================================================
+
+Verify package building.
+
+Run, where appropriate:
+
+python -m build
+
+Validate:
+
+dist/*.whl
+dist/*.tar.gz
+
+Then create a clean temporary environment and install the wheel:
+
+python -m venv /tmp/zcoder-release-test
+source /tmp/zcoder-release-test/bin/activate
+pip install dist/*.whl
+
+Test installed package behavior, not repository imports:
+
+zcoder --version
+zcoder --help
+
+or the project's actual console command.
+
+Run smoke tests from a directory OUTSIDE the repository so local source
+files cannot mask missing package files.
+
+Detect:
+
+- undeclared dependencies
+- missing package_data
+- missing templates
+- missing static assets
+- accidental test dependencies
+- editable-install assumptions
+- import path leaks
+
+============================================================
+6. SDIST REPRODUCIBILITY
+============================================================
+
+Install and smoke-test the source distribution independently.
+
+Check that:
+
+wheel build
+sdist build
+
+contain equivalent required runtime assets.
+
+Inspect artifact contents.
+
+Prevent accidental packaging of:
+
+- .env
+- API keys
+- credentials
+- private audit dumps
+- local logs
+- caches
+- build directories
+- test secrets
+
+============================================================
+7. ANTHROPIC SOURCE-OF-TRUTH FETCHER
+============================================================
+
+Upgrade-04 created:
+
+anthropic-conformance.yaml
+
+Now make the conformance system operational.
+
+Create a dedicated module such as:
+
+anthropic_conformance.py
+
+or an appropriate package location.
+
+It must support:
+
+zcoder anthropic conformance check
+
+or an equivalent coherent command.
+
+Responsibilities:
+
+1. read the local conformance manifest
+2. validate schema
+3. determine last verification time
+4. report source age
+5. compare code registry against manifest
+6. detect obvious contradictions
+7. optionally perform LIVE source checks
+
+Normal ZCoder startup MUST NOT require internet access.
+
+Conformance checking must be explicit.
+
+============================================================
+8. SOURCE FRESHNESS POLICY
+============================================================
+
+Define freshness without pretending documentation dates are immutable.
+
+Example status:
+
+FRESH
+STALE
+UNKNOWN
+OFFLINE
+
+Track independently:
+
+release_notes_checked_at
+models_checked_at
+pricing_checked_at
+deprecations_checked_at
+sdk_checked_at
+claude_code_checked_at
+
+Do not use a single global date.
+
+Example:
+
+source:
+  name: anthropic_pricing
+  url: ...
+  checked_at: ...
+  content_fingerprint: ...
+  parser_version: ...
+
+Do not claim a page was "updated" merely because it was fetched today.
+
+============================================================
+9. RELEASE-NOTE WATERMARK
+============================================================
+
+Persist the newest Anthropic Platform release-note DATE and feature IDs
+seen during a successful audit.
+
+At release time:
+
+if upstream contains a newer release-note entry than the manifest
+watermark:
+
+SOURCE_TRUTH_PASS = false
+
+until every new item has a disposition.
+
+Allowed dispositions:
+
+IMPLEMENTED_VERIFIED
+IMPLEMENTED_NOT_APPLICABLE_TO_RUNTIME
+MISSING
+PARTIAL
+DEPRECATED
+RETIRED
+CONSOLE_ONLY
+ENTERPRISE_ONLY
+PRIVATE_PREVIEW
+RESEARCH_PREVIEW
+DOCUMENTATION_ONLY
+
+MISSING or PARTIAL P0/P1 items fail the gate.
+
+============================================================
+10. ANTHROPIC MODELS API LIVE VALIDATION
+============================================================
+
+Anthropic documentation states that the Models API exposes current model
+metadata including capabilities and token limits.
+
+Implement an OPTIONAL live conformance test using the authenticated
+Models API.
+
+It must NEVER be required for offline unit tests.
+
+Example:
+
+zcoder anthropic conformance models --live
+
+Compare upstream results against the static/local registry.
+
+Detect:
+
+UNKNOWN_UPSTREAM_MODEL
+LOCAL_MODEL_MISSING_UPSTREAM
+CAPABILITY_DRIFT
+TOKEN_LIMIT_DRIFT
+MODEL_RETIRED
+MODEL_NEWLY_AVAILABLE
+
+Never automatically modify production code based on an API response.
+
+Produce a proposed diff/report instead.
+
+============================================================
+11. STATIC MODEL REGISTRY VS LIVE DATA
+============================================================
+
+Separate:
+
+STATIC_POLICY
+
+from:
+
+DISCOVERED_RUNTIME_METADATA
+
+Static policy includes things Anthropic's Models API may not expose,
+such as:
+
+- application-specific routing policy
+- pricing rules
+- feature beta requirements
+- known migration constraints
+
+Live metadata includes only fields actually returned by Anthropic.
+
+Never invent absent fields.
+
+============================================================
+12. PRICING DRIFT GUARD
+============================================================
+
+Upgrade-04 corrected Claude Sonnet 5 to:
+
+$2 / MTok input
+$10 / MTok output
+
+Protect this class of bug permanently.
+
+Pricing data should include:
+
+model_id
+platform
+input_per_mtok
+output_per_mtok
+cache_5m_write
+cache_1h_write
+cache_read
+batch_input
+batch_output
+effective_from
+effective_until
+verified_at
+source
+
+Do not implement a brittle HTML scraper as runtime infrastructure.
+
+If automated documentation parsing is unreliable, use:
+
+curated manifest + source fingerprint + human-reviewed update
+
+rather than silently overwriting pricing.
+
+============================================================
+13. REQUEST/RESPONSE METADATA CONTRACT
+============================================================
+
+Upgrade-04 added response extraction in resilience.py.
+
+Now ensure this is a first-class abstraction.
+
+Create/normalize something similar to:
+
+ResponseMetadata:
+    request_id
+    workspace_id
+    rate_limit
+    service_tier
+    inference_geo
+    model
+    stop_reason
+    stop_details
+    usage
+    thinking_tokens
+
+Do not require every API to populate every field.
+
+All fields should be optional unless guaranteed.
+
+Validate:
+
+non-stream Messages
+streaming Messages
+tool use
+structured output
+batch
+token counting
+error responses
+
+where applicable.
+
+============================================================
+14. STREAMING METADATA
+============================================================
+
+Anthropic returns some usage metadata only in final streaming events.
+
+Verify ZCoder does not finalize metrics before the final message delta.
+
+Specifically inspect handling for:
+
+usage
+thinking_tokens
+stop_reason
+stop_details
+request_id
+workspace_id
+
+Test:
+
+1-token stream
+short stream
+multi-chunk stream
+tool-call stream
+refusal stream
+connection interrupted before terminal event
+
+Avoid double counting.
+
+============================================================
+15. REFUSAL BILLING CORRECTNESS
+============================================================
+
+Audit refusal handling.
+
+Distinguish:
+
+HTTP transport error
+
+from:
+
+HTTP 200
+stop_reason = "refusal"
+
+Ensure:
+
+- no retry loop treats refusal as network failure
+- fallback logic follows documented model rules
+- pre-output refusals do not incorrectly accrue output cost
+- streamed refusals finalize correctly
+- stop_details are retained where available
+
+Add regression tests.
+
+============================================================
+16. SONNET 5 TOKENIZER SAFETY
+============================================================
+
+Never estimate Sonnet 5 exact token counts by multiplying an older model
+count by 1.3.
+
+Audit for:
+
+1.3
+30%
+token_factor
+token_multiplier
+estimated_tokens
+
+Production decisions that require exact model token count should use the
+Anthropic token counting API or actual response usage.
+
+Estimated mode may exist only with explicit metadata:
+
+exact = false
+source = heuristic
+
+============================================================
+17. MODEL CAPABILITY AUTO-CONFORMANCE
+============================================================
+
+The Models API can expose supported capabilities/token limits.
+
+Build a comparison layer:
+
+LocalModelCapability
+vs
+RemoteModelCapability
+
+Do not make local capability logic dependent on internet availability.
+
+Command:
+
+zcoder anthropic models diff
+
+Example output:
+
+MATCH
+LOCAL_ONLY
+REMOTE_ONLY
+VALUE_CHANGED
+POLICY_OVERRIDE
+
+============================================================
+18. BETA HEADER REGISTRY
+============================================================
+
+Create one canonical registry for Anthropic beta headers.
+
+For each:
+
+feature
+header
+introduced
+status
+models
+API surface
+replacement
+retirement/removal date
+source
+last_verified
+
+Search the repository for raw strings:
+
+anthropic-beta
+*-2025-*
+*-2026-*
+
+Identify duplication and stale headers.
+
+Requests must not accidentally send mutually incompatible beta headers.
+
+Add validator tests.
+
+============================================================
+19. ENDPOINT REGISTRY
+============================================================
+
+Consider one auditable endpoint registry for non-SDK/raw HTTP surfaces:
+
+name
+method
+path
+auth type
+beta header
+pagination
+status
+
+Especially for:
+
+Compliance
+Admin
+Managed Agents
+MCP tunnels
+enterprise endpoints
+
+Tests should verify actual final URL generation.
+
+============================================================
+20. HTTP CONTRACT TEST LAYER
+============================================================
+
+Create transport-level tests independent of implementation constants.
+
+Capture outgoing requests and assert:
+
+method
+URL
+headers
+query params
+JSON payload
+timeout
+auth behavior
+
+Do NOT build expected values by importing the same endpoint constants
+under test.
+
+This protects against self-confirming tests.
+
+============================================================
+21. ERROR TAXONOMY
+============================================================
+
+Normalize Anthropic failures.
+
+Design stable application exceptions such as:
+
+AnthropicAuthenticationError
+AnthropicPermissionError
+AnthropicRateLimitError
+AnthropicOverloadedError
+AnthropicBadRequestError
+AnthropicModelUnavailableError
+AnthropicBudgetReached
+AnthropicRefusal
+AnthropicTimeoutError
+AnthropicTransportError
+
+Do not erase the original request ID/error details.
+
+Never include API credentials in exception strings.
+
+============================================================
+22. RETRY POLICY
+============================================================
+
+Audit resilience.py carefully.
+
+Retries should be model/API aware.
+
+Do not retry:
+
+authentication errors
+permission failures
+invalid requests
+retired model errors
+normal refusals
+budget_reached
+
+Potentially retry according to policy:
+
+429
+529
+transient 5xx
+connect timeout
+read timeout
+
+Use bounded exponential backoff with jitter.
+
+Respect Retry-After where supported.
+
+Add deterministic tests with mocked time/randomness.
+
+============================================================
+23. TIMEOUT POLICY
+============================================================
+
+No Anthropic network call may have an accidental infinite timeout.
+
+Define explicit:
+
+connect timeout
+read timeout
+stream idle timeout
+total timeout where appropriate
+
+Long-running Managed Agents sessions should use appropriate semantics
+rather than an enormous synchronous HTTP timeout.
+
+============================================================
+24. SDK VERSION VERIFICATION
+============================================================
+
+Determine the current stable Anthropic Python SDK version from official
+package/docs sources at execution time.
+
+Record:
+
+installed
+minimum supported
+latest observed
+feature-required minimum
+
+Do NOT automatically require latest merely because it exists.
+
+Detect deprecated SDK usage.
+
+Add command:
+
+zcoder doctor anthropic
+
+Output:
+
+SDK
+authentication
+configured base URL
+optional credentials present/missing
+conformance manifest age
+model registry state
+
+Never print secret values.
+
+============================================================
+25. CLI ARCHITECTURE CLEANUP
+============================================================
+
+The project reportedly has more than 150 flags.
+
+Audit usability.
+
+Do not break existing flags.
+
+Introduce coherent subcommands where beneficial:
+
+zcoder anthropic models ...
+zcoder anthropic compliance ...
+zcoder anthropic agents ...
+zcoder anthropic conformance ...
+zcoder anthropic pricing ...
+zcoder doctor anthropic
+
+Existing flags become compatibility aliases where necessary.
+
+Generate CLI wiring tests automatically where practical.
+
+============================================================
+26. CLI FLAG REACHABILITY
+============================================================
+
+For every Anthropic CLI option verify:
+
+parser
+ -> validation
+ -> dispatch
+ -> client
+ -> transport
+ -> response handling
+
+No "documented-only" flag should count as implemented.
+
+Generate a machine-readable CLI reachability report.
+
+============================================================
+27. WEB APP TEST RECOVERY
+============================================================
+
+Return specifically to:
+
+tests/test_webapp_server.py
+
+After fixing it, verify:
+
+startup
+shutdown
+health endpoint
+API route registration
+Anthropic request adapter
+streaming/SSE if present
+invalid request handling
+auth boundary
+port configuration
+graceful cancellation
+
+Tests must use ephemeral ports where possible.
+
+Never hardcode a shared test port.
+
+============================================================
+28. TUI OPTIONAL DEPENDENCY
+============================================================
+
+Upgrade-04 reported one optional TUI skip.
+
+Determine whether this is expected.
+
+If expected:
+
+document exact optional dependency group, e.g.
+
+pip install "zcoder[tui]"
+
+CI should contain a TUI-enabled job where those tests DO execute.
+
+Base CI may skip only when the dependency group is intentionally absent.
+
+Therefore create both:
+
+minimal dependency job
+full dependency job
+
+============================================================
+29. PYTHON VERSION MATRIX
+============================================================
+
+Determine actual supported Python versions from project metadata.
+
+CI must test supported versions rather than an arbitrary matrix.
+
+Example only:
+
+3.11
+3.12
+3.13
+
+Do not add unsupported versions merely for coverage.
+
+At least one job should install from the built wheel.
+
+============================================================
+30. OPERATING SYSTEM MATRIX
+============================================================
+
+Where practical test:
+
+Linux
+Windows
+macOS
+
+At minimum ensure path handling, subprocess calls, temporary files, and
+signals are not Linux-only accidentally.
+
+Platform-specific tests should be clearly marked.
+
+============================================================
+31. DEPENDENCY GROUPS
+============================================================
+
+Separate dependencies:
+
+core
+web
+tui
+dev
+test
+docs
+
+where architecture benefits.
+
+A minimal installation should not install unnecessary web/TUI stacks.
+
+Every optional extra needs an installation smoke test in CI.
+
+============================================================
+32. DEPENDENCY LOCK / SUPPLY CHAIN
+============================================================
+
+Audit dependency strategy.
+
+Check:
+
+unbounded versions
+obsolete dependencies
+known CVEs
+duplicate packages
+unused packages
+
+Do not blindly upgrade all dependencies.
+
+Generate:
+
+dependency inventory
+direct vs transitive
+license where available
+
+============================================================
+33. SBOM
+============================================================
+
+Generate a software bill of materials for release artifacts.
+
+Prefer a standard format:
+
+CycloneDX
+or SPDX
+
+Attach it to release artifacts if project workflow supports this.
+
+Do not include secrets.
+
+============================================================
+34. ARTIFACT HASHES
+============================================================
+
+Generate SHA-256 hashes for:
+
+wheel
+sdist
+standalone artifacts
+SBOM
+
+Create:
+
+SHA256SUMS
+
+Release workflow should verify artifacts before publishing.
+
+============================================================
+35. REPRODUCIBLE RELEASE CHECK
+============================================================
+
+Build twice from the same source in clean environments where feasible.
+
+Compare artifact content.
+
+If byte-for-byte reproducibility is not achievable due to timestamps or
+tooling, identify exact nondeterministic fields.
+
+Do not falsely claim reproducibility.
+
+============================================================
+36. SECRET SCANNING
+============================================================
+
+Audit repository and release artifacts for:
+
+ANTHROPIC_API_KEY
+Authorization headers
+Compliance Access Keys
+Admin keys
+AWS credentials
+GitHub tokens
+fixtures containing realistic secrets
+
+Use known fake patterns such as:
+
+sk-ant-test-...
+
+Tests must never rely on live secrets unless explicitly marked live.
+
+============================================================
+37. LOG REDACTION
+============================================================
+
+Test log sanitization.
+
+No logs may expose:
+
+Authorization
+x-api-key
+cookies
+credential values
+MCP secrets
+vault values
+Compliance Access Keys
+WIF tokens
+
+Add regression tests.
+
+============================================================
+38. OBSERVABILITY
+============================================================
+
+Standardize metrics:
+
+request_count
+latency
+input_tokens
+output_tokens
+thinking_tokens
+cache_read_tokens
+cache_write_tokens
+estimated_cost
+retries
+rate_limits
+refusals
+fallbacks
+errors
+
+Labels must avoid high-cardinality identifiers such as:
+
+request_id
+session_id
+workspace_id
+
+Keep such values in traces/log context instead.
+
+============================================================
+39. COST ACCOUNTING TEST MATRIX
+============================================================
+
+Test representative models and surfaces:
+
+Sonnet 5
+Opus 5
+Opus 4.8
+Fable 5
+other currently supported models
+
+Test:
+
+standard
+prompt cache
+batch
+inference_geo
+long-context price differences where applicable
+fast mode where applicable
+
+Use independent expected fixture values.
+
+============================================================
+40. RELEASE-GATE MACHINE
+============================================================
+
+Implement a command such as:
+
+zcoder release check
+
+It should aggregate:
+
+SOURCE_TRUTH
+TESTS
+BUILD
+PACKAGE_INSTALL
+VERSION
+MODEL_REGISTRY
+PRICING
+DEPRECATIONS
+CLI_WIRING
+SECURITY
+DOCS
+
+Return non-zero if a required gate fails.
+
+Example:
+
+SOURCE_TRUTH_PASS=true
+TEST_PASS=true
+BUILD_PASS=true
+PACKAGE_INSTALL_PASS=true
+VERSION_PASS=true
+MODEL_MATRIX_PASS=true
+PRICING_PASS=true
+CLI_WIRING_PASS=true
+
+FINAL=PASS
+
+Do not make this output decorative.
+Its process exit status must reflect the result.
+
+============================================================
+41. MACHINE-READABLE RELEASE REPORT
+============================================================
+
+Support:
+
+zcoder release check --json
+
+Example:
+
+{
+  "version": "...",
+  "result": "PASS",
+  "tests": {
+    "passed": ...,
+    "failed": ...,
+    "skipped": ...,
+    "excluded": ...
+  },
+  "source_truth": {...},
+  "build": {...},
+  "security": {...}
+}
+
+Schema must be stable enough for CI.
+
+============================================================
+42. CI RELEASE GATE
+============================================================
+
+Create/update GitHub Actions.
+
+Suggested logical jobs:
+
+lint
+typecheck
+unit-tests
+integration-tests
+web-tests
+tui-tests
+package-build
+wheel-install-smoke
+security
+anthropic-conformance-static
+release-gate
+
+Do not require Anthropic API credentials for pull-request CI.
+
+Live Anthropic checks should be:
+
+manual
+scheduled
+or protected environment
+
+and read-only where possible.
+
+============================================================
+43. SCHEDULED ANTHROPIC DRIFT CHECK
+============================================================
+
+Create a scheduled CI workflow that can detect upstream drift.
+
+It should NOT automatically modify main.
+
+Instead generate an artifact/report when:
+
+new release-note item
+new model
+retirement change
+capability change
+pricing manifest stale
+
+If credentials are required, use repository/environment secrets.
+
+Never print them.
+
+============================================================
+44. FAIL-SAFE SOURCE DRIFT
+============================================================
+
+A failed network fetch must result in:
+
+UNKNOWN
+
+not:
+
+PASS
+
+Distinguish:
+
+NO_CHANGE
+UPSTREAM_CHANGED
+FETCH_FAILED
+PARSE_FAILED
+AUTH_FAILED
+
+Never treat inability to verify as verification success.
+
+============================================================
+45. OPTIONAL LIVE CONTRACT TESTS
+============================================================
+
+Create an explicitly marked suite:
+
+pytest -m anthropic_live
+
+Requirements:
+
+- disabled by default
+- read-only/minimal-cost wherever possible
+- never send sensitive repository content
+- exact cost warning
+- strong timeout
+- no destructive Admin/Compliance writes
+
+Use live tests for only behavior impossible to validate locally.
+
+============================================================
+46. DOCUMENTATION
+============================================================
+
+Update:
+
+README.md
+CHANGELOG.md
+ROADMAP.md
+ARCHITECTURE.md
+CONTRIBUTING.md
+SECURITY.md
+
+Add:
+
+docs/UPGRADE-05.md
+docs/RELEASE-PROCESS.md
+docs/ANTHROPIC-CONFORMANCE.md
+docs/TESTING.md
+
+Document exactly:
+
+offline tests
+optional tests
+integration tests
+live tests
+release gate
+drift detection
+versioning policy
+
+============================================================
+47. CHANGELOG CORRECTION POLICY
+============================================================
+
+Do not erase historical mistakes silently.
+
+If v1.40.0 was published with wrong metadata/pricing documentation,
+record the correction in v1.40.1.
+
+Preserve release history.
+
+============================================================
+48. FINAL CLEAN-ROOM INSTALLATION
+============================================================
+
+Before declaring release PASS:
+
+1. clean checkout
+2. build artifacts
+3. create clean virtual environment
+4. install wheel only
+5. run CLI smoke tests
+6. run representative offline operation
+7. verify no imports resolve to repo checkout
+8. uninstall
+9. install sdist
+10. repeat smoke test
+
+============================================================
+49. FINAL REQUIRED COMMANDS
+============================================================
+
+Run the real commands available in this project.
+
+At minimum:
+
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+git status --short
+
+Do NOT use:
+
+--ignore=tests/test_webapp_server.py
+
+in the final release validation.
+
+Run available:
+
+ruff check .
+black --check .
+mypy .
+
+Then run:
+
+zcoder release check
+
+or the implementation-equivalent command.
+
+============================================================
+50. DEFINITION OF DONE
+============================================================
+
+Upgrade-05 is complete only if:
+
+[ ] tests/test_webapp_server.py is no longer hidden from release testing
+[ ] full expected offline suite passes
+[ ] optional skips are explicitly classified
+[ ] full-dependency CI executes optional feature tests
+[ ] version decision is evidence-based
+[ ] published tag is never rewritten
+[ ] wheel builds
+[ ] sdist builds
+[ ] wheel installs in a clean environment
+[ ] CLI runs from installed artifact
+[ ] package metadata is consistent
+[ ] Anthropic conformance manifest validates
+[ ] release-note watermark exists
+[ ] model drift can be detected
+[ ] pricing drift can be surfaced
+[ ] beta headers are centralized/audited
+[ ] response metadata contract is tested
+[ ] retry/timeout behavior is tested
+[ ] secrets are protected
+[ ] release gate has meaningful exit codes
+[ ] CI consumes the release gate
+[ ] docs describe the actual release process
+[ ] no P0/P1 defect remains
+
+============================================================
+51. FINAL RESPONSE FORMAT
+============================================================
+
+Return:
+
+## 1. Baseline
+Exact repository/test/version state.
+
+## 2. Hidden Test Investigation
+Why test_webapp_server.py was previously ignored.
+
+## 3. Test Recovery
+What was fixed and final full-suite counts.
+
+## 4. Version Decision
+v1.40.0 vs v1.40.1 vs v1.41.0 and why.
+
+## 5. Packaging Verification
+Wheel/sdist/install results.
+
+## 6. Anthropic Conformance Automation
+Architecture and commands.
+
+## 7. Drift Detection
+Release notes/models/pricing/deprecations.
+
+## 8. Transport & Runtime Hardening
+Metadata/retries/timeouts/errors.
+
+## 9. CI/CD
+Exact workflows/jobs changed.
+
+## 10. Security/Supply Chain
+Secret handling, SBOM, hashes.
+
+## 11. Tests Added
+Exact test files and scenarios.
+
+## 12. Final Commands
+Actual outputs.
+
+## 13. Files Changed
+Exact paths.
+
+## 14. Remaining Gaps
+Only real unresolved issues.
+
+## 15. Release Gate
+
+SOURCE_TRUTH:
+TESTS:
+BUILD:
+INSTALL:
+VERSION:
+MODEL_MATRIX:
+PRICING:
+CLI_WIRING:
+SECURITY:
+DOCS:
+
+FINAL:
+
+Do not claim production readiness unless FINAL=PASS
+and all mandatory gates passed without hidden exclusions.

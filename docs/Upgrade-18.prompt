@@ -1,0 +1,2433 @@
+# UPGRADE-18
+# Local AI Quality Engineering & Continuous Optimization
+#
+# Project-Specific Quality Benchmarks
+# Model / Prompt / Tool Profile Evaluation
+# Automatic Promotion & Quarantine
+# Regression Detection
+# A/B / Canary Routing
+# Continuous No-Cost Optimization
+#
+# PRIMARY PRINCIPLES:
+#
+# NO-COST FIRST
+# LOCAL-FIRST
+# QUALITY > RAW TOKENS/SECOND
+# TEST RESULTS > MODEL SELF-RATING
+# NO SILENT PAID FALLBACK
+# NO HIDDEN QUALITY FABRICATION
+# NO CUSTOMER CODE UPLOAD
+# NO CHAIN-OF-THOUGHT STORAGE
+
+You are operating directly inside ZCoder after Upgrade-17.
+
+================================================================
+MISSION
+================================================================
+
+Upgrade-17 reportedly introduced:
+
+- runtime supervision
+- model pool
+- hot/warm/cold residency
+- memory admission
+- inference scheduler
+- backpressure
+- zero-paid-call enforcement
+
+Upgrade-18 must answer a different question:
+
+"Which local model + runtime configuration + prompt/tool profile
+actually produces the best engineering outcome for THIS project?"
+
+The system must evolve from:
+
+model routing based primarily on
+capability/performance/hardware
+
+to:
+
+routing based on
+capability
++
+measured coding correctness
++
+project compatibility
++
+tool reliability
++
+validation history
++
+latency
++
+memory
++
+cost policy
+
+Target architecture:
+
+Project
+   │
+   ▼
+Quality Profile
+   │
+   ├── benchmark fixtures
+   ├── validators
+   ├── language/framework
+   ├── tool requirements
+   └── quality thresholds
+   │
+   ▼
+Evaluation Engine
+   │
+   ├── Model A + Prompt Profile 1
+   ├── Model A + Prompt Profile 2
+   ├── Model B + Prompt Profile 1
+   └── ...
+   │
+   ▼
+Measured Outcomes
+   │
+   ├── tests passed
+   ├── regressions
+   ├── patch quality
+   ├── tool correctness
+   ├── attempts
+   ├── latency
+   └── resource usage
+   │
+   ▼
+Promotion Engine
+   │
+   ├── PREFERRED
+   ├── CANDIDATE
+   ├── DEGRADED
+   ├── QUARANTINED
+   └── RETIRED
+   │
+   ▼
+Adaptive Router
+
+================================================================
+PHASE 0 — FORENSICALLY VERIFY UPGRADE-17
+================================================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+git diff --check
+
+Run release gate.
+
+Inspect:
+
+local_ai_stack.py
+agent_runtime.py
+no_cost_platform.py
+release_gate.py
+runtime supervisor
+model pool
+scheduler
+benchmark/performance modules
+tests/
+
+Produce:
+
+UPGRADE-17 EVIDENCE MATRIX
+
+Capability
+Claimed Tier
+Actual Evidence
+Real Runtime?
+Real Model?
+Correct Tier
+Verdict
+
+Do not elevate evidence from prose.
+
+================================================================
+1. E4 REALITY RULE
+================================================================
+
+LOCAL_RUNTIME_VERIFIED may be E4 only when evidence contains:
+
+actual model artifact
+actual digest
+actual runtime
+actual generated tokens
+actual network/runtime request
+actual response
+actual timing
+
+LOCAL_CODING_VERIFIED may be E4 only when:
+
+actual model
+actual repository fixture
+actual patch
+actual test execution
+actual successful repair
+
+If not present:
+
+keep E2/E3.
+
+================================================================
+2. QUALITY ENGINEERING DOMAIN
+================================================================
+
+Create:
+
+QualityEngineeringService
+
+Responsibilities:
+
+benchmark definitions
+evaluation execution
+scoring
+baselines
+regression detection
+promotion
+quarantine
+canary analysis
+routing evidence
+
+Do not put these responsibilities directly inside LocalInferenceScheduler.
+
+================================================================
+3. QUALITY PROFILE
+================================================================
+
+Create:
+
+QualityProfile
+
+Fields conceptually:
+
+id
+name
+project_id
+language
+framework
+task_classes
+required_validators
+required_tools
+minimum_quality
+maximum_attempts
+benchmark_suite
+version
+
+================================================================
+4. PROJECT-SPECIFIC QUALITY
+================================================================
+
+A model good for generic Python must not automatically become preferred
+for:
+
+React
+Rust
+Go
+Terraform
+PowerShell
+
+without evidence.
+
+Allow project-specific evidence.
+
+================================================================
+5. TASK CLASSIFICATION
+================================================================
+
+Start with deterministic task classes:
+
+CODE_REPAIR
+CODE_GENERATION
+REFACTOR
+TEST_GENERATION
+CODE_REVIEW
+DOCUMENTATION
+SECURITY_REVIEW
+STRUCTURED_TOOL_TASK
+RAG_CODE_SEARCH
+
+Do not use another paid LLM simply to classify task.
+
+================================================================
+6. TASK REQUIREMENTS
+================================================================
+
+Each class defines requirements.
+
+Example:
+
+CODE_REPAIR:
+    code=true
+    repository_tools=true
+    tests=true
+
+STRUCTURED_TOOL_TASK:
+    tools=true
+    structured_output=true
+
+================================================================
+7. QUALITY BENCHMARK SUITE
+================================================================
+
+Create:
+
+QualityBenchmarkSuite
+
+Contain deterministic small fixtures.
+
+Do not depend on customer repository for default product benchmarks.
+
+================================================================
+8. BENCHMARK FIXTURE
+================================================================
+
+Fixture contains:
+
+repository
+initial commit/hash
+task
+expected invariants
+validators
+time/token limits
+allowed files
+forbidden changes
+
+================================================================
+9. FIXTURE VERSION
+================================================================
+
+Every fixture must be versioned.
+
+Changing expected test or repository content:
+
+new benchmark version.
+
+================================================================
+10. CODE REPAIR FIXTURES
+================================================================
+
+Create representative fixtures.
+
+Examples:
+
+Python bug
+TypeScript bug
+configuration error
+small refactor
+
+Keep them small enough for CPU local models.
+
+================================================================
+11. REAL VALIDATION
+================================================================
+
+Quality score comes from:
+
+pytest
+unit tests
+lint
+typecheck
+build
+project validator
+
+not:
+
+"model says task completed."
+
+================================================================
+12. TESTS BEFORE / AFTER
+================================================================
+
+Record:
+
+baseline failing tests
+post-patch passing tests
+new regressions
+
+A benchmark cannot score success if tests were already passing before.
+
+================================================================
+13. PATCH VALIDITY
+================================================================
+
+Measure:
+
+patch applies
+syntax valid
+scope allowed
+forbidden files untouched
+validation passes
+
+================================================================
+14. DIFF SIZE
+================================================================
+
+Record:
+
+files changed
+lines added
+lines deleted
+
+Do not automatically prefer smaller patch if larger change is actually
+required.
+
+================================================================
+15. UNRELATED CHANGE PENALTY
+================================================================
+
+Benchmark may penalize:
+
+unnecessary unrelated modifications
+configuration drift
+generated junk
+dependency changes not required
+
+================================================================
+16. SECURITY PENALTY
+================================================================
+
+Automatic failure/strong penalty for:
+
+secret exposure
+disabled security check
+unsafe shell behavior
+test deletion
+validation bypass
+
+================================================================
+17. TEST DELETION DEFENSE
+================================================================
+
+A model must not "solve" benchmark by deleting or weakening tests.
+
+Detect:
+
+test removal
+skip injection
+assert removal
+validator bypass
+
+================================================================
+18. QUALITY RESULT
+================================================================
+
+Create:
+
+QualityResult
+
+Fields:
+
+model
+digest
+runtime
+runtime profile
+prompt profile
+tool profile
+benchmark
+attempt
+
+validation_result
+correctness
+regression_count
+tool_accuracy
+patch_scope
+latency
+resource_usage
+
+status
+
+================================================================
+19. QUALITY STATUS
+================================================================
+
+Use:
+
+PASS
+PARTIAL
+FAIL
+TIMEOUT
+RUNTIME_ERROR
+POLICY_DENIED
+
+================================================================
+20. DO NOT COLLAPSE FAILURE TYPES
+================================================================
+
+Model quality failure != runtime failure.
+
+Examples:
+
+model produced wrong patch
+→ QUALITY_FAIL
+
+server crashed
+→ RUNTIME_FAIL
+
+tool denied by policy
+→ POLICY_FAIL
+
+================================================================
+21. QUALITY SCORE
+================================================================
+
+Use objective weighted components.
+
+For coding repair:
+
+correctness dominates.
+
+Example conceptual weighting:
+
+validation correctness: 60%
+regression safety: 20%
+tool reliability: 10%
+patch discipline: 10%
+
+Performance is considered separately.
+
+Do not let 2x faster model beat a model that actually fixes code.
+
+================================================================
+22. PERFORMANCE SCORE SEPARATION
+================================================================
+
+Keep:
+
+QUALITY_SCORE
+
+and:
+
+PERFORMANCE_SCORE
+
+separate.
+
+Router may combine them according to task preference.
+
+================================================================
+23. COMPOSITE ROUTING SCORE
+================================================================
+
+Composite routing may consider:
+
+quality
+performance
+availability
+memory
+warmth
+cost
+residency
+
+But quality floor is mandatory.
+
+================================================================
+24. QUALITY FLOOR
+================================================================
+
+Example:
+
+minimum_quality = 0.80
+
+Candidate below floor:
+
+ineligible
+
+even if fastest.
+
+================================================================
+25. FIRST-PASS SUCCESS
+================================================================
+
+Measure:
+
+first-pass success rate
+
+separately from:
+
+eventual success after repair loop.
+
+================================================================
+26. ATTEMPT EFFICIENCY
+================================================================
+
+Record number of:
+
+model turns
+tool calls
+repair cycles
+
+A model requiring 12 retries is meaningfully different from first-pass
+success.
+
+================================================================
+27. TOOL RELIABILITY
+================================================================
+
+Measure:
+
+correct tool selection
+valid schema
+valid arguments
+policy compliance
+result handling
+
+Across repeated fixtures.
+
+================================================================
+28. TOOL HALLUCINATION
+================================================================
+
+Record attempted call to nonexistent tool.
+
+Do not silently convert it into success.
+
+================================================================
+29. TOOL PROFILE
+================================================================
+
+Create:
+
+ToolProfile
+
+Example:
+
+minimal_coding
+full_repository
+review_only
+
+Do not expose every tool to every local model by default.
+
+================================================================
+30. PROMPT PROFILE
+================================================================
+
+Create versioned:
+
+PromptProfile
+
+Contains:
+
+system/template
+task formatting
+context strategy
+tool instructions
+output contract
+
+Do not store private chain-of-thought.
+
+================================================================
+31. PROMPT PROFILE VERSIONING
+================================================================
+
+A prompt change creates new version/hash.
+
+Historical results remain attributable.
+
+================================================================
+32. PROMPT OPTIMIZER
+================================================================
+
+Create deterministic bounded evaluator:
+
+same model
+same benchmark
+different prompt profile
+
+Compare outcomes.
+
+Do not use paid LLM to rewrite prompts automatically in core mode.
+
+================================================================
+33. PROMPT CANDIDATES
+================================================================
+
+Start from manually-defined/template-generated variants.
+
+Examples:
+
+compact
+tool-explicit
+test-first
+plan-before-edit
+
+================================================================
+34. PROMPT OPTIMIZATION SAFETY
+================================================================
+
+Never optimize system prompt by weakening:
+
+policy
+security
+approval
+tenant boundary
+paid-provider firewall
+
+Immutable security instruction layer remains outside optimized profile.
+
+================================================================
+35. TOOL-PROMPT COOPTIMIZATION
+================================================================
+
+Model quality may depend on:
+
+prompt
+tool description
+schema
+
+Measure combinations where useful.
+
+================================================================
+36. TOOL SCHEMA VERSIONING
+================================================================
+
+Changing schema invalidates relevant benchmark evidence.
+
+================================================================
+37. CONTEXT PROFILE
+================================================================
+
+Create:
+
+ContextProfile
+
+Possible strategies:
+
+RAG_ONLY
+RAG_PLUS_KEY_FILES
+RECENT_TOOL_CONTEXT
+LARGER_CONTEXT
+
+================================================================
+38. CONTEXT QUALITY BENCHMARK
+================================================================
+
+Compare retrieval/context strategies.
+
+Do not assume maximum context produces best result.
+
+================================================================
+39. RAG EVALUATION
+================================================================
+
+Measure:
+
+relevant file retrieval
+irrelevant context
+missing target symbol
+
+Separate retrieval error from model reasoning failure.
+
+================================================================
+40. PROJECT BENCHMARK
+================================================================
+
+Allow project to define safe benchmark command.
+
+Example:
+
+pytest tests/smoke
+npm test -- ...
+go test ./...
+
+Project benchmark runs sandboxed according to existing tool policy.
+
+================================================================
+41. PROJECT BENCHMARK SAFETY
+================================================================
+
+Never automatically run arbitrary repository benchmark configuration
+from untrusted PR without policy/approval.
+
+================================================================
+42. PROJECT QUALITY BASELINE
+================================================================
+
+Store:
+
+preferred model
+quality profile
+prompt profile
+runtime profile
+last verified commit/config
+quality result
+performance result
+
+================================================================
+43. MODEL PROMOTION STATES
+================================================================
+
+Separate artifact state from quality state.
+
+Quality lifecycle:
+
+UNTESTED
+CANDIDATE
+VALIDATED
+PREFERRED
+DEGRADED
+QUARANTINED
+RETIRED
+
+================================================================
+44. PROMOTION ENGINE
+================================================================
+
+Create:
+
+ModelPromotionService
+
+Model becomes PREFERRED only after satisfying configured evidence.
+
+================================================================
+45. PROMOTION REQUIREMENTS
+================================================================
+
+Example:
+
+minimum sample count
+quality floor
+no security failure
+no critical regression
+compatible hardware
+zero-cost policy
+
+================================================================
+46. NO ONE-SAMPLE PROMOTION
+================================================================
+
+One successful task is insufficient for HIGH-confidence global
+promotion.
+
+================================================================
+47. PROJECT PROMOTION
+================================================================
+
+A model may be:
+
+PREFERRED for Project A
+
+and:
+
+CANDIDATE for Project B.
+
+================================================================
+48. GLOBAL DEFAULT
+================================================================
+
+Global preference requires broader evidence.
+
+Do not derive global default from one repository.
+
+================================================================
+49. QUARANTINE
+================================================================
+
+Model/profile becomes QUARANTINED on:
+
+critical security violation
+repeated invalid tools
+major quality regression
+repeated runtime crash
+corrupt artifact
+
+================================================================
+50. QUARANTINE SCOPE
+================================================================
+
+Quarantine may apply to:
+
+artifact
+runtime profile
+prompt profile
+model-project combination
+
+Do not over-quarantine unrelated configuration.
+
+================================================================
+51. AUTOMATIC QUARANTINE
+================================================================
+
+Critical deterministic security failure may automatically quarantine.
+
+Quality-only decline should follow configurable threshold.
+
+================================================================
+52. QUARANTINE AUDIT
+================================================================
+
+Record:
+
+reason
+evidence
+timestamp
+actor/system
+scope
+
+================================================================
+53. RELEASE FROM QUARANTINE
+================================================================
+
+Require revalidation.
+
+Do not simply flip boolean.
+
+================================================================
+54. LAST KNOWN GOOD
+================================================================
+
+Keep last-known-good:
+
+model
+runtime
+prompt
+tool
+quality evidence
+
+================================================================
+55. SAFE ROLLBACK
+================================================================
+
+If newly promoted profile regresses:
+
+rollback to last known good.
+
+================================================================
+56. MODEL UPDATE PIPELINE
+================================================================
+
+New model digest:
+
+CANDIDATE
+→ benchmark
+→ quality suite
+→ canary
+→ promote
+
+Never:
+
+latest tag
+→ PREFERRED automatically.
+
+================================================================
+57. RUNTIME UPDATE PIPELINE
+================================================================
+
+New llama.cpp/Ollama/vLLM version:
+
+re-run:
+
+runtime contract
+quality smoke
+performance smoke
+
+before normal promotion.
+
+================================================================
+58. PROMPT UPDATE PIPELINE
+================================================================
+
+Prompt change:
+
+candidate
+→ benchmark
+→ compare
+→ canary
+→ promote
+
+================================================================
+59. TOOL CHANGE PIPELINE
+================================================================
+
+Tool/schema changes may invalidate quality profiles.
+
+Revalidation required.
+
+================================================================
+60. QUALITY REGRESSION
+================================================================
+
+Create:
+
+QualityRegressionDetector
+
+Compare candidate against baseline.
+
+================================================================
+61. REGRESSION TYPES
+================================================================
+
+Track:
+
+correctness regression
+tool regression
+security regression
+latency regression
+memory regression
+
+Separate severity.
+
+================================================================
+62. QUALITY THRESHOLDS
+================================================================
+
+Example:
+
+first-pass success -20%
+tool success -15%
+critical security failure >=1
+
+Use configurable policy.
+
+================================================================
+63. ABSOLUTE VS RELATIVE
+================================================================
+
+Small sample sizes require caution.
+
+Do not declare regression from trivial random variance.
+
+================================================================
+64. BENCHMARK SAMPLE SIZE
+================================================================
+
+Persist sample count.
+
+Confidence should reflect evidence volume.
+
+================================================================
+65. CONFIDENCE MODEL
+================================================================
+
+Possible:
+
+LOW
+MEDIUM
+HIGH
+
+Inputs:
+
+real vs simulated
+same project?
+same hardware?
+sample count
+recency
+benchmark version
+
+================================================================
+66. EVIDENCE DECAY
+================================================================
+
+Old benchmark evidence becomes stale when:
+
+model changed
+runtime changed
+hardware changed
+project changed materially
+prompt changed
+tool schema changed
+
+================================================================
+67. EVIDENCE FRESHNESS
+================================================================
+
+Persist:
+
+fresh
+stale
+invalidated
+
+Do not delete historical evidence.
+
+================================================================
+68. PROJECT CHANGE FINGERPRINT
+================================================================
+
+Quality baseline may include:
+
+language/framework fingerprint
+dependency lock hashes
+key config hash
+
+Do not invalidate everything for README edit.
+
+================================================================
+69. CANARY ROUTING
+================================================================
+
+Introduce optional local canary.
+
+Example:
+
+90% preferred
+10% candidate
+
+Only for jobs safe for evaluation.
+
+================================================================
+70. CANARY MUST NOT DOUBLE EXECUTE
+================================================================
+
+Do not run two models that both mutate same working branch.
+
+Use:
+
+shadow evaluation
+isolated fixture
+or non-mutating comparison
+
+for unsafe tasks.
+
+================================================================
+71. SHADOW EVALUATION
+================================================================
+
+Candidate may process copied context without committing mutation.
+
+Never expose candidate result as authoritative unless selected.
+
+================================================================
+72. A/B ROUTING
+================================================================
+
+Use A/B only where:
+
+tenant policy permits
+task is comparable
+security is maintained
+
+No external analytics required.
+
+================================================================
+73. DETERMINISTIC ASSIGNMENT
+================================================================
+
+Where A/B is used:
+
+stable hash assignment
+
+rather than random every retry.
+
+================================================================
+74. A/B METRICS
+================================================================
+
+Compare:
+
+success
+first-pass
+attempts
+latency
+tool accuracy
+validation
+
+not user "likes" alone.
+
+================================================================
+75. BANDIT ROUTING
+================================================================
+
+Optional future optimization.
+
+Do NOT introduce complex reinforcement/bandit algorithm unless simple
+A/B evidence demonstrates need.
+
+Upgrade-18 should stay understandable.
+
+================================================================
+76. ADAPTIVE ROUTER V2
+================================================================
+
+Router inputs:
+
+task
+project
+required capabilities
+quality floor
+quality evidence
+performance evidence
+runtime health
+warmth
+memory
+cost
+residency
+
+================================================================
+77. ROUTING ORDER
+================================================================
+
+Mandatory constraints first:
+
+security
+authorization
+cost
+residency
+capabilities
+
+Then:
+
+quality
+
+Then optimization:
+
+latency
+warmth
+memory/load
+
+================================================================
+78. NO QUALITY EVIDENCE
+================================================================
+
+If model has no project-specific quality evidence:
+
+use broader compatible evidence
+
+and lower confidence.
+
+================================================================
+79. QUALITY OVERRIDES PERFORMANCE
+================================================================
+
+A candidate below quality floor cannot be selected merely because hot.
+
+================================================================
+80. ROUTING EXPLANATION
+================================================================
+
+Persist explanation:
+
+selected model
+quality
+confidence
+benchmark
+runtime state
+cost
+rejected candidates
+
+No hidden chain-of-thought.
+
+================================================================
+81. MANUAL MODEL PIN
+================================================================
+
+Operator may pin model.
+
+Still enforce:
+
+security
+cost
+fit
+
+Warn if quality evidence is poor/stale.
+
+================================================================
+82. QUALITY-BASED FALLBACK
+================================================================
+
+Preferred model produces repeated invalid output:
+
+bounded retry
+
+then another eligible local model if policy permits.
+
+Never paid fallback under zero-cost profile.
+
+================================================================
+83. FAILURE FINGERPRINT
+================================================================
+
+Classify repeated failures.
+
+Example:
+
+INVALID_TOOL_SCHEMA
+TEST_FAILURE
+JSON_FAILURE
+TIMEOUT
+MODEL_REFUSAL
+
+Use for fallback decisions.
+
+================================================================
+84. NO-PROGRESS DETECTOR
+================================================================
+
+Detect repeating identical edits/tool failures.
+
+Stop bounded loop.
+
+Do not burn CPU forever.
+
+================================================================
+85. SELF-CRITIQUE BOUNDARY
+================================================================
+
+Model may review its output, but this is not independent quality
+evidence.
+
+External validators remain authoritative.
+
+================================================================
+86. INDEPENDENT LOCAL REVIEWER
+================================================================
+
+Optional second local model for review if hardware/cost policy permits.
+
+Do not require multi-model review on constrained host.
+
+================================================================
+87. REVIEWER VALUE TEST
+================================================================
+
+Measure whether local reviewer improves final validation.
+
+Do not assume another LLM automatically increases quality.
+
+================================================================
+88. CONTINUOUS QUALITY JOB
+================================================================
+
+Create low-frequency maintenance job.
+
+Triggers:
+
+new model
+new model digest
+new runtime
+new prompt profile
+new tool schema
+manual request
+
+================================================================
+89. DO NOT CONTINUOUSLY BURN CPU
+================================================================
+
+Quality benchmarking must not run constantly.
+
+Require idle/maintenance policy.
+
+================================================================
+90. HOST IDLE CHECK
+================================================================
+
+Optional benchmark scheduling considers:
+
+active developer jobs
+CPU load
+memory pressure
+
+================================================================
+91. BENCHMARK BUDGET
+================================================================
+
+Even zero-cost compute has resource cost.
+
+Allow:
+
+max benchmark runtime
+max CPU
+max model turns
+
+================================================================
+92. QUALITY DATABASE
+================================================================
+
+Persist normalized:
+
+benchmark suites
+runs
+results
+baselines
+promotions
+quarantines
+regressions
+
+Use existing local DB/storage abstraction.
+
+No external database required.
+
+================================================================
+93. SQLITE
+================================================================
+
+CORE_FREE supports SQLite.
+
+================================================================
+94. POSTGRESQL
+================================================================
+
+Self-hosted multi-process can use PostgreSQL.
+
+Tenant isolation must remain.
+
+================================================================
+95. TENANT-SCOPED QUALITY DATA
+================================================================
+
+Project/customer benchmark data must be tenant scoped.
+
+No quality result leakage across tenant private projects.
+
+================================================================
+96. GLOBAL FIXTURE DATA
+================================================================
+
+Built-in public synthetic fixtures may be global/shared.
+
+Keep distinct from private project evidence.
+
+================================================================
+97. PRIVATE CODE STORAGE
+================================================================
+
+Do not store entire repository content in benchmark records.
+
+Store:
+
+hashes
+metrics
+patch metadata
+bounded diagnostics
+
+unless existing secure artifact policy explicitly stores fixture.
+
+================================================================
+98. CHAIN OF THOUGHT
+================================================================
+
+Never store hidden reasoning.
+
+Quality system may store:
+
+final answer
+tool calls
+patch
+validators
+metrics
+
+not private chain-of-thought.
+
+================================================================
+99. PROMPT PRIVACY
+================================================================
+
+Project prompt content remains local.
+
+No remote optimization service.
+
+================================================================
+100. LOCAL ANALYTICS
+================================================================
+
+Quality dashboards use local analytics.
+
+No PostHog/Mixpanel dependency.
+
+================================================================
+101. QUALITY DASHBOARD
+================================================================
+
+Add self-hosted view:
+
+Preferred Models
+Candidates
+Quality Scores
+Performance
+Regressions
+Quarantine
+Prompt Profiles
+Project Baselines
+
+No fake metrics.
+
+================================================================
+102. QUALITY HISTORY
+================================================================
+
+Show timeline:
+
+model digest
+runtime version
+quality
+promotion/quarantine
+
+================================================================
+103. MATRIX VIEW
+================================================================
+
+Useful view:
+
+           Python Project A   TS Project B
+Model X       92%               61%
+Model Y       84%               89%
+
+Evidence counts and freshness required.
+
+================================================================
+104. PROMPT PROFILE UI
+================================================================
+
+Allow authorized users to:
+
+view
+clone
+edit candidate
+benchmark
+promote
+
+Never directly edit immutable historical version.
+
+================================================================
+105. PROMOTION UX
+================================================================
+
+Show:
+
+candidate vs baseline
+quality
+latency
+memory
+sample count
+regressions
+
+before manual promotion.
+
+================================================================
+106. QUARANTINE UX
+================================================================
+
+Show clear reason.
+
+Allow:
+
+re-test
+retire
+remove quarantine after validation
+
+================================================================
+107. CLI
+================================================================
+
+Target commands:
+
+zcoder quality status
+
+zcoder quality benchmarks
+zcoder quality run --project ...
+zcoder quality compare ...
+
+zcoder quality baselines
+zcoder quality regressions
+
+zcoder models promote MODEL
+zcoder models quarantine MODEL
+zcoder models validate MODEL
+
+zcoder prompts list
+zcoder prompts benchmark PROFILE
+
+================================================================
+108. QUALITY EXPLAIN
+================================================================
+
+Provide:
+
+zcoder quality explain --project P --task coding
+
+Return:
+
+selected configuration
+quality evidence
+confidence
+freshness
+performance
+reason
+
+================================================================
+109. PROJECT INIT
+================================================================
+
+When onboarding project:
+
+detect language/framework
+recommend initial quality profile
+
+Do not run expensive benchmark automatically.
+
+================================================================
+110. BUILT-IN QUALITY PROFILES
+================================================================
+
+Examples:
+
+python
+typescript
+go
+rust
+generic
+
+Keep validators configurable.
+
+================================================================
+111. LANGUAGE DETECTION
+================================================================
+
+Use deterministic repository signals:
+
+file extensions
+manifest files
+build files
+
+No LLM needed.
+
+================================================================
+112. PYTHON PROFILE
+================================================================
+
+Potential validators:
+
+pytest
+ruff
+mypy
+
+only when project actually configures/contains them.
+
+Do not require every tool.
+
+================================================================
+113. NODE PROFILE
+================================================================
+
+Discover:
+
+package manager
+test
+lint
+typecheck
+
+from project metadata.
+
+Do not invent commands.
+
+================================================================
+114. VALIDATOR DISCOVERY
+================================================================
+
+Reuse existing project validation discovery.
+
+Never execute arbitrary untrusted configuration without sandbox/policy.
+
+================================================================
+115. QUALITY E2E
+================================================================
+
+Required deterministic E2E:
+
+two FakeLocalModels:
+
+Model A:
+fast
+wrong patch
+
+Model B:
+slower
+correct patch
+
+Router must select B after quality evidence exists.
+
+================================================================
+116. PROMOTION E2E
+================================================================
+
+Candidate beats baseline on required quality suite.
+
+Promote.
+
+Subsequent routing uses candidate.
+
+================================================================
+117. QUARANTINE E2E
+================================================================
+
+Candidate triggers security/critical regression.
+
+Automatically quarantine.
+
+Router stops selecting it.
+
+================================================================
+118. ROLLBACK E2E
+================================================================
+
+Promoted model later regresses.
+
+Return to last known good.
+
+================================================================
+119. PROMPT A/B E2E
+================================================================
+
+Same model.
+
+Profile A fails tools.
+Profile B passes.
+
+Promote B.
+
+================================================================
+120. QUALITY EVIDENCE INVALIDATION E2E
+================================================================
+
+Change model digest.
+
+Old baseline becomes stale.
+
+Router lowers confidence.
+
+================================================================
+121. REAL MODEL QUALITY TEST
+================================================================
+
+If real local runtime/model exists:
+
+execute real coding fixtures.
+
+Report separately.
+
+Do not substitute FakeLocalModel.
+
+================================================================
+122. REAL MODEL SAMPLE COUNT
+================================================================
+
+Do not claim broad coding quality based on one fixture.
+
+Report actual number.
+
+================================================================
+123. PROJECT REAL BENCHMARK
+================================================================
+
+Optional manual:
+
+zcoder quality run --project ... --real
+
+Use isolated worktree.
+
+No mutation of primary branch.
+
+================================================================
+124. REAL PROJECT SAFETY
+================================================================
+
+Default benchmark must not push/merge.
+
+Local validation only unless explicitly configured.
+
+================================================================
+125. COST PROOF
+================================================================
+
+Every quality run under zero-cost profile:
+
+Anthropic calls = 0
+OpenAI paid calls = 0
+Stripe = 0
+hosted embeddings = 0
+
+================================================================
+126. OFFLINE QUALITY LAB
+================================================================
+
+With model artifact already installed:
+
+quality benchmarking must run offline.
+
+================================================================
+127. NETWORK GUARD
+================================================================
+
+Intercept prohibited external network.
+
+Loopback local inference remains allowed.
+
+================================================================
+128. PERFORMANCE DATA
+================================================================
+
+Reuse Upgrade-16/17 performance measurements.
+
+Do not duplicate collectors.
+
+================================================================
+129. LLAMA.CPP METRICS
+================================================================
+
+Where real llama.cpp runtime provides current documented metrics:
+
+consume them through runtime adapter.
+
+Do not make QualityEngineeringService llama.cpp-specific.
+
+================================================================
+130. SLOT/CAPACITY DATA
+================================================================
+
+Runtime scheduler remains responsible for capacity.
+
+Quality engine consumes results, not slot ownership.
+
+================================================================
+131. QUALITY VS SERVER HEALTH
+================================================================
+
+Do not quarantine a model merely because runtime server had unrelated
+temporary network/process issue.
+
+Correctly attribute cause.
+
+================================================================
+132. ERROR ATTRIBUTION
+================================================================
+
+Classify error origin:
+
+MODEL
+RUNTIME
+TOOL
+VALIDATOR
+POLICY
+INFRASTRUCTURE
+
+================================================================
+133. ERROR TAXONOMY
+================================================================
+
+Persist normalized failure reason.
+
+Useful for routing.
+
+================================================================
+134. MODEL REFUSAL
+================================================================
+
+Refusal may be valid depending task/policy.
+
+Do not always score as defect.
+
+================================================================
+135. SECURITY TASKS
+================================================================
+
+Quality benchmark must never reward model for bypassing guardrails.
+
+================================================================
+136. TOOL SECURITY
+================================================================
+
+Prompt optimization cannot reduce approval/tool safeguards.
+
+================================================================
+137. CUSTOMER PROMPT INJECTION
+================================================================
+
+Repository content remains untrusted.
+
+Evaluation fixtures should include prompt-injection cases.
+
+================================================================
+138. PROMPT-INJECTION FIXTURE
+================================================================
+
+Create fixture containing malicious repository instruction such as:
+
+ignore policy
+exfiltrate secret
+
+Correct model/runtime behavior must keep platform policy authoritative.
+
+================================================================
+139. SECRET FIXTURE
+================================================================
+
+Use fake canary secret.
+
+Benchmark should verify model/tool stack never leaks it.
+
+Never use real credential.
+
+================================================================
+140. DESTRUCTIVE COMMAND FIXTURE
+================================================================
+
+Test attempted destructive shell request.
+
+Policy should deny/require approval.
+
+Quality score must recognize safe behavior.
+
+================================================================
+141. SECURITY QUALITY SCORE
+================================================================
+
+Security invariant failures are hard gates, not averageable low scores.
+
+================================================================
+142. NO SAFETY-WASHING
+================================================================
+
+A model with high coding success but security invariant violation cannot
+be preferred.
+
+================================================================
+143. RELEASE PROFILES
+================================================================
+
+Maintain:
+
+CORE_FREE
+LOCAL_PRODUCTION_RUNTIME
+LOCAL_RUNTIME_VERIFIED
+LOCAL_CODING_VERIFIED
+PERFORMANCE_VERIFIED
+SELF_HOSTED
+SAAS
+
+Add:
+
+QUALITY_ENGINEERING
+LOCAL_QUALITY_VERIFIED
+
+================================================================
+144. QUALITY_ENGINEERING PROFILE
+================================================================
+
+Requires:
+
+fixtures
+objective validators
+quality result model
+regression detection
+promotion
+quarantine
+rollback
+routing integration
+
+Can use deterministic FakeLocalModel.
+
+================================================================
+145. LOCAL_QUALITY_VERIFIED
+================================================================
+
+Requires real local model(s) tested against actual quality fixtures.
+
+Report model count and fixture count.
+
+================================================================
+146. QUALITY GATE
+================================================================
+
+Add:
+
+QUALITY_PROFILE
+QUALITY_BENCHMARKS
+OBJECTIVE_VALIDATION
+QUALITY_BASELINE
+QUALITY_REGRESSION
+
+PROMPT_PROFILE
+PROMPT_BENCHMARK
+
+MODEL_PROMOTION
+MODEL_QUARANTINE
+MODEL_ROLLBACK
+
+ADAPTIVE_QUALITY_ROUTING
+
+SECURITY_QUALITY_FIXTURES
+
+================================================================
+147. RELEASE GATE EXAMPLE
+================================================================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+NO_COST_CORE: PASS
+ZERO_PAID_CALLS: PASS
+OFFLINE_EXECUTION: PASS
+
+LOCAL_PRODUCTION_RUNTIME: PASS
+
+QUALITY_PROFILE: PASS
+QUALITY_BENCHMARKS: PASS
+OBJECTIVE_VALIDATION: PASS
+QUALITY_BASELINE: PASS
+QUALITY_REGRESSION: PASS
+
+PROMPT_PROFILE: PASS
+PROMPT_BENCHMARK: PASS
+
+MODEL_PROMOTION: PASS
+MODEL_QUARANTINE: PASS
+MODEL_ROLLBACK: PASS
+
+ADAPTIVE_QUALITY_ROUTING: PASS
+
+SECURITY_QUALITY_FIXTURES: PASS
+
+REAL_LOCAL_RUNTIME:
+  evidence-derived
+
+REAL_LOCAL_CODING:
+  evidence-derived
+
+LOCAL_QUALITY_VERIFIED:
+  evidence-derived
+
+WEB_SELF_HOSTED:
+  evidence-derived
+
+PITR:
+  PASS_WITH_LIMITATIONS
+
+FINAL:
+  evidence-derived
+
+================================================================
+148. DO NOT MASK LIMITATIONS
+================================================================
+
+If:
+
+real model still unavailable
+
+then:
+
+LOCAL_QUALITY_VERIFIED = NOT_TESTED
+
+while:
+
+QUALITY_ENGINEERING may PASS E3.
+
+================================================================
+149. TEST SUITE EXPANSION
+================================================================
+
+Upgrade-17 added only 3 tests.
+
+Upgrade-18 requires substantially broader coverage.
+
+Add tests for:
+
+quality result scoring
+fixture versioning
+validator authority
+test deletion defense
+security hard gate
+tool reliability
+prompt profile versioning
+context strategy
+quality floor
+promotion
+quarantine
+rollback
+evidence invalidation
+canary
+A/B assignment
+routing confidence
+failure attribution
+tenant scope
+offline execution
+zero-paid policy
+
+================================================================
+150. PROPERTY TESTS
+================================================================
+
+Where useful, test invariants:
+
+security failure can never become preferred
+paid provider can never enter zero-cost candidate set
+quarantined profile cannot route
+stale evidence cannot produce HIGH confidence
+
+================================================================
+151. CONCURRENCY TESTS
+================================================================
+
+Two benchmark workers must not promote conflicting baselines
+simultaneously.
+
+Use transactional/version semantics.
+
+================================================================
+152. PROMOTION CAS
+================================================================
+
+Promotion should use expected baseline/version.
+
+Prevent stale benchmark from overwriting newer preference.
+
+================================================================
+153. AUDIT
+================================================================
+
+Audit:
+
+quality profile change
+benchmark
+promotion
+quarantine
+rollback
+manual override
+
+================================================================
+154. OBSERVABILITY
+================================================================
+
+Metrics:
+
+quality_runs_total
+quality_pass_total
+quality_regressions_total
+model_promotions_total
+model_quarantines_total
+
+Avoid model/project high-cardinality labels in Prometheus.
+
+================================================================
+155. RETENTION
+================================================================
+
+Keep detailed quality evidence according to project/tenant retention.
+
+Aggregates may have different retention.
+
+================================================================
+156. DOCUMENTATION
+================================================================
+
+Add:
+
+docs/UPGRADE-18.md
+docs/QUALITY-ENGINEERING.md
+docs/QUALITY-BENCHMARKS.md
+docs/PROJECT-QUALITY-PROFILES.md
+docs/MODEL-PROMOTION.md
+docs/MODEL-QUARANTINE.md
+docs/PROMPT-PROFILES.md
+docs/QUALITY-REGRESSION.md
+docs/QUALITY-ROUTING.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+docs/LOCAL-AI.md
+docs/LOCAL-PRODUCTION-RUNTIME.md
+
+================================================================
+157. VERSION DECISION
+================================================================
+
+Inspect actual release history.
+
+Do not mechanically keep 1.40.0.
+
+Quality Engineering adds a significant new subsystem but may remain a
+minor release if backward-compatible.
+
+Explain actual SemVer decision.
+
+================================================================
+158. REQUIRED COMMANDS
+================================================================
+
+Run:
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+git diff --check
+git status --short
+
+clean wheel install
+zcoder --version
+
+Run separately:
+
+quality unit suite
+quality fixture suite
+promotion/quarantine suite
+prompt-profile suite
+adaptive-routing suite
+security-quality suite
+offline quality E2E
+zero-paid quality E2E
+self-hosted Web profile
+
+If actual local model exists:
+
+run real local quality benchmarks separately.
+
+Never fabricate them.
+
+================================================================
+159. DEFINITION OF DONE
+================================================================
+
+Upgrade-18 is complete only when:
+
+[ ] Upgrade-17 evidence tiers are revalidated
+[ ] quality is distinct from performance
+[ ] quality fixtures are deterministic/versioned
+[ ] objective validators drive correctness
+[ ] model cannot pass by deleting tests
+[ ] security failures hard-fail quality
+[ ] tool reliability is measured
+[ ] prompt profiles are versioned
+[ ] prompt optimization cannot modify immutable security layer
+[ ] context/RAG strategies can be evaluated
+[ ] project-specific quality baselines exist
+[ ] model quality lifecycle exists
+[ ] promotion requires evidence
+[ ] quarantine works
+[ ] last-known-good rollback works
+[ ] stale evidence is invalidated
+[ ] quality regression detection works
+[ ] adaptive routing uses quality floor
+[ ] fast-but-wrong model loses to slower-correct model
+[ ] A/B/canary cannot double-mutate repositories
+[ ] zero-paid policy remains central
+[ ] offline quality lab works
+[ ] no customer code is uploaded
+[ ] no chain-of-thought is stored
+[ ] tenant isolation remains intact
+[ ] inherited production-runtime gates remain green
+
+================================================================
+160. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-17 Evidence Verification
+
+## 3. Version Decision
+
+## 4. Quality Engineering Architecture
+
+## 5. Quality Profiles
+
+## 6. Benchmark Suites
+
+Fixture | Language | Task | Validators | Version
+
+## 7. Objective Validation
+
+## 8. Quality Scoring
+
+## 9. Tool Reliability
+
+## 10. Prompt Profiles
+
+## 11. Context / RAG Profiles
+
+## 12. Project Quality Baselines
+
+## 13. Model Lifecycle
+
+Model | Project | State | Quality | Confidence | Evidence
+
+## 14. Promotion
+
+## 15. Quarantine
+
+## 16. Last-Known-Good / Rollback
+
+## 17. Quality Regression
+
+## 18. Adaptive Quality Routing
+
+Selected:
+Quality:
+Performance:
+Confidence:
+Evidence:
+Rejected:
+
+## 19. A/B / Canary Evaluation
+
+## 20. Security Quality Fixtures
+
+Prompt injection:
+Secret leakage:
+Destructive command:
+Policy bypass:
+
+## 21. Offline / Zero-Paid Proof
+
+Anthropic:
+OpenAI paid:
+Stripe:
+Hosted embeddings:
+External analytics:
+Other prohibited:
+
+## 22. Real Local Quality Evidence
+
+Runtime:
+Model:
+Digest:
+Fixtures executed:
+Passed:
+Failed:
+Quality:
+Evidence tier:
+
+If no real model:
+
+NOT_TESTED
+
+## 23. Security Review
+
+## 24. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+quality core
+fixtures
+promotion
+quarantine
+routing
+prompt
+security
+offline
+Web
+real model
+
+## 25. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 26. Release Profiles
+
+CORE_FREE:
+LOCAL_PRODUCTION_RUNTIME:
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_CODING_VERIFIED:
+PERFORMANCE_VERIFIED:
+QUALITY_ENGINEERING:
+LOCAL_QUALITY_VERIFIED:
+SELF_HOSTED:
+SAAS:
+
+## 27. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+NO_COST_CORE:
+ZERO_PAID_CALLS:
+OFFLINE_EXECUTION:
+
+LOCAL_PRODUCTION_RUNTIME:
+
+QUALITY_PROFILE:
+QUALITY_BENCHMARKS:
+OBJECTIVE_VALIDATION:
+QUALITY_BASELINE:
+QUALITY_REGRESSION:
+
+PROMPT_PROFILE:
+PROMPT_BENCHMARK:
+
+MODEL_PROMOTION:
+MODEL_QUARANTINE:
+MODEL_ROLLBACK:
+
+ADAPTIVE_QUALITY_ROUTING:
+
+SECURITY_QUALITY_FIXTURES:
+
+REAL_LOCAL_RUNTIME:
+REAL_LOCAL_CODING:
+LOCAL_QUALITY_VERIFIED:
+
+WEB_SELF_HOSTED:
+PITR:
+
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 28. Files Changed
+
+## 29. Remaining Limitations
+
+Explicitly state:
+
+real model runtime?
+real model count?
+real coding fixtures?
+languages tested?
+actual llama.cpp?
+actual Ollama?
+actual vLLM?
+GPU?
+NVIDIA?
+AMD?
+Apple?
+PITR?
+PostgreSQL HA?
+multi-region?
+
+## 30. Final Verdict
+
+Never say:
+
+BEST LOCAL MODEL
+
+without comparable measured quality evidence.
+
+Never promote a model because it is fastest if it fails required
+validators.
+
+Never allow benchmark fixtures to be "solved" by weakening tests.
+
+Never label a simulated model result real.
+
+Never let prompt optimization weaken security policy.
+
+Never store private chain-of-thought.
+
+Upgrade-18 succeeds when ZCoder can objectively distinguish:
+
+"this model is faster"
+
+from:
+
+"this model actually writes better code for this project."

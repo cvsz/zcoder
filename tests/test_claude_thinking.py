@@ -264,3 +264,16 @@ def test_cmd_thinking_reads_correct_thinking_tokens_usage_field(thinking_mod, mo
 
     out = capsys.readouterr().out
     assert "thinking=312" in out
+
+
+def test_opus5_routes_to_adaptive_thinking(thinking_mod):
+    tc = thinking_mod.ThinkingCoder(api_key="sk-test", model="claude-opus-5")
+    assert thinking_mod.supports_adaptive_thinking(tc.model) is True
+    assert tc._resolve_mode(adaptive=None, legacy_budget=False) is True
+
+
+def test_opus5_rejects_legacy_budget(thinking_mod):
+    tc = thinking_mod.ThinkingCoder(api_key="sk-test", model="claude-opus-5")
+    with pytest.raises(ValueError) as exc:
+        tc.generate_with_thinking("q", legacy_budget=True)
+    assert "hard 400" in str(exc.value) or "budget_tokens" in str(exc.value)

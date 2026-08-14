@@ -42,6 +42,7 @@ BATCH_STORE = Path(os.path.expanduser("~/.ai-coder/batches"))
 # synchronous Messages API max_output values are unaffected.
 OUTPUT_300K_BETA = "output-300k-2026-03-24"
 OUTPUT_300K_MODELS = {
+    "claude-opus-5",
     "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
     "claude-sonnet-5", "claude-sonnet-4-6",
 }

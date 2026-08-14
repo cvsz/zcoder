@@ -1,0 +1,2002 @@
+# UPGRADE-13
+
+# No-Cost-First Product Platform
+
+# Self-Hosted Core, Local AI, Free/Open Adapters,
+
+# Product Intelligence, Workflow Builder,
+
+# Notifications, Cost Optimizer and Provider Portability
+
+You are operating directly inside ZCoder after Upgrade-12.
+
+PRIMARY PRODUCT PRINCIPLE:
+
+ZERO-COST CORE FIRST.
+
+A developer must be able to install, run, test and meaningfully use
+ZCoder without:
+
+* Stripe account
+* paid email provider
+* paid object storage
+* paid observability service
+* paid identity provider
+* paid vector database
+* cloud KMS
+* Kubernetes cluster
+* managed PostgreSQL
+* paid LLM API
+* commercial analytics service
+* production GitHub App infrastructure
+
+External paid providers may exist only as OPTIONAL adapters.
+
+Never make paid credentials necessary for:
+
+development
+unit tests
+integration tests
+local onboarding
+local agents
+workflow execution
+usage accounting
+dashboards
+webhooks
+developer API
+basic notifications
+
+================================================================
+0. VERIFY UPGRADE-12 FIRST
+==========================
+
+Run:
+
+git status --short
+git log -30 --oneline
+
+python -m pytest -q -ra
+
+python main.py --version
+python main.py --help
+
+python -m build
+git diff --check
+
+Run the current release gate.
+
+Verify:
+
+TENANCY
+RLS
+AUTHZ
+PUBLIC_API
+SDK
+WEBHOOKS
+USAGE_LEDGER
+BILLING_BOUNDARY
+SECURITY
+
+Do not expand product functionality if a P0 tenant isolation regression
+exists.
+
+================================================================
+
+1. CORRECT SAAS WEB TEST ACCOUNTING
+   ================================================================
+
+Upgrade-12 reports Web as an optional skip while also claiming:
+
+WEB_PRODUCT: PASS
+
+Audit this carefully.
+
+Create explicit release profiles:
+
+CORE
+SELF_HOSTED
+SAAS
+
+Rules:
+
+CORE:
+Web may be optional.
+
+SELF_HOSTED:
+Web required if bundled.
+
+SAAS:
+Web tests mandatory.
+
+A skipped required Web test must not produce:
+
+WEB_PRODUCT = PASS
+
+Fix release evidence accordingly.
+
+================================================================
+2. NO-COST CAPABILITY MATRIX
+============================
+
+Create:
+
+docs/NO-COST-MATRIX.md
+
+For every subsystem record:
+
+Capability
+Built-in/local option
+External free option
+Paid option
+Required?
+Offline capable?
+Limitations
+
+Cover:
+
+LLM
+database
+storage
+authentication
+email
+notifications
+billing
+observability
+webhooks
+search
+embeddings
+queue
+cache
+Git hosting
+backup
+
+Every required capability needs a no-cost path.
+
+================================================================
+3. PROVIDER PORTABILITY
+=======================
+
+Create clean interfaces for all external dependencies.
+
+Target architecture:
+
+ZCoder Domain
+│
+├── ModelProvider
+├── BillingProvider
+├── EmailProvider
+├── NotificationProvider
+├── ObjectStorageProvider
+├── SecretProvider
+├── IdentityProvider
+├── AnalyticsProvider
+└── SearchProvider
+
+Domain code must not import commercial SDKs directly.
+
+================================================================
+4. LOCAL MODEL PROVIDER
+=======================
+
+Make local model execution a first-class path.
+
+Support the existing local-provider architecture where available.
+
+Audit for:
+
+Ollama
+OpenAI-compatible local endpoint
+other already-supported local gateways
+
+Do NOT invent a new model server if ZCoder already supports one.
+
+Target:
+
+zcoder run "Fix tests" --provider local
+
+must be possible without a paid LLM API.
+
+================================================================
+5. MODEL CAPABILITY DISCOVERY
+=============================
+
+Local models vary in:
+
+context
+tool calling
+structured output
+vision
+thinking
+coding quality
+
+Use capability discovery/registry.
+
+Do not assume every OpenAI-compatible endpoint supports every feature.
+
+================================================================
+6. LOCAL MODEL FALLBACK
+=======================
+
+Allow policy such as:
+
+primary = local
+fallback = free/BYO provider
+
+Never automatically fall back to a paid provider unless customer policy
+explicitly permits spend.
+
+Introduce:
+
+allow_paid_fallback = false
+
+as safe default for no-cost profile.
+
+================================================================
+7. COST CLASSIFICATION
+======================
+
+Every provider/runtime should declare:
+
+FREE_LOCAL
+FREE_REMOTE
+CUSTOMER_KEY
+PAID_PLATFORM
+UNKNOWN
+
+Routing must never classify an unknown price as free.
+
+================================================================
+8. ZERO-COST ROUTING MODE
+=========================
+
+Add:
+
+--cost-policy zero
+
+or equivalent.
+
+Behavior:
+
+select only eligible zero-cost providers/runtimes.
+
+If unavailable:
+
+fail clearly
+
+rather than silently sending to a paid model.
+
+================================================================
+9. COST CAP
+===========
+
+Support:
+
+--max-cost 0
+
+as a real policy.
+
+A zero budget must not be interpreted as:
+
+no limit.
+
+================================================================
+10. PROVIDER PRICE REGISTRY
+===========================
+
+Keep model cost metadata separate from capabilities.
+
+For provider with unknown pricing:
+
+price status = UNKNOWN
+
+Do not infer free access from HTTP success.
+
+================================================================
+11. COST OPTIMIZER
+==================
+
+Build routing recommendation layer.
+
+Inputs:
+
+required capability
+context size
+latency preference
+cost policy
+data residency
+tenant policy
+available providers
+
+Output:
+
+recommended provider/model
+reason
+estimated cost class
+
+Security/residency always override cost.
+
+================================================================
+12. COST EXPLAINER
+==================
+
+Provide:
+
+zcoder models recommend
+
+or equivalent.
+
+Example:
+
+Task: Python refactor
+
+Recommended:
+
+1. local-code-model
+   cost: FREE_LOCAL
+   capabilities: tool calling
+
+2. provider X
+   cost: CUSTOMER_KEY
+
+Rejected:
+provider Y
+reason: estimated paid usage not allowed
+
+Do not make quality claims without evidence.
+
+================================================================
+13. LOCAL STORAGE
+=================
+
+Preserve SQLite/local filesystem mode.
+
+No-cost profile should work with:
+
+SQLite
+local artifact directory
+
+PostgreSQL remains optional for production/enterprise.
+
+================================================================
+14. OBJECT STORAGE ABSTRACTION
+==============================
+
+Implement:
+
+LocalObjectStorage
+
+first.
+
+Operations:
+
+put
+get
+delete
+list metadata
+signed/local authorization abstraction
+
+Then external object storage can remain adapters.
+
+================================================================
+15. FILESYSTEM SECURITY
+=======================
+
+Local object storage must enforce:
+
+tenant/project namespace
+path traversal prevention
+authorization
+size limits
+
+Do not treat local storage as inherently trusted.
+
+================================================================
+16. LOCAL BACKUP
+================
+
+Provide zero-cost local backup path:
+
+SQLite backup
+PostgreSQL pg_dump when PostgreSQL exists
+artifact archive
+configuration export
+
+Do not call it HA/PITR.
+
+================================================================
+17. NO-COST SECRET PROVIDER
+===========================
+
+Provide safe built-in options:
+
+environment
+permission-restricted local file
+
+Do not put plaintext secrets into SQLite configuration.
+
+Cloud KMS remains optional.
+
+================================================================
+18. LOCAL IDENTITY MODE
+=======================
+
+Keep secure local/self-hosted authentication.
+
+Do not require commercial SSO.
+
+Possible profile:
+
+single-admin local deployment
+
+plus:
+
+OIDC adapter when external IdP exists.
+
+Never weaken SaaS auth merely to simplify local mode.
+
+================================================================
+19. DEV IDENTITY
+================
+
+Testing/development should use deterministic fake identity provider.
+
+Production must never accidentally enable fake identity mode.
+
+================================================================
+20. LOCAL EMAIL
+===============
+
+Notifications must not require paid transactional email.
+
+Implement provider boundary.
+
+No-cost paths:
+
+console/log notification
+local SMTP
+development mailbox adapter
+
+Email is optional for core product behavior.
+
+================================================================
+21. IN-APP NOTIFICATIONS
+========================
+
+Create first-class in-app notifications.
+
+Examples:
+
+job complete
+approval needed
+budget reached
+quota warning
+GitHub disconnected
+webhook failed
+
+This becomes the default zero-cost notification channel.
+
+================================================================
+22. NOTIFICATION MODEL
+======================
+
+Notification:
+
+id
+organization
+principal
+type
+severity
+title
+message
+resource
+read_at
+created_at
+
+Do not embed secrets/raw provider payloads.
+
+================================================================
+23. NOTIFICATION PREFERENCES
+============================
+
+Support:
+
+in-app
+email
+webhook
+
+Default:
+
+in-app enabled
+
+External channels optional.
+
+================================================================
+24. NOTIFICATION DEDUPLICATION
+==============================
+
+Retries must not create 20 identical alerts.
+
+Use stable event/reference identity.
+
+================================================================
+25. LOCAL ANALYTICS
+===================
+
+Do not require commercial product analytics.
+
+Create internal aggregated product metrics from PostgreSQL/SQLite where
+appropriate.
+
+Examples:
+
+jobs completed
+jobs failed
+active projects
+runtime distribution
+usage
+cost class
+
+Do not send private code/prompts to external analytics by default.
+
+================================================================
+26. ANALYTICS PROVIDER INTERFACE
+================================
+
+Optional external analytics must use adapter.
+
+Built-in provider:
+
+LocalAnalyticsProvider
+
+may write privacy-safe product events locally.
+
+================================================================
+27. PRIVACY-FIRST DEFAULT
+=========================
+
+External product analytics:
+
+OFF by default.
+
+Operational metrics remain separate.
+
+Document exact telemetry.
+
+================================================================
+28. OPEN OBSERVABILITY
+======================
+
+Continue OpenTelemetry-compatible instrumentation.
+
+Zero-cost stack should work with local/open telemetry endpoints.
+
+Application must not require a hosted observability account.
+
+================================================================
+29. WORKFLOW BUILDER DOMAIN
+===========================
+
+Create reusable workflow definition.
+
+Example:
+
+Workflow:
+id
+name
+trigger
+steps
+policy
+runtime
+validation
+budget
+
+Steps could include:
+
+agent
+command
+validation
+approval
+GitHub PR
+notification
+
+Do not make UI JSON blobs the canonical workflow model.
+
+================================================================
+30. WORKFLOW VERSIONING
+=======================
+
+A workflow change should create a version/reference.
+
+Running jobs retain the exact workflow version used.
+
+================================================================
+31. WORKFLOW TEMPLATES
+======================
+
+Ship useful built-in templates:
+
+Fix failing tests
+Review PR
+Security review
+Documentation update
+Dependency review
+Refactor
+CI repair
+
+Templates must be editable/copied.
+
+================================================================
+32. ORGANIZATION TEMPLATES
+==========================
+
+Allow default:
+
+policies
+agent profile
+validation
+workflow
+budget
+runtime preference
+
+for newly created projects.
+
+================================================================
+33. PROJECT TEMPLATES
+=====================
+
+Examples:
+
+Python
+Node
+Full stack
+Library
+Docker service
+
+Do not make guesses destructive.
+
+Detection should recommend, not silently overwrite project config.
+
+================================================================
+34. WORKFLOW EXECUTION
+======================
+
+Reuse existing durable job engine.
+
+Workflow builder should compile into:
+
+Job / Plan / Steps
+
+not create a second execution engine.
+
+================================================================
+35. WORKFLOW VALIDATION
+=======================
+
+Before saving/running:
+
+validate:
+
+cycles
+unsupported step
+missing runtime
+invalid policy
+budget contradiction
+unavailable provider
+
+Fail early.
+
+================================================================
+36. WORKFLOW DRY RUN
+====================
+
+Support:
+
+workflow dry-run
+
+Show:
+
+steps
+runtime
+provider
+tools
+approvals
+estimated cost class
+external mutations
+
+No execution.
+
+================================================================
+37. WORKFLOW TRIGGERS
+=====================
+
+No-cost triggers:
+
+manual
+API
+GitHub webhook
+schedule
+
+Do not require external workflow SaaS.
+
+================================================================
+38. SCHEDULER
+=============
+
+Use existing scheduler.
+
+Add durable scheduled workflow triggers where appropriate.
+
+No separate paid cron service.
+
+================================================================
+39. AGENT CATALOG
+=================
+
+Create AgentProfile catalog.
+
+Examples:
+
+coder
+reviewer
+tester
+security reviewer
+documentation agent
+
+Each profile declares:
+
+system behavior
+required capabilities
+tools
+policy
+runtime preference
+
+================================================================
+40. AGENT CATALOG IS NOT A MARKETPLACE
+======================================
+
+Initially implement:
+
+built-in catalog
+organization catalog
+
+Do not create payment/revenue marketplace yet.
+
+================================================================
+41. COMMUNITY AGENT IMPORT
+==========================
+
+If agent definitions can be imported:
+
+treat as untrusted configuration.
+
+Validate:
+
+tools
+network
+prompts
+MCP
+skills
+
+Never auto-grant secrets.
+
+================================================================
+42. AGENT PROFILE VERSIONING
+============================
+
+Running jobs retain profile version.
+
+Changes must not silently mutate active executions.
+
+================================================================
+43. MODEL RECOMMENDATIONS
+=========================
+
+Recommend suitable models/providers based on capabilities.
+
+Do not use marketing ranking.
+
+Store:
+
+why recommended
+requirements matched
+cost class
+known limitations
+
+================================================================
+44. ROUTING FEEDBACK
+====================
+
+Collect privacy-safe outcome metadata:
+
+task type
+runtime
+model
+validation result
+latency
+cost class
+
+Use to improve future recommendation.
+
+Do not store hidden chain-of-thought.
+
+================================================================
+45. LOCAL RECOMMENDER
+=====================
+
+Recommendation logic should work deterministically without an LLM.
+
+Start rule-based/statistical.
+
+Do not require another paid AI call to choose which AI model to use.
+
+================================================================
+46. USAGE FORECASTING
+=====================
+
+Build simple local forecast.
+
+Inputs:
+
+historical usage
+job count
+runtime distribution
+
+Output:
+
+projected usage
+confidence/assumptions
+
+Clearly label forecast.
+
+Do not pretend estimate is invoice.
+
+================================================================
+47. ZERO-COST FORECAST
+======================
+
+Show:
+
+current paid usage
+avoidable paid usage
+local/free-capable jobs
+potential savings
+
+Do not claim exact savings without model price evidence.
+
+================================================================
+48. BUDGET RECOMMENDATION
+=========================
+
+Recommend limits based on historical data.
+
+Recommendations never automatically change quota.
+
+Require operator confirmation.
+
+================================================================
+49. BILLING REMAINS OPTIONAL
+============================
+
+FakeBillingProvider remains sufficient for:
+
+local
+self-hosted
+development
+
+Stripe adapter remains optional.
+
+No-cost release gate must not require:
+
+STRIPE_SECRET_KEY
+
+================================================================
+50. NO-COST SUBSCRIPTION MODE
+=============================
+
+Support:
+
+community_free
+
+without external billing provider.
+
+Internal subscription state must work locally.
+
+================================================================
+51. PAID PLAN WITHOUT PROVIDER
+==============================
+
+Self-hosted administrators may configure entitlements manually if
+commercial licensing model permits.
+
+Do not force payment processor into entitlement service.
+
+================================================================
+52. PROVIDER-SPECIFIC BILLING IS OPTIONAL
+=========================================
+
+Stripe implementation must be loadable only when configured.
+
+Missing Stripe dependency/credentials must not break application startup
+in free mode.
+
+================================================================
+53. NO-COST WEBHOOKS
+====================
+
+Customer webhooks remain self-hosted HTTP functionality.
+
+No external webhook relay required.
+
+================================================================
+54. WEBHOOK DEV RECEIVER
+========================
+
+Provide local development receiver/test utility if helpful.
+
+Do not rely on paid tunneling service.
+
+================================================================
+55. PUBLIC API LOCAL MODE
+=========================
+
+Public API should be runnable locally.
+
+Example:
+
+zcoder serve
+
+No cloud account required.
+
+================================================================
+56. SDK LOCAL MODE
+==================
+
+Python/TS SDKs must support:
+
+base_url=http://localhost:...
+
+Do not hardcode SaaS domain.
+
+================================================================
+57. DEVELOPER PORTAL LOCAL DOCS
+===============================
+
+Developer documentation should build locally.
+
+No paid docs platform required.
+
+================================================================
+58. STATIC DOCS BUILD
+=====================
+
+If appropriate, use an existing free/static documentation toolchain
+already available in the project.
+
+Avoid adding unnecessary framework dependency.
+
+================================================================
+59. WEB PRODUCT NO-COST PROFILE
+===============================
+
+Customer/admin web console must work locally.
+
+Required components:
+
+app
+SQLite or PostgreSQL depending profile
+local artifacts
+
+No paid infrastructure.
+
+================================================================
+60. DASHBOARD
+=============
+
+Add Product Intelligence dashboard:
+
+Jobs
+Success rate
+Validation failures
+Provider/runtimes
+Usage
+Cost classes
+Workflow performance
+
+No external analytics provider required.
+
+================================================================
+61. COST DASHBOARD
+==================
+
+Break down:
+
+FREE_LOCAL
+FREE_REMOTE
+CUSTOMER_KEY
+PAID_PLATFORM
+UNKNOWN
+
+Unknown must remain visibly unknown.
+
+================================================================
+62. PROVIDER HEALTH
+===================
+
+Track:
+
+configured
+available
+authenticated
+rate limited
+offline
+
+No credential value exposure.
+
+================================================================
+63. MODEL HEALTH
+================
+
+Use safe probes where appropriate.
+
+Avoid spending tokens just to update dashboard continuously.
+
+================================================================
+64. LOCAL PROVIDER PROBE
+========================
+
+Use inexpensive metadata/model-list endpoints where available.
+
+Do not issue generation request unless explicitly requested.
+
+================================================================
+65. TEAM COLLABORATION
+======================
+
+Build no-cost collaboration features:
+
+job comments
+mentions
+approval requests
+activity stream
+
+No Slack/Teams dependency.
+
+================================================================
+66. COMMENTS
+============
+
+Comment model:
+
+tenant scoped
+resource scoped
+actor
+timestamp
+edited marker
+
+Sanitize rendered content.
+
+================================================================
+67. MENTIONS
+============
+
+Mentions trigger in-app notifications.
+
+Email remains optional.
+
+================================================================
+68. ACTIVITY FEED
+=================
+
+Use existing audit/domain events where appropriate.
+
+Do not duplicate every event into another uncontrolled data store.
+
+================================================================
+69. APPROVAL INBOX
+==================
+
+Provide consolidated view:
+
+job
+requested action
+risk
+requesting agent
+age
+
+No external workflow product required.
+
+================================================================
+70. SAVED VIEWS
+===============
+
+Allow locally stored dashboard filters.
+
+Examples:
+
+My approvals
+Failed jobs
+Zero-cost jobs
+Paid jobs
+Budget warnings
+
+================================================================
+71. SEARCH
+==========
+
+Start with database-backed bounded search.
+
+Do not require Elasticsearch/OpenSearch/vector DB initially.
+
+Upgrade only if scale proves need.
+
+================================================================
+72. FULL-TEXT SEARCH
+====================
+
+If PostgreSQL is present, evaluate native full-text functionality where
+appropriate.
+
+SQLite local mode can offer simpler search.
+
+Keep interface portable.
+
+================================================================
+73. VECTOR SEARCH
+=================
+
+Do NOT add vector DB merely because this is an AI product.
+
+Only introduce if a real feature requires semantic retrieval.
+
+================================================================
+74. LOCAL CACHE
+===============
+
+Do not require Redis.
+
+Built-in process/cache or DB-backed strategy may be adequate.
+
+If Redis adapter exists:
+
+optional only.
+
+================================================================
+75. QUEUE
+=========
+
+Do not require Kafka/RabbitMQ/Redis queue.
+
+Use PostgreSQL durable queue/control-plane architecture already present
+for production.
+
+SQLite local execution remains local.
+
+================================================================
+76. NO-COST INFRASTRUCTURE PROFILE
+==================================
+
+Define:
+
+zcoder profile local-free
+
+Equivalent configuration:
+
+storage: sqlite
+artifacts: local
+billing: fake/disabled
+analytics: local
+notifications: in_app
+models: local/BYO only
+telemetry: local/disabled
+email: disabled
+external_paid_fallback: false
+
+================================================================
+77. SELF-HOSTED FREE PROFILE
+============================
+
+Define:
+
+storage: postgres optional
+artifacts: local
+billing: disabled/fake
+models: local/BYO
+web: enabled
+API: enabled
+
+No license server dependency for core operation unless product
+requirements explicitly require it.
+
+================================================================
+78. FREE PROFILE FAIL-SAFE
+==========================
+
+If a paid-only feature is requested:
+
+respond clearly:
+
+PAID_PROVIDER_REQUIRED
+
+Do not automatically enable a paid adapter.
+
+================================================================
+79. PROVIDER BUDGET POLICY
+==========================
+
+Add global/tenant policy:
+
+paid_providers:
+allowed: false
+
+or equivalent.
+
+Enforce at runtime layer.
+
+================================================================
+80. NETWORK POLICY
+==================
+
+Zero-cost local mode should not call unknown external services
+automatically.
+
+Document every outbound integration.
+
+================================================================
+81. OFFLINE MODE
+================
+
+Introduce:
+
+--offline
+
+where feasible.
+
+Offline mode disables:
+
+cloud provider calls
+remote telemetry
+external billing
+external webhooks
+
+Local models/local Git operations remain available.
+
+Do not promise full functionality where internet is fundamentally needed.
+
+================================================================
+82. OFFLINE TEST
+================
+
+Run process with network disabled/mocked.
+
+Verify core:
+
+CLI
+local provider configuration
+workflow engine
+SQLite
+dashboard startup
+job persistence
+
+does not require external SaaS.
+
+================================================================
+83. FREE-FIRST ONBOARDING
+=========================
+
+First-run experience:
+
+Choose mode:
+
+1. Local Free
+2. Self-Hosted
+3. Cloud/BYO
+4. Commercial SaaS
+
+Default should not force credit card or paid provider.
+
+================================================================
+84. PROVIDER SETUP WIZARD
+=========================
+
+For Local Free:
+
+detect local-compatible endpoints.
+
+Do not download huge models automatically without user action.
+
+Show hardware/storage requirements before download instructions.
+
+================================================================
+85. CUSTOMER KEY MODE
+=====================
+
+Allow users to bring their own API credentials.
+
+Store via SecretRef.
+
+Do not classify BYO usage as ZCoder platform-paid usage.
+
+================================================================
+86. COST ACCOUNTING FOR BYO
+===========================
+
+Track:
+
+usage known
+cost estimate optional
+
+but mark billing responsibility:
+
+CUSTOMER_EXTERNAL
+
+Do not invoice BYO usage through ZCoder by default.
+
+================================================================
+87. FREE-FIRST API
+==================
+
+Public API can create job with:
+
+cost_policy
+
+Example:
+
+{
+"cost_policy": "zero"
+}
+
+Validate server-side.
+
+================================================================
+88. FREE-FIRST WORKFLOW
+=======================
+
+Workflow may require:
+
+cost_policy: zero
+
+Every nested agent/step inherits unless stricter override.
+
+Lower-level config cannot silently permit paid provider.
+
+================================================================
+89. FREE-FIRST AGENT PROFILE
+============================
+
+Agent profile can express:
+
+preferred_cost_class
+
+but organization policy is authoritative.
+
+================================================================
+90. PROVIDER FALLBACK SECURITY
+==============================
+
+Fallback ordering must respect:
+
+tenant policy
+residency
+cost policy
+capability
+
+Never:
+
+local fails
+→ expensive model automatically
+
+unless explicit.
+
+================================================================
+91. LOCAL FAILURE UX
+====================
+
+When no zero-cost model satisfies task:
+
+show:
+
+missing capability
+available alternatives
+whether each requires paid/BYO access
+
+No automatic purchase path.
+
+================================================================
+92. NO-COST RELEASE GATE
+========================
+
+Add:
+
+NO_COST_CORE
+OFFLINE_CORE
+LOCAL_STORAGE
+LOCAL_NOTIFICATIONS
+LOCAL_ANALYTICS
+LOCAL_MODEL_ROUTE
+PAID_PROVIDER_OPTIONAL
+PAID_FALLBACK_DISABLED
+
+================================================================
+93. PROVIDER OPTIONALITY TESTS
+==============================
+
+Run with environment intentionally lacking:
+
+STRIPE_SECRET_KEY
+cloud credentials
+email API keys
+hosted telemetry
+KMS
+Redis
+paid LLM API key
+
+Application must start in local-free profile.
+
+================================================================
+94. IMPORT OPTIONALITY
+======================
+
+Commercial SDK packages must not be imported unconditionally.
+
+Test installation with minimal dependency set.
+
+================================================================
+95. MINIMAL INSTALL
+===================
+
+Define and test:
+
+pip install zcoder
+
+or project equivalent.
+
+Then:
+
+zcoder --version
+zcoder doctor
+zcoder serve / local CLI as supported
+
+No paid provider dependency.
+
+================================================================
+96. FULL INSTALL
+================
+
+Optional extras:
+
+web
+enterprise
+billing-stripe
+observability
+etc.
+
+Use current package architecture rather than inventing unnecessary
+extras.
+
+================================================================
+97. LOCAL-FIRST E2E
+===================
+
+Mandatory test:
+
+fresh install
+→ no paid credentials
+→ local-free profile
+→ create organization/project
+→ configure Fake/Local model runtime
+→ create workflow
+→ execute job
+→ validation
+→ artifact
+→ usage ledger
+→ notification
+→ dashboard/API result
+
+No external network.
+
+================================================================
+98. ZERO-BUDGET E2E
+===================
+
+Configure:
+
+max_paid_cost = 0
+
+Attempt job with:
+
+local provider available
+→ succeeds
+
+Then disable local provider.
+
+Attempt again
+→ rejected before paid call.
+
+Prove no external paid transport invocation occurred.
+
+================================================================
+99. WORKFLOW E2E
+================
+
+Template:
+
+Fix failing tests
+
+Run via FakeRuntime/local provider.
+
+Verify:
+
+plan
+execution
+validation
+artifact
+notification
+usage metrics
+
+================================================================
+100. NOTIFICATION E2E
+=====================
+
+Job fails.
+
+Verify:
+
+in-app notification
+
+No SMTP configured.
+
+Application must not error.
+
+================================================================
+101. ANALYTICS E2E
+==================
+
+Run several FakeRuntime jobs.
+
+Dashboard aggregates:
+
+success
+failure
+runtime
+cost class
+
+No analytics service configured.
+
+================================================================
+102. COST OPTIMIZER TESTS
+=========================
+
+Cases:
+
+zero-cost local capable
+zero-cost incapable
+BYO permitted
+paid forbidden
+residency conflict
+unknown price
+
+Unknown price must never pass zero-cost policy.
+
+================================================================
+103. WORKFLOW SECURITY
+======================
+
+Imported workflow cannot escalate:
+
+tool access
+secrets
+paid provider
+network
+approval policy
+
+Organization immutable policy wins.
+
+================================================================
+104. AGENT CATALOG SECURITY
+===========================
+
+Imported agent profile cannot silently enable:
+
+shell
+network
+MCP
+secret access
+paid provider
+
+without policy evaluation.
+
+================================================================
+105. FRONTEND
+=============
+
+Add views only after services exist:
+
+Workflows
+Agent Profiles
+Notifications
+Product Intelligence
+Cost Optimizer
+
+No fake cards.
+
+================================================================
+106. FREE MODE BADGE
+====================
+
+UI should clearly indicate current operating profile:
+
+LOCAL FREE
+SELF HOSTED
+BYO
+SAAS
+
+Do not label free mode based merely on plan name.
+
+================================================================
+107. PAID CALL WARNING
+======================
+
+If user deliberately chooses paid execution:
+
+show estimated/known cost class before dispatch where possible.
+
+Do not block if explicitly permitted by policy.
+
+================================================================
+108. USAGE TRANSPARENCY
+=======================
+
+Show source:
+
+provider reported
+estimated
+local/free
+
+Keep:
+
+price
+cost
+billing
+
+semantically separate.
+
+================================================================
+109. DOCUMENTATION
+==================
+
+Add:
+
+docs/UPGRADE-13.md
+docs/NO-COST-MATRIX.md
+docs/LOCAL-FREE.md
+docs/OFFLINE-MODE.md
+docs/PROVIDER-PORTABILITY.md
+docs/COST-POLICY.md
+docs/WORKFLOWS.md
+docs/AGENT-CATALOG.md
+docs/NOTIFICATIONS.md
+docs/PRODUCT-INTELLIGENCE.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+
+================================================================
+110. FREE-FIRST README QUICKSTART
+=================================
+
+README first usable route should not require a credit card.
+
+Example conceptual journey:
+
+install
+configure local/free runtime
+run first task
+
+Paid/BYO configuration comes afterward.
+
+================================================================
+111. RELEASE PROFILES
+=====================
+
+Create gates:
+
+CORE_FREE
+SELF_HOSTED
+SAAS
+
+Example:
+
+CORE_FREE requires:
+
+CLI
+SQLite
+local artifacts
+Fake/Local runtime
+no-cost policy
+offline startup
+
+SELF_HOSTED additionally:
+
+Web
+API
+PostgreSQL optional/production recommendation
+
+SAAS additionally:
+
+billing
+enterprise auth
+public Web
+
+================================================================
+112. EVIDENCE TIERS
+===================
+
+Continue E0-E5 model.
+
+Examples:
+
+LOCAL_FREE:
+E3 offline E2E
+
+LOCAL_MODEL:
+E2 contract
+or E4 if a real local model server was executed
+
+Stripe:
+remain E2 unless sandbox/live test actually runs.
+
+================================================================
+113. RELEASE GATE
+=================
+
+Report:
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+TENANCY:
+RLS:
+SECURITY:
+
+NO_COST_CORE:
+OFFLINE_CORE:
+LOCAL_STORAGE:
+LOCAL_NOTIFICATIONS:
+LOCAL_ANALYTICS:
+LOCAL_MODEL_ROUTE:
+PAID_PROVIDER_OPTIONAL:
+PAID_FALLBACK_DISABLED:
+
+WORKFLOW_ENGINE:
+AGENT_CATALOG:
+COST_OPTIMIZER:
+USAGE_FORECASTING:
+
+PUBLIC_API:
+SDK:
+WEB_PRODUCT:
+
+PITR:
+
+FINAL:
+
+If PITR remains limited:
+
+FINAL can remain PASS_WITH_LIMITATIONS.
+
+No-cost core does not require PITR.
+
+================================================================
+114. REQUIRED FINAL TESTS
+=========================
+
+Run:
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+
+minimal install smoke
+full install smoke
+
+local-free E2E
+offline E2E
+zero-budget E2E
+workflow E2E
+notification E2E
+analytics E2E
+cost optimizer tests
+
+Run release gate.
+
+No paid credentials should exist in the environment for no-cost tests.
+
+================================================================
+115. DEFINITION OF DONE
+=======================
+
+Upgrade-13 is complete only when:
+
+[ ] fresh installation starts without commercial credentials
+[ ] local-free profile exists
+[ ] offline core works
+[ ] SQLite/local storage works
+[ ] local artifact store works
+[ ] in-app notifications work
+[ ] local analytics works
+[ ] local/BYO provider architecture exists
+[ ] paid fallback is disabled by default in zero-cost mode
+[ ] max paid cost = 0 is correctly enforced
+[ ] unknown price cannot be classified as free
+[ ] billing provider remains optional
+[ ] Stripe missing does not break startup
+[ ] email provider missing does not break startup
+[ ] hosted telemetry missing does not break startup
+[ ] workflow domain exists
+[ ] workflow versions are durable
+[ ] built-in templates work
+[ ] agent catalog exists
+[ ] imported agents/workflows cannot escalate permissions
+[ ] cost optimizer works without an LLM
+[ ] usage forecasting works locally
+[ ] team activity/notifications require no external provider
+[ ] Web/API/SDK work against localhost
+[ ] no-cost onboarding requires no payment
+[ ] zero-cost E2E makes zero paid transport calls
+[ ] documentation starts with no-cost path
+[ ] inherited tenant/security tests remain green
+[ ] release gate accurately reports paid integrations as optional
+
+================================================================
+116. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-12 Regression Check
+
+## 3. No-Cost Architecture
+
+## 4. No-Cost Capability Matrix
+
+Capability | Local/Free | Optional External | Paid Required? | Evidence
+
+## 5. Local Model Runtime
+
+## 6. Cost Policy / Zero-Budget Enforcement
+
+## 7. Provider Portability
+
+## 8. Local Storage / Backup
+
+## 9. Notifications
+
+## 10. Local Analytics / Product Intelligence
+
+## 11. Workflow Builder
+
+## 12. Workflow Templates
+
+## 13. Agent Catalog
+
+## 14. Model / Runtime Recommender
+
+## 15. Usage Forecasting / Cost Optimizer
+
+## 16. Team Collaboration
+
+## 17. API / SDK / Web Local Mode
+
+## 18. Offline Mode
+
+## 19. Security Review
+
+## 20. Tests
+
+Report exact:
+
+passed
+failed
+required skipped
+optional skipped
+xfailed
+deselected
+
+Break down:
+
+core
+tenant
+local-free
+offline
+workflow
+notification
+analytics
+cost optimizer
+Web/API
+
+## 21. Evidence Tiers
+
+## 22. Release Profiles
+
+CORE_FREE:
+SELF_HOSTED:
+SAAS:
+
+## 23. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+TENANCY:
+RLS:
+SECURITY:
+
+NO_COST_CORE:
+OFFLINE_CORE:
+LOCAL_STORAGE:
+LOCAL_NOTIFICATIONS:
+LOCAL_ANALYTICS:
+LOCAL_MODEL_ROUTE:
+PAID_PROVIDER_OPTIONAL:
+PAID_FALLBACK_DISABLED:
+
+WORKFLOW_ENGINE:
+AGENT_CATALOG:
+COST_OPTIMIZER:
+USAGE_FORECASTING:
+
+PUBLIC_API:
+SDK:
+WEB_PRODUCT:
+
+PITR:
+
+FINAL:
+
+## 24. Version Decision
+
+## 25. Files Changed
+
+## 26. Remaining Limitations
+
+Explicitly state:
+
+real local model tested?
+GPU required?
+Stripe live?
+email provider live?
+paid analytics?
+cloud KMS?
+PITR?
+HA?
+multi-region control plane?
+BYOK?
+
+## 27. Final Verdict
+
+Do not say:
+
+ZERO COST
+
+if normal operation silently depends on a paid service.
+
+Correct terminology is:
+
+NO-COST CORE
+
+only when an actual user can install and complete a meaningful workflow
+without providing commercial provider credentials.
+
+The highest priority is:
+
+useful software first,
+paid integrations second.

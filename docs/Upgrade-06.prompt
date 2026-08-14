@@ -1,0 +1,2720 @@
+# UPGRADE-06 — Autonomous Agent Runtime Platform
+
+You are working directly inside the current ZCoder repository after the successful Upgrade-05 Production Release Hardening work.
+
+Current expected baseline:
+
+* release candidate: v1.40.0
+* full default pytest suite executes without ignored test files
+* optional Web/TUI dependencies may skip explicitly
+* wheel and sdist build successfully
+* Anthropic conformance manifest exists
+* Anthropic source-truth release gate exists
+* pricing/model/header truth audit has been completed
+* ZCoder already contains substantial Messages API, Agent SDK, Managed Agents, tools, skills, MCP, compliance, model routing, CLI, TUI and web support
+
+Do NOT assume any of these claims are true without checking the repository.
+
+---
+
+# MISSION
+
+Transform ZCoder from a collection of Anthropic integrations and CLI commands into a coherent **production-grade autonomous coding-agent runtime**.
+
+The resulting architecture must support three distinct execution modes without conflating them:
+
+```text
+ZCoder Runtime
+│
+├── DIRECT
+│   └── Messages API / custom tool loop
+│
+├── LOCAL
+│   └── Claude Agent SDK
+│       └── agent loop runs in ZCoder-controlled process/runtime
+│
+└── MANAGED
+    └── Claude Managed Agents
+        └── Anthropic-hosted agent/session/sandbox infrastructure
+```
+
+ZCoder should expose one coherent job/session/operator experience while preserving the different semantics and capabilities of each backend.
+
+Do NOT pretend these runtimes are interchangeable where they are not.
+
+---
+
+# PRIMARY OUTCOME
+
+A user should be able to issue a high-level coding task such as:
+
+```bash
+zcoder run "Find and fix all failing tests"
+```
+
+and ZCoder should be capable of:
+
+1. creating a durable job
+2. selecting an execution backend
+3. preparing an isolated workspace
+4. planning the task
+5. starting one or more agents
+6. granting only allowed tools
+7. executing commands safely
+8. editing files
+9. streaming progress
+10. pausing for approval when necessary
+11. recovering from interruption
+12. tracking token/runtime cost
+13. validating produced changes
+14. producing artifacts
+15. recording an auditable event history
+16. terminating cleanly
+17. resuming/retrying when appropriate
+18. reporting a deterministic final outcome
+
+This is the beginning of ZCoder as an **agent execution platform**, not merely an API wrapper.
+
+---
+
+# 0. NON-NEGOTIABLE RULES
+
+Before implementing:
+
+1. inspect the repository
+2. run the baseline
+3. fetch current official Anthropic documentation
+4. map existing capabilities
+5. reuse working abstractions
+6. avoid duplicate modules
+7. do not invent APIs
+8. preserve backward compatibility
+9. do not silently weaken security
+10. do not claim functionality merely because a class or CLI flag exists
+
+Use first-party Anthropic documentation as source-of-truth for:
+
+* Agent SDK
+* Managed Agents
+* Sessions
+* Events
+* Threads
+* Environments
+* Deployments
+* Deployment Runs
+* Multiagent
+* Outcomes
+* Memory Stores
+* Dreams
+* Vaults
+* MCP
+* Tunnels
+* Skills
+* Webhooks
+* Budgets
+* current beta headers
+
+---
+
+# 1. BASELINE
+
+Run before modifying code:
+
+```bash
+git status --short
+git log -20 --oneline
+git tag --sort=-version:refname | head -20
+
+python --version
+python -m pytest -q
+python main.py --help
+python main.py --version
+git diff --check
+
+python -m build
+```
+
+Also inspect:
+
+```text
+main.py
+coder.py
+claude_agents_sdk.py
+claude_tools.py
+claude_code_exec.py
+claude_memory.py
+claude_skills_api.py
+claude_wif.py
+resilience.py
+security.py
+config.py
+exceptions.py
+logging_config.py
+anthropic_conformance.py
+anthropic-conformance.yaml
+tui.py
+webapp*
+tests/
+docs/
+.github/workflows/
+```
+
+Search before adding a module.
+
+---
+
+# 2. PRE-FLIGHT — CLOSE UPGRADE-05 LOOSE ENDS
+
+Upgrade-05 reported:
+
+```text
+529 passed
+2 skipped
+```
+
+Before beginning architecture work, verify whether both skips are expected optional-dependency skips.
+
+Ensure CI has at least:
+
+```text
+minimal installation
+full installation
+```
+
+The full installation must install:
+
+```bash
+pip install ".[all]"
+```
+
+or equivalent and execute Web/TUI tests rather than skipping them.
+
+Do not block Upgrade-06 on unavailable GUI infrastructure if a test genuinely cannot run headlessly, but document it accurately.
+
+Also verify clean wheel installation outside the repository.
+
+---
+
+# 3. ARCHITECTURE FIRST
+
+Create or update:
+
+```text
+ARCHITECTURE.md
+docs/AGENT-RUNTIME.md
+docs/UPGRADE-06.md
+```
+
+Before extensive implementation, define the target runtime.
+
+Recommended logical architecture:
+
+```text
+┌───────────────────────────────────────────────┐
+│                 ZCoder API/CLI                │
+├───────────────────────────────────────────────┤
+│              Job Orchestrator                 │
+│                                               │
+│  Scheduler                                    │
+│  Planner                                      │
+│  Approval Engine                              │
+│  Policy Engine                                │
+│  Budget Manager                               │
+│  Event Bus                                    │
+│  Artifact Manager                             │
+├───────────────────────────────────────────────┤
+│               Runtime Adapter                 │
+│                                               │
+│   DirectRuntime                               │
+│   AgentSDKRuntime                             │
+│   ManagedAgentRuntime                         │
+├───────────────────────────────────────────────┤
+│              Execution Layer                  │
+│                                               │
+│ Workspace │ Sandbox │ Tools │ MCP │ Git       │
+├───────────────────────────────────────────────┤
+│              Persistence Layer                │
+│                                               │
+│ Jobs │ Runs │ Events │ Approvals │ Artifacts  │
+└───────────────────────────────────────────────┘
+```
+
+Names may differ.
+
+Architecture matters more than exact filenames.
+
+---
+
+# 4. INTRODUCE A DURABLE JOB MODEL
+
+Create a first-class ZCoder job abstraction.
+
+Conceptually:
+
+```python
+Job:
+    id
+    task
+    status
+    runtime
+    workspace
+    created_at
+    updated_at
+    started_at
+    completed_at
+
+    model
+    strategy
+    budget
+
+    parent_job_id
+    attempt
+    metadata
+```
+
+Job status must be explicit.
+
+Suggested state machine:
+
+```text
+CREATED
+   │
+   ▼
+PLANNING
+   │
+   ▼
+READY
+   │
+   ▼
+RUNNING
+   │
+   ├──────► WAITING_APPROVAL
+   │             │
+   │             └────► RUNNING
+   │
+   ├──────► PAUSED
+   │
+   ├──────► RETRYING
+   │
+   ├──────► BUDGET_REACHED
+   │
+   ├──────► CANCELLED
+   │
+   ├──────► FAILED
+   │
+   └──────► SUCCEEDED
+```
+
+Do not use arbitrary strings throughout the codebase.
+
+Validate legal state transitions.
+
+---
+
+# 5. JOB IDs MUST BE DURABLE
+
+A command such as:
+
+```bash
+zcoder run "Fix authentication tests"
+```
+
+must return a durable ZCoder job ID:
+
+```text
+job_...
+```
+
+The ID must remain usable after process restart.
+
+Support:
+
+```bash
+zcoder jobs list
+zcoder jobs show JOB_ID
+zcoder jobs events JOB_ID
+zcoder jobs cancel JOB_ID
+zcoder jobs retry JOB_ID
+zcoder jobs resume JOB_ID
+```
+
+Do not make job state purely in-memory.
+
+---
+
+# 6. PERSISTENCE
+
+Introduce a clean storage abstraction.
+
+Example:
+
+```python
+class JobStore:
+    create_job(...)
+    get_job(...)
+    update_job(...)
+    list_jobs(...)
+    append_event(...)
+    list_events(...)
+```
+
+Implement a lightweight durable default suitable for local ZCoder use.
+
+SQLite is acceptable if it fits current architecture.
+
+Do not introduce PostgreSQL merely for architectural prestige.
+
+However, the interface should not make future PostgreSQL support impossible.
+
+Use migrations/versioning for persistent schema.
+
+---
+
+# 7. EVENT STORE
+
+Every meaningful runtime transition should generate a structured event.
+
+Example:
+
+```text
+job.created
+job.planning_started
+job.plan_created
+job.started
+
+agent.started
+agent.message
+agent.tool_requested
+agent.tool_approved
+agent.tool_denied
+agent.tool_started
+agent.tool_completed
+
+workspace.changed
+
+validation.started
+validation.completed
+
+budget.warning
+budget.reached
+
+job.failed
+job.succeeded
+job.cancelled
+```
+
+Events need:
+
+```python
+id
+job_id
+sequence
+type
+timestamp
+payload
+```
+
+Sequence ordering must be deterministic per job.
+
+Never depend only on wall-clock ordering.
+
+---
+
+# 8. EVENT NORMALIZATION
+
+Do not expose Anthropic-specific Managed Agents event shapes as the ZCoder internal domain model.
+
+Introduce normalization:
+
+```text
+Anthropic Managed Agent Event
+          │
+          ▼
+ManagedAgentRuntime adapter
+          │
+          ▼
+ZCoderEvent
+```
+
+Likewise:
+
+```text
+Agent SDK callback/hook
+          │
+          ▼
+AgentSDKRuntime
+          │
+          ▼
+ZCoderEvent
+```
+
+Preserve provider-specific raw metadata separately where useful.
+
+---
+
+# 9. RUNTIME INTERFACE
+
+Design a stable internal interface.
+
+Conceptually:
+
+```python
+class AgentRuntime(Protocol):
+
+    async def start(...):
+        ...
+
+    async def resume(...):
+        ...
+
+    async def cancel(...):
+        ...
+
+    async def send(...):
+        ...
+
+    async def events(...):
+        ...
+
+    async def status(...):
+        ...
+```
+
+Do not force runtimes to fake unsupported semantics.
+
+Expose capabilities:
+
+```python
+RuntimeCapabilities(
+    durable_sessions=...,
+    resume=...,
+    fork=...,
+    multiagent=...,
+    sandbox=...,
+    memory=...,
+    webhooks=...,
+    deployments=...,
+)
+```
+
+---
+
+# 10. DIRECT RUNTIME
+
+Preserve the current custom Messages API/tool-loop architecture.
+
+Wrap it as:
+
+```text
+DirectRuntime
+```
+
+Do NOT rewrite known-good behavior merely to satisfy the new abstraction.
+
+It remains useful for:
+
+* low latency
+* precise request control
+* custom tool loops
+* specialized workflows
+* compatibility testing
+
+---
+
+# 11. AGENT SDK RUNTIME
+
+Implement or consolidate:
+
+```text
+AgentSDKRuntime
+```
+
+Use current official Claude Agent SDK behavior.
+
+Support where available:
+
+* built-in filesystem tools
+* command execution
+* web/search tools
+* hooks
+* subagents
+* permissions
+* sessions
+* resume
+* fork
+* MCP
+* skills
+* commands
+* project memory
+* plugins
+
+Do not recreate the Agent SDK's agent loop unnecessarily.
+
+ZCoder's role is orchestration, policy, persistence and observability around it.
+
+---
+
+# 12. MANAGED AGENT RUNTIME
+
+Implement:
+
+```text
+ManagedAgentRuntime
+```
+
+as a true adapter over Anthropic Managed Agents.
+
+Do not treat it as Agent SDK over HTTP.
+
+Map correctly:
+
+```text
+ZCoder job
+    │
+    └── Managed Agent session
+
+ZCoder runtime event
+    │
+    └── Managed Agent event/thread event
+
+ZCoder runtime config
+    │
+    ├── agent
+    └── environment
+```
+
+Persist remote IDs:
+
+```text
+managed_agent_id
+managed_environment_id
+managed_session_id
+managed_thread_id
+deployment_id
+```
+
+Never use those IDs as ZCoder's primary domain identity.
+
+---
+
+# 13. EXECUTION BACKEND SELECTION
+
+Support explicit:
+
+```bash
+zcoder run TASK --runtime direct
+zcoder run TASK --runtime agent-sdk
+zcoder run TASK --runtime managed
+```
+
+Also support:
+
+```bash
+--runtime auto
+```
+
+but AUTO must be explainable.
+
+Example decision factors:
+
+```text
+needs durable cloud execution
+needs local uncommitted files
+needs self-hosted sandbox
+needs long-running task
+needs interactive approval
+requires private-network MCP
+cost budget
+runtime availability
+```
+
+Provide:
+
+```bash
+zcoder runtime explain TASK
+```
+
+or equivalent debug output.
+
+---
+
+# 14. WORKSPACE MODEL
+
+Create first-class workspace handling.
+
+A coding job should know:
+
+```text
+repository root
+base branch
+working branch
+worktree
+commit base
+dirty state
+generated files
+artifacts
+```
+
+Never let multiple autonomous jobs unknowingly edit the same worktree concurrently.
+
+---
+
+# 15. GIT WORKTREE ISOLATION
+
+For concurrent local jobs, prefer isolated git worktrees where possible.
+
+Concept:
+
+```text
+repo/
+worktrees/
+    job_abc/
+    job_def/
+```
+
+Each job should have:
+
+```text
+base_sha
+branch_name
+worktree_path
+```
+
+Do not automatically delete a failed job's workspace if doing so could destroy useful changes.
+
+---
+
+# 16. DIRTY REPOSITORY SAFETY
+
+Before agent mutation:
+
+detect:
+
+```bash
+git status --porcelain
+```
+
+Policy options:
+
+```text
+deny
+allow
+snapshot
+isolated-worktree
+```
+
+Default must avoid destroying local user changes.
+
+Never automatically reset:
+
+```bash
+git reset --hard
+```
+
+against user-owned uncommitted work.
+
+---
+
+# 17. TASK PLANNING
+
+Introduce explicit plan representation.
+
+Example:
+
+```python
+Plan:
+    objective
+    assumptions
+    steps
+    validation
+    risk
+```
+
+Optional:
+
+```python
+PlanStep:
+    id
+    description
+    dependencies
+    status
+    assigned_agent
+```
+
+Do not require verbose planning for trivial tasks.
+
+Support:
+
+```text
+planning_mode:
+    none
+    lightweight
+    structured
+```
+
+---
+
+# 18. DAG EXECUTION
+
+For appropriate multi-step tasks, represent dependencies explicitly.
+
+Example:
+
+```text
+          ┌─► backend tests ─┐
+audit ────┤                 ├─► integration
+          └─► frontend fix ─┘
+```
+
+Do not parallelize steps that mutate overlapping files unless conflict handling exists.
+
+---
+
+# 19. MULTIAGENT ORCHESTRATION
+
+Support a first-class ZCoder multiagent strategy.
+
+Roles may include:
+
+```text
+coordinator
+architect
+researcher
+implementer
+reviewer
+tester
+security-reviewer
+```
+
+Do not hardcode these as mandatory.
+
+Allow strategy templates.
+
+For Managed Agents, use Anthropic's actual current multiagent semantics rather than simulating them with independent sessions when unnecessary.
+
+For Agent SDK runtime, use its legitimate subagent mechanisms where appropriate.
+
+---
+
+# 20. THREAD NORMALIZATION
+
+Managed multiagent execution may expose multiple runtime threads.
+
+Represent:
+
+```python
+AgentThread:
+    id
+    runtime_thread_id
+    role
+    parent_thread_id
+    model
+    status
+```
+
+ZCoder must be able to display:
+
+```bash
+zcoder jobs threads JOB_ID
+```
+
+and inspect a specific thread.
+
+---
+
+# 21. LIVE EVENT STREAMING
+
+Support:
+
+```bash
+zcoder jobs watch JOB_ID
+```
+
+Output should update from structured events.
+
+Do not rely on terminal scraping.
+
+For Managed Agents:
+
+correctly handle session/thread streaming and reconnect semantics according to current Anthropic documentation.
+
+On reconnect:
+
+* reconcile persisted event history
+* avoid duplicate display
+* avoid duplicate cost accounting
+* continue from durable state where supported
+
+---
+
+# 22. EVENT IDEMPOTENCY
+
+Events may be received more than once.
+
+Implement deduplication using stable event IDs or provider sequence metadata where available.
+
+Never execute a tool twice merely because an event stream reconnects.
+
+---
+
+# 23. OPERATOR APPROVAL ENGINE
+
+Introduce a generic approval domain.
+
+Example:
+
+```python
+ApprovalRequest:
+    id
+    job_id
+    type
+    requested_action
+    risk
+    requested_at
+    status
+```
+
+Approval state:
+
+```text
+PENDING
+APPROVED
+DENIED
+EXPIRED
+CANCELLED
+```
+
+Support:
+
+```bash
+zcoder approvals list
+zcoder approvals show ID
+zcoder approvals approve ID
+zcoder approvals deny ID
+```
+
+---
+
+# 24. TOOL POLICY ENGINE
+
+Tools need explicit policy.
+
+Example categories:
+
+```text
+READ_ONLY
+WORKSPACE_WRITE
+PROCESS_EXECUTION
+NETWORK
+GIT_MUTATION
+EXTERNAL_MUTATION
+SECRET_ACCESS
+DESTRUCTIVE
+```
+
+Policy result:
+
+```text
+ALLOW
+DENY
+REQUIRE_APPROVAL
+```
+
+Do not treat every shell command as equally dangerous.
+
+---
+
+# 25. COMMAND RISK CLASSIFICATION
+
+At minimum identify dangerous classes such as:
+
+```text
+filesystem deletion
+git force operations
+privileged commands
+package publishing
+production deployment
+credential mutation
+remote data deletion
+database destructive operations
+```
+
+Do not rely only on naive substring matching.
+
+Use policy plus structured tool metadata where possible.
+
+---
+
+# 26. SANDBOX ABSTRACTION
+
+Create:
+
+```text
+Sandbox
+```
+
+separate from runtime.
+
+Possible implementations:
+
+```text
+LocalProcessSandbox
+ContainerSandbox
+ManagedAgentSandbox
+SelfHostedManagedSandbox
+```
+
+Do not claim equivalent isolation levels.
+
+Expose sandbox capability metadata.
+
+---
+
+# 27. RESOURCE LIMITS
+
+Where the selected sandbox supports it, enforce:
+
+```text
+CPU
+memory
+process count
+wall-clock
+disk
+network
+output size
+```
+
+Gracefully report unsupported controls.
+
+---
+
+# 28. TOOL OUTPUT CONTROL
+
+Large tool outputs must not blow up context or event storage.
+
+Create a standard artifact/spill abstraction:
+
+```text
+small result -> inline
+large result -> artifact/file + summary
+```
+
+Store:
+
+```text
+artifact ID
+mime type
+size
+path/location
+hash
+```
+
+Do not silently truncate without telling the agent/operator.
+
+---
+
+# 29. ARTIFACT MANAGER
+
+First-class artifacts:
+
+```text
+patch
+diff
+log
+test report
+coverage
+generated file
+build artifact
+review report
+SBOM
+```
+
+Support:
+
+```bash
+zcoder jobs artifacts JOB_ID
+zcoder artifacts show ARTIFACT_ID
+```
+
+---
+
+# 30. FILE CHANGE TRACKING
+
+Capture changes per job.
+
+At minimum:
+
+```text
+files created
+files modified
+files deleted
+diff summary
+```
+
+Before final success, calculate actual Git diff rather than trusting agent claims.
+
+---
+
+# 31. VALIDATION PIPELINE
+
+A coding job must support validators.
+
+Example:
+
+```text
+lint
+typecheck
+unit tests
+integration tests
+build
+security checks
+custom command
+```
+
+Represent each validator result independently.
+
+A job cannot report SUCCEEDED merely because the agent says "done".
+
+---
+
+# 32. DEFINITION OF JOB SUCCESS
+
+Success requires policy.
+
+Example:
+
+```python
+SuccessPolicy(
+    agent_completed=True,
+    required_validators_passed=True,
+    unresolved_approvals=False,
+)
+```
+
+Expose:
+
+```text
+SUCCEEDED
+SUCCEEDED_WITH_WARNINGS
+FAILED_VALIDATION
+```
+
+where appropriate.
+
+---
+
+# 33. RETRY MODEL
+
+Separate:
+
+```text
+transport retry
+agent turn retry
+job retry
+validation retry
+```
+
+Do not conflate them.
+
+Job retries should have:
+
+```text
+attempt number
+previous attempt
+reason
+starting state
+```
+
+Preserve history.
+
+---
+
+# 34. CANCELLATION
+
+Cancellation must propagate.
+
+Example:
+
+```text
+operator
+   │
+zcoder job
+   │
+runtime
+   │
+agent/session
+   │
+tools/processes
+```
+
+Do not leave child processes or remote sessions silently running.
+
+Cancellation must be idempotent.
+
+---
+
+# 35. RESUME
+
+Support process restart recovery.
+
+Example:
+
+```bash
+zcoder jobs resume job_123
+```
+
+Depending on runtime:
+
+```text
+DIRECT       -> local persisted context/reconstruction
+AGENT SDK    -> resume SDK session where supported
+MANAGED      -> reconnect to remote session
+```
+
+Do not fake resume if backend semantics cannot guarantee it.
+
+---
+
+# 36. FORK
+
+When supported, expose:
+
+```bash
+zcoder jobs fork JOB_ID
+```
+
+Fork should preserve lineage:
+
+```text
+parent_job_id
+parent_session_id
+base_event
+```
+
+Use native backend functionality where appropriate.
+
+---
+
+# 37. COST MODEL
+
+Create unified job cost accounting.
+
+Track at minimum:
+
+```text
+input tokens
+output tokens
+cache reads
+cache writes
+thinking tokens where observable
+web searches
+runtime cost
+tool/container costs where relevant
+estimated total
+actual known total
+```
+
+Differentiate:
+
+```text
+ACTUAL
+PROVIDER_REPORTED
+ESTIMATED
+UNKNOWN
+```
+
+Never mix estimated and provider-reported values without metadata.
+
+---
+
+# 38. JOB BUDGET
+
+Expose ZCoder budget policy independent from backend-specific budgets.
+
+Example:
+
+```bash
+zcoder run TASK --budget-usd 5
+```
+
+Internally:
+
+```text
+ZCoderBudget
+│
+├── local advisory/enforcement logic
+└── provider-native hard budget
+    when genuinely supported
+```
+
+Never claim local enforcement has the same guarantees as a provider-side hard cap.
+
+---
+
+# 39. MANAGED AGENTS HARD BUDGET
+
+When runtime is Managed Agents and current Anthropic API supports provider-native session budget:
+
+use it.
+
+Handle:
+
+```text
+budget_reached
+```
+
+as a distinct state.
+
+Support operator action:
+
+```bash
+zcoder jobs budget JOB_ID --set 10
+zcoder jobs resume JOB_ID
+```
+
+Verify exact current API semantics first.
+
+---
+
+# 40. MULTIAGENT BUDGET ACCOUNTING
+
+For Managed Agents multiagent sessions, accurately account for shared session budget semantics and per-thread model usage.
+
+Do not invent per-thread hard caps unless current Anthropic API supports them.
+
+---
+
+# 41. MEMORY LAYER
+
+Define a generic ZCoder memory abstraction.
+
+Distinguish:
+
+```text
+job-local scratch
+project memory
+user memory
+runtime session context
+Managed Agents memory store
+Claude Code / Agent SDK project memory
+```
+
+Do not collapse these into one dictionary.
+
+---
+
+# 42. MEMORY TRUST BOUNDARY
+
+Persistent writable memory is a security boundary.
+
+Classify memory source:
+
+```text
+TRUSTED
+UNTRUSTED
+GENERATED
+EXTERNAL
+```
+
+Be especially careful when agent consumes:
+
+* web content
+* issue comments
+* third-party MCP output
+* user uploads
+
+and can subsequently write persistent memory.
+
+---
+
+# 43. MEMORY STORE SUPPORT
+
+For Managed Agents, support the current official memory-store API where applicable.
+
+Correctly handle:
+
+```text
+create
+list
+read
+write
+version history
+attach to session
+read-only
+read-write
+```
+
+Respect current beta-header behavior exactly.
+
+Do not blindly combine incompatible beta headers.
+
+---
+
+# 44. MEMORY VERSIONING
+
+Expose memory history where backend supports it.
+
+A user should be able to understand what an agent persisted.
+
+Never make persistent memory writes invisible.
+
+---
+
+# 45. DREAMS
+
+Dreams or analogous memory consolidation features must remain optional.
+
+If current official Anthropic status is research preview or gated:
+
+classify it accurately.
+
+Do not make release readiness depend on preview access.
+
+Provide an adapter only if the repository has entitlement or a mockable public contract.
+
+---
+
+# 46. SKILLS
+
+Unify skill discovery without flattening different skill systems.
+
+Model:
+
+```text
+SkillSource:
+    local
+    project
+    platform
+    managed_repository
+    plugin
+```
+
+Resolve conflicts deterministically.
+
+Expose:
+
+```bash
+zcoder skills list
+zcoder skills inspect NAME
+```
+
+---
+
+# 47. MCP REGISTRY
+
+Represent configured MCP servers centrally.
+
+Include:
+
+```text
+name
+transport
+scope
+auth mode
+trust level
+runtime compatibility
+enabled tools
+```
+
+Avoid duplicating MCP configuration separately across runtime modules.
+
+---
+
+# 48. MCP SECURITY
+
+Treat remote MCP output as untrusted unless explicitly trusted.
+
+Protect against:
+
+```text
+prompt injection
+unexpected tool expansion
+credential leakage
+mutation without approval
+oversized responses
+```
+
+Tool policy must apply to MCP tools.
+
+---
+
+# 49. PRIVATE NETWORK MCP
+
+If current Managed Agents supports private-network connectivity/tunnels:
+
+audit and integrate it through the runtime capability system.
+
+Do not make research-preview functionality a mandatory dependency.
+
+---
+
+# 50. VAULTS / CREDENTIALS
+
+Represent credential references, not credential plaintext.
+
+Runtime events/logging must never contain secret values.
+
+Architecture:
+
+```text
+CredentialRef
+    provider
+    name
+    scope
+    runtime
+```
+
+Do not put tokens into:
+
+```text
+job payloads
+event store
+logs
+artifact metadata
+CLI history where avoidable
+```
+
+---
+
+# 51. WEBHOOKS
+
+Add a generic inbound runtime-event adapter if Managed Agents webhooks are applicable.
+
+Validate signatures/authentication using official behavior.
+
+Webhook delivery must be:
+
+```text
+idempotent
+authenticated
+replay-safe where possible
+```
+
+Never trust webhook JSON merely because it reaches the endpoint.
+
+---
+
+# 52. WEBHOOK + STREAM RECONCILIATION
+
+ZCoder may receive the same lifecycle fact through:
+
+```text
+SSE stream
+webhook
+poll
+```
+
+Normalize and deduplicate.
+
+Do not count cost or execute side effects multiple times.
+
+---
+
+# 53. OUTCOMES
+
+If current Managed Agents Outcomes API is public and applicable, support it as runtime evaluation metadata.
+
+Do not replace ZCoder's own validation pipeline with provider outcomes.
+
+Think:
+
+```text
+Provider Outcome
++
+ZCoder Validation
+=
+Final Job Assessment
+```
+
+---
+
+# 54. DEPLOYMENTS
+
+Audit current Managed Agents deployment APIs.
+
+If suitable for ZCoder:
+
+support reusable agent deployment configuration.
+
+Example:
+
+```bash
+zcoder deployments list
+zcoder deployments show ID
+zcoder deployments run ID
+```
+
+But avoid duplicating `ant` CLI merely for feature-count parity.
+
+Only expose workflows relevant to ZCoder.
+
+---
+
+# 55. ENVIRONMENTS
+
+Represent execution environment separately from agent configuration.
+
+Concept:
+
+```python
+Environment:
+    backend
+    sandbox
+    network
+    resources
+    secrets
+    repository
+```
+
+Managed hosted and self-hosted environments must remain distinguishable.
+
+---
+
+# 56. SELF-HOSTED MANAGED SANDBOX
+
+If current public Anthropic functionality supports self-hosted Managed Agent environments:
+
+audit it.
+
+Integrate only using documented APIs.
+
+This could become an important ZCoder enterprise backend.
+
+Do not invent orchestration for unsupported infrastructure.
+
+---
+
+# 57. AGENT PROFILE
+
+Create reusable agent profiles.
+
+Example:
+
+```yaml
+name: production-coder
+runtime: auto
+model: auto
+
+tools:
+  filesystem: true
+  shell: approval
+  web: true
+
+validation:
+  - pytest
+  - ruff
+
+budget:
+  usd: 10
+```
+
+Support project-level config.
+
+---
+
+# 58. PROJECT CONFIG
+
+Prefer a clear project configuration such as:
+
+```text
+.zcoder/
+    config.yaml
+    agents/
+    policies/
+```
+
+Do not interfere with:
+
+```text
+.claude/
+```
+
+Claude Code and Agent SDK should remain able to consume their native configuration.
+
+---
+
+# 59. POLICY CONFIG
+
+Example:
+
+```yaml
+tools:
+  read:
+    policy: allow
+
+  write:
+    policy: allow
+    scope: workspace
+
+  shell:
+    policy: approval
+
+  git_push:
+    policy: approval
+
+  deploy:
+    policy: deny
+```
+
+Validate schema.
+
+Fail closed on invalid security policy.
+
+---
+
+# 60. NETWORK POLICY
+
+Classify network use.
+
+Examples:
+
+```text
+deny
+read-only-web
+allowlisted
+unrestricted
+```
+
+Do not silently permit unrestricted outbound connectivity in high-security mode.
+
+---
+
+# 61. APPROVAL UX
+
+CLI interactive approval should show:
+
+```text
+Job
+Agent
+Requested action
+Tool
+Arguments
+Risk
+Working directory
+Reason
+```
+
+Then:
+
+```text
+Approve once
+Approve for job
+Deny
+Cancel job
+```
+
+Do not implement broad permanent "always allow everything".
+
+---
+
+# 62. NON-INTERACTIVE MODE
+
+For automation:
+
+```bash
+zcoder run TASK --non-interactive
+```
+
+must have deterministic approval policy.
+
+Never hang indefinitely waiting for an interactive prompt.
+
+Example behavior:
+
+```text
+require-approval action encountered
+→ fail/pause job
+→ machine-readable state
+```
+
+---
+
+# 63. JSON OUTPUT
+
+All operator APIs important to automation should support JSON.
+
+Example:
+
+```bash
+zcoder jobs show JOB --json
+zcoder jobs events JOB --json
+zcoder approvals list --json
+```
+
+Schemas should be documented.
+
+---
+
+# 64. EXIT CODES
+
+Define stable exit codes.
+
+At minimum distinguish:
+
+```text
+success
+validation failure
+approval required
+budget reached
+cancelled
+runtime unavailable
+configuration invalid
+authentication
+provider failure
+```
+
+Do not force automation to parse human text.
+
+---
+
+# 65. JOB WATCH UI
+
+Default CLI watch view should display compact information:
+
+```text
+JOB job_123
+RUNNING · managed · claude-opus-5
+
+[03:12] planner      plan created
+[03:14] implementer  editing auth.py
+[03:20] tool         pytest tests/auth
+[03:27] validator    42 passed
+
+Tokens     ...
+Runtime    ...
+Cost       ...
+Budget     ...
+```
+
+Keep raw debug mode available separately.
+
+---
+
+# 66. TUI
+
+Extend TUI only after core services work.
+
+The TUI should consume JobStore/EventStore interfaces rather than directly invoking Anthropic clients.
+
+Views:
+
+```text
+Jobs
+Job details
+Threads
+Events
+Approvals
+Artifacts
+Cost
+```
+
+Do not place business logic in TUI widgets.
+
+---
+
+# 67. WEB CONSOLE
+
+Same principle:
+
+```text
+Web UI
+  ↓
+Job Service
+  ↓
+Runtime
+```
+
+Not:
+
+```text
+Web UI
+  ↓
+Anthropic API directly
+```
+
+Add live event streaming through the shared event layer.
+
+---
+
+# 68. API SERVER
+
+If Web API already exists, expose coherent endpoints.
+
+Example:
+
+```text
+POST   /api/jobs
+GET    /api/jobs
+GET    /api/jobs/{id}
+
+POST   /api/jobs/{id}/cancel
+POST   /api/jobs/{id}/resume
+POST   /api/jobs/{id}/retry
+
+GET    /api/jobs/{id}/events
+GET    /api/jobs/{id}/artifacts
+
+GET    /api/approvals
+POST   /api/approvals/{id}/approve
+POST   /api/approvals/{id}/deny
+```
+
+Use project conventions.
+
+---
+
+# 69. AUTHORIZATION BOUNDARY
+
+If the Web interface can mutate jobs:
+
+do not assume authentication equals authorization.
+
+Prepare architecture for:
+
+```text
+job owner
+operator
+administrator
+```
+
+Even if current local edition has only one user.
+
+---
+
+# 70. OBSERVABILITY
+
+Instrument:
+
+```text
+job duration
+planning duration
+tool execution duration
+validation duration
+runtime errors
+retries
+approvals
+budget exhaustion
+tokens
+cost
+agent/thread count
+```
+
+Avoid high-cardinality metrics.
+
+Use tracing/log context for:
+
+```text
+job_id
+session_id
+thread_id
+```
+
+---
+
+# 71. STRUCTURED LOGGING
+
+Logs should contain structured metadata:
+
+```json
+{
+  "job_id": "...",
+  "runtime": "managed",
+  "event": "tool.completed",
+  "duration_ms": 123
+}
+```
+
+Never log:
+
+```text
+API keys
+vault values
+OAuth tokens
+private key material
+raw authorization headers
+```
+
+---
+
+# 72. AUDIT TRAIL
+
+Mutating operator actions need durable audit events:
+
+```text
+approval granted
+approval denied
+budget changed
+job cancelled
+retry requested
+policy overridden
+```
+
+Record:
+
+```text
+actor
+action
+timestamp
+target
+```
+
+For local single-user installations, actor may initially be:
+
+```text
+local-operator
+```
+
+Keep schema extensible.
+
+---
+
+# 73. CRASH RECOVERY
+
+Simulate process termination during:
+
+```text
+RUNNING
+WAITING_APPROVAL
+VALIDATION
+```
+
+Restart ZCoder.
+
+Ensure jobs can be classified correctly.
+
+Do not leave ambiguous:
+
+```text
+RUNNING forever
+```
+
+Introduce recovery/reconciliation.
+
+---
+
+# 74. REMOTE RECONCILIATION
+
+For Managed Agents:
+
+local state may be stale.
+
+Implement reconciliation:
+
+```text
+local job state
+        +
+remote session state
+        ↓
+reconciled ZCoder state
+```
+
+Do not overwrite useful local terminal states incorrectly.
+
+---
+
+# 75. CONCURRENCY
+
+Support multiple jobs safely.
+
+Define:
+
+```text
+max jobs
+max local agents
+max validation processes
+```
+
+Use bounded concurrency.
+
+Do not spawn unlimited subagents/processes.
+
+---
+
+# 76. RATE LIMITING
+
+Integrate existing Anthropic rate-limit knowledge.
+
+Avoid creating a retry storm when many jobs hit 429 simultaneously.
+
+Use shared runtime-level throttling where appropriate.
+
+---
+
+# 77. SCHEDULING
+
+Implement basic scheduler abstraction.
+
+Possible priorities:
+
+```text
+LOW
+NORMAL
+HIGH
+```
+
+Fairness matters.
+
+Do not starve old jobs indefinitely.
+
+Advanced distributed scheduling is NOT required yet.
+
+---
+
+# 78. JOB QUEUE
+
+If useful, separate:
+
+```text
+queued
+running
+```
+
+The persistent store is the source of truth.
+
+Avoid building Redis/Kafka infrastructure unless repository requirements justify it.
+
+---
+
+# 79. IDEMPOTENT JOB SUBMISSION
+
+Allow optional idempotency key.
+
+Example:
+
+```bash
+zcoder run TASK --idempotency-key CI-12345
+```
+
+Duplicate submission should not accidentally launch multiple expensive jobs.
+
+---
+
+# 80. CHECKPOINTS
+
+Record logical checkpoints:
+
+```text
+plan complete
+implementation complete
+tests complete
+review complete
+```
+
+This improves recovery and operator visibility.
+
+Do not confuse checkpoints with Anthropic session internals.
+
+---
+
+# 81. CODING WORKFLOW TEMPLATE
+
+Ship at least one robust workflow:
+
+```text
+analyze
+→ plan
+→ implement
+→ test
+→ review
+→ fix
+→ final validate
+```
+
+But allow shorter workflows.
+
+---
+
+# 82. REVIEW AGENT
+
+Optional independent reviewer should inspect actual diff.
+
+Review categories:
+
+```text
+correctness
+security
+tests
+backward compatibility
+architecture
+performance
+```
+
+It must not automatically rewrite implementation unless workflow permits it.
+
+---
+
+# 83. TEST-FIX LOOP
+
+Support bounded repair loop:
+
+```text
+implementation
+→ tests fail
+→ diagnose
+→ repair
+→ rerun
+```
+
+Maximum attempts must be configurable.
+
+Avoid infinite autonomous loops.
+
+---
+
+# 84. STOP CONDITIONS
+
+Each job needs explicit stop conditions:
+
+```text
+max attempts
+budget
+wall-clock
+operator cancellation
+no progress
+validation success
+fatal policy violation
+```
+
+---
+
+# 85. NO-PROGRESS DETECTION
+
+Detect simple pathological loops.
+
+Signals may include:
+
+```text
+same failure repeated
+same tool invocation repeatedly
+same patch repeatedly
+no file changes
+```
+
+Do not rely on semantic similarity alone for correctness.
+
+---
+
+# 86. CONTEXT MANAGEMENT
+
+Reuse backend-native context management where suitable.
+
+Do not independently summarize context if Agent SDK/Managed Agents already provides appropriate compaction unless ZCoder has a specific reason.
+
+Track context-management events for diagnostics.
+
+---
+
+# 87. BACKEND PORTABILITY TEST
+
+Create a small test workflow runnable across:
+
+```text
+DirectRuntime
+MockAgentSDKRuntime
+MockManagedRuntime
+```
+
+Validate that core ZCoder job lifecycle remains backend-independent.
+
+---
+
+# 88. FAKE RUNTIME
+
+Create a deterministic FakeRuntime for tests.
+
+Capabilities:
+
+```text
+scripted events
+forced failure
+budget reached
+approval requested
+retry
+cancel
+resume
+```
+
+Most orchestration tests should not require Anthropic credentials.
+
+---
+
+# 89. CONTRACT TESTS
+
+For each runtime adapter test:
+
+```text
+start
+events
+status
+cancel
+resume
+error mapping
+```
+
+For Managed Agents also verify actual documented wire shapes independently.
+
+---
+
+# 90. STATE-MACHINE TESTS
+
+Test every legal and illegal state transition.
+
+Property-based testing is welcome if useful.
+
+Examples:
+
+```text
+SUCCEEDED -> RUNNING     invalid
+CANCELLED -> resume      policy-dependent
+WAITING_APPROVAL -> RUNNING after approval
+BUDGET_REACHED -> resume after valid budget change
+```
+
+---
+
+# 91. CRASH TESTS
+
+Persist job.
+
+Destroy orchestrator object.
+
+Recreate.
+
+Resume/reconcile.
+
+Prove state survives.
+
+---
+
+# 92. CONCURRENCY TESTS
+
+Test:
+
+```text
+two jobs
+same repo
+different worktrees
+
+two jobs
+same idempotency key
+
+cancel during tool execution
+
+approval arriving during reconciliation
+```
+
+Avoid timing-fragile sleeps.
+
+---
+
+# 93. SECURITY TESTS
+
+Add tests proving:
+
+* secrets are never event payloads
+* denied tool cannot execute
+* workspace traversal blocked
+* unsafe Git mutation requires approval
+* cancellation terminates child processes
+* malformed webhook rejected
+* policy invalid -> fail closed
+* untrusted memory cannot silently gain trusted status
+
+---
+
+# 94. COST TESTS
+
+Test:
+
+```text
+normal completion
+budget warning
+budget reached
+resume with larger budget
+multiagent usage aggregation
+provider cost + runtime cost
+```
+
+Expected values should be independently expressed.
+
+---
+
+# 95. INTEGRATION TEST
+
+Build one end-to-end offline scenario:
+
+```text
+create temporary Git repo
+
+insert failing Python test
+
+submit ZCoder job using FakeRuntime
+
+agent produces patch
+
+validator runs pytest
+
+job succeeds
+
+inspect:
+  events
+  artifact
+  diff
+  cost
+  final state
+```
+
+No Anthropic key required.
+
+---
+
+# 96. OPTIONAL LIVE TESTS
+
+Create separately marked tests for:
+
+```text
+Agent SDK
+Managed Agents
+```
+
+Example:
+
+```bash
+pytest -m anthropic_live_agent_sdk
+
+pytest -m anthropic_live_managed
+```
+
+They must be disabled by default.
+
+Keep live tests minimal-cost.
+
+Never send private repository content from CI unexpectedly.
+
+---
+
+# 97. RELEASE GATE INTEGRATION
+
+Extend Upgrade-05 release gate.
+
+Add:
+
+```text
+AGENT_RUNTIME
+JOB_STATE_MACHINE
+PERSISTENCE
+APPROVAL_POLICY
+SANDBOX
+ARTIFACTS
+RUNTIME_ADAPTERS
+```
+
+Example:
+
+```text
+SOURCE_TRUTH: PASS
+TESTS: PASS
+BUILD: PASS
+INSTALL: PASS
+AGENT_RUNTIME: PASS
+JOB_STATE_MACHINE: PASS
+PERSISTENCE: PASS
+APPROVAL_POLICY: PASS
+SECURITY: PASS
+```
+
+---
+
+# 98. CLI TARGET
+
+By the end of Upgrade-06, aim for a coherent experience approximately like:
+
+```bash
+zcoder run "Fix failing tests"
+
+zcoder run "Review authentication" \
+  --runtime agent-sdk
+
+zcoder run "Migrate API and run all tests" \
+  --runtime managed \
+  --budget-usd 10
+
+zcoder jobs list
+
+zcoder jobs show job_123
+
+zcoder jobs watch job_123
+
+zcoder jobs threads job_123
+
+zcoder jobs artifacts job_123
+
+zcoder jobs cancel job_123
+
+zcoder jobs retry job_123
+
+zcoder jobs resume job_123
+
+zcoder approvals list
+
+zcoder approvals approve apr_123
+```
+
+Exact commands may differ if existing CLI architecture suggests a better design.
+
+Keep old flags working.
+
+---
+
+# 99. DO NOT DO THESE THINGS
+
+Do NOT:
+
+* rewrite the whole repository
+* create duplicate Anthropic clients
+* implement fake provider APIs
+* claim resume where impossible
+* hide tests
+* create unbounded autonomous loops
+* grant shell/network access globally
+* put secrets in the event database
+* automatically force-push Git
+* automatically publish packages
+* automatically deploy production changes
+* automatically approve destructive operations
+* use Managed Agents as if it were the Agent SDK
+* use Agent SDK as if it were Managed Agents
+* require network access for normal unit tests
+* make preview features production dependencies
+* add Postgres/Redis/Kafka/Kubernetes without a demonstrated requirement
+
+---
+
+# 100. VERSION DECISION
+
+Upgrade-06 introduces significant backward-compatible functionality.
+
+If v1.40.0 remains unreleased and Upgrade-06 materially changes scope, decide whether this work should become:
+
+```text
+v1.41.0
+```
+
+or a later minor release.
+
+Do not casually keep stacking major new runtime architecture into an already-defined release candidate.
+
+Explain the SemVer decision.
+
+---
+
+# 101. REQUIRED DOCUMENTATION
+
+Update:
+
+```text
+README.md
+CHANGELOG.md
+ROADMAP.md
+ARCHITECTURE.md
+SECURITY.md
+CONTRIBUTING.md
+```
+
+Add or update:
+
+```text
+docs/UPGRADE-06.md
+docs/AGENT-RUNTIME.md
+docs/JOB-LIFECYCLE.md
+docs/RUNTIME-ADAPTERS.md
+docs/TOOL-POLICY.md
+docs/APPROVALS.md
+docs/SANDBOX.md
+docs/AGENT-MEMORY.md
+```
+
+Do not create empty placeholder documentation.
+
+---
+
+# 102. REQUIRED FINAL VERIFICATION
+
+Run:
+
+```bash
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+git status --short
+```
+
+Run full optional-dependency suite.
+
+Run package clean-install smoke test.
+
+Run the release gate.
+
+If available:
+
+```bash
+ruff check .
+black --check .
+mypy .
+```
+
+Do not omit failed commands from the final report.
+
+---
+
+# 103. DEFINITION OF DONE
+
+Upgrade-06 is complete only when:
+
+* [ ] durable ZCoder Job model exists
+* [ ] job state survives process restart
+* [ ] structured event history exists
+* [ ] runtime adapter interface exists
+* [ ] Direct runtime is preserved
+* [ ] Agent SDK runtime is integrated
+* [ ] Managed Agents runtime is integrated
+* [ ] runtime capabilities are explicit
+* [ ] local and remote session IDs are persisted correctly
+* [ ] operator approval engine exists
+* [ ] tool policy engine exists
+* [ ] dangerous mutations are gated
+* [ ] workspace safety exists
+* [ ] concurrent jobs cannot corrupt the same worktree
+* [ ] cancellation works
+* [ ] retries are bounded
+* [ ] resume/reconciliation works where supported
+* [ ] artifacts and diffs are recorded
+* [ ] validation pipeline determines job success
+* [ ] cost/budget accounting exists
+* [ ] secrets do not enter event storage
+* [ ] FakeRuntime enables offline tests
+* [ ] runtime adapters have contract tests
+* [ ] state machine has exhaustive tests
+* [ ] at least one end-to-end offline coding workflow passes
+* [ ] CLI exposes coherent job/operator commands
+* [ ] TUI/Web use shared job services where implemented
+* [ ] release gate includes agent-runtime correctness
+* [ ] normal CI requires no Anthropic credential
+* [ ] docs match actual implementation
+* [ ] no P0/P1 runtime/security defects remain
+
+---
+
+# 104. FINAL REPORT FORMAT
+
+Return exactly:
+
+## 1. Baseline
+
+Repository/version/test state before Upgrade-06.
+
+## 2. Architecture
+
+Old architecture versus new runtime architecture.
+
+## 3. Job Runtime
+
+Job model, lifecycle and persistence.
+
+## 4. Runtime Adapters
+
+Table:
+
+Runtime | Backend | Durable | Resume | Multiagent | Sandbox | Memory | Status
+
+## 5. Agent Orchestration
+
+Planner, DAG, multiagent and validation workflow.
+
+## 6. Workspace & Git Safety
+
+Worktrees, dirty-tree policy and change tracking.
+
+## 7. Approval & Tool Policy
+
+Security behavior and operator UX.
+
+## 8. Managed Agents Integration
+
+Agents, environments, sessions, threads, events, budgets and supported optional capabilities.
+
+## 9. Agent SDK Integration
+
+Sessions, subagents, hooks, tools, skills, MCP and permissions.
+
+## 10. Persistence & Recovery
+
+Crash recovery, reconciliation and idempotency.
+
+## 11. Cost & Budget
+
+Provider usage, runtime cost and budget enforcement.
+
+## 12. Memory / Skills / MCP
+
+Architecture and security boundaries.
+
+## 13. CLI
+
+Exact commands added or changed.
+
+## 14. Web / TUI
+
+Shared-service integration status.
+
+## 15. Tests
+
+Exact new tests and final totals.
+
+## 16. Security Review
+
+Threats found and mitigations.
+
+## 17. Release Gate
+
+Report:
+
+SOURCE_TRUTH:
+TESTS:
+BUILD:
+INSTALL:
+JOB_RUNTIME:
+RUNTIME_ADAPTERS:
+PERSISTENCE:
+APPROVAL_POLICY:
+SANDBOX:
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 18. Version Decision
+
+Chosen release version and SemVer reasoning.
+
+## 19. Files Changed
+
+Exact paths.
+
+## 20. Remaining Gaps
+
+Only genuine unresolved limitations.
+
+## 21. Final Verdict
+
+Do not claim:
+
+PRODUCTION READY
+
+unless all mandatory gates are PASS.
+
+Do not call a feature implemented merely because a stub, CLI flag, documentation page or mock exists.
+
+Implementation evidence must include working code plus tests.
