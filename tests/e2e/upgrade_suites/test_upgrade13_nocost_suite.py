@@ -8,13 +8,13 @@ Verifies:
   5. Privacy-First Local Analytics Engine (in-memory offline stats)
   6. Workflow Builder & Versioned Templates (step planning & validation)
 """
+
 import pytest
 
 from no_cost_platform import (
     CostClass,
     CostOptimizer,
     CostPolicy,
-    InAppNotification,
     LocalAnalyticsEngine,
     LocalObjectStorage,
     NotificationCenter,
@@ -132,8 +132,12 @@ def test_workflow_builder_and_templates():
         name="Custom Linter",
         organization_id="org_dev",
         steps=[
-            WorkflowStep(id="st_1", name="Ruff Lint", action_type="command", parameters={"command": "ruff check ."}),
-            WorkflowStep(id="st_2", name="Notify Slack", action_type="notification", parameters={"channel": "#dev"}),
+            WorkflowStep(
+                id="st_1", name="Ruff Lint", action_type="command", parameters={"command": "ruff check ."}
+            ),
+            WorkflowStep(
+                id="st_2", name="Notify Slack", action_type="notification", parameters={"channel": "#dev"}
+            ),
         ],
     )
     engine.register_workflow(custom_wf)

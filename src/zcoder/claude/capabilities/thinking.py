@@ -39,12 +39,10 @@ CLI flags added in main.py:
   --show-thinking             Print thinking content to stderr
 """
 
-import os
 import sys
-import json
-import anthropic
 from typing import Optional
 
+import anthropic
 
 # ── Effort → budget mapping (legacy manual mode only) ──────────────────────
 # "xhigh" (live since April 16, 2026 on Opus 4.7, and part of Opus 5's
@@ -53,11 +51,11 @@ from typing import Optional
 # "high" and "max" here, matching the budget_tokens value Opus 5's
 # dedicated module already uses for it, so the two ladders agree.
 EFFORT_BUDGETS = {
-    "low":    2_000,
+    "low": 2_000,
     "medium": 8_000,
-    "high":   16_000,
-    "xhigh":  24_000,
-    "max":    32_000,
+    "high": 16_000,
+    "xhigh": 24_000,
+    "max": 32_000,
 }
 
 # Models where adaptive thinking is the modern, correct path.
@@ -66,10 +64,13 @@ EFFORT_BUDGETS = {
 # other model in this set, manual budget_tokens is a hard 400 error.
 ADAPTIVE_THINKING_MODELS = {
     "claude-opus-5",
-    "claude-mythos-5", "claude-fable-5",
-    "claude-opus-4-8", "claude-opus-4-7",
+    "claude-mythos-5",
+    "claude-fable-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
     "claude-sonnet-5",
-    "claude-opus-4-6", "claude-sonnet-4-6",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     "claude-mythos-preview",
 }
 
@@ -77,8 +78,10 @@ ADAPTIVE_THINKING_MODELS = {
 # working mode, --effort-legacy-budget must refuse rather than fail late.
 BUDGET_TOKENS_UNSUPPORTED_MODELS = {
     "claude-opus-5",
-    "claude-mythos-5", "claude-fable-5",
-    "claude-opus-4-8", "claude-opus-4-7",
+    "claude-mythos-5",
+    "claude-fable-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
     "claude-sonnet-5",
     "claude-mythos-preview",
 }
@@ -115,10 +118,9 @@ class ThinkingModeError(ValueError):
 class ThinkingCoder:
     """Claude client with extended / adaptive thinking support."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6",
-                 max_tokens: int = 8000):
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 8000):
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model   = model
+        self.model = model
         self.max_tokens = max_tokens
 
     # ── Single-shot with thinking ──────────────────────────────────────────
@@ -201,10 +203,10 @@ class ThinkingCoder:
             print("\033[90m── END THINKING ──────────────────\033[0m\n", file=sys.stderr)
 
         return {
-            "thinking":  thinking_text,
-            "response":  response_text,
-            "usage":     resp.usage.model_dump() if hasattr(resp.usage, "model_dump") else {},
-            "model":     self.model,
+            "thinking": thinking_text,
+            "response": response_text,
+            "usage": resp.usage.model_dump() if hasattr(resp.usage, "model_dump") else {},
+            "model": self.model,
         }
 
     def _resolve_mode(self, adaptive: Optional[bool], legacy_budget: bool) -> bool:
@@ -269,7 +271,7 @@ class ThinkingCoder:
             kwargs["max_tokens"] = max(self.max_tokens, budget_tokens + 1000)
 
         full_response = ""
-        in_thinking   = False
+        in_thinking = False
 
         with self.client.messages.stream(**kwargs) as stream:
             for event in stream:
@@ -303,10 +305,20 @@ class ThinkingCoder:
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_thinking(prompt: str, api_key: str, model: str, budget: int,
-                 effort: str, adaptive: Optional[bool], show_thinking: bool,
-                 stream: bool, system: str = None, display_omitted: bool = False,
-                 legacy_budget: bool = False):
+
+def cmd_thinking(
+    prompt: str,
+    api_key: str,
+    model: str,
+    budget: int,
+    effort: str,
+    adaptive: Optional[bool],
+    show_thinking: bool,
+    stream: bool,
+    system: str = None,
+    display_omitted: bool = False,
+    legacy_budget: bool = False,
+):
     """Called from main.py --thinking.
 
     `adaptive`: True/False forces a mode; None (main.py's default when
@@ -318,27 +330,41 @@ def cmd_thinking(prompt: str, api_key: str, model: str, budget: int,
     tc = ThinkingCoder(api_key=api_key, model=model)
 
     mode = "adaptive" if tc._resolve_mode(adaptive, legacy_budget) else "manual budget_tokens"
-    print(f"\033[94mℹ Extended Thinking | mode={mode} | effort={effort or 'default'} | "
-          f"budget={budget} tokens (manual mode only)\033[0m\n")
+    print(
+        f"\033[94mℹ Extended Thinking | mode={mode} | effort={effort or 'default'} | "
+        f"budget={budget} tokens (manual mode only)\033[0m\n"
+    )
 
     if stream:
         result = tc.stream_with_thinking(
-            prompt, system=system, budget_tokens=budget,
-            effort=effort, adaptive=adaptive, legacy_budget=legacy_budget,
-            show_thinking=show_thinking, display_omitted=display_omitted,
+            prompt,
+            system=system,
+            budget_tokens=budget,
+            effort=effort,
+            adaptive=adaptive,
+            legacy_budget=legacy_budget,
+            show_thinking=show_thinking,
+            display_omitted=display_omitted,
         )
         return result
     else:
         result = tc.generate_with_thinking(
-            prompt, system=system, budget_tokens=budget,
-            effort=effort, adaptive=adaptive, legacy_budget=legacy_budget,
-            show_thinking=show_thinking, display_omitted=display_omitted,
+            prompt,
+            system=system,
+            budget_tokens=budget,
+            effort=effort,
+            adaptive=adaptive,
+            legacy_budget=legacy_budget,
+            show_thinking=show_thinking,
+            display_omitted=display_omitted,
         )
         print(result["response"])
         usage = result.get("usage", {})
         if usage:
             thinking_tokens = usage.get("output_tokens_details", {}).get("thinking_tokens", 0)
-            print(f"\n\033[90m[tokens] input={usage.get('input_tokens',0)}  "
-                  f"output={usage.get('output_tokens',0)}  "
-                  f"thinking={thinking_tokens}\033[0m")
+            print(
+                f"\n\033[90m[tokens] input={usage.get('input_tokens',0)}  "
+                f"output={usage.get('output_tokens',0)}  "
+                f"thinking={thinking_tokens}\033[0m"
+            )
         return result["response"]

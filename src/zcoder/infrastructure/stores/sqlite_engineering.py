@@ -1,4 +1,5 @@
 """sqlite_engineering_store.py — Durable SQLite-backed engineering storage."""
+
 from __future__ import annotations
 
 import json
@@ -62,13 +63,20 @@ class SQLiteEngineeringStore(EngineeringStore):
     def save_task(self, task: EngineeringTask) -> None:
         task.updated_at = time.time()
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO tasks (id, task_description, status, created_at, updated_at, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                task.id, task.task_description, task.status.value,
-                task.created_at, task.updated_at, json.dumps(task.metadata)
-            ))
+            """,
+                (
+                    task.id,
+                    task.task_description,
+                    task.status.value,
+                    task.created_at,
+                    task.updated_at,
+                    json.dumps(task.metadata),
+                ),
+            )
 
     def get_task(self, task_id: str) -> Optional[EngineeringTask]:
         with self._get_connection() as conn:
@@ -78,41 +86,71 @@ class SQLiteEngineeringStore(EngineeringStore):
             if not row:
                 return None
             return EngineeringTask(
-                id=row[0], task_description=row[1], status=TaskStatus(row[2]),
-                created_at=row[3], updated_at=row[4], metadata=json.loads(row[5])
+                id=row[0],
+                task_description=row[1],
+                status=TaskStatus(row[2]),
+                created_at=row[3],
+                updated_at=row[4],
+                metadata=json.loads(row[5]),
             )
 
     def create_attempt(self, attempt: Attempt) -> None:
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO attempts (id, task_id, generation, status, started_at, completed_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (attempt.id, attempt.task_id, attempt.generation, attempt.status, attempt.started_at, attempt.completed_at))
+            """,
+                (
+                    attempt.id,
+                    attempt.task_id,
+                    attempt.generation,
+                    attempt.status,
+                    attempt.started_at,
+                    attempt.completed_at,
+                ),
+            )
 
     def save_checkpoint(self, checkpoint: Checkpoint) -> None:
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO checkpoints (id, task_id, attempt_id, sequence, phase, state_snapshot, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                checkpoint.id, checkpoint.task_id, checkpoint.attempt_id, checkpoint.sequence,
-                checkpoint.phase, json.dumps(checkpoint.state_snapshot), checkpoint.timestamp
-            ))
+            """,
+                (
+                    checkpoint.id,
+                    checkpoint.task_id,
+                    checkpoint.attempt_id,
+                    checkpoint.sequence,
+                    checkpoint.phase,
+                    json.dumps(checkpoint.state_snapshot),
+                    checkpoint.timestamp,
+                ),
+            )
 
     def get_latest_checkpoint(self, attempt_id: str) -> Optional[Checkpoint]:
         with self._get_connection() as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM checkpoints 
                 WHERE attempt_id = ? 
                 ORDER BY sequence DESC LIMIT 1
-            """, (attempt_id,))
+            """,
+                (attempt_id,),
+            )
             row = cur.fetchone()
             if not row:
                 return None
             return Checkpoint(
-                id=row[0], task_id=row[1], attempt_id=row[2], sequence=row[3],
-                phase=row[4], state_snapshot=json.loads(row[5]), timestamp=row[6]
+                id=row[0],
+                task_id=row[1],
+                attempt_id=row[2],
+                sequence=row[3],
+                phase=row[4],
+                state_snapshot=json.loads(row[5]),
+                timestamp=row[6],
             )
 
     def list_tasks(self, status: Optional[str] = None) -> List[EngineeringTask]:
@@ -124,8 +162,12 @@ class SQLiteEngineeringStore(EngineeringStore):
                 cur.execute("SELECT * FROM tasks ORDER BY created_at DESC")
             return [
                 EngineeringTask(
-                    id=row[0], task_description=row[1], status=TaskStatus(row[2]),
-                    created_at=row[3], updated_at=row[4], metadata=json.loads(row[5])
+                    id=row[0],
+                    task_description=row[1],
+                    status=TaskStatus(row[2]),
+                    created_at=row[3],
+                    updated_at=row[4],
+                    metadata=json.loads(row[5]),
                 )
                 for row in cur.fetchall()
             ]

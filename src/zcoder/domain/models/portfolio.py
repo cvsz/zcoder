@@ -1,11 +1,12 @@
 """portfolio_models.py — Repository Portfolio & Campaign Management Entities."""
+
 from __future__ import annotations
 
 import enum
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import List
 
 
 class RepoStatus(str, enum.Enum):

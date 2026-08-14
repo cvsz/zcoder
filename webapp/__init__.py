@@ -3,6 +3,7 @@
 Keep direct ``uvicorn webapp.backend.server:app`` source-checkout execution
 working while the application implementation lives under ``src/``.
 """
+
 import sys
 from pathlib import Path
 

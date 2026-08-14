@@ -12,18 +12,18 @@ Provides:
   • SCIM 2.0 provisioning models (User, Group, EnterpriseUser)
   • Enterprise Audit Log events
 """
+
 from __future__ import annotations
 
 import dataclasses
 import enum
 import hashlib
-import json
 import secrets
 import time
 from typing import Any, Dict, List, Optional, Set
 
-
 # ─── Organization & Project Lifecycle ────────────────────────────────────────
+
 
 class OrgStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
@@ -47,6 +47,7 @@ class MembershipStatus(str, enum.Enum):
 
 # ─── Enterprise Roles & Concrete Permissions ─────────────────────────────────
 
+
 class EnterpriseRole(str, enum.Enum):
     ORG_OWNER = "OrganizationOwner"
     ORG_ADMIN = "OrganizationAdmin"
@@ -60,48 +61,112 @@ class EnterpriseRole(str, enum.Enum):
 
 ROLE_PERMISSIONS: Dict[EnterpriseRole, Set[str]] = {
     EnterpriseRole.ORG_OWNER: {
-        "org.read", "org.manage", "org.delete", "member.read", "member.manage",
-        "project.read", "project.manage", "job.read", "job.create", "job.cancel",
-        "job.approve", "repo.read", "repo.manage", "policy.read", "policy.manage",
-        "billing.read", "billing.manage", "audit.read", "audit.export",
-        "sso.manage", "scim.manage", "sa.manage", "apikey.manage",
+        "org.read",
+        "org.manage",
+        "org.delete",
+        "member.read",
+        "member.manage",
+        "project.read",
+        "project.manage",
+        "job.read",
+        "job.create",
+        "job.cancel",
+        "job.approve",
+        "repo.read",
+        "repo.manage",
+        "policy.read",
+        "policy.manage",
+        "billing.read",
+        "billing.manage",
+        "audit.read",
+        "audit.export",
+        "sso.manage",
+        "scim.manage",
+        "sa.manage",
+        "apikey.manage",
     },
     EnterpriseRole.ORG_ADMIN: {
-        "org.read", "org.manage", "member.read", "member.manage",
-        "project.read", "project.manage", "job.read", "job.create", "job.cancel",
-        "job.approve", "repo.read", "repo.manage", "policy.read", "policy.manage",
-        "billing.read", "audit.read", "audit.export",
-        "sso.manage", "scim.manage", "sa.manage", "apikey.manage",
+        "org.read",
+        "org.manage",
+        "member.read",
+        "member.manage",
+        "project.read",
+        "project.manage",
+        "job.read",
+        "job.create",
+        "job.cancel",
+        "job.approve",
+        "repo.read",
+        "repo.manage",
+        "policy.read",
+        "policy.manage",
+        "billing.read",
+        "audit.read",
+        "audit.export",
+        "sso.manage",
+        "scim.manage",
+        "sa.manage",
+        "apikey.manage",
     },
     EnterpriseRole.PROJECT_ADMIN: {
-        "org.read", "member.read", "project.read", "project.manage",
-        "job.read", "job.create", "job.cancel", "job.approve",
-        "repo.read", "repo.manage", "policy.read", "audit.read",
+        "org.read",
+        "member.read",
+        "project.read",
+        "project.manage",
+        "job.read",
+        "job.create",
+        "job.cancel",
+        "job.approve",
+        "repo.read",
+        "repo.manage",
+        "policy.read",
+        "audit.read",
     },
     EnterpriseRole.OPERATOR: {
-        "org.read", "project.read", "job.read", "job.create", "job.cancel",
-        "job.approve", "repo.read",
+        "org.read",
+        "project.read",
+        "job.read",
+        "job.create",
+        "job.cancel",
+        "job.approve",
+        "repo.read",
     },
     EnterpriseRole.DEVELOPER: {
-        "org.read", "project.read", "job.read", "job.create", "repo.read",
+        "org.read",
+        "project.read",
+        "job.read",
+        "job.create",
+        "repo.read",
     },
     EnterpriseRole.VIEWER: {
-        "org.read", "project.read", "job.read", "repo.read",
+        "org.read",
+        "project.read",
+        "job.read",
+        "repo.read",
     },
     EnterpriseRole.BILLING_ADMIN: {
-        "org.read", "billing.read", "billing.manage", "usage.read",
+        "org.read",
+        "billing.read",
+        "billing.manage",
+        "usage.read",
     },
     EnterpriseRole.SECURITY_AUDITOR: {
-        "org.read", "audit.read", "audit.export", "policy.read", "member.read",
+        "org.read",
+        "audit.read",
+        "audit.export",
+        "policy.read",
+        "member.read",
     },
 }
 
 
 # ─── Scoped Request Context ──────────────────────────────────────────────────
 
+
 @dataclasses.dataclass(frozen=True)
 class RequestContext:
     """Immutable authenticated request context enforcing tenant boundaries."""
+
     principal_id: str
     organization_id: str
     project_id: Optional[str] = None
@@ -151,6 +216,7 @@ class PermissionDeniedError(Exception):
 
 
 # ─── Domain Entities ─────────────────────────────────────────────────────────
+
 
 @dataclasses.dataclass
 class Organization:
@@ -247,15 +313,16 @@ class ApiKey:
 
 # ─── Usage Metering & Quotas ─────────────────────────────────────────────────
 
+
 @dataclasses.dataclass
 class UsageEvent:
     id: str
     organization_id: str
     project_id: Optional[str]
     job_id: str
-    metric: str           # tokens_in | tokens_out | runtime_seconds | job_execution
+    metric: str  # tokens_in | tokens_out | runtime_seconds | job_execution
     quantity: float
-    unit: str             # tokens | seconds | count
+    unit: str  # tokens | seconds | count
     cost_usd: float = 0.0
     source: str = "ZCODER_MEASURED"  # PROVIDER_REPORTED | RUNTIME_REPORTED | ZCODER_MEASURED
     occurred_at: float = dataclasses.field(default_factory=time.time)
@@ -274,6 +341,7 @@ class Quota:
 
 
 # ─── Enterprise Audit Event ──────────────────────────────────────────────────
+
 
 @dataclasses.dataclass
 class EnterpriseAuditEvent:

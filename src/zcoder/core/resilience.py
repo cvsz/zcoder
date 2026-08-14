@@ -26,6 +26,7 @@ Retry policy:
 - RateLimitError's `retry_after` (from a 429's Retry-After header, wired in
   by the call site) takes precedence over computed backoff when present.
 """
+
 from __future__ import annotations
 
 import functools
@@ -89,10 +90,14 @@ def raise_for_http_error(exc: BaseException) -> None:
                 retry_after = float(exc.headers.get("Retry-After", "")) if exc.headers else None
             except (TypeError, ValueError):
                 pass
-            raise RateLimitError("Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}) from exc
+            raise RateLimitError(
+                "Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}
+            ) from exc
         if exc.code >= 500:
             raise TransientAPIError(f"Server error ({exc.code})", details={"body": body[:300]}) from exc
-        raise APIError(f"Request rejected ({exc.code})", status_code=exc.code, details={"body": body[:300]}) from exc
+        raise APIError(
+            f"Request rejected ({exc.code})", status_code=exc.code, details={"body": body[:300]}
+        ) from exc
     if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
         # Covers socket timeouts and connection resets from urllib, which
         # surface as plain OSError/ConnectionError subclasses, not HTTPError.
@@ -123,7 +128,7 @@ def extract_response_metadata(headers) -> dict:
     return meta
 
 
-def urlopen_json(req: "urllib.request.Request", timeout: float) -> dict:
+def urlopen_json(req: urllib.request.Request, timeout: float) -> dict:
     """`urllib.request.urlopen(req)` that returns parsed JSON and translates
     failures via `raise_for_http_error`. Call this from inside a function
     decorated with `@retry(...)` — it does not retry by itself."""
@@ -144,7 +149,7 @@ def urlopen_json(req: "urllib.request.Request", timeout: float) -> dict:
         raise_for_http_error(e)
 
 
-def urlopen_text(req: "urllib.request.Request", timeout: float) -> str:
+def urlopen_text(req: urllib.request.Request, timeout: float) -> str:
     """Like `urlopen_json` but returns the raw decoded body (for endpoints
     that don't return JSON, e.g. fetching a diff or a web page)."""
     try:
@@ -164,6 +169,7 @@ class CircuitBreaker:
     `reset_timeout` seconds, then allows one trial call (half-open) to
     decide whether to close again.
     """
+
     failure_threshold: int = 5
     reset_timeout: float = 30.0
     _failures: int = field(default=0, init=False)
@@ -178,7 +184,9 @@ class CircuitBreaker:
             else:
                 raise CircuitOpenError(
                     "Circuit breaker is open — too many recent failures",
-                    details={"reset_in_s": round(self.reset_timeout - (time.monotonic() - self._opened_at), 1)},
+                    details={
+                        "reset_in_s": round(self.reset_timeout - (time.monotonic() - self._opened_at), 1)
+                    },
                 )
 
     def on_success(self):
@@ -201,7 +209,7 @@ class CircuitBreaker:
 
 def _backoff_delay(attempt: int, base_delay: float, max_delay: float) -> float:
     """Full-jitter exponential backoff: uniform(0, min(cap, base * 2**attempt))."""
-    cap = min(max_delay, base_delay * (2 ** attempt))
+    cap = min(max_delay, base_delay * (2**attempt))
     return random.uniform(0, cap)
 
 
@@ -209,7 +217,7 @@ def retry(
     max_attempts: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 20.0,
-    breaker: "CircuitBreaker | None" = None,
+    breaker: CircuitBreaker | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ):
     """Decorator: retry a callable on retryable AICoderError subclasses.
@@ -217,6 +225,7 @@ def retry(
     `sleep` is injectable for tests so retry-delay tests don't actually
     sleep in the process; see tests/test_resilience.py.
     """
+
     def decorator(fn: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(fn)
         def wrapper(*args, **kwargs) -> T:
@@ -237,8 +246,12 @@ def retry(
                         delay = _backoff_delay(attempt, base_delay, max_delay)
                     logger.warning(
                         "retrying_after_failure",
-                        extra={"attempt": attempt + 1, "max_attempts": max_attempts,
-                               "delay_s": round(delay, 2), "error_code": exc.error_code},
+                        extra={
+                            "attempt": attempt + 1,
+                            "max_attempts": max_attempts,
+                            "delay_s": round(delay, 2),
+                            "error_code": exc.error_code,
+                        },
                     )
                     sleep(delay)
                     continue
@@ -251,5 +264,7 @@ def retry(
             # accidentally falling through.
             assert last_exc is not None
             raise last_exc
+
         return wrapper
+
     return decorator

@@ -25,10 +25,10 @@ CLI flags:
 """
 
 import json
-import urllib.request
 import urllib.error
-from typing import Optional
+import urllib.request
 from pathlib import Path
+from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
@@ -41,17 +41,16 @@ class StructuredCoder:
 
     ENDPOINT = "https://api.anthropic.com/v1/messages"
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
         headers = {
-            "Content-Type":    "application/json",
-            "x-api-key":       self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         req = urllib.request.Request(
@@ -77,10 +76,10 @@ class StructuredCoder:
     def json_object(self, prompt: str, system: Optional[str] = None) -> dict:
         """Return any valid JSON object. No schema enforcement."""
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
             "output_config": {"format": {"type": "json_object"}},
-            "messages":   [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": prompt}],
         }
         if system:
             payload["system"] = system
@@ -88,24 +87,22 @@ class StructuredCoder:
         data = self._post(payload)
         if "error" in data:
             raise RuntimeError(data["error"])
-        text = "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
         return json.loads(text)
 
     # ── JSON schema mode ──────────────────────────────────────────────────
 
-    def json_schema(self, prompt: str, schema: dict,
-                    name: str = "output", system: Optional[str] = None) -> dict:
+    def json_schema(
+        self, prompt: str, schema: dict, name: str = "output", system: Optional[str] = None
+    ) -> dict:
         """Return JSON validated against a JSON Schema."""
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
             "output_config": {
                 "format": {
-                    "type":   "json_schema",
-                    "name":   name,
+                    "type": "json_schema",
+                    "name": name,
                     "schema": schema,
                     "strict": True,
                 }
@@ -119,10 +116,7 @@ class StructuredCoder:
         if "error" in data:
             raise RuntimeError(data["error"])
 
-        text = "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
         parsed = json.loads(text)
         # Client-side schema validation (lightweight)
         self._validate(parsed, schema)
@@ -130,8 +124,7 @@ class StructuredCoder:
 
     # ── Extract structured data from content ──────────────────────────────
 
-    def extract(self, content: str, schema: dict,
-                instruction: str = "") -> dict:
+    def extract(self, content: str, schema: dict, instruction: str = "") -> dict:
         """Extract structured data from unstructured text."""
         prompt = (
             f"Extract structured data from the following content.\n"
@@ -139,9 +132,10 @@ class StructuredCoder:
             f"Content:\n{content}"
         )
         return self.json_schema(
-            prompt, schema,
+            prompt,
+            schema,
             system="Extract exactly the fields defined in the schema. "
-                   "If a field is missing from the content, use null.",
+            "If a field is missing from the content, use null.",
         )
 
     # ── Code analysis structured ──────────────────────────────────────────
@@ -151,40 +145,56 @@ class StructuredCoder:
         schema = {
             "type": "object",
             "properties": {
-                "summary":         {"type": "string"},
-                "language":        {"type": "string"},
-                "complexity":      {"type": "string", "enum": ["low", "medium", "high"]},
-                "issues":          {"type": "array", "items": {"type": "object",
-                    "properties": {
-                        "severity":    {"type": "string", "enum": ["info", "warning", "error"]},
-                        "line":        {"type": ["integer", "null"]},
-                        "description": {"type": "string"},
-                    }, "required": ["severity", "description"]}},
-                "suggestions":     {"type": "array", "items": {"type": "string"}},
-                "security_flags":  {"type": "array", "items": {"type": "string"}},
-                "test_coverage":   {"type": "string"},
+                "summary": {"type": "string"},
+                "language": {"type": "string"},
+                "complexity": {"type": "string", "enum": ["low", "medium", "high"]},
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "severity": {"type": "string", "enum": ["info", "warning", "error"]},
+                            "line": {"type": ["integer", "null"]},
+                            "description": {"type": "string"},
+                        },
+                        "required": ["severity", "description"],
+                    },
+                },
+                "suggestions": {"type": "array", "items": {"type": "string"}},
+                "security_flags": {"type": "array", "items": {"type": "string"}},
+                "test_coverage": {"type": "string"},
             },
             "required": ["summary", "complexity", "issues", "suggestions"],
         }
         prompt = f"Analyse this {language} code:\n```\n{code}\n```"
-        return self.json_schema(prompt, schema, name="code_analysis",
-                                system="You are a senior code reviewer. Be concise and precise.")
+        return self.json_schema(
+            prompt,
+            schema,
+            name="code_analysis",
+            system="You are a senior code reviewer. Be concise and precise.",
+        )
 
     # ── Validation ────────────────────────────────────────────────────────
 
     def _validate(self, data: dict, schema: dict):
         """Lightweight required-field check."""
         required = schema.get("required", [])
-        missing  = [r for r in required if r not in data]
+        missing = [r for r in required if r not in data]
         if missing:
             raise ValueError(f"Schema validation: missing required fields: {missing}")
 
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_structured(prompt: str, api_key: str, model: str,
-                   schema_path: str = None, schema_inline: str = None,
-                   pretty: bool = True) -> dict:
+
+def cmd_structured(
+    prompt: str,
+    api_key: str,
+    model: str,
+    schema_path: str = None,
+    schema_inline: str = None,
+    pretty: bool = True,
+) -> dict:
     sc = StructuredCoder(api_key=api_key, model=model)
 
     if schema_path:
@@ -193,10 +203,10 @@ def cmd_structured(prompt: str, api_key: str, model: str,
         result = sc.json_schema(prompt, schema)
     elif schema_inline:
         schema = json.loads(schema_inline)
-        print(f"\033[94mℹ Structured output (inline schema)\033[0m\n")
+        print("\033[94mℹ Structured output (inline schema)\033[0m\n")
         result = sc.json_schema(prompt, schema)
     else:
-        print(f"\033[94mℹ Structured output (JSON object mode)\033[0m\n")
+        print("\033[94mℹ Structured output (JSON object mode)\033[0m\n")
         result = sc.json_object(prompt)
 
     indent = 2 if pretty else None
@@ -208,18 +218,17 @@ def cmd_structured_analyse(file_path: str, api_key: str, model: str) -> dict:
     code = Path(file_path).read_text()
     lang = Path(file_path).suffix.lstrip(".")
     print(f"\033[94mℹ Structured code analysis: {file_path}\033[0m\n")
-    sc     = StructuredCoder(api_key=api_key, model=model)
+    sc = StructuredCoder(api_key=api_key, model=model)
     result = sc.analyse_code(code, lang)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return result
 
 
-def cmd_structured_extract(content_file: str, schema_path: str,
-                            api_key: str, model: str) -> dict:
+def cmd_structured_extract(content_file: str, schema_path: str, api_key: str, model: str) -> dict:
     content = Path(content_file).read_text()
-    schema  = json.loads(Path(schema_path).read_text())
+    schema = json.loads(Path(schema_path).read_text())
     print(f"\033[94mℹ Extracting structured data from {content_file}\033[0m\n")
-    sc     = StructuredCoder(api_key=api_key, model=model)
+    sc = StructuredCoder(api_key=api_key, model=model)
     result = sc.extract(content, schema)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return result

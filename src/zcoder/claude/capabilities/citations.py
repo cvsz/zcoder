@@ -12,11 +12,9 @@ CLI flags:
   --rag QUERY              RAG mode: answer from your local docs
 """
 
-import os
 import json
-import glob
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -33,17 +31,16 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 class CitationsCoder:
     """Claude client with source-grounded citations."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict, beta: str = "") -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         if beta:
@@ -70,7 +67,7 @@ class CitationsCoder:
     def cite_documents(
         self,
         question: str,
-        documents: list[dict],   # [{"title": str, "content": str}, ...]
+        documents: list[dict],  # [{"title": str, "content": str}, ...]
         system: Optional[str] = None,
     ) -> dict:
         """
@@ -79,19 +76,20 @@ class CitationsCoder:
         """
         content = []
         for doc in documents:
-            content.append({
-                "type":   "document",
-                "source": {"type": "text", "media_type": "text/plain",
-                           "data": doc["content"]},
-                "title":     doc.get("title", "Document"),
-                "citations": {"enabled": True},
-            })
+            content.append(
+                {
+                    "type": "document",
+                    "source": {"type": "text", "media_type": "text/plain", "data": doc["content"]},
+                    "title": doc.get("title", "Document"),
+                    "citations": {"enabled": True},
+                }
+            )
         content.append({"type": "text", "text": question})
 
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages":   [{"role": "user", "content": content}],
+            "messages": [{"role": "user", "content": content}],
         }
         if system:
             payload["system"] = system
@@ -100,7 +98,7 @@ class CitationsCoder:
         if "error" in data:
             return {"answer": f"[ERROR] {data['error']}", "citations": []}
 
-        answer    = ""
+        answer = ""
         citations = []
         for block in data.get("content", []):
             bt = block.get("type", "")
@@ -108,22 +106,23 @@ class CitationsCoder:
                 answer += block.get("text", "")
             elif bt == "citations":
                 for c in block.get("citations", []):
-                    citations.append({
-                        "text":       c.get("cited_text", ""),
-                        "document":   c.get("document_title", ""),
-                        "start_char": c.get("start_char_index"),
-                        "end_char":   c.get("end_char_index"),
-                    })
+                    citations.append(
+                        {
+                            "text": c.get("cited_text", ""),
+                            "document": c.get("document_title", ""),
+                            "start_char": c.get("start_char_index"),
+                            "end_char": c.get("end_char_index"),
+                        }
+                    )
 
-        return {"answer": answer, "citations": citations,
-                "usage": data.get("usage", {})}
+        return {"answer": answer, "citations": citations, "usage": data.get("usage", {})}
 
     # ── Search-result citations (RAG) ─────────────────────────────────────
 
     def cite_search_results(
         self,
         question: str,
-        results: list[dict],   # [{"title": str, "url": str, "content": str}]
+        results: list[dict],  # [{"title": str, "url": str, "content": str}]
     ) -> dict:
         """
         Use search_result content blocks for proper source attribution.
@@ -131,37 +130,37 @@ class CitationsCoder:
         """
         content = []
         for r in results:
-            content.append({
-                "type":    "search_result",
-                "title":   r.get("title", ""),
-                "url":     r.get("url", ""),
-                "content": [{"type": "text", "text": r["content"]}],
-            })
+            content.append(
+                {
+                    "type": "search_result",
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "content": [{"type": "text", "text": r["content"]}],
+                }
+            )
         content.append({"type": "text", "text": question})
 
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages":   [{"role": "user", "content": content}],
+            "messages": [{"role": "user", "content": content}],
         }
         data = self._post(payload, beta="search-results-2025-06-09")
         if "error" in data:
             return {"answer": f"[ERROR] {data['error']}", "citations": []}
 
-        answer    = ""
+        answer = ""
         citations = []
         for block in data.get("content", []):
             bt = block.get("type", "")
             if bt == "text":
                 answer += block.get("text", "")
 
-        return {"answer": answer, "citations": citations,
-                "usage": data.get("usage", {})}
+        return {"answer": answer, "citations": citations, "usage": data.get("usage", {})}
 
     # ── File-based RAG ────────────────────────────────────────────────────
 
-    def rag_from_directory(self, question: str, directory: str,
-                            glob_pattern: str = "*.md") -> dict:
+    def rag_from_directory(self, question: str, directory: str, glob_pattern: str = "*.md") -> dict:
         """Load local docs from a directory and answer with citations."""
         docs = []
         for p in sorted(Path(directory).glob(glob_pattern)):
@@ -175,6 +174,7 @@ class CitationsCoder:
 
 
 # ── CLI entry points ───────────────────────────────────────────────────────
+
 
 def cmd_cite(question: str, doc_files: list[str], api_key: str, model: str):
     docs = []
@@ -190,25 +190,24 @@ def cmd_cite(question: str, doc_files: list[str], api_key: str, model: str):
         return
 
     print(f"\033[94mℹ Answering with citations from {len(docs)} document(s)\033[0m\n")
-    cc     = CitationsCoder(api_key=api_key, model=model)
+    cc = CitationsCoder(api_key=api_key, model=model)
     result = cc.cite_documents(question, docs)
 
     print(result["answer"])
     if result["citations"]:
-        print(f"\n\033[90m── Citations ────────────────────────────\033[0m")
+        print("\n\033[90m── Citations ────────────────────────────\033[0m")
         for i, c in enumerate(result["citations"], 1):
             print(f"\033[90m[{i}] {c['document']}: \"{c['text'][:80]}…\"\033[0m")
     return result
 
 
-def cmd_rag(question: str, directory: str, api_key: str, model: str,
-            pattern: str = "*.md"):
+def cmd_rag(question: str, directory: str, api_key: str, model: str, pattern: str = "*.md"):
     print(f"\033[94mℹ RAG from {directory} ({pattern})\033[0m\n")
-    cc     = CitationsCoder(api_key=api_key, model=model)
+    cc = CitationsCoder(api_key=api_key, model=model)
     result = cc.rag_from_directory(question, directory, pattern)
     print(result["answer"])
     if result["citations"]:
-        print(f"\n\033[90m── Citations ────────────────────────────\033[0m")
+        print("\n\033[90m── Citations ────────────────────────────\033[0m")
         for i, c in enumerate(result["citations"], 1):
             print(f"\033[90m[{i}] {c['document']}\033[0m")
     return result

@@ -8,19 +8,16 @@ Verifies:
   5. Multi-dimensional Model Benchmark Tournament Scoring
   6. Zero-Paid-Calls Guarantee
 """
-import pytest
 
 from local_ai_stack import (
     HardwareAutoTuner,
     HardwareProfile,
-    HardwareProfiler,
     LlamaCppRuntime,
     LocalModelArtifact,
     ModelRegistry,
     ModelSourceType,
     ModelState,
     ModelTournament,
-    TransportCallMonitor,
 )
 
 

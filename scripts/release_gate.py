@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run the canonical production release-gate report from a source checkout."""
+
 from __future__ import annotations
 
 import sys

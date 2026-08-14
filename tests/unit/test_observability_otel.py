@@ -1,5 +1,4 @@
 """tests/test_observability_otel.py — Tests for the observability/metrics layer."""
-import pytest
 
 from observability_otel import (
     ZCoderMetrics,
@@ -177,6 +176,7 @@ class TestTraceSpan:
     def test_trace_job_span_noop(self):
         """Trace span should work as a context manager even without OTel."""
         import time
+
         with trace_job_span(job_id="job_test_001", worker_id="worker_test_001") as span:
             span.set_attribute("test.key", "test_value")
             time.sleep(0.01)

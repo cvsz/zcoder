@@ -1,11 +1,11 @@
 """personalities.py — Personality styles"""
 
 PERSONALITIES = {
-    "precise":    "Be concise, technical, and precise. Avoid fluff.",
-    "teaching":   "Explain concepts clearly, step by step, as if teaching a beginner.",
-    "creative":   "Be inventive and think outside the box.",
-    "socratic":   "Ask probing questions and guide the user to discover answers.",
-    "pragmatic":  "Focus on practical, working solutions over theory.",
+    "precise": "Be concise, technical, and precise. Avoid fluff.",
+    "teaching": "Explain concepts clearly, step by step, as if teaching a beginner.",
+    "creative": "Be inventive and think outside the box.",
+    "socratic": "Ask probing questions and guide the user to discover answers.",
+    "pragmatic": "Focus on practical, working solutions over theory.",
 }
 
 

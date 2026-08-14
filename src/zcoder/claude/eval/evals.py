@@ -15,13 +15,14 @@ CLI flags:
 """
 
 import json
-import time
-import os
-from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Any
 import re
+import time
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
 import anthropic
+
 from utils import sampling_kwargs
 
 
@@ -30,10 +31,10 @@ class EvalCase:
     id: str
     prompt: str
     system: str = ""
-    expected_contains: list[str] = field(default_factory=list)      # all must be present
+    expected_contains: list[str] = field(default_factory=list)  # all must be present
     expected_not_contains: list[str] = field(default_factory=list)  # none must be present
-    expected_json: bool = False                                       # output must parse as JSON
-    expected_regex: str = ""                                          # regex must match
+    expected_json: bool = False  # output must parse as JSON
+    expected_regex: str = ""  # regex must match
     max_tokens: int = 2048
     temperature: float = 0.0
 
@@ -71,26 +72,29 @@ def load_suite(path: str) -> tuple[str, list[EvalCase]]:
     name = raw.get("name", Path(path).stem)
     cases = []
     for c in raw.get("cases", []):
-        cases.append(EvalCase(
-            id=c.get("id", f"case_{len(cases)+1}"),
-            prompt=c["prompt"],
-            system=c.get("system", ""),
-            expected_contains=c.get("expected_contains", []),
-            expected_not_contains=c.get("expected_not_contains", []),
-            expected_json=c.get("expected_json", False),
-            expected_regex=c.get("expected_regex", ""),
-            max_tokens=c.get("max_tokens", 2048),
-            temperature=c.get("temperature", 0.0),
-        ))
+        cases.append(
+            EvalCase(
+                id=c.get("id", f"case_{len(cases)+1}"),
+                prompt=c["prompt"],
+                system=c.get("system", ""),
+                expected_contains=c.get("expected_contains", []),
+                expected_not_contains=c.get("expected_not_contains", []),
+                expected_json=c.get("expected_json", False),
+                expected_regex=c.get("expected_regex", ""),
+                max_tokens=c.get("max_tokens", 2048),
+                temperature=c.get("temperature", 0.0),
+            )
+        )
     return name, cases
 
 
-def run_case(case: EvalCase, client: anthropic.Anthropic,
-             model: str) -> EvalResult:
+def run_case(case: EvalCase, client: anthropic.Anthropic, model: str) -> EvalResult:
     messages = [{"role": "user", "content": case.prompt}]
     kwargs: dict[str, Any] = {
-        "model": model, "max_tokens": case.max_tokens,
-        **sampling_kwargs(model, temperature=case.temperature), "messages": messages,
+        "model": model,
+        "max_tokens": case.max_tokens,
+        **sampling_kwargs(model, temperature=case.temperature),
+        "messages": messages,
     }
     if case.system:
         kwargs["system"] = case.system
@@ -117,14 +121,16 @@ def run_case(case: EvalCase, client: anthropic.Anthropic,
             failures.append(f"regex did not match: {case.expected_regex!r}")
 
     return EvalResult(
-        case_id=case.id, passed=not failures,
-        response=text, latency_seconds=latency,
-        failures=failures, model=model,
+        case_id=case.id,
+        passed=not failures,
+        response=text,
+        latency_seconds=latency,
+        failures=failures,
+        model=model,
     )
 
 
-def run_suite(path: str, api_key: str, model: str,
-              verbose: bool = False) -> EvalSuiteResult:
+def run_suite(path: str, api_key: str, model: str, verbose: bool = False) -> EvalSuiteResult:
     name, cases = load_suite(path)
     client = anthropic.Anthropic(api_key=api_key)
     results = []
@@ -142,8 +148,11 @@ def run_suite(path: str, api_key: str, model: str,
 
     passed = sum(1 for r in results if r.passed)
     return EvalSuiteResult(
-        suite_name=name, model=model, total=len(cases),
-        passed=passed, failed=len(cases) - passed,
+        suite_name=name,
+        model=model,
+        total=len(cases),
+        passed=passed,
+        failed=len(cases) - passed,
         pass_rate=round(passed / max(1, len(cases)) * 100, 1),
         total_time=round(time.time() - t0, 2),
         results=results,
@@ -174,14 +183,21 @@ def scaffold_suite(path: str) -> str:
     return path
 
 
-def cmd_eval(suite_path: str, api_key: str, model: str,
-             model2: Optional[str] = None, output_path: Optional[str] = None,
-             verbose: bool = False):
+def cmd_eval(
+    suite_path: str,
+    api_key: str,
+    model: str,
+    model2: Optional[str] = None,
+    output_path: Optional[str] = None,
+    verbose: bool = False,
+):
     print(f"\n\033[94mRunning eval suite: {suite_path}\033[0m  model={model}")
     suite_result = run_suite(suite_path, api_key, model, verbose)
 
-    print(f"\n  Pass rate: \033[1m{suite_result.pass_rate}%\033[0m "
-          f"({suite_result.passed}/{suite_result.total}) in {suite_result.total_time}s")
+    print(
+        f"\n  Pass rate: \033[1m{suite_result.pass_rate}%\033[0m "
+        f"({suite_result.passed}/{suite_result.total}) in {suite_result.total_time}s"
+    )
 
     if model2:
         print(f"\n\033[94mComparing with model: {model2}\033[0m")

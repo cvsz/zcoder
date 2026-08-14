@@ -1,17 +1,18 @@
 """tests/test_claude_opus5.py"""
+
 import pytest
 
 from claude_opus5 import (
+    OPUS5_EFFORT_LEVELS,
+    OPUS5_MODEL_ID,
     Opus5Client,
+    estimate_cost_usd,
     validate_effort_thinking,
     validate_inference_geo,
-    OPUS5_MODEL_ID,
-    OPUS5_EFFORT_LEVELS,
-    estimate_cost_usd,
 )
 
-
 # ── validate_effort_thinking: the breaking-change guard ─────────────────
+
 
 def test_thinking_enabled_any_effort_is_always_fine():
     for effort in OPUS5_EFFORT_LEVELS:
@@ -45,6 +46,7 @@ def test_unknown_effort_level_is_rejected():
 
 # ── validate_inference_geo: confirmed supported for Opus 5 ──────────────
 
+
 def test_inference_geo_not_requested_is_fine():
     assert validate_inference_geo(False) is None
 
@@ -55,6 +57,7 @@ def test_inference_geo_requested_confirmed_supported():
 
 
 # ── Opus5Client.call: client-side validation happens before any HTTP call ─
+
 
 def test_call_raises_before_posting_on_bad_combination(monkeypatch):
     client = Opus5Client(api_key="k")

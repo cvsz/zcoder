@@ -48,9 +48,9 @@ code-execution tool, so callers need to check both).
 """
 
 import json
-import urllib.request
 import urllib.error
-from dataclasses import dataclass, field
+import urllib.request
+from dataclasses import dataclass
 from typing import Optional
 
 from exceptions import AICoderError
@@ -84,7 +84,7 @@ PREBUILT_SKILLS = {
     "pptx": {"skill_id": "pptx", "description": "Create and edit PowerPoint presentations"},
     "xlsx": {"skill_id": "xlsx", "description": "Create and edit Excel spreadsheets"},
     "docx": {"skill_id": "docx", "description": "Create and edit Word documents"},
-    "pdf":  {"skill_id": "pdf",  "description": "Create, fill, and edit PDF files"},
+    "pdf": {"skill_id": "pdf", "description": "Create, fill, and edit PDF files"},
 }
 
 
@@ -97,6 +97,7 @@ class SkillRef:
     version: required for custom skills; optional (defaults to latest) for
     anthropic-type skills.
     """
+
     skill_id: str
     type: str = "anthropic"
     version: Optional[str] = None
@@ -113,9 +114,7 @@ class SkillRef:
         name (pptx/xlsx/docx/pdf), raising a clear error otherwise."""
         info = PREBUILT_SKILLS.get(name)
         if not info:
-            raise ValueError(
-                f"Unknown pre-built skill {name!r}. Known: {', '.join(PREBUILT_SKILLS)}"
-            )
+            raise ValueError(f"Unknown pre-built skill {name!r}. Known: {', '.join(PREBUILT_SKILLS)}")
         return cls(skill_id=info["skill_id"], type="anthropic")
 
 
@@ -148,8 +147,10 @@ class SkillsApiClient:
             "anthropic-beta": ",".join(betas),
         }
         req = urllib.request.Request(
-            MESSAGES_ENDPOINT, data=json.dumps(payload).encode(),
-            headers=headers, method="POST",
+            MESSAGES_ENDPOINT,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
         )
         return urlopen_json(req, timeout=300)
 
@@ -161,8 +162,7 @@ class SkillsApiClient:
         except Exception as e:
             return {"error": str(e)}
 
-    def call_with_skills(self, prompt: str, skills: list,
-                         system: Optional[str] = None) -> dict:
+    def call_with_skills(self, prompt: str, skills: list, system: Optional[str] = None) -> dict:
         """Call the model with a code-execution container carrying the
         given skills (list of SkillRef or short pre-built names like
         'pptx'). Returns the raw parsed response dict."""
@@ -178,10 +178,14 @@ class SkillsApiClient:
             payload["system"] = system
         return self._post(payload, betas=[CODE_EXECUTION_BETA, SKILLS_BETA])
 
-    def call_with_skills_turn(self, messages: list, skills: list,
-                              container_id: Optional[str] = None,
-                              has_file_uploads: bool = False,
-                              system: Optional[str] = None) -> dict:
+    def call_with_skills_turn(
+        self,
+        messages: list,
+        skills: list,
+        container_id: Optional[str] = None,
+        has_file_uploads: bool = False,
+        system: Optional[str] = None,
+    ) -> dict:
         """Multi-turn variant of call_with_skills, for chat-style callers
         (claude_excel.py / claude_powerpoint.py --*-native modes) that need
         to keep working in the same container across several turns rather
@@ -223,7 +227,7 @@ def build_user_content(text: str, file_ids: Optional[list] = None) -> list:
     container_upload block per file_id, per the documented shape for
     attaching Files-API uploads to a code-execution container."""
     content = [{"type": "text", "text": text}]
-    for fid in (file_ids or []):
+    for fid in file_ids or []:
         content.append({"type": "container_upload", "file_id": fid})
     return content
 
@@ -287,7 +291,9 @@ def cmd_skills_info(skill_id: str):
         return None
     print(f"\n\033[94m{info['skill_id']}\033[0m (type: anthropic)")
     print(f"  {info['description']}")
-    print(f"  Reference in a request as: "
-         f"SkillRef.prebuilt({skill_id!r}) -> {SkillRef.prebuilt(skill_id).to_dict()}")
+    print(
+        f"  Reference in a request as: "
+        f"SkillRef.prebuilt({skill_id!r}) -> {SkillRef.prebuilt(skill_id).to_dict()}"
+    )
     print(f"  Requires beta headers: {CODE_EXECUTION_BETA}, {SKILLS_BETA}\n")
     return info

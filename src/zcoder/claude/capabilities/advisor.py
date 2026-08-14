@@ -46,13 +46,12 @@ CLI flags:
 """
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
-
 
 ADVISOR_TOOL_TYPE = "advisor_20260301"
 ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01"
@@ -65,24 +64,31 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # ~7pp if it hasn't called the advisor in its first assistant turn.
 ADVISOR_EXECUTOR_MODELS = {
     "claude-opus-5",
-    "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
-    "claude-sonnet-5", "claude-sonnet-4-6",
-    "claude-haiku-4-5", "claude-haiku-4-5-20251001",
-    "claude-fable-5", "claude-mythos-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    "claude-fable-5",
+    "claude-mythos-5",
 }
 
 
-def build_advisor_tool(advisor_model: str = "claude-opus-4-8",
-                        max_uses: Optional[int] = None,
-                        max_tokens: Optional[int] = None,
-                        cache_ttl: Optional[str] = "5m") -> dict:
+def build_advisor_tool(
+    advisor_model: str = "claude-opus-4-8",
+    max_uses: Optional[int] = None,
+    max_tokens: Optional[int] = None,
+    cache_ttl: Optional[str] = "5m",
+) -> dict:
     """Build the advisor tool definition. cache_ttl caches the advisor's own
     read of the conversation (ephemeral, 5m default) so repeated advisor
     calls in one session don't re-process the full transcript from scratch
     every time — set to None to disable."""
     tool = {
-        "type":  ADVISOR_TOOL_TYPE,
-        "name":  "advisor",
+        "type": ADVISOR_TOOL_TYPE,
+        "name": "advisor",
         "model": advisor_model,
     }
     if max_uses is not None:
@@ -99,27 +105,30 @@ class AdvisorCoder:
     attached, including the pause_turn resume loop the advisor tool uses
     when it needs to hand a pending call back to you before continuing."""
 
-    def __init__(self, api_key: str, executor_model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096):
-        self.api_key        = api_key
+    def __init__(self, api_key: str, executor_model: str = "claude-sonnet-5", max_tokens: int = 4096):
+        self.api_key = api_key
         self.executor_model = executor_model
-        self.max_tokens     = max_tokens
+        self.max_tokens = max_tokens
         if executor_model not in ADVISOR_EXECUTOR_MODELS:
-            print(f"\033[93m⚠ {executor_model} isn't in the documented advisor-tool "
-                  f"executor list ({sorted(ADVISOR_EXECUTOR_MODELS)}) — sending anyway, "
-                  f"the API will reject it if unsupported.\033[0m")
+            print(
+                f"\033[93m⚠ {executor_model} isn't in the documented advisor-tool "
+                f"executor list ({sorted(ADVISOR_EXECUTOR_MODELS)}) — sending anyway, "
+                f"the API will reject it if unsupported.\033[0m"
+            )
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta":    ADVISOR_TOOL_BETA,
+            "anthropic-beta": ADVISOR_TOOL_BETA,
         }
         req = urllib.request.Request(
-            ENDPOINT, data=json.dumps(payload).encode(),
-            headers=headers, method="POST",
+            ENDPOINT,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
         )
         return urlopen_json(req, timeout=180)
 
@@ -131,27 +140,31 @@ class AdvisorCoder:
         except Exception as e:
             return {"error": str(e)}
 
-    def run(self, prompt: str, advisor_tool: dict,
-            extra_tools: Optional[list[dict]] = None,
-            system: Optional[str] = None,
-            max_advisor_calls: int = 10,
-            verbose: bool = True) -> str:
+    def run(
+        self,
+        prompt: str,
+        advisor_tool: dict,
+        extra_tools: Optional[list[dict]] = None,
+        system: Optional[str] = None,
+        max_advisor_calls: int = 10,
+        verbose: bool = True,
+    ) -> str:
         """Single user turn, resolving any pause_turn advisor round trips
         along the way. max_advisor_calls is client-side bookkeeping (the
         advisor tool has no built-in conversation-level cap per the docs);
         once hit, the advisor tool is dropped from tools and any
         advisor_tool_result blocks are stripped from history, matching the
         documented approach for retiring the advisor mid-conversation."""
-        tools    = [advisor_tool] + (extra_tools or [])
+        tools = [advisor_tool] + (extra_tools or [])
         messages = [{"role": "user", "content": prompt}]
         advisor_calls = 0
 
         while True:
             payload: dict = {
-                "model":      self.executor_model,
+                "model": self.executor_model,
                 "max_tokens": self.max_tokens,
-                "messages":   messages,
-                "tools":      tools,
+                "messages": messages,
+                "tools": tools,
             }
             if system:
                 payload["system"] = system
@@ -161,7 +174,7 @@ class AdvisorCoder:
                 return f"[ERROR] {data['error']}"
 
             stop_reason = data.get("stop_reason", "")
-            content     = data.get("content", [])
+            content = data.get("content", [])
 
             for block in content:
                 if block.get("type") == "server_tool_use" and block.get("name") == "advisor":
@@ -170,20 +183,25 @@ class AdvisorCoder:
                         print(f"\033[90m  [advisor call #{advisor_calls}]\033[0m")
                 if block.get("type") == "advisor_tool_result" and verbose:
                     txt = "".join(
-                        c.get("text", "") for c in block.get("content", [])
+                        c.get("text", "")
+                        for c in block.get("content", [])
                         if isinstance(c, dict) and c.get("type") == "text"
                     )
                     if txt:
-                        print(f"\033[90m  [advisor guidance] {txt[:200]}"
-                              f"{'...' if len(txt) > 200 else ''}\033[0m")
+                        print(
+                            f"\033[90m  [advisor guidance] {txt[:200]}"
+                            f"{'...' if len(txt) > 200 else ''}\033[0m"
+                        )
 
             messages.append({"role": "assistant", "content": content})
 
             if stop_reason == "pause_turn":
                 if advisor_calls >= max_advisor_calls:
                     if verbose:
-                        print(f"\033[93m⚠ max_advisor_calls ({max_advisor_calls}) reached — "
-                              f"dropping the advisor tool and continuing without it.\033[0m")
+                        print(
+                            f"\033[93m⚠ max_advisor_calls ({max_advisor_calls}) reached — "
+                            f"dropping the advisor tool and continuing without it.\033[0m"
+                        )
                     tools = [t for t in tools if t.get("type") != ADVISOR_TOOL_TYPE]
                     messages = _strip_advisor_blocks(messages)
                 # No new user message or tool_result needed — just resend;
@@ -196,10 +214,12 @@ class AdvisorCoder:
                 # this simple loop only handles the advisor-only case.
                 pending = [b for b in content if b.get("type") == "tool_use"]
                 if pending:
-                    return ("[TOOL_USE] Executor called client tool(s) "
-                            f"{[b['name'] for b in pending]} — send tool_result "
-                            f"blocks and resend to continue (see 'Mixing server "
-                            f"tools and client tools in one turn').")
+                    return (
+                        "[TOOL_USE] Executor called client tool(s) "
+                        f"{[b['name'] for b in pending]} — send tool_result "
+                        f"blocks and resend to continue (see 'Mixing server "
+                        f"tools and client tools in one turn')."
+                    )
                 continue
 
             if stop_reason == "end_turn":
@@ -217,11 +237,15 @@ def _strip_advisor_blocks(messages: list) -> list:
         content = m.get("content")
         if isinstance(content, list):
             content = [
-                b for b in content
-                if not (isinstance(b, dict) and (
-                    (b.get("type") == "server_tool_use" and b.get("name") == "advisor")
-                    or b.get("type") == "advisor_tool_result"
-                ))
+                b
+                for b in content
+                if not (
+                    isinstance(b, dict)
+                    and (
+                        (b.get("type") == "server_tool_use" and b.get("name") == "advisor")
+                        or b.get("type") == "advisor_tool_result"
+                    )
+                )
             ]
         cleaned.append({**m, "content": content})
     return cleaned
@@ -229,13 +253,20 @@ def _strip_advisor_blocks(messages: list) -> list:
 
 # ── CLI entry point ─────────────────────────────────────────────────────────
 
-def cmd_advisor(prompt: str, api_key: str, executor_model: str,
-                advisor_model: str = "claude-opus-4-8",
-                max_uses: Optional[int] = None,
-                advisor_max_tokens: Optional[int] = None):
+
+def cmd_advisor(
+    prompt: str,
+    api_key: str,
+    executor_model: str,
+    advisor_model: str = "claude-opus-4-8",
+    max_uses: Optional[int] = None,
+    advisor_max_tokens: Optional[int] = None,
+):
     print(f"\033[94mℹ Advisor tool | executor={executor_model} advisor={advisor_model}\033[0m\n")
     advisor_tool = build_advisor_tool(
-        advisor_model=advisor_model, max_uses=max_uses, max_tokens=advisor_max_tokens,
+        advisor_model=advisor_model,
+        max_uses=max_uses,
+        max_tokens=advisor_max_tokens,
     )
     ac = AdvisorCoder(api_key=api_key, executor_model=executor_model)
     result = ac.run(prompt, advisor_tool)

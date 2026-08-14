@@ -38,24 +38,24 @@ CLI flags:
   --plugin-validate PATH    (lint a plugin directory/manifest before installing)
 """
 
-import os
-import sys
 import json
+import os
 import shutil
-import zipfile
+import sys
 import tempfile
-import urllib.request
 import urllib.error
+import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Optional
 
-from resilience import retry
 from exceptions import AICoderError, TransientAPIError
+from resilience import retry
 
-PLUGINS_ROOT     = Path(os.path.expanduser("~/.claude/plugins"))
+PLUGINS_ROOT = Path(os.path.expanduser("~/.claude/plugins"))
 MARKETPLACES_DIR = PLUGINS_ROOT / "marketplaces"
-INSTALLED_DIR    = PLUGINS_ROOT / "installed"
-REGISTRY_FILE    = PLUGINS_ROOT / "registry.json"
+INSTALLED_DIR = PLUGINS_ROOT / "installed"
+REGISTRY_FILE = PLUGINS_ROOT / "registry.json"
 
 for d in (MARKETPLACES_DIR, INSTALLED_DIR):
     d.mkdir(parents=True, exist_ok=True)
@@ -64,6 +64,7 @@ for d in (MARKETPLACES_DIR, INSTALLED_DIR):
 # ══════════════════════════════════════════════════════════════════════════
 # REGISTRY (installed plugins + enabled/disabled state)
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def _load_registry() -> dict:
     if REGISTRY_FILE.exists():
@@ -83,11 +84,23 @@ def _save_registry(reg: dict):
 # ══════════════════════════════════════════════════════════════════════════
 
 DEFAULT_MANIFEST_FIELDS = {
-    "name": "", "displayName": "", "version": "0.0.0", "description": "",
-    "author": {}, "homepage": "", "repository": "", "license": "",
-    "keywords": [], "skills": None, "commands": None, "agents": None,
-    "hooks": None, "mcpServers": None, "outputStyles": None,
-    "lspServers": None, "dependencies": [],
+    "name": "",
+    "displayName": "",
+    "version": "0.0.0",
+    "description": "",
+    "author": {},
+    "homepage": "",
+    "repository": "",
+    "license": "",
+    "keywords": [],
+    "skills": None,
+    "commands": None,
+    "agents": None,
+    "hooks": None,
+    "mcpServers": None,
+    "outputStyles": None,
+    "lspServers": None,
+    "dependencies": [],
 }
 
 
@@ -127,8 +140,17 @@ def validate_plugin(plugin_dir: Path) -> list:
     if not (plugin_dir / ".claude-plugin" / "plugin.json").exists():
         findings.append(("info", "no manifest found; using auto-discovery"))
 
-    known_dirs = {"skills", "commands", "agents", "output-styles", "themes",
-                  "monitors", "hooks", "bin", "scripts"}
+    known_dirs = {
+        "skills",
+        "commands",
+        "agents",
+        "output-styles",
+        "themes",
+        "monitors",
+        "hooks",
+        "bin",
+        "scripts",
+    }
     for child in plugin_dir.iterdir():
         if child.is_dir() and child.name not in known_dirs and child.name != ".claude-plugin":
             findings.append(("warn", f"unrecognised top-level directory: {child.name}/"))
@@ -163,6 +185,7 @@ def validate_plugin(plugin_dir: Path) -> list:
 # ══════════════════════════════════════════════════════════════════════════
 # MARKETPLACES
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def _is_url(s: str) -> bool:
     return s.startswith("http://") or s.startswith("https://") or s.startswith("git@")
@@ -296,6 +319,7 @@ def marketplace_remove(name: str) -> bool:
 # INSTALL / UNINSTALL
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def plugin_install(spec: str) -> dict:
     """spec is 'name' or 'name@marketplace'."""
     reg = _load_registry()
@@ -420,6 +444,7 @@ def plugin_info(name: str) -> Optional[dict]:
 # LOADING — pull components from installed (enabled) plugins
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def enabled_plugin_dirs() -> list:
     reg = _load_registry()
     return [Path(info["path"]) for info in reg["installed"].values() if info.get("enabled", True)]
@@ -447,11 +472,13 @@ def load_plugin_commands() -> list:
         if not cmd_dir.exists():
             continue
         for f in cmd_dir.rglob("*.md"):
-            out.append({
-                "name": f"{plug_dir.name}:{f.stem}",
-                "path": str(f),
-                "plugin": plug_dir.name,
-            })
+            out.append(
+                {
+                    "name": f"{plug_dir.name}:{f.stem}",
+                    "path": str(f),
+                    "plugin": plug_dir.name,
+                }
+            )
     return out
 
 
@@ -520,6 +547,7 @@ def plugin_bin_paths() -> list:
 # ══════════════════════════════════════════════════════════════════════════
 # CLI command handlers
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def cmd_plugin_marketplace_add(source: str, name: Optional[str] = None):
     try:
@@ -598,9 +626,14 @@ def cmd_plugin_info(name: str):
     print(f"  marketplace: {info.get('marketplace') or 'local'}")
     print(f"  path: {info['path']}")
     plug_dir = Path(info["path"])
-    for sub, label in [("skills", "Skills"), ("commands", "Commands"),
-                        ("agents", "Agents"), ("output-styles", "Output styles"),
-                        ("hooks", "Hooks"), (".mcp.json", "MCP servers")]:
+    for sub, label in [
+        ("skills", "Skills"),
+        ("commands", "Commands"),
+        ("agents", "Agents"),
+        ("output-styles", "Output styles"),
+        ("hooks", "Hooks"),
+        (".mcp.json", "MCP servers"),
+    ]:
         p = plug_dir / sub
         if p.exists():
             print(f"  • {label}: {p}")

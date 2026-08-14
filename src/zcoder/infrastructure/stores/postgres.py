@@ -18,6 +18,7 @@ Usage:
     from postgres_store import PostgresControlPlaneStore
     store = PostgresControlPlaneStore(dsn="postgresql://user:pass@host/db")
 """
+
 from __future__ import annotations
 
 import json
@@ -25,9 +26,9 @@ import logging
 import os
 import time
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from legacy_job_models import Job, JobStatus
 
@@ -39,6 +40,7 @@ try:
     import psycopg2
     import psycopg2.extras
     import psycopg2.pool
+
     _PSYCOPG2_AVAILABLE = True
     _PG_AVAILABLE = True
 except ImportError:
@@ -47,6 +49,7 @@ except ImportError:
 if not _PSYCOPG2_AVAILABLE:
     try:
         import psycopg  # type: ignore[import]
+
         _PSYCOPG3_AVAILABLE = True
         _PG_AVAILABLE = True
     except ImportError:
@@ -155,6 +158,7 @@ CREATE INDEX IF NOT EXISTS idx_worker_registry_heartbeat ON worker_registry (las
 
 # ─── PostgresControlPlaneStore ───────────────────────────────────────────────
 
+
 class PostgresControlPlaneStore:
     """Production PostgreSQL-backed control plane store.
 
@@ -195,17 +199,22 @@ class PostgresControlPlaneStore:
                 self._dsn,
                 connect_timeout=self._connect_timeout,
             )
-            logger.info(f"PostgreSQL connection pool initialized (psycopg2, min={self._min_conn}, max={self._max_conn})")
+            logger.info(
+                f"PostgreSQL connection pool initialized (psycopg2, min={self._min_conn}, max={self._max_conn})"
+            )
         else:
             # psycopg3 connection pool
             import psycopg.pool  # type: ignore[import]
+
             self._pool = psycopg.pool.ConnectionPool(
                 self._dsn,
                 min_size=self._min_conn,
                 max_size=self._max_conn,
                 open=True,
             )
-            logger.info(f"PostgreSQL connection pool initialized (psycopg3, min={self._min_conn}, max={self._max_conn})")
+            logger.info(
+                f"PostgreSQL connection pool initialized (psycopg3, min={self._min_conn}, max={self._max_conn})"
+            )
 
     @contextmanager
     def _get_conn(self) -> Generator[Any, None, None]:
@@ -252,9 +261,16 @@ class PostgresControlPlaneStore:
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
-                        job.id, job.task, job.runtime, job.status.value,
-                        job.workspace, job.created_at, job.updated_at,
-                        job.model, job.budget_usd, job.cost_usd,
+                        job.id,
+                        job.task,
+                        job.runtime,
+                        job.status.value,
+                        job.workspace,
+                        job.created_at,
+                        job.updated_at,
+                        job.model,
+                        job.budget_usd,
+                        job.cost_usd,
                         json.dumps(job.metadata),
                     ),
                 )
@@ -294,8 +310,7 @@ class PostgresControlPlaneStore:
                 if not row:
                     return None
 
-                (job_id, task, runtime, status, workspace, c_at, u_at,
-                 model, budget, cost, gen, meta) = row
+                job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, gen, meta = row
 
                 new_gen = gen + 1
 
@@ -405,12 +420,20 @@ class PostgresControlPlaneStore:
                 row = cur.fetchone()
         if not row:
             return None
-        (job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, meta) = row
+        job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, meta = row
         meta_dict = meta if isinstance(meta, dict) else json.loads(meta or "{}")
         return Job(
-            id=job_id, task=task, runtime=runtime, status=JobStatus(status),
-            workspace=workspace, created_at=c_at, updated_at=u_at,
-            model=model, budget_usd=budget, cost_usd=cost, metadata=meta_dict,
+            id=job_id,
+            task=task,
+            runtime=runtime,
+            status=JobStatus(status),
+            workspace=workspace,
+            created_at=c_at,
+            updated_at=u_at,
+            model=model,
+            budget_usd=budget,
+            cost_usd=cost,
+            metadata=meta_dict,
         )
 
     def list_jobs(
@@ -439,13 +462,23 @@ class PostgresControlPlaneStore:
 
         jobs = []
         for row in rows:
-            (job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, meta) = row
+            job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, meta = row
             meta_dict = meta if isinstance(meta, dict) else json.loads(meta or "{}")
-            jobs.append(Job(
-                id=job_id, task=task, runtime=runtime, status=JobStatus(status),
-                workspace=workspace, created_at=c_at, updated_at=u_at,
-                model=model, budget_usd=budget, cost_usd=cost, metadata=meta_dict,
-            ))
+            jobs.append(
+                Job(
+                    id=job_id,
+                    task=task,
+                    runtime=runtime,
+                    status=JobStatus(status),
+                    workspace=workspace,
+                    created_at=c_at,
+                    updated_at=u_at,
+                    model=model,
+                    budget_usd=budget,
+                    cost_usd=cost,
+                    metadata=meta_dict,
+                )
+            )
         return jobs
 
     # ── Outbox ────────────────────────────────────────────────────────────
@@ -535,7 +568,9 @@ class PostgresControlPlaneStore:
 
     # ── Fleet registry ────────────────────────────────────────────────────
 
-    def register_installation(self, installation_id: int, account_login: str, account_type: str = "Organization") -> None:
+    def register_installation(
+        self, installation_id: int, account_login: str, account_type: str = "Organization"
+    ) -> None:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -571,13 +606,14 @@ class PostgresControlPlaneStore:
                         trust_level = EXCLUDED.trust_level,
                         default_branch = EXCLUDED.default_branch
                     """,
-                    (repo_id, installation_id, owner, name, default_branch,
-                     automation_enabled, trust_level),
+                    (repo_id, installation_id, owner, name, default_branch, automation_enabled, trust_level),
                 )
 
     # ── Worker registry ───────────────────────────────────────────────────
 
-    def register_worker(self, worker_id: str, pool_type: str = "standard", hostname: str = "", pid: int = 0) -> None:
+    def register_worker(
+        self, worker_id: str, pool_type: str = "standard", hostname: str = "", pid: int = 0
+    ) -> None:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -611,8 +647,12 @@ class PostgresControlPlaneStore:
                 rows = cur.fetchall()
         return [
             {
-                "worker_id": r[0], "pool_type": r[1], "hostname": r[2],
-                "pid": r[3], "last_heartbeat": r[4], "active_jobs": r[5],
+                "worker_id": r[0],
+                "pool_type": r[1],
+                "hostname": r[2],
+                "pid": r[3],
+                "last_heartbeat": r[4],
+                "active_jobs": r[5],
             }
             for r in rows
         ]
@@ -638,8 +678,17 @@ class PostgresControlPlaneStore:
                                                     actor, environment, migration_version, result, notes)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (deploy_id, version, image_digest, time.time(),
-                     actor, environment, migration_version, result, notes),
+                    (
+                        deploy_id,
+                        version,
+                        image_digest,
+                        time.time(),
+                        actor,
+                        environment,
+                        migration_version,
+                        result,
+                        notes,
+                    ),
                 )
         return deploy_id
 

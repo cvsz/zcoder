@@ -27,14 +27,10 @@ CLI flags:
   --cowork-list         List all cowork task types
 """
 
-import os
-import sys
 import json
-import time
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
@@ -47,64 +43,64 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 COWORK_TASKS = {
     "research": {
-        "name":        "Deep Research",
+        "name": "Deep Research",
         "description": "Multi-angle research with source synthesis and structured report",
-        "icon":        "🔬",
+        "icon": "🔬",
     },
     "write": {
-        "name":        "Writing Assistant",
+        "name": "Writing Assistant",
         "description": "Draft, structure, and polish long-form content",
-        "icon":        "✍️",
+        "icon": "✍️",
     },
     "analyse": {
-        "name":        "Data Analysis",
+        "name": "Data Analysis",
         "description": "Analyse data files, generate insights, create summaries",
-        "icon":        "📊",
+        "icon": "📊",
     },
     "review": {
-        "name":        "Code Review",
+        "name": "Code Review",
         "description": "Full codebase review: quality, security, performance, tests",
-        "icon":        "🔍",
+        "icon": "🔍",
     },
     "plan": {
-        "name":        "Project Planning",
+        "name": "Project Planning",
         "description": "Break complex goals into structured plans with timelines",
-        "icon":        "📋",
+        "icon": "📋",
     },
     "compare": {
-        "name":        "Competitive Intel",
+        "name": "Competitive Intel",
         "description": "Compare options, products, or approaches with pros/cons",
-        "icon":        "⚖️",
+        "icon": "⚖️",
     },
     "summarise": {
-        "name":        "Document Summary",
+        "name": "Document Summary",
         "description": "Summarise large documents with key points and Q&A",
-        "icon":        "📄",
+        "icon": "📄",
     },
     "brainstorm": {
-        "name":        "Brainstorm",
+        "name": "Brainstorm",
         "description": "Generate, evaluate, and rank creative ideas",
-        "icon":        "💡",
+        "icon": "💡",
     },
     "translate": {
-        "name":        "Translate & Adapt",
+        "name": "Translate & Adapt",
         "description": "Translate content with cultural and tonal adaptation",
-        "icon":        "🌐",
+        "icon": "🌐",
     },
     "automate": {
-        "name":        "Task Automation",
+        "name": "Task Automation",
         "description": "Plan and execute multi-step automation workflows",
-        "icon":        "⚙️",
+        "icon": "⚙️",
     },
     "debug": {
-        "name":        "Deep Debug",
+        "name": "Deep Debug",
         "description": "Systematic debugging: root cause analysis + fix",
-        "icon":        "🐛",
+        "icon": "🐛",
     },
     "architect": {
-        "name":        "System Architecture",
+        "name": "System Architecture",
         "description": "Design system architectures with diagrams and decisions",
-        "icon":        "🏗️",
+        "icon": "🏗️",
     },
 }
 
@@ -123,7 +119,6 @@ WORKFLOW:
 6. GAPS — Note what is unknown or would require further research
 
 Output as a structured research report. Be thorough, nuanced, and evidence-based.""",
-
     "write": """You are a world-class writer and editor. Your task is producing excellent written content.
 
 WORKFLOW:
@@ -134,7 +129,6 @@ WORKFLOW:
 5. POLISH — Ensure consistency, flow, and impact
 
 Produce complete, publication-ready content.""",
-
     "analyse": """You are a senior data analyst. Your task is extracting actionable insights from data.
 
 WORKFLOW:
@@ -145,7 +139,6 @@ WORKFLOW:
 5. RECOMMENDATIONS — What actions follow from the analysis?
 
 Be precise with numbers. Support claims with evidence from the data.""",
-
     "review": """You are a senior software engineer conducting a thorough code review.
 
 WORKFLOW:
@@ -158,7 +151,6 @@ WORKFLOW:
 7. RECOMMENDATIONS — Prioritised list of changes
 
 Be specific: cite line numbers or function names where possible.""",
-
     "plan": """You are an expert project manager and strategist.
 
 WORKFLOW:
@@ -171,7 +163,6 @@ WORKFLOW:
 7. DEFINITION OF DONE — How do we know it's complete?
 
 Produce an actionable, realistic plan.""",
-
     "compare": """You are a strategic analyst specialising in competitive comparison.
 
 WORKFLOW:
@@ -183,7 +174,6 @@ WORKFLOW:
 6. CAVEATS — What assumptions were made? What could change the answer?
 
 Be balanced: find genuine strengths and weaknesses in each option.""",
-
     "summarise": """You are an expert at distilling complex information.
 
 WORKFLOW:
@@ -195,7 +185,6 @@ WORKFLOW:
 6. IMPLICATIONS — Why this matters / what follows from it
 
 Then be available for Q&A on the document.""",
-
     "brainstorm": """You are a creative strategist and idea generator.
 
 WORKFLOW:
@@ -207,7 +196,6 @@ WORKFLOW:
 6. RANK — Recommend top 3 with clear rationale
 
 Be genuinely creative. Include unconventional ideas.""",
-
     "translate": """You are a professional translator and cultural adaptation specialist.
 
 WORKFLOW:
@@ -218,7 +206,6 @@ WORKFLOW:
 5. NOTES — Highlight any translation choices that required judgement
 
 Produce a translation that reads naturally in the target language.""",
-
     "automate": """You are an automation architect and workflow designer.
 
 WORKFLOW:
@@ -229,7 +216,6 @@ WORKFLOW:
 5. IMPLEMENT — Write the automation code or configuration
 6. TEST — Outline how to test and validate
 7. MAINTAIN — Note what ongoing maintenance is needed""",
-
     "debug": """You are a senior debugging specialist.
 
 WORKFLOW:
@@ -242,7 +228,6 @@ WORKFLOW:
 7. PREVENT — How to prevent recurrence
 
 Be systematic. Show your reasoning.""",
-
     "architect": """You are a principal software architect.
 
 WORKFLOW:
@@ -260,20 +245,20 @@ WORKFLOW:
 
 # ── CoworkAgent ────────────────────────────────────────────────────────────
 
+
 class CoworkAgent:
     """Autonomous multi-step task executor."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 8192):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 8192):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         req = urllib.request.Request(
@@ -294,11 +279,11 @@ class CoworkAgent:
 
     def run(
         self,
-        task_type:   str,
-        prompt:      str,
-        files:       list[str] = None,
-        depth:       int = 3,
-        output_fmt:  str = "markdown",
+        task_type: str,
+        prompt: str,
+        files: list[str] = None,
+        depth: int = 3,
+        output_fmt: str = "markdown",
         stream_progress: bool = True,
     ) -> dict:
         """Execute a Cowork task. Returns {"output": str, "steps": list, "usage": dict}"""
@@ -311,7 +296,7 @@ class CoworkAgent:
 
         # Attach files
         file_content = ""
-        for fp in (files or []):
+        for fp in files or []:
             try:
                 text = Path(fp).read_text()[:12000]
                 file_content += f"\n\n--- File: {fp} ---\n{text}\n"
@@ -331,9 +316,9 @@ class CoworkAgent:
         # Format instruction
         fmt_map = {
             "markdown": "Format output as clean Markdown with headers.",
-            "json":     "Output as a valid JSON object with logical keys.",
-            "outline":  "Format as a structured outline with numbered sections.",
-            "bullets":  "Format as concise bullet points.",
+            "json": "Output as a valid JSON object with logical keys.",
+            "outline": "Format as a structured outline with numbered sections.",
+            "bullets": "Format as concise bullet points.",
         }
         fmt_instr = fmt_map.get(output_fmt, fmt_map["markdown"])
 
@@ -350,28 +335,25 @@ class CoworkAgent:
             print(f"\033[90m{'─'*50}\033[0m\n")
 
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "system":     sys_prompt,
-            "messages":   [{"role": "user", "content": full_prompt}],
+            "system": sys_prompt,
+            "messages": [{"role": "user", "content": full_prompt}],
         }
 
         data = self._post(payload)
         if "error" in data:
             return {"output": f"[ERROR] {data['error']}", "steps": [], "usage": {}}
 
-        output = "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
-        usage  = data.get("usage", {})
+        output = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        usage = data.get("usage", {})
 
         return {
-            "output":    output,
+            "output": output,
             "task_type": task_type,
             "task_name": task["name"],
-            "steps":     [],
-            "usage":     usage,
+            "steps": [],
+            "usage": usage,
         }
 
     # ── Multi-turn iterative cowork ────────────────────────────────────────
@@ -388,12 +370,12 @@ class CoworkAgent:
         Returns list of responses (one per turn).
         """
         sys_prompt = SYSTEM_PROMPTS.get(task_type, "You are an expert assistant.")
-        messages   = []
-        responses  = []
+        messages = []
+        responses = []
 
         # File content once
         file_content = ""
-        for fp in (files or []):
+        for fp in files or []:
             try:
                 file_content += f"\n\n--- {fp} ---\n{Path(fp).read_text()[:6000]}"
             except Exception:
@@ -406,19 +388,16 @@ class CoworkAgent:
         for i, user_msg in enumerate([first] + follow_ups):
             messages.append({"role": "user", "content": user_msg})
             payload = {
-                "model":      self.model,
+                "model": self.model,
                 "max_tokens": self.max_tokens,
-                "system":     sys_prompt,
-                "messages":   messages,
+                "system": sys_prompt,
+                "messages": messages,
             }
             data = self._post(payload)
             if "error" in data:
                 responses.append(f"[ERROR] {data['error']}")
                 break
-            resp = "".join(
-                b.get("text", "") for b in data.get("content", [])
-                if b.get("type") == "text"
-            )
+            resp = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
             responses.append(resp)
             messages.append({"role": "assistant", "content": resp})
 
@@ -427,16 +406,26 @@ class CoworkAgent:
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_cowork(task_type: str, prompt: str, api_key: str, model: str,
-               files: list[str] = None, depth: int = 3,
-               output_fmt: str = "markdown", output_file: str = None):
-    agent  = CoworkAgent(api_key=api_key, model=model)
+
+def cmd_cowork(
+    task_type: str,
+    prompt: str,
+    api_key: str,
+    model: str,
+    files: list[str] = None,
+    depth: int = 3,
+    output_fmt: str = "markdown",
+    output_file: str = None,
+):
+    agent = CoworkAgent(api_key=api_key, model=model)
     result = agent.run(task_type, prompt, files=files, depth=depth, output_fmt=output_fmt)
 
     print(result["output"])
 
     u = result.get("usage", {})
-    print(f"\n\033[90m[{result['task_name']}  in={u.get('input_tokens',0)}  out={u.get('output_tokens',0)}]\033[0m")
+    print(
+        f"\n\033[90m[{result['task_name']}  in={u.get('input_tokens',0)}  out={u.get('output_tokens',0)}]\033[0m"
+    )
 
     if output_file:
         Path(output_file).write_text(result["output"])
@@ -451,4 +440,4 @@ def cmd_cowork_list():
     print("  " + "─" * 70)
     for key, task in COWORK_TASKS.items():
         print(f"  {key:<14}{(task['icon']+' '+task['name']):<26}{task['description']}")
-    print(f"\n  Usage: ai-coder --cowork <type> --cowork-prompt \"your task\"")
+    print('\n  Usage: ai-coder --cowork <type> --cowork-prompt "your task"')

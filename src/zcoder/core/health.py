@@ -11,6 +11,7 @@ some form, disk-writable for config/cache dirs.
 For a true end-to-end check against the live API, use `--health-check --deep`
 sparingly (e.g. a startup probe run once, not a liveness probe run every 5s).
 """
+
 from __future__ import annotations
 
 import os
@@ -18,7 +19,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 
-from config import Config, CONFIG_PATH
+from config import CONFIG_PATH, Config
 
 
 @dataclass
@@ -47,7 +48,9 @@ class HealthReport:
 def _check_api_key() -> CheckResult:
     cfg = Config()
     key = cfg.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
-    return CheckResult("api_key_configured", bool(key), "" if key else "ANTHROPIC_API_KEY not set and no key in config")
+    return CheckResult(
+        "api_key_configured", bool(key), "" if key else "ANTHROPIC_API_KEY not set and no key in config"
+    )
 
 
 def _check_config_writable() -> CheckResult:
@@ -65,13 +68,16 @@ def _check_config_writable() -> CheckResult:
 
 def _check_python_version() -> CheckResult:
     ok = sys.version_info >= (3, 9)
-    return CheckResult("python_version", ok, f"{sys.version.split()[0]} ({'ok' if ok else 'requires >= 3.9'})")
+    return CheckResult(
+        "python_version", ok, f"{sys.version.split()[0]} ({'ok' if ok else 'requires >= 3.9'})"
+    )
 
 
 def _check_live_api(api_key: str, model: str = "claude-sonnet-5") -> CheckResult:
     """Deep check — makes one minimal live call. Only run explicitly."""
     try:
         from coder import Coder
+
         c = Coder(api_key=api_key, model=model, max_tokens=8)
         result = c.generate("Reply with the single word: ok")
         ok = not str(result).startswith("[ERROR]") and not str(result).startswith("[API ERROR")

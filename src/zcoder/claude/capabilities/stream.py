@@ -34,8 +34,9 @@ CLI flags:
 
 import json
 import sys
-import anthropic
 from typing import Optional
+
+import anthropic
 
 # Legacy header — GA now, per-tool eager_input_streaming is the current way
 # to opt in, but this still works for requests that send it and leave the
@@ -73,7 +74,7 @@ def handle_refusal(response_or_stop_details) -> Optional[dict]:
     else:
         details = response_or_stop_details or {}
     return {
-        "category":    details.get("category"),
+        "category": details.get("category"),
         "explanation": details.get("explanation", ""),
     }
 
@@ -81,10 +82,9 @@ def handle_refusal(response_or_stop_details) -> Optional[dict]:
 class StreamCoder:
     """Claude client with streaming support."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096):
-        self.client     = anthropic.Anthropic(api_key=api_key)
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model
         self.max_tokens = max_tokens
 
     def stream(
@@ -107,10 +107,10 @@ class StreamCoder:
         if tools:
             kwargs["tools"] = tools
 
-        full_text     = ""
+        full_text = ""
         thinking_text = ""
-        in_thinking   = False
-        usage_data    = {}
+        in_thinking = False
+        usage_data = {}
 
         with self.client.messages.stream(**kwargs) as stream:
             for event in stream:
@@ -149,20 +149,21 @@ class StreamCoder:
                         }
 
                 elif etype == "message_start":
-                    msg   = getattr(event, "message", None)
+                    msg = getattr(event, "message", None)
                     usage = getattr(msg, "usage", None) if msg else None
                     if usage:
                         usage_data["input_tokens"] = getattr(usage, "input_tokens", 0)
 
         print()  # final newline
         if usage_data:
-            print(f"\033[90m[tokens] in={usage_data.get('input_tokens',0)}  "
-                  f"out={usage_data.get('output_tokens',0)}\033[0m")
+            print(
+                f"\033[90m[tokens] in={usage_data.get('input_tokens',0)}  "
+                f"out={usage_data.get('output_tokens',0)}\033[0m"
+            )
 
         return full_text
 
-    def stream_file_analysis(self, file_content: str, prompt: str,
-                              system: Optional[str] = None) -> str:
+    def stream_file_analysis(self, file_content: str, prompt: str, system: Optional[str] = None) -> str:
         """Stream analysis of a file."""
         full_prompt = f"```\n{file_content}\n```\n\n{prompt}"
         return self.stream(full_prompt, system=system)
@@ -189,8 +190,7 @@ class StreamCoder:
             tools = with_eager_input_streaming(tools)
 
         messages = [{"role": "user", "content": prompt}]
-        kwargs = dict(model=self.model, max_tokens=self.max_tokens,
-                     messages=messages, tools=tools)
+        kwargs = dict(model=self.model, max_tokens=self.max_tokens, messages=messages, tools=tools)
         if system:
             kwargs["system"] = system
         extra_headers = {}
@@ -199,9 +199,9 @@ class StreamCoder:
         if extra_headers:
             kwargs["extra_headers"] = extra_headers
 
-        full_text  = ""
+        full_text = ""
         tool_calls = []
-        current    = None  # in-progress tool_use block accumulator
+        current = None  # in-progress tool_use block accumulator
         stop_reason = None
         stop_details = None
 
@@ -212,11 +212,18 @@ class StreamCoder:
                 if etype == "content_block_start":
                     block = event.content_block
                     if getattr(block, "type", "") == "tool_use":
-                        current = {"name": getattr(block, "name", ""),
-                                  "id": getattr(block, "id", ""), "json": ""}
+                        current = {
+                            "name": getattr(block, "name", ""),
+                            "id": getattr(block, "id", ""),
+                            "json": "",
+                        }
                         if verbose:
-                            print(f"\n\033[90m[tool_use:{current['name']}] ", end="",
-                                  file=sys.stderr, flush=True)
+                            print(
+                                f"\n\033[90m[tool_use:{current['name']}] ",
+                                end="",
+                                file=sys.stderr,
+                                flush=True,
+                            )
 
                 elif etype == "content_block_delta":
                     delta = event.delta
@@ -239,10 +246,14 @@ class StreamCoder:
                         parsed = json.loads(current["json"]) if current["json"] else {}
                     except json.JSONDecodeError:
                         pass  # expected possibility with eager_input_streaming
-                    tool_calls.append({
-                        "name": current["name"], "id": current["id"],
-                        "input_raw": current["json"], "input": parsed,
-                    })
+                    tool_calls.append(
+                        {
+                            "name": current["name"],
+                            "id": current["id"],
+                            "input_raw": current["json"],
+                            "input": parsed,
+                        }
+                    )
                     current = None
 
                 elif etype == "message_delta":
@@ -253,31 +264,42 @@ class StreamCoder:
 
         print()
         if stop_reason == "refusal":
-            refusal = handle_refusal({"stop_reason": stop_reason,
-                                      "stop_details": stop_details or {}})
+            refusal = handle_refusal({"stop_reason": stop_reason, "stop_details": stop_details or {}})
             if verbose and refusal:
-                print(f"\033[91m[refusal] category={refusal['category']} "
-                      f"{refusal['explanation']}\033[0m", file=sys.stderr)
+                print(
+                    f"\033[91m[refusal] category={refusal['category']} " f"{refusal['explanation']}\033[0m",
+                    file=sys.stderr,
+                )
 
-        return {"text": full_text, "tool_calls": tool_calls,
-                "stop_reason": stop_reason, "stop_details": stop_details}
+        return {
+            "text": full_text,
+            "tool_calls": tool_calls,
+            "stop_reason": stop_reason,
+            "stop_details": stop_details,
+        }
 
 
 # ── CLI entry point ────────────────────────────────────────────────────────
 
-def cmd_stream(prompt: str, api_key: str, model: str, system: str = None,
-               file_content: str = None, show_thinking: bool = False):
-    print(f"\033[94mℹ Streaming response…\033[0m\n")
+
+def cmd_stream(
+    prompt: str,
+    api_key: str,
+    model: str,
+    system: str = None,
+    file_content: str = None,
+    show_thinking: bool = False,
+):
+    print("\033[94mℹ Streaming response…\033[0m\n")
     sc = StreamCoder(api_key=api_key, model=model)
     if file_content:
         return sc.stream_file_analysis(file_content, prompt, system=system)
     return sc.stream(prompt, system=system, show_thinking=show_thinking)
 
 
-def cmd_stream_tools(prompt: str, tools: list[dict], api_key: str, model: str,
-                     system: str = None):
+def cmd_stream_tools(prompt: str, tools: list[dict], api_key: str, model: str, system: str = None):
     """Stream a turn with fine-grained tool input streaming on."""
-    print(f"\033[94mℹ Streaming with fine-grained tool input…\033[0m\n")
+    print("\033[94mℹ Streaming with fine-grained tool input…\033[0m\n")
     sc = StreamCoder(api_key=api_key, model=model)
     result = sc.stream_with_tools(prompt, tools, system=system)
     if result["tool_calls"]:

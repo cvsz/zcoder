@@ -10,17 +10,19 @@ Tests real:
 - Database connection restart recovery
 - Backup & restore drill validation against real PostgreSQL
 """
+
 import multiprocessing
 import os
-import subprocess
 import time
-import pytest
+
 import psycopg2
+import pytest
 
 from agent_runtime import Job, JobStatus
 from postgres_store import PostgresControlPlaneStore
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
+
 
 def pg_is_available():
     try:
@@ -30,7 +32,9 @@ def pg_is_available():
     except Exception:
         return False
 
+
 pytestmark = pytest.mark.skipif(not pg_is_available(), reason="PostgreSQL test container not reachable")
+
 
 @pytest.fixture(scope="module")
 def pg_store():
@@ -38,6 +42,7 @@ def pg_store():
     store.init_schema()
     yield store
     store.close()
+
 
 def _worker_claim_loop(worker_name: str, duration_sec: float, claimed_list, error_list):
     try:
@@ -57,6 +62,7 @@ def _worker_claim_loop(worker_name: str, duration_sec: float, claimed_list, erro
         store.close()
     except Exception as e:
         error_list.append(str(e))
+
 
 class TestRealPostgresMultiProcess:
     def test_schema_initialization_and_health(self, pg_store):
@@ -87,8 +93,7 @@ class TestRealPostgresMultiProcess:
         workers = []
         for w_idx in range(3):
             p = multiprocessing.Process(
-                target=_worker_claim_loop,
-                args=(f"worker_proc_{w_idx}", 4.0, claimed_list, error_list)
+                target=_worker_claim_loop, args=(f"worker_proc_{w_idx}", 4.0, claimed_list, error_list)
             )
             p.start()
             workers.append(p)
@@ -97,7 +102,7 @@ class TestRealPostgresMultiProcess:
             p.join(timeout=10.0)
 
         assert len(error_list) == 0, f"Errors in worker processes: {list(error_list)}"
-        
+
         # Verify that all 30 jobs were claimed exactly once
         claimed_job_ids = [c[0] for c in claimed_list]
         assert len(claimed_job_ids) == num_jobs, f"Expected {num_jobs} claims, got {len(claimed_job_ids)}"

@@ -1,24 +1,31 @@
 """tests/test_utils.py"""
+
 import pytest
 
-from utils import sampling_kwargs, format_code_block, wrap_text
+from utils import format_code_block, sampling_kwargs, wrap_text
 
 
-@pytest.mark.parametrize("model", [
-    "claude-sonnet-5",
-    "claude-fable-5",
-    "claude-mythos-5",
-    "claude-sonnet-5-20260101",
-])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "claude-sonnet-5",
+        "claude-fable-5",
+        "claude-mythos-5",
+        "claude-sonnet-5-20260101",
+    ],
+)
 def test_sampling_kwargs_omitted_for_no_sampling_models(model):
     assert sampling_kwargs(model, temperature=0.7) == {}
 
 
-@pytest.mark.parametrize("model", [
-    "claude-opus-4-8",
-    "claude-haiku-4-5-20251001",
-    "claude-3-5-sonnet",
-])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "claude-opus-4-8",
+        "claude-haiku-4-5-20251001",
+        "claude-3-5-sonnet",
+    ],
+)
 def test_sampling_kwargs_included_for_other_models(model):
     result = sampling_kwargs(model, temperature=0.7, top_p=0.9)
     assert result == {"temperature": 0.7, "top_p": 0.9}

@@ -15,6 +15,7 @@ Provides:
   record before it's emitted, so a stray `logger.debug(payload)` can't leak
   a credential into logs/observability pipelines.
 """
+
 from __future__ import annotations
 
 import contextvars
@@ -31,7 +32,9 @@ correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar("correlatio
 _SECRET_PATTERNS = [
     re.compile(r"sk-ant-[A-Za-z0-9\-_]{10,}"),
     re.compile(r"(?i)(x-api-key|authorization)['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9\-_.]{10,}"),
-    re.compile(r"(?i)(ANTHROPIC_API_KEY|GITHUB_TOKEN|VOYAGE_API_KEY)['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9\-_.]{6,}"),
+    re.compile(
+        r"(?i)(ANTHROPIC_API_KEY|GITHUB_TOKEN|VOYAGE_API_KEY)['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9\-_.]{6,}"
+    ),
 ]
 
 
@@ -58,7 +61,8 @@ class RedactingFilter(logging.Filter):
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(record.created)) + f".{int(record.msecs):03d}Z",
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(record.created))
+            + f".{int(record.msecs):03d}Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -66,10 +70,29 @@ class JsonFormatter(logging.Formatter):
         }
         # Extra fields passed via logger.info("event", extra={...})
         for key, value in record.__dict__.items():
-            if key in ("args", "msg", "levelname", "levelno", "name", "pathname",
-                       "filename", "module", "exc_info", "exc_text", "stack_info",
-                       "lineno", "funcName", "created", "msecs", "relativeCreated",
-                       "thread", "threadName", "processName", "process", "taskName"):
+            if key in (
+                "args",
+                "msg",
+                "levelname",
+                "levelno",
+                "name",
+                "pathname",
+                "filename",
+                "module",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+                "taskName",
+            ):
                 continue
             payload[key] = value
         if record.exc_info:

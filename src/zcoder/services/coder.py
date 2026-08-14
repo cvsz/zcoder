@@ -2,15 +2,17 @@
 coder.py — Claude API integration core
 AI Model Coder CLI v1.7.0
 """
-import os
+
 import json
-import urllib.request
+import os
 import urllib.error
+import urllib.request
+
 from config import Config
-from utils import sampling_kwargs
-from exceptions import AuthenticationError, RateLimitError, TransientAPIError, APIError
-from resilience import retry, CircuitBreaker
+from exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
 from logging_config import get_logger
+from resilience import CircuitBreaker, retry
+from utils import sampling_kwargs
 
 logger = get_logger("coder")
 
@@ -22,9 +24,18 @@ _default_breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
 class Coder:
-    def __init__(self, api_key=None, model=None, temperature=0.3, max_tokens=4096,
-                 provider=None, personality_style=None,
-                 service_tier=None, inference_geo=None, fast_mode=False):
+    def __init__(
+        self,
+        api_key=None,
+        model=None,
+        temperature=0.3,
+        max_tokens=4096,
+        provider=None,
+        personality_style=None,
+        service_tier=None,
+        inference_geo=None,
+        fast_mode=False,
+    ):
         self.config = Config()
         self.api_key = api_key or self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
         self.model = model or self.config.get("model") or "claude-sonnet-5"
@@ -63,6 +74,7 @@ class Coder:
         if self.personality_style:
             try:
                 from personalities import PersonalityManager
+
                 pm = PersonalityManager()
                 addition = pm.build_prompt_addition(self.personality_style)
                 if addition and system:
@@ -90,7 +102,8 @@ class Coder:
         if self.inference_geo:
             payload["inference_geo"] = self.inference_geo
         if self.fast_mode:
-            from claude_models import validate_fast_mode, FAST_MODE_REMOVED_ERROR
+            from claude_models import FAST_MODE_REMOVED_ERROR, validate_fast_mode
+
             reason = validate_fast_mode(self.model)
             if self.model in FAST_MODE_REMOVED_ERROR:
                 logger.error("fast_mode_removed", extra={"model": self.model})
@@ -126,10 +139,14 @@ class Coder:
                         retry_after = float(e.headers.get("Retry-After", "")) if e.headers else None
                     except (TypeError, ValueError):
                         pass
-                    raise RateLimitError("Rate limited (429)", retry_after=retry_after, details={"body": body[:300]})
+                    raise RateLimitError(
+                        "Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}
+                    )
                 if e.code >= 500:
                     raise TransientAPIError(f"Server error ({e.code})", details={"body": body[:300]})
-                raise APIError(f"Request rejected ({e.code})", status_code=e.code, details={"body": body[:300]})
+                raise APIError(
+                    f"Request rejected ({e.code})", status_code=e.code, details={"body": body[:300]}
+                )
             except (TimeoutError, ConnectionError, OSError) as e:
                 # Covers socket timeouts and connection resets from urllib,
                 # which surface as plain OSError/ConnectionError subclasses,

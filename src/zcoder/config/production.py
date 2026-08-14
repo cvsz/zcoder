@@ -7,6 +7,7 @@ Provides:
   • Config dump with secret redaction
   • Config validation and unknown-key warnings
 """
+
 from __future__ import annotations
 
 import json
@@ -15,28 +16,30 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
 # ---------------------------------------------------------------------------
 # Sub-configuration sections
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DatabaseConfig:
     """PostgreSQL / SQLite database settings."""
-    url: str = ""                      # e.g. postgresql://user:pass@host/db
-    sqlite_path: str = ""             # local-mode fallback
+
+    url: str = ""  # e.g. postgresql://user:pass@host/db
+    sqlite_path: str = ""  # local-mode fallback
     pool_size: int = 5
     max_overflow: int = 10
     pool_timeout: float = 30.0
     pool_recycle: int = 1800
     connect_timeout: int = 10
     statement_timeout_ms: int = 30000
-    mode: str = "sqlite"              # sqlite | postgres
+    mode: str = "sqlite"  # sqlite | postgres
 
 
 @dataclass
 class AuthConfig:
     """OIDC / authentication settings."""
+
     enabled: bool = False
     oidc_issuer: str = ""
     oidc_audience: str = ""
@@ -56,9 +59,10 @@ class AuthConfig:
 @dataclass
 class GitHubAppConfig:
     """GitHub App credentials."""
+
     app_id: str = ""
-    private_key_path: str = ""       # Path to PEM file; NOT inline key
-    private_key_env: str = ""        # Env var name containing PEM content
+    private_key_path: str = ""  # Path to PEM file; NOT inline key
+    private_key_env: str = ""  # Env var name containing PEM content
     webhook_secret_env: str = "GITHUB_WEBHOOK_SECRET"
     installation_id: Optional[int] = None
 
@@ -66,6 +70,7 @@ class GitHubAppConfig:
 @dataclass
 class AnthropicConfig:
     """Anthropic API credentials and limits."""
+
     api_key_env: str = "ANTHROPIC_API_KEY"
     default_model: str = "claude-sonnet-5"
     max_tokens: int = 8192
@@ -77,24 +82,26 @@ class AnthropicConfig:
 @dataclass
 class WorkerConfig:
     """Worker pool settings."""
+
     concurrency: int = 2
     lease_duration_seconds: float = 120.0
     heartbeat_interval_seconds: float = 30.0
     shutdown_timeout_seconds: float = 60.0
     max_job_attempts: int = 3
-    pool_type: str = "standard"       # standard | sandbox | trusted | high-isolation
+    pool_type: str = "standard"  # standard | sandbox | trusted | high-isolation
 
 
 @dataclass
 class TelemetryConfig:
     """OpenTelemetry / observability settings."""
+
     enabled: bool = False
     otel_endpoint: str = ""
     service_name: str = "zcoder"
     service_version: str = ""
     metrics_port: int = 9090
     metrics_path: str = "/metrics"
-    log_format: str = "json"          # json | text
+    log_format: str = "json"  # json | text
     log_level: str = "INFO"
     trace_sampling_ratio: float = 0.1
 
@@ -102,12 +109,13 @@ class TelemetryConfig:
 @dataclass
 class BackupConfig:
     """Backup and PITR settings."""
+
     enabled: bool = False
-    strategy: str = "pg_dump"         # pg_dump | wal_archive | pitr
+    strategy: str = "pg_dump"  # pg_dump | wal_archive | pitr
     schedule_cron: str = "0 2 * * *"  # daily at 02:00 UTC
     retention_days_daily: int = 7
     retention_days_weekly: int = 30
-    destination: str = ""             # s3://bucket/prefix or /local/path
+    destination: str = ""  # s3://bucket/prefix or /local/path
     encryption_key_env: str = "BACKUP_ENCRYPTION_KEY"
     wal_archive_command: str = ""
     # Freshness alert thresholds
@@ -118,12 +126,13 @@ class BackupConfig:
 @dataclass
 class SecurityConfig:
     """Security hardening settings."""
+
     rate_limit_enabled: bool = True
     rate_limit_login_per_minute: int = 10
     rate_limit_webhook_per_minute: int = 100
     rate_limit_job_submit_per_minute: int = 30
     max_webhook_payload_bytes: int = 10 * 1024 * 1024  # 10 MB
-    max_api_payload_bytes: int = 4 * 1024 * 1024       # 4 MB
+    max_api_payload_bytes: int = 4 * 1024 * 1024  # 4 MB
     trusted_proxy_cidrs: List[str] = field(default_factory=list)
     content_security_policy: str = "default-src 'self'"
     referrer_policy: str = "strict-origin-when-cross-origin"
@@ -155,10 +164,17 @@ class ProductionConfig:
 # Secret redaction helpers
 # ---------------------------------------------------------------------------
 
-_SECRET_FIELDS = frozenset({
-    "api_key", "private_key", "webhook_secret", "password",
-    "encryption_key", "token", "secret",
-})
+_SECRET_FIELDS = frozenset(
+    {
+        "api_key",
+        "private_key",
+        "webhook_secret",
+        "password",
+        "encryption_key",
+        "token",
+        "secret",
+    }
+)
 
 
 def _redact_value(key: str, value: Any) -> Any:
@@ -171,8 +187,14 @@ def _redact_value(key: str, value: Any) -> Any:
             if isinstance(value, str) and value:
                 return "[REDACTED]"
     # Scrub embedded password in database/connection URLs
-    if isinstance(value, str) and "://" in value and "@" in value and key_lower in ("url", "dsn", "database_url", "connection_string"):
+    if (
+        isinstance(value, str)
+        and "://" in value
+        and "@" in value
+        and key_lower in ("url", "dsn", "database_url", "connection_string")
+    ):
         import re
+
         return re.sub(r"(://[^:@]+:)[^@]+(@)", r"\1[REDACTED]\2", value)
     return value
 
@@ -192,6 +214,7 @@ def _redact_dict(d: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Environment resolution helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_from_env(cfg: ProductionConfig) -> ProductionConfig:
     """Override config with values from environment variables."""
@@ -244,6 +267,7 @@ def _resolve_from_env(cfg: ProductionConfig) -> ProductionConfig:
 # Profile-level validation
 # ---------------------------------------------------------------------------
 
+
 class ConfigValidationError(Exception):
     """Raised when configuration is invalid for the selected profile."""
 
@@ -257,7 +281,9 @@ def validate_config(cfg: ProductionConfig) -> List[str]:
         if cfg.debug:
             warnings.append("WARN: debug=true in production profile")
         if cfg.database.mode != "postgres":
-            errors.append("ERROR: production profile requires database.mode=postgres (DATABASE_URL must be set)")
+            errors.append(
+                "ERROR: production profile requires database.mode=postgres (DATABASE_URL must be set)"
+            )
         if not cfg.auth.enabled:
             errors.append("ERROR: production profile requires auth.enabled=true")
         if not cfg.auth.oidc_issuer:

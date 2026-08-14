@@ -134,57 +134,59 @@ dream lifecycle events, so a long-running Managed Agents task doesn't
 need a client holding an SSE stream open the whole time. Public beta.
 """
 
-import os
 import json
-import uuid
+import os
 import time
-import urllib.request
 import urllib.error
+import urllib.request
+import uuid
 from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
 
-
 SESSIONS_DIR = Path(os.path.expanduser("~/.ai-coder/agent_sessions"))
-ENDPOINT     = "https://api.anthropic.com/v1/messages"
+ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
 # ── Permission modes ───────────────────────────────────────────────────────
 
+
 class PermissionMode:
-    ACCEPT_EDITS   = "acceptEdits"      # auto-approve all tool calls
-    ASK_PERMISSION = "askPermission"    # ask user for each tool call
-    SUPERVISED     = "supervised"       # auto-approve reads, ask for writes
+    ACCEPT_EDITS = "acceptEdits"  # auto-approve all tool calls
+    ASK_PERMISSION = "askPermission"  # ask user for each tool call
+    SUPERVISED = "supervised"  # auto-approve reads, ask for writes
 
 
 # ── Tool presets ───────────────────────────────────────────────────────────
 
 TOOL_PRESETS = {
-    "all":          ["bash", "text_editor", "web_search", "code_execution"],
-    "code":         ["bash", "text_editor", "code_execution"],
-    "web":          ["web_search", "web_fetch"],
-    "readonly":     ["web_search", "web_fetch", "code_execution"],
-    "filesystem":   ["bash", "text_editor"],
+    "all": ["bash", "text_editor", "web_search", "code_execution"],
+    "code": ["bash", "text_editor", "code_execution"],
+    "web": ["web_search", "web_fetch"],
+    "readonly": ["web_search", "web_fetch", "code_execution"],
+    "filesystem": ["bash", "text_editor"],
 }
 
 
 # ── AgentSession ──────────────────────────────────────────────────────────
 
+
 class AgentSession:
     """Persistent session with message history and tool state."""
 
-    def __init__(self, session_id: str = None, name: str = "",
-                 permission_mode: str = PermissionMode.ASK_PERMISSION):
-        self.id              = session_id or str(uuid.uuid4())[:12]
-        self.name            = name or f"session-{self.id}"
+    def __init__(
+        self, session_id: str = None, name: str = "", permission_mode: str = PermissionMode.ASK_PERMISSION
+    ):
+        self.id = session_id or str(uuid.uuid4())[:12]
+        self.name = name or f"session-{self.id}"
         self.permission_mode = permission_mode
-        self.history: list   = []
+        self.history: list = []
         self.mcp_servers: list = []
-        self.created_at      = time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.updated_at      = self.created_at
+        self.created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.updated_at = self.created_at
         SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     @classmethod
@@ -203,14 +205,14 @@ class AgentSession:
         p.write_text(json.dumps(self.__dict__, indent=2))
 
     def add_turn(self, role: str, content: str):
-        self.history.append({"role": role, "content": content,
-                              "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ")})
+        self.history.append({"role": role, "content": content, "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ")})
 
     def messages(self) -> list[dict]:
         return [{"role": t["role"], "content": t["content"]} for t in self.history]
 
 
 # ── MCP connector config ───────────────────────────────────────────────────
+
 
 class McpServerConfig:
     def __init__(self, type: str, name: str, **kwargs):
@@ -279,8 +281,10 @@ class McpTunnel:
         if name:
             payload["name"] = name
         req = urllib.request.Request(
-            TUNNELS_ENDPOINT, data=json.dumps(payload).encode(),
-            headers=self._headers(), method="POST",
+            TUNNELS_ENDPOINT,
+            data=json.dumps(payload).encode(),
+            headers=self._headers(),
+            method="POST",
         )
         try:
             data = self._call(req)
@@ -302,7 +306,8 @@ class McpTunnel:
             return {"error": "No open tunnel to close"}
         req = urllib.request.Request(
             f"{TUNNELS_ENDPOINT}/{self.tunnel_id}",
-            headers=self._headers(), method="DELETE",
+            headers=self._headers(),
+            method="DELETE",
         )
         try:
             return self._call_delete(req)
@@ -336,8 +341,10 @@ def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: Optional[str] = Non
         print(f"\033[91m✗ Failed to open tunnel: {result['error']}\033[0m")
         return result
     print(f"\033[92m✓ Tunnel open: {tunnel.public_url}  (id={tunnel.tunnel_id})\033[0m")
-    print(f"  Forwarding to local port {local_port}. Use this URL with "
-          f"McpServerConfig.sse()/http() as an mcp_servers entry.")
+    print(
+        f"  Forwarding to local port {local_port}. Use this URL with "
+        f"McpServerConfig.sse()/http() as an mcp_servers entry."
+    )
     return result
 
 
@@ -355,18 +362,20 @@ def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: Optional[str] = Non
 # cmd_agent_chat/cmd_agent_orchestrate call sites) but be aware it's really
 # a lightweight local alternative, not a wrapper around the real product.
 
+
 class ManagedAgent:
     """
     Claude Managed Agents via the Messages API.
     Uses agentic tool loops with session persistence.
     """
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 8192, system_prompt: str = None):
-        self.api_key     = api_key
-        self.model       = model
-        self.max_tokens  = max_tokens
-        self.system      = system_prompt or (
+    def __init__(
+        self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 8192, system_prompt: str = None
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.max_tokens = max_tokens
+        self.system = system_prompt or (
             "You are an expert software agent. You have access to tools for "
             "reading files, running code, and searching the web. "
             "Complete tasks step-by-step, using tools as needed. "
@@ -376,8 +385,8 @@ class ManagedAgent:
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict, beta: str = "") -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         if beta:
@@ -400,16 +409,15 @@ class ManagedAgent:
 
     # ── Simple session-aware call ──────────────────────────────────────────
 
-    def chat(self, prompt: str, session: AgentSession,
-             tools: list[dict] = None) -> str:
+    def chat(self, prompt: str, session: AgentSession, tools: list[dict] = None) -> str:
         """Add a turn to the session and get a response."""
         session.add_turn("user", prompt)
 
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "system":     self.system,
-            "messages":   session.messages(),
+            "system": self.system,
+            "messages": session.messages(),
         }
         if tools:
             payload["tools"] = tools
@@ -418,18 +426,14 @@ class ManagedAgent:
         if "error" in data:
             return f"[ERROR] {data['error']}"
 
-        resp = "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        resp = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
         session.add_turn("assistant", resp)
         session.save()
         return resp
 
     # ── Subagent spawner ──────────────────────────────────────────────────
 
-    def spawn_subagent(self, task: str, context: str = "",
-                       tools: list[dict] = None) -> str:
+    def spawn_subagent(self, task: str, context: str = "", tools: list[dict] = None) -> str:
         """
         Spawn a focused subagent for a specific sub-task.
         Returns the subagent's result as a string.
@@ -440,10 +444,10 @@ class ManagedAgent:
         )
         prompt = f"Context: {context}\n\nTask: {task}" if context else task
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "system":     sub_system,
-            "messages":   [{"role": "user", "content": prompt}],
+            "system": sub_system,
+            "messages": [{"role": "user", "content": prompt}],
         }
         if tools:
             payload["tools"] = tools
@@ -451,15 +455,11 @@ class ManagedAgent:
         data = self._post(payload)
         if "error" in data:
             return f"[SUBAGENT ERROR] {data['error']}"
-        return "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
     # ── Orchestrator ──────────────────────────────────────────────────────
 
-    def orchestrate(self, goal: str, session: AgentSession,
-                    max_steps: int = 8) -> dict:
+    def orchestrate(self, goal: str, session: AgentSession, max_steps: int = 8) -> dict:
         """
         High-level orchestrator: decompose goal into steps, run subagents,
         synthesise results.
@@ -476,7 +476,8 @@ class ManagedAgent:
         steps = []
         try:
             import re
-            m = re.search(r'\[.*\]', raw, re.DOTALL)
+
+            m = re.search(r"\[.*\]", raw, re.DOTALL)
             if m:
                 steps = json.loads(m.group(0))
         except Exception:
@@ -488,12 +489,11 @@ class ManagedAgent:
         step_results: dict[int, str] = {}
         for s in steps[:max_steps]:
             step_n = s.get("step", 0)
-            task   = s.get("task", "")
-            deps   = s.get("depends_on", [])
+            task = s.get("task", "")
+            deps = s.get("depends_on", [])
 
             context = "\n".join(
-                f"Step {d} result: {step_results.get(d, '')[:500]}"
-                for d in deps if d in step_results
+                f"Step {d} result: {step_results.get(d, '')[:500]}" for d in deps if d in step_results
             )
             print(f"  → Step {step_n}: {task[:60]}")
             result = self.spawn_subagent(task, context=context)
@@ -508,10 +508,10 @@ class ManagedAgent:
         final = self.chat(synthesis_prompt, session)
 
         return {
-            "goal":         goal,
-            "steps":        steps,
+            "goal": goal,
+            "steps": steps,
             "step_results": step_results,
-            "final":        final,
+            "final": final,
         }
 
 
@@ -560,10 +560,14 @@ def _budget_to_dict(budget) -> Optional[dict]:
     max_list_cost = getattr(budget, "max_list_cost", None)
     return {
         "type": getattr(budget, "type", "limit"),
-        "max_list_cost": {
-            "amount": getattr(max_list_cost, "amount", None),
-            "currency": getattr(max_list_cost, "currency", "USD"),
-        } if max_list_cost is not None else None,
+        "max_list_cost": (
+            {
+                "amount": getattr(max_list_cost, "amount", None),
+                "currency": getattr(max_list_cost, "currency", "USD"),
+            }
+            if max_list_cost is not None
+            else None
+        ),
     }
 
 
@@ -574,13 +578,14 @@ def _list_cost_cents(usage) -> Optional[int]:
     so no list_cost is being tracked) or usage is otherwise absent."""
     if usage is None:
         return None
-    list_cost = getattr(usage, "list_cost", None) if not isinstance(usage, dict) \
-        else usage.get("list_cost")
+    list_cost = getattr(usage, "list_cost", None) if not isinstance(usage, dict) else usage.get("list_cost")
     if list_cost is None:
         return None
-    amount = getattr(list_cost, "amount", None) if not isinstance(list_cost, dict) \
-        else list_cost.get("amount")
+    amount = (
+        getattr(list_cost, "amount", None) if not isinstance(list_cost, dict) else list_cost.get("amount")
+    )
     return int(amount) if amount is not None else None
+
 
 # Managed Agents memory stores (v1.19.0) — a workspace-scoped, persistent,
 # versioned file directory mountable into a session's `resources`. Found via
@@ -615,9 +620,13 @@ DREAMING_BETA = "dreaming-2026-04-21"
 # Dreaming-focused audit since the expansion shipped, so it's the first
 # one positioned to actually close it.
 DREAMING_SUPPORTED_MODELS = {
-    "claude-opus-5", "claude-mythos-5",
-    "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6",
-    "claude-fable-5", "claude-sonnet-5",
+    "claude-opus-5",
+    "claude-mythos-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-sonnet-4-6",
+    "claude-fable-5",
+    "claude-sonnet-5",
 }
 
 # Limits#instructions-length: 4,096 characters. Not re-enforced server-side
@@ -635,9 +644,11 @@ def validate_dreaming_model(model_id: str) -> Optional[str]:
     silently proceeding, so this matches that convention."""
     if model_id in DREAMING_SUPPORTED_MODELS:
         return None
-    return (f"{model_id} is not in claude_agents_sdk.DREAMING_SUPPORTED_MODELS "
-            f"({', '.join(sorted(DREAMING_SUPPORTED_MODELS))}) — the dreaming "
-            f"pipeline may reject this model with a 400.")
+    return (
+        f"{model_id} is not in claude_agents_sdk.DREAMING_SUPPORTED_MODELS "
+        f"({', '.join(sorted(DREAMING_SUPPORTED_MODELS))}) — the dreaming "
+        f"pipeline may reject this model with a 400."
+    )
 
 
 def validate_dreaming_instructions(instructions: Optional[str]) -> Optional[str]:
@@ -648,9 +659,12 @@ def validate_dreaming_instructions(instructions: Optional[str]) -> Optional[str]
     async job gets queued only to fail minutes later."""
     if not instructions or len(instructions) <= DREAMING_INSTRUCTIONS_MAX_CHARS:
         return None
-    return (f"dreaming instructions are {len(instructions)} chars, over the "
-            f"documented {DREAMING_INSTRUCTIONS_MAX_CHARS}-char limit — the "
-            f"platform will likely reject this with a 400.")
+    return (
+        f"dreaming instructions are {len(instructions)} chars, over the "
+        f"documented {DREAMING_INSTRUCTIONS_MAX_CHARS}-char limit — the "
+        f"platform will likely reject this with a 400."
+    )
+
 
 # Vaults & credentials (v1.21.0, public beta) — per
 # platform.claude.com/docs/en/managed-agents/vaults (checked 2026-07-08):
@@ -762,14 +776,19 @@ class ManagedAgentsClient:
 
     def __init__(self, api_key: str):
         import anthropic
+
         self.client = anthropic.Anthropic(api_key=api_key)
 
-    def create_agent(self, name: str, model: str = "claude-opus-4-8",
-                     system: str = "You are a helpful coding assistant.",
-                     tools: Optional[list] = None,
-                     multiagent: Optional[dict] = None,
-                     effort: Optional[str] = None,
-                     inference_geo: Optional[str] = None) -> dict:
+    def create_agent(
+        self,
+        name: str,
+        model: str = "claude-opus-4-8",
+        system: str = "You are a helpful coding assistant.",
+        tools: Optional[list] = None,
+        multiagent: Optional[dict] = None,
+        effort: Optional[str] = None,
+        inference_geo: Optional[str] = None,
+    ) -> dict:
         """Create a persisted, versioned Agent config. tools defaults to the
         full pre-built agent_toolset_20260401 (bash, file ops, web search,
         etc.) if not given.
@@ -814,16 +833,23 @@ class ManagedAgentsClient:
             model_config["effort"] = effort
         if inference_geo is not None:
             if inference_geo not in ("us", "global"):
-                raise ValueError(
-                    f"inference_geo must be 'us' or 'global', got {inference_geo!r}"
-                )
+                raise ValueError(f"inference_geo must be 'us' or 'global', got {inference_geo!r}")
             model_config["inference_geo"] = inference_geo
         agent = self.client.beta.agents.create(
-            name=name, model=model_config, system=system, tools=tools,
-            betas=[MANAGED_AGENTS_BETA], **kwargs,
+            name=name,
+            model=model_config,
+            system=system,
+            tools=tools,
+            betas=[MANAGED_AGENTS_BETA],
+            **kwargs,
         )
-        return {"id": agent.id, "name": name, "model": model, "effort": effort,
-                "inference_geo": inference_geo}
+        return {
+            "id": agent.id,
+            "name": name,
+            "model": model,
+            "effort": effort,
+            "inference_geo": inference_geo,
+        }
 
     def get_agent(self, agent_id: str, version: Optional[int] = None) -> dict:
         """Retrieve an agent's stored config. GET /v1/agents/{id}, or
@@ -833,7 +859,9 @@ class ManagedAgentsClient:
         kwargs = {"betas": [MANAGED_AGENTS_BETA]}
         if version is not None:
             agent = self.client.beta.agents.versions.retrieve(
-                agent_id, version, **kwargs,
+                agent_id,
+                version,
+                **kwargs,
             )
         else:
             agent = self.client.beta.agents.retrieve(agent_id, **kwargs)
@@ -849,12 +877,18 @@ class ManagedAgentsClient:
         result = self.client.beta.agents.list(**kwargs)
         return {"raw": result}
 
-    def update_agent(self, agent_id: str, name: Optional[str] = None,
-                     model: Optional[str] = None, effort: Optional[str] = None,
-                     system: Optional[str] = None, tools: Optional[list] = None,
-                     multiagent: Optional[dict] = None,
-                     inference_geo: Optional[str] = None,
-                     version: Optional[int] = None) -> dict:
+    def update_agent(
+        self,
+        agent_id: str,
+        name: Optional[str] = None,
+        model: Optional[str] = None,
+        effort: Optional[str] = None,
+        system: Optional[str] = None,
+        tools: Optional[list] = None,
+        multiagent: Optional[dict] = None,
+        inference_geo: Optional[str] = None,
+        version: Optional[int] = None,
+    ) -> dict:
         """Update a persisted agent's config, creating a new version. POST
         /v1/agents/{id} (v1.38.0, public beta). Any field left as None is
         left unchanged from the agent's current version — only fields
@@ -897,18 +931,22 @@ class ManagedAgentsClient:
                 model_config["effort"] = effort
             if inference_geo is not None:
                 if inference_geo not in ("us", "global"):
-                    raise ValueError(
-                        f"inference_geo must be 'us' or 'global', got {inference_geo!r}"
-                    )
+                    raise ValueError(f"inference_geo must be 'us' or 'global', got {inference_geo!r}")
                 model_config["inference_geo"] = inference_geo
             kwargs["model"] = model_config
         agent = self.client.beta.agents.update(agent_id, **kwargs)
-        return {"id": agent_id, "name": name, "model": model, "effort": effort,
-                "inference_geo": inference_geo,
-                "version": getattr(agent, "version", None)}
+        return {
+            "id": agent_id,
+            "name": name,
+            "model": model,
+            "effort": effort,
+            "inference_geo": inference_geo,
+            "version": getattr(agent, "version", None),
+        }
 
-    def create_environment(self, name: str, networking: str = "unrestricted",
-                           env_type: str = "cloud") -> dict:
+    def create_environment(
+        self, name: str, networking: str = "unrestricted", env_type: str = "cloud"
+    ) -> dict:
         """Create a sandbox environment for an agent to run in.
         networking: "unrestricted" or "limited" (safer if the agent only
         needs to touch its own filesystem) — ignored when env_type is
@@ -931,7 +969,9 @@ class ManagedAgentsClient:
         else:
             config = {"type": "cloud", "networking": {"type": networking}}
         env = self.client.beta.environments.create(
-            name=name, config=config, betas=[MANAGED_AGENTS_BETA],
+            name=name,
+            config=config,
+            betas=[MANAGED_AGENTS_BETA],
         )
         return {"id": env.id, "name": name, "type": env_type}
 
@@ -994,19 +1034,22 @@ class ManagedAgentsClient:
         endpoint, so MEMORY_STORE_BETA alone (see create_memory_store()'s
         docstring for why not MANAGED_AGENTS_BETA too)."""
         store = self.client.beta.memory_stores.retrieve(
-            memory_store_id, betas=[MEMORY_STORE_BETA],
+            memory_store_id,
+            betas=[MEMORY_STORE_BETA],
         )
         return {"id": getattr(store, "id", memory_store_id), "raw": store}
 
-    def list_memory_stores(self, include_archived: bool = False,
-                           limit: int = 50, page: Optional[str] = None) -> dict:
+    def list_memory_stores(
+        self, include_archived: bool = False, limit: int = 50, page: Optional[str] = None
+    ) -> dict:
         """List memory stores in the workspace. GET /v1/memory_stores —
         memory store endpoint, MEMORY_STORE_BETA alone."""
         params = {"limit": limit, "include_archived": include_archived}
         if page is not None:
             params["page"] = page
         result = self.client.beta.memory_stores.list(
-            betas=[MEMORY_STORE_BETA], **params,
+            betas=[MEMORY_STORE_BETA],
+            **params,
         )
         return {"raw": result}
 
@@ -1016,7 +1059,8 @@ class ManagedAgentsClient:
         POST /v1/memory_stores/{id}/archive — memory store endpoint,
         MEMORY_STORE_BETA alone."""
         store = self.client.beta.memory_stores.archive(
-            memory_store_id, betas=[MEMORY_STORE_BETA],
+            memory_store_id,
+            betas=[MEMORY_STORE_BETA],
         )
         return {"id": memory_store_id, "raw": store}
 
@@ -1027,13 +1071,19 @@ class ManagedAgentsClient:
         should confirm before invoking (see cmd_agent_memory_store_delete
         for the CLI's confirmation gate)."""
         self.client.beta.memory_stores.delete(
-            memory_store_id, betas=[MEMORY_STORE_BETA],
+            memory_store_id,
+            betas=[MEMORY_STORE_BETA],
         )
         return {"id": memory_store_id, "deleted": True}
 
-    def list_memories(self, memory_store_id: str, path_prefix: Optional[str] = None,
-                      depth: Optional[int] = None, limit: int = 50,
-                      page: Optional[str] = None) -> dict:
+    def list_memories(
+        self,
+        memory_store_id: str,
+        path_prefix: Optional[str] = None,
+        depth: Optional[int] = None,
+        limit: int = 50,
+        page: Optional[str] = None,
+    ) -> dict:
         """List the individual memory entries inside a memory store (v1.24.0)
         — distinct from create_memory_store(), which only creates the store
         itself. GET /v1/memory_stores/{memory_store_id}/memories, sent with
@@ -1069,11 +1119,15 @@ class ManagedAgentsClient:
         if page is not None:
             params["page"] = page
         result = self.client.beta.memory_stores.memories.list(
-            memory_store_id, betas=[MEMORY_STORE_BETA], **params,
+            memory_store_id,
+            betas=[MEMORY_STORE_BETA],
+            **params,
         )
         return {
-            "memory_store_id": memory_store_id, "path_prefix": path_prefix,
-            "depth": depth, "raw": result,
+            "memory_store_id": memory_store_id,
+            "path_prefix": path_prefix,
+            "depth": depth,
+            "raw": result,
         }
 
     def create_memory(self, memory_store_id: str, path: str, content: str) -> dict:
@@ -1084,7 +1138,10 @@ class ManagedAgentsClient:
         at 100 kB (~25k tokens) by the platform; larger content should be
         split into multiple focused memories rather than one large one."""
         mem = self.client.beta.memory_stores.memories.create(
-            memory_store_id, path=path, content=content, betas=[MEMORY_STORE_BETA],
+            memory_store_id,
+            path=path,
+            content=content,
+            betas=[MEMORY_STORE_BETA],
         )
         return {"id": getattr(mem, "id", None), "path": path, "raw": mem}
 
@@ -1093,13 +1150,20 @@ class ManagedAgentsClient:
         /v1/memory_stores/{id}/memories/{memory_id} — memory store
         endpoint, MEMORY_STORE_BETA alone."""
         mem = self.client.beta.memory_stores.memories.retrieve(
-            memory_store_id, memory_id, betas=[MEMORY_STORE_BETA],
+            memory_store_id,
+            memory_id,
+            betas=[MEMORY_STORE_BETA],
         )
         return {"id": memory_id, "raw": mem}
 
-    def update_memory(self, memory_store_id: str, memory_id: str,
-                      content: Optional[str] = None, path: Optional[str] = None,
-                      content_sha256: Optional[str] = None) -> dict:
+    def update_memory(
+        self,
+        memory_store_id: str,
+        memory_id: str,
+        content: Optional[str] = None,
+        path: Optional[str] = None,
+        content_sha256: Optional[str] = None,
+    ) -> dict:
         """Update an existing memory's content and/or rename it (path).
         POST /v1/memory_stores/{id}/memories/{memory_id} — memory store
         endpoint, MEMORY_STORE_BETA alone. Pass `content_sha256` (the
@@ -1116,7 +1180,9 @@ class ManagedAgentsClient:
         if content_sha256 is not None:
             kwargs["precondition"] = {"type": "content_sha256", "content_sha256": content_sha256}
         mem = self.client.beta.memory_stores.memories.update(
-            memory_store_id, memory_id, **kwargs,
+            memory_store_id,
+            memory_id,
+            **kwargs,
         )
         return {"id": memory_id, "raw": mem}
 
@@ -1126,16 +1192,23 @@ class ManagedAgentsClient:
         /v1/memory_stores/{id}/memories/{memory_id} — memory store
         endpoint, MEMORY_STORE_BETA alone."""
         self.client.beta.memory_stores.memories.delete(
-            memory_store_id, memory_id, betas=[MEMORY_STORE_BETA],
+            memory_store_id,
+            memory_id,
+            betas=[MEMORY_STORE_BETA],
         )
         return {"id": memory_id, "deleted": True}
 
-    def create_session(self, agent_id: str, environment_id: str, title: str = "",
-                       memory_store_id: Optional[str] = None,
-                       vault_ids: Optional[list] = None,
-                       agent_overrides: Optional[dict] = None,
-                       initial_events: Optional[list] = None,
-                       budget_usd_cents: Optional[int] = None) -> dict:
+    def create_session(
+        self,
+        agent_id: str,
+        environment_id: str,
+        title: str = "",
+        memory_store_id: Optional[str] = None,
+        vault_ids: Optional[list] = None,
+        agent_overrides: Optional[dict] = None,
+        initial_events: Optional[list] = None,
+        budget_usd_cents: Optional[int] = None,
+    ) -> dict:
         """Create a session. If `memory_store_id` is given, mount that
         memory store as a session resource so the agent can read/write it
         through normal file tools — no memory-tool handler code required
@@ -1206,10 +1279,7 @@ class ManagedAgentsClient:
             kwargs["vault_ids"] = vault_ids
         if initial_events:
             if len(initial_events) > 50:
-                raise ValueError(
-                    f"initial_events supports at most 50 events "
-                    f"(got {len(initial_events)})"
-                )
+                raise ValueError(f"initial_events supports at most 50 events " f"(got {len(initial_events)})")
             kwargs["initial_events"] = initial_events
         budget = None
         if budget_usd_cents is not None:
@@ -1219,14 +1289,22 @@ class ManagedAgentsClient:
         if agent_overrides:
             agent_param = {"type": "agent_with_overrides", "id": agent_id, **agent_overrides}
         session = self.client.beta.sessions.create(
-            agent=agent_param, environment_id=environment_id, title=title,
-            resources=resources, betas=betas, **kwargs,
+            agent=agent_param,
+            environment_id=environment_id,
+            title=title,
+            resources=resources,
+            betas=betas,
+            **kwargs,
         )
         return {
-            "id": session.id, "agent_id": agent_id,
-            "environment_id": environment_id, "memory_store_id": memory_store_id,
-            "vault_ids": vault_ids, "agent_overrides": agent_overrides,
-            "initial_events": initial_events, "budget": budget,
+            "id": session.id,
+            "agent_id": agent_id,
+            "environment_id": environment_id,
+            "memory_store_id": memory_store_id,
+            "vault_ids": vault_ids,
+            "agent_overrides": agent_overrides,
+            "initial_events": initial_events,
+            "budget": budget,
         }
 
     def get_session(self, session_id: str) -> dict:
@@ -1237,7 +1315,8 @@ class ManagedAgentsClient:
         budget), and its current budget (None if never set or removed).
         GET /v1/sessions/{id} — v1.39.0, public beta."""
         session = self.client.beta.sessions.retrieve(
-            session_id, betas=[MANAGED_AGENTS_BETA],
+            session_id,
+            betas=[MANAGED_AGENTS_BETA],
         )
         return {
             "id": session_id,
@@ -1248,8 +1327,7 @@ class ManagedAgentsClient:
             "raw": session,
         }
 
-    def update_session_budget(self, session_id: str,
-                              budget_usd_cents: Optional[int] = "__unset__") -> dict:
+    def update_session_budget(self, session_id: str, budget_usd_cents: Optional[int] = "__unset__") -> dict:
         """Replace or remove a session's spend budget (v1.39.0, public
         beta) — POST-equivalent of `client.beta.sessions.update`. Pass an
         int to replace the cap with a new max_list_cost (must be strictly
@@ -1267,13 +1345,15 @@ class ManagedAgentsClient:
                 "update_session_budget requires an explicit budget_usd_cents: "
                 "an int to replace the cap, or None to remove the budget."
             )
-        budget = (_encode_session_budget(budget_usd_cents)
-                 if budget_usd_cents is not None else None)
+        budget = _encode_session_budget(budget_usd_cents) if budget_usd_cents is not None else None
         session = self.client.beta.sessions.update(
-            session_id, budget=budget, betas=[MANAGED_AGENTS_BETA],
+            session_id,
+            budget=budget,
+            betas=[MANAGED_AGENTS_BETA],
         )
         return {
-            "id": session_id, "budget": budget,
+            "id": session_id,
+            "budget": budget,
             "status": getattr(session, "status", None),
         }
 
@@ -1285,20 +1365,24 @@ class ManagedAgentsClient:
         records; it isn't a structural field the API requires."""
         metadata = {"external_user_id": external_user_id} if external_user_id else None
         vault = self.client.beta.vaults.create(
-            display_name=display_name, metadata=metadata,
+            display_name=display_name,
+            metadata=metadata,
             betas=[MANAGED_AGENTS_BETA],
         )
-        return {"id": vault.id, "display_name": display_name,
-                "external_user_id": external_user_id}
+        return {"id": vault.id, "display_name": display_name, "external_user_id": external_user_id}
 
     VALID_INJECTION_LOCATIONS = ("headers", "body", "both")
 
-    def add_credential(self, vault_id: str, credential_type: str,
-                       mcp_server_url: Optional[str] = None,
-                       secret_name: Optional[str] = None,
-                       secret_value: str = "",
-                       allowed_domains: Optional[list] = None,
-                       injection_location: Optional[str] = None) -> dict:
+    def add_credential(
+        self,
+        vault_id: str,
+        credential_type: str,
+        mcp_server_url: Optional[str] = None,
+        secret_name: Optional[str] = None,
+        secret_value: str = "",
+        allowed_domains: Optional[list] = None,
+        injection_location: Optional[str] = None,
+    ) -> dict:
         """Add a credential to a vault. credential_type is one of
         "mcp_oauth", "static_bearer" (both keyed by mcp_server_url — the
         token is injected automatically when the agent connects to an MCP
@@ -1319,10 +1403,7 @@ class ManagedAgentsClient:
         returned by the API, and must never appear in any exception
         message raised from this method."""
         if injection_location is not None and credential_type != "environment_variable":
-            raise ValueError(
-                "injection_location is only valid for credential_type="
-                "'environment_variable'"
-            )
+            raise ValueError("injection_location is only valid for credential_type=" "'environment_variable'")
         if injection_location is not None and injection_location not in self.VALID_INJECTION_LOCATIONS:
             raise ValueError(
                 f"injection_location must be one of {self.VALID_INJECTION_LOCATIONS}, "
@@ -1330,14 +1411,16 @@ class ManagedAgentsClient:
             )
         if credential_type in ("mcp_oauth", "static_bearer"):
             if not mcp_server_url:
-                raise ValueError(
-                    f"credential_type={credential_type!r} requires mcp_server_url"
-                )
-            auth = {"type": credential_type, "token": secret_value} \
-                if credential_type == "static_bearer" \
+                raise ValueError(f"credential_type={credential_type!r} requires mcp_server_url")
+            auth = (
+                {"type": credential_type, "token": secret_value}
+                if credential_type == "static_bearer"
                 else {"type": credential_type, "access_token": secret_value}
+            )
             cred = self.client.beta.vaults.credentials.create(
-                vault_id=vault_id, mcp_server_url=mcp_server_url, auth=auth,
+                vault_id=vault_id,
+                mcp_server_url=mcp_server_url,
+                auth=auth,
                 betas=[MANAGED_AGENTS_BETA],
             )
         elif credential_type == "environment_variable":
@@ -1345,12 +1428,13 @@ class ManagedAgentsClient:
                 raise ValueError("credential_type='environment_variable' requires secret_name")
             if not allowed_domains:
                 raise ValueError("credential_type='environment_variable' requires allowed_domains")
-            auth = {"type": credential_type, "secret_value": secret_value,
-                    "allowed_domains": allowed_domains}
+            auth = {"type": credential_type, "secret_value": secret_value, "allowed_domains": allowed_domains}
             if injection_location is not None:
                 auth["injection_location"] = injection_location
             cred = self.client.beta.vaults.credentials.create(
-                vault_id=vault_id, secret_name=secret_name, auth=auth,
+                vault_id=vault_id,
+                secret_name=secret_name,
+                auth=auth,
                 betas=[MANAGED_AGENTS_BETA],
             )
         else:
@@ -1358,13 +1442,19 @@ class ManagedAgentsClient:
                 f"Unknown credential_type {credential_type!r}: expected "
                 f"'mcp_oauth', 'static_bearer', or 'environment_variable'"
             )
-        return {"id": cred.id, "vault_id": vault_id, "credential_type": credential_type,
-                "mcp_server_url": mcp_server_url, "secret_name": secret_name}
+        return {
+            "id": cred.id,
+            "vault_id": vault_id,
+            "credential_type": credential_type,
+            "mcp_server_url": mcp_server_url,
+            "secret_name": secret_name,
+        }
 
     def list_vaults(self, include_archived: bool = False) -> list:
         """List non-archived vaults in the workspace, newest first."""
         page = self.client.beta.vaults.list(
-            include_archived=include_archived, betas=[MANAGED_AGENTS_BETA],
+            include_archived=include_archived,
+            betas=[MANAGED_AGENTS_BETA],
         )
         return [{"id": v.id, "display_name": v.display_name} for v in page]
 
@@ -1380,7 +1470,9 @@ class ManagedAgentsClient:
         credential's key (mcp_server_url or secret_name) stays visible and
         is freed for a replacement credential."""
         cred = self.client.beta.vaults.credentials.archive(
-            vault_id, credential_id, betas=[MANAGED_AGENTS_BETA],
+            vault_id,
+            credential_id,
+            betas=[MANAGED_AGENTS_BETA],
         )
         return {"id": cred.id, "vault_id": vault_id, "archived": True}
 
@@ -1426,10 +1518,14 @@ class ManagedAgentsClient:
                     break
         return {"text": "".join(text_parts), "tool_calls": tool_calls}
 
-
     # ── Dreaming (v1.20.0, research preview) ────────────────────────────
-    def create_dream(self, memory_store_id: str, session_ids: Optional[list] = None,
-                     model: str = "claude-opus-4-8", instructions: Optional[str] = None) -> dict:
+    def create_dream(
+        self,
+        memory_store_id: str,
+        session_ids: Optional[list] = None,
+        model: str = "claude-opus-4-8",
+        instructions: Optional[str] = None,
+    ) -> dict:
         """Start a dream: curate `memory_store_id` (optionally alongside past
         `session_ids` transcripts) into a new output memory store. The input
         store is never modified — the dream produces a separate output store
@@ -1448,7 +1544,9 @@ class ManagedAgentsClient:
         if session_ids:
             inputs.append({"type": "sessions", "session_ids": session_ids})
         dream = self.client.beta.dreams.create(
-            inputs=inputs, model=model, instructions=instructions,
+            inputs=inputs,
+            model=model,
+            instructions=instructions,
             betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
         return {"id": dream.id, "status": dream.status}
@@ -1466,7 +1564,8 @@ class ManagedAgentsClient:
         were dropped by the original v1.20.0 implementation, which only
         extracted id/status/output_store_id/error."""
         dream = self.client.beta.dreams.retrieve(
-            dream_id, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
+            dream_id,
+            betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
         output_store_id = None
         for output in getattr(dream, "outputs", None) or []:
@@ -1480,24 +1579,32 @@ class ManagedAgentsClient:
             "error": getattr(dream, "error", None),
             "session_id": getattr(dream, "session_id", None),
             "archived_at": getattr(dream, "archived_at", None),
-            "usage": {
-                "input_tokens": getattr(usage, "input_tokens", 0),
-                "output_tokens": getattr(usage, "output_tokens", 0),
-                "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
-                "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
-            } if usage is not None else None,
+            "usage": (
+                {
+                    "input_tokens": getattr(usage, "input_tokens", 0),
+                    "output_tokens": getattr(usage, "output_tokens", 0),
+                    "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+                    "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
+                }
+                if usage is not None
+                else None
+            ),
         }
 
-    def list_dreams(self, include_archived: bool = False, limit: int = 20,
-                     page: Optional[str] = None) -> list:
+    def list_dreams(
+        self, include_archived: bool = False, limit: int = 20, page: Optional[str] = None
+    ) -> list:
         """List dreams in the workspace, newest first. `limit` defaults to
         20 (platform max 100); pass the `page` cursor from a previous call
         to continue paginating — both added in v1.35.0, matching
         `client.beta.dreams.list(limit=...)`'s documented signature (the
         original v1.20.0 implementation always fetched the platform's
         default page with no way to see more than the first one)."""
-        kwargs = {"include_archived": include_archived, "limit": limit,
-                  "betas": [MANAGED_AGENTS_BETA, DREAMING_BETA]}
+        kwargs = {
+            "include_archived": include_archived,
+            "limit": limit,
+            "betas": [MANAGED_AGENTS_BETA, DREAMING_BETA],
+        }
         if page is not None:
             kwargs["page"] = page
         page_result = self.client.beta.dreams.list(**kwargs)
@@ -1506,7 +1613,8 @@ class ManagedAgentsClient:
     def cancel_dream(self, dream_id: str) -> dict:
         """Move a pending/running dream to canceled immediately."""
         dream = self.client.beta.dreams.cancel(
-            dream_id, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
+            dream_id,
+            betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
         return {"id": dream.id, "status": dream.status}
 
@@ -1523,16 +1631,22 @@ class ManagedAgentsClient:
         id. Does not touch the dream's output memory store — manage that
         separately via the Memory Stores API."""
         dream = self.client.beta.dreams.archive(
-            dream_id, betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
+            dream_id,
+            betas=[MANAGED_AGENTS_BETA, DREAMING_BETA],
         )
-        return {"id": dream.id, "status": dream.status,
-                "archived_at": getattr(dream, "archived_at", None)}
+        return {"id": dream.id, "status": dream.status, "archived_at": getattr(dream, "archived_at", None)}
 
     # ── Scheduled deployments (v1.21.0, public beta) ─────────────────────
-    def create_scheduled_deployment(self, agent_id: str, environment_id: str,
-                                    cron_expression: str, timezone: str = "UTC",
-                                    task: str = "", memory_store_id: Optional[str] = None,
-                                    name: str = "") -> dict:
+    def create_scheduled_deployment(
+        self,
+        agent_id: str,
+        environment_id: str,
+        cron_expression: str,
+        timezone: str = "UTC",
+        task: str = "",
+        memory_store_id: Optional[str] = None,
+        name: str = "",
+    ) -> dict:
         """Attach a cron schedule to an agent + environment pair. Each time
         the schedule fires, Managed Agents starts a brand-new session,
         sends `task` as its initial user.message, and runs it to
@@ -1545,15 +1659,21 @@ class ManagedAgentsClient:
             resources = [{"type": "memory_store", "memory_store_id": memory_store_id}]
         deployment = self.client.beta.deployments.create(
             name=name or f"scheduled-{agent_id}",
-            agent=agent_id, environment_id=environment_id,
+            agent=agent_id,
+            environment_id=environment_id,
             schedule={"type": "cron", "expression": cron_expression, "timezone": timezone},
             initial_events=[{"type": "user.message", "content": [{"type": "text", "text": task}]}],
             resources=resources,
             betas=[MANAGED_AGENTS_BETA],
         )
-        return {"id": deployment.id, "agent_id": agent_id, "environment_id": environment_id,
-                "cron_expression": cron_expression, "timezone": timezone,
-                "status": getattr(deployment, "status", None)}
+        return {
+            "id": deployment.id,
+            "agent_id": agent_id,
+            "environment_id": environment_id,
+            "cron_expression": cron_expression,
+            "timezone": timezone,
+            "status": getattr(deployment, "status", None),
+        }
 
     def list_scheduled_deployments(self) -> list:
         """List scheduled deployments in the workspace, newest first."""
@@ -1563,8 +1683,7 @@ class ManagedAgentsClient:
     def get_scheduled_deployment(self, deployment_id: str) -> dict:
         """Retrieve one scheduled deployment's current status/schedule."""
         d = self.client.beta.deployments.retrieve(deployment_id, betas=[MANAGED_AGENTS_BETA])
-        return {"id": d.id, "status": getattr(d, "status", None),
-                "schedule": getattr(d, "schedule", None)}
+        return {"id": d.id, "status": getattr(d, "status", None), "schedule": getattr(d, "schedule", None)}
 
     def cancel_scheduled_deployment(self, deployment_id: str) -> dict:
         """Archive a scheduled deployment, stopping future scheduled runs
@@ -1573,10 +1692,14 @@ class ManagedAgentsClient:
         return {"id": d.id, "status": getattr(d, "status", None)}
 
     # ── Outcomes (v1.20.0, public beta; file_id rubric form v1.21.0) ─────
-    def define_outcome(self, session_id: str, description: str,
-                       rubric_text: Optional[str] = None,
-                       rubric_file_id: Optional[str] = None,
-                       max_iterations: int = 3) -> dict:
+    def define_outcome(
+        self,
+        session_id: str,
+        description: str,
+        rubric_text: Optional[str] = None,
+        rubric_file_id: Optional[str] = None,
+        max_iterations: int = 3,
+    ) -> dict:
         """Send a user.define_outcome event: the agent starts working
         immediately toward `description`, revising until a grader (running
         in its own context window, independent of the agent's reasoning)
@@ -1589,8 +1712,7 @@ class ManagedAgentsClient:
         by id across many outcome-oriented sessions) must be given."""
         if bool(rubric_text) == bool(rubric_file_id):
             raise ValueError(
-                "define_outcome requires exactly one of rubric_text or "
-                "rubric_file_id, not both or neither"
+                "define_outcome requires exactly one of rubric_text or " "rubric_file_id, not both or neither"
             )
         if rubric_file_id:
             rubric = {"type": "file", "file_id": rubric_file_id}
@@ -1600,12 +1722,14 @@ class ManagedAgentsClient:
             betas = [MANAGED_AGENTS_BETA]
         result = self.client.beta.sessions.events.send(
             session_id,
-            events=[{
-                "type": "user.define_outcome",
-                "description": description,
-                "rubric": rubric,
-                "max_iterations": max_iterations,
-            }],
+            events=[
+                {
+                    "type": "user.define_outcome",
+                    "description": description,
+                    "rubric": rubric,
+                    "max_iterations": max_iterations,
+                }
+            ],
             betas=betas,
         )
         return {"session_id": session_id, "sent": True, "raw": result}
@@ -1642,8 +1766,7 @@ class ManagedAgentsClient:
                     break
         return {"text": "".join(text_parts), "result": result_state}
 
-    def stream_thread(self, session_id: str, thread_id: str,
-                      stream_deltas: bool = True) -> dict:
+    def stream_thread(self, session_id: str, thread_id: str, stream_deltas: bool = True) -> dict:
         """Stream a single subagent thread's own event feed within a
         multiagent/coordinator session (v1.38.0, public beta) — GET
         /v1/sessions/{id}/threads/{thread_id}/stream, distinct from
@@ -1683,8 +1806,12 @@ class ManagedAgentsClient:
                 elif event.type == "thread.status_failed":
                     thread_status = "failed"
                     break
-        return {"session_id": session_id, "thread_id": thread_id,
-                "text": "".join(text_parts), "status": thread_status}
+        return {
+            "session_id": session_id,
+            "thread_id": thread_id,
+            "text": "".join(text_parts),
+            "status": thread_status,
+        }
 
     # ── Webhooks (v1.20.0, public beta) ─────────────────────────────────
     def register_webhook(self, url: str, event_types: Optional[list] = None) -> dict:
@@ -1692,22 +1819,27 @@ class ManagedAgentsClient:
         outcome, dream). If event_types is omitted, subscribes to all
         event types the endpoint supports."""
         webhook = self.client.beta.webhooks.create(
-            url=url, event_types=event_types or None,
+            url=url,
+            event_types=event_types or None,
             betas=[MANAGED_AGENTS_BETA],
         )
         return {"id": webhook.id, "url": url, "event_types": event_types}
 
 
-def cmd_managed_agent_run(task: str, api_key: str, model: str = "claude-opus-4-8",
-                          memory_store: Optional[str] = None,
-                          outcome_description: Optional[str] = None,
-                          outcome_rubric: Optional[str] = None,
-                          outcome_rubric_file_id: Optional[str] = None,
-                          outcome_max_iterations: int = 3,
-                          vault_id: Optional[str] = None,
-                          agent_overrides: Optional[dict] = None,
-                          stream_deltas: bool = False,
-                          budget_usd_cents: Optional[int] = None):
+def cmd_managed_agent_run(
+    task: str,
+    api_key: str,
+    model: str = "claude-opus-4-8",
+    memory_store: Optional[str] = None,
+    outcome_description: Optional[str] = None,
+    outcome_rubric: Optional[str] = None,
+    outcome_rubric_file_id: Optional[str] = None,
+    outcome_max_iterations: int = 3,
+    vault_id: Optional[str] = None,
+    agent_overrides: Optional[dict] = None,
+    stream_deltas: bool = False,
+    budget_usd_cents: Optional[int] = None,
+):
     """End-to-end convenience: create a throwaway agent + environment +
     session, run one task, print the result. For anything beyond a single
     one-off task, create the agent/environment once and reuse them across
@@ -1747,7 +1879,7 @@ def cmd_managed_agent_run(task: str, api_key: str, model: str = "claude-opus-4-8
     mac = ManagedAgentsClient(api_key)
     print("\033[94mℹ Creating Managed Agent, environment, and session…\033[0m")
     agent = mac.create_agent(name=f"ai-coder-task-{uuid.uuid4().hex[:8]}", model=model)
-    env   = mac.create_environment(name=f"ai-coder-env-{uuid.uuid4().hex[:8]}")
+    env = mac.create_environment(name=f"ai-coder-env-{uuid.uuid4().hex[:8]}")
     store_id = None
     if memory_store:
         store = mac.create_memory_store(name=memory_store)
@@ -1755,18 +1887,27 @@ def cmd_managed_agent_run(task: str, api_key: str, model: str = "claude-opus-4-8
         print(f"\033[94mℹ memory store '{memory_store}' -> {store_id}\033[0m")
     title = (outcome_description or task)[:60]
     vault_ids = [vault_id] if vault_id else None
-    sess  = mac.create_session(agent["id"], env["id"], title=title, memory_store_id=store_id,
-                               vault_ids=vault_ids, agent_overrides=agent_overrides,
-                               budget_usd_cents=budget_usd_cents)
+    sess = mac.create_session(
+        agent["id"],
+        env["id"],
+        title=title,
+        memory_store_id=store_id,
+        vault_ids=vault_ids,
+        agent_overrides=agent_overrides,
+        budget_usd_cents=budget_usd_cents,
+    )
     print(f"\033[92m✓ session {sess['id']}\033[0m — running task…\n")
     if budget_usd_cents is not None:
         print(f"\033[90m[session budget: ${budget_usd_cents / 100:.2f} USD]\033[0m")
 
     if outcome_description and (outcome_rubric or outcome_rubric_file_id):
-        mac.define_outcome(sess["id"], outcome_description,
-                           rubric_text=outcome_rubric,
-                           rubric_file_id=outcome_rubric_file_id,
-                           max_iterations=outcome_max_iterations)
+        mac.define_outcome(
+            sess["id"],
+            outcome_description,
+            rubric_text=outcome_rubric,
+            rubric_file_id=outcome_rubric_file_id,
+            max_iterations=outcome_max_iterations,
+        )
         result = mac.wait_for_outcome(sess["id"], stream_deltas=stream_deltas)
         print(result["text"])
         print(f"\n\033[90m[outcome result: {result['result']}]\033[0m")
@@ -1790,20 +1931,25 @@ def cmd_agent_memory_store_create(name: str, api_key: str) -> dict:
     return store
 
 
-def cmd_agent_memory_list(memory_store_id: str, api_key: str,
-                          path_prefix: Optional[str] = None,
-                          depth: Optional[int] = None, limit: int = 50) -> dict:
+def cmd_agent_memory_list(
+    memory_store_id: str,
+    api_key: str,
+    path_prefix: Optional[str] = None,
+    depth: Optional[int] = None,
+    limit: int = 50,
+) -> dict:
     """List the memory entries inside a memory store (v1.24.0) — see
     ManagedAgentsClient.list_memories() for the agent-memory-2026-07-22
     list-behavior details (stable order, depth 0/1/omitted only,
     path_prefix must end with '/')."""
     mac = ManagedAgentsClient(api_key)
-    result = mac.list_memories(memory_store_id, path_prefix=path_prefix,
-                               depth=depth, limit=limit)
+    result = mac.list_memories(memory_store_id, path_prefix=path_prefix, depth=depth, limit=limit)
     raw = result["raw"]
     entries = raw.get("data", []) if isinstance(raw, dict) else list(raw)
-    print(f"\n\033[94mMemories in {memory_store_id}\033[0m"
-          f"{f' (path_prefix={path_prefix!r})' if path_prefix else ''}\n")
+    print(
+        f"\n\033[94mMemories in {memory_store_id}\033[0m"
+        f"{f' (path_prefix={path_prefix!r})' if path_prefix else ''}\n"
+    )
     for entry in entries:
         path = entry.get("path", "?") if isinstance(entry, dict) else getattr(entry, "path", "?")
         print(f"  {path}")
@@ -1821,10 +1967,12 @@ def cmd_agent_memory_stores_list(api_key: str, include_archived: bool = False) -
     entries = raw.get("data", []) if isinstance(raw, dict) else list(raw)
     print(f"\n\033[94mMemory stores\033[0m{' (including archived)' if include_archived else ''}\n")
     for entry in entries:
-        get = (lambda k, d="?": entry.get(k, d)) if isinstance(entry, dict) else \
-              (lambda k, d="?": getattr(entry, k, d))
-        print(f"  {get('id')}  {get('name')}"
-              f"{'  [archived]' if get('archived', False) else ''}")
+        get = (
+            (lambda k, d="?": entry.get(k, d))
+            if isinstance(entry, dict)
+            else (lambda k, d="?": getattr(entry, k, d))
+        )
+        print(f"  {get('id')}  {get('name')}" f"{'  [archived]' if get('archived', False) else ''}")
     if not entries:
         print("  (no memory stores found)")
     print()
@@ -1839,17 +1987,20 @@ def cmd_agent_memory_store_archive(memory_store_id: str, api_key: str) -> dict:
     return result
 
 
-def cmd_agent_memory_store_delete(memory_store_id: str, api_key: str,
-                                  confirm: bool = False) -> Optional[dict]:
+def cmd_agent_memory_store_delete(
+    memory_store_id: str, api_key: str, confirm: bool = False
+) -> Optional[dict]:
     """Permanently delete a memory store and everything in it (v1.27.0).
     Requires --agent-memory-store-delete-yes (confirm=True) — dry-run by
     default, same confirmation pattern as claude_compliance_api.py's
     hard-delete commands, since this destroys the store's memories and
     version history irreversibly."""
     if not confirm:
-        print(f"\033[93m[DRY RUN]\033[0m would permanently delete memory store "
-              f"{memory_store_id} and all memories/versions in it. "
-              f"Re-run with --agent-memory-store-delete-yes to actually delete.")
+        print(
+            f"\033[93m[DRY RUN]\033[0m would permanently delete memory store "
+            f"{memory_store_id} and all memories/versions in it. "
+            f"Re-run with --agent-memory-store-delete-yes to actually delete."
+        )
         return None
     mac = ManagedAgentsClient(api_key)
     result = mac.delete_memory_store(memory_store_id)
@@ -1862,16 +2013,16 @@ def cmd_agent_memory_get(memory_store_id: str, memory_id: str, api_key: str) -> 
     mac = ManagedAgentsClient(api_key)
     result = mac.get_memory(memory_store_id, memory_id)
     raw = result["raw"]
-    get = (lambda k, d=None: raw.get(k, d)) if isinstance(raw, dict) else \
-          (lambda k, d=None: getattr(raw, k, d))
+    get = (
+        (lambda k, d=None: raw.get(k, d)) if isinstance(raw, dict) else (lambda k, d=None: getattr(raw, k, d))
+    )
     print(f"\n\033[94mMemory {memory_id}\033[0m  path={get('path')}\n")
     print(get("content", "(no content)"))
     print()
     return result
 
 
-def cmd_agent_memory_create(memory_store_id: str, path: str, content: str,
-                            api_key: str) -> dict:
+def cmd_agent_memory_create(memory_store_id: str, path: str, content: str, api_key: str) -> dict:
     """Create a memory at `path` inside a store (v1.27.0). Does not
     overwrite an existing memory at that path — use
     --agent-memory-update for that."""
@@ -1881,9 +2032,13 @@ def cmd_agent_memory_create(memory_store_id: str, path: str, content: str,
     return result
 
 
-def cmd_agent_memory_update(memory_store_id: str, memory_id: str, api_key: str,
-                            content: Optional[str] = None,
-                            path: Optional[str] = None) -> dict:
+def cmd_agent_memory_update(
+    memory_store_id: str,
+    memory_id: str,
+    api_key: str,
+    content: Optional[str] = None,
+    path: Optional[str] = None,
+) -> dict:
     """Update an existing memory's content and/or path (v1.27.0)."""
     mac = ManagedAgentsClient(api_key)
     result = mac.update_memory(memory_store_id, memory_id, content=content, path=path)
@@ -1891,15 +2046,18 @@ def cmd_agent_memory_update(memory_store_id: str, memory_id: str, api_key: str,
     return result
 
 
-def cmd_agent_memory_delete(memory_store_id: str, memory_id: str, api_key: str,
-                            confirm: bool = False) -> Optional[dict]:
+def cmd_agent_memory_delete(
+    memory_store_id: str, memory_id: str, api_key: str, confirm: bool = False
+) -> Optional[dict]:
     """Delete a single memory (v1.27.0). Requires
     --agent-memory-delete-yes (confirm=True) — dry-run by default. The
     memory's version history survives the deletion."""
     if not confirm:
-        print(f"\033[93m[DRY RUN]\033[0m would delete memory {memory_id} from "
-              f"store {memory_store_id}. Re-run with --agent-memory-delete-yes "
-              f"to actually delete.")
+        print(
+            f"\033[93m[DRY RUN]\033[0m would delete memory {memory_id} from "
+            f"store {memory_store_id}. Re-run with --agent-memory-delete-yes "
+            f"to actually delete."
+        )
         return None
     mac = ManagedAgentsClient(api_key)
     result = mac.delete_memory(memory_store_id, memory_id)
@@ -1907,8 +2065,7 @@ def cmd_agent_memory_delete(memory_store_id: str, memory_id: str, api_key: str,
     return result
 
 
-def cmd_agent_vault_create(display_name: str, api_key: str,
-                           external_user_id: Optional[str] = None) -> dict:
+def cmd_agent_vault_create(display_name: str, api_key: str, external_user_id: Optional[str] = None) -> dict:
     """Create a vault (v1.21.0, public beta) — a workspace-scoped
     collection of one end user's third-party credentials, referenced by
     vault_id from --agent-managed-run --agent-vault or from
@@ -1916,27 +2073,39 @@ def cmd_agent_vault_create(display_name: str, api_key: str,
     mac = ManagedAgentsClient(api_key)
     vault = mac.create_vault(display_name=display_name, external_user_id=external_user_id)
     print(f"\033[92m✓ vault created\033[0m  id={vault['id']}  display_name={display_name}")
-    print(f"  Add a credential: ai-coder --agent-vault-add-credential {vault['id']} "
-          f"--agent-vault-cred-type static_bearer --agent-vault-mcp-url URL --agent-vault-secret TOKEN")
+    print(
+        f"  Add a credential: ai-coder --agent-vault-add-credential {vault['id']} "
+        f"--agent-vault-cred-type static_bearer --agent-vault-mcp-url URL --agent-vault-secret TOKEN"
+    )
     return vault
 
 
-def cmd_agent_vault_add_credential(vault_id: str, credential_type: str, api_key: str,
-                                   mcp_server_url: Optional[str] = None,
-                                   secret_name: Optional[str] = None,
-                                   secret_value: str = "",
-                                   allowed_domains: Optional[list] = None,
-                                   injection_location: Optional[str] = None) -> dict:
+def cmd_agent_vault_add_credential(
+    vault_id: str,
+    credential_type: str,
+    api_key: str,
+    mcp_server_url: Optional[str] = None,
+    secret_name: Optional[str] = None,
+    secret_value: str = "",
+    allowed_domains: Optional[list] = None,
+    injection_location: Optional[str] = None,
+) -> dict:
     """Add a credential to an existing vault. Never prints secret_value —
     it's write-only, matching the docs' framing of these fields as
     sensitive."""
     mac = ManagedAgentsClient(api_key)
-    cred = mac.add_credential(vault_id, credential_type, mcp_server_url=mcp_server_url,
-                              secret_name=secret_name, secret_value=secret_value,
-                              allowed_domains=allowed_domains,
-                              injection_location=injection_location)
-    print(f"\033[92m✓ credential added\033[0m  id={cred['id']}  vault_id={vault_id}  "
-          f"type={credential_type}")
+    cred = mac.add_credential(
+        vault_id,
+        credential_type,
+        mcp_server_url=mcp_server_url,
+        secret_name=secret_name,
+        secret_value=secret_value,
+        allowed_domains=allowed_domains,
+        injection_location=injection_location,
+    )
+    print(
+        f"\033[92m✓ credential added\033[0m  id={cred['id']}  vault_id={vault_id}  " f"type={credential_type}"
+    )
     return cred
 
 
@@ -1950,8 +2119,13 @@ def cmd_agent_vault_list(api_key: str) -> list:
     return vaults
 
 
-def cmd_agent_dream(store_id: str, api_key: str, model: str = "claude-opus-4-8",
-                    session_ids: Optional[list] = None, instructions: Optional[str] = None) -> dict:
+def cmd_agent_dream(
+    store_id: str,
+    api_key: str,
+    model: str = "claude-opus-4-8",
+    session_ids: Optional[list] = None,
+    instructions: Optional[str] = None,
+) -> dict:
     """Start a Dreaming pass over a memory store (research preview) and
     print the pending dream's id — dreams run asynchronously, poll with
     --agent-dream-get to check status/output_store_id. Prints (but does
@@ -1984,9 +2158,11 @@ def cmd_agent_dream_get(dream_id: str, api_key: str) -> dict:
         print(f"  session_id={dream['session_id']}  (stream its events to watch the dream run)")
     usage = dream.get("usage")
     if usage:
-        print(f"  usage: input={usage['input_tokens']} output={usage['output_tokens']} "
-              f"cache_creation={usage['cache_creation_input_tokens']} "
-              f"cache_read={usage['cache_read_input_tokens']}")
+        print(
+            f"  usage: input={usage['input_tokens']} output={usage['output_tokens']} "
+            f"cache_creation={usage['cache_creation_input_tokens']} "
+            f"cache_read={usage['cache_read_input_tokens']}"
+        )
     if dream.get("archived_at"):
         print(f"  archived_at={dream['archived_at']}")
     if dream.get("error"):
@@ -1994,8 +2170,9 @@ def cmd_agent_dream_get(dream_id: str, api_key: str) -> dict:
     return dream
 
 
-def cmd_agent_dream_list(api_key: str, include_archived: bool = False,
-                         limit: int = 20, page: Optional[str] = None) -> list:
+def cmd_agent_dream_list(
+    api_key: str, include_archived: bool = False, limit: int = 20, page: Optional[str] = None
+) -> list:
     """List dreams, newest first. `limit`/`page` (v1.35.0) paginate
     through more than the platform's default first page; `include_archived`
     was already supported at the client layer but had no CLI flag until
@@ -2029,8 +2206,14 @@ def cmd_agent_dream_archive(dream_id: str, api_key: str) -> dict:
     return dream
 
 
-def cmd_agent_schedule_create(agent_id: str, environment_id: str, cron_expression: str,
-                              api_key: str, timezone: str = "UTC", task: str = "") -> dict:
+def cmd_agent_schedule_create(
+    agent_id: str,
+    environment_id: str,
+    cron_expression: str,
+    api_key: str,
+    timezone: str = "UTC",
+    task: str = "",
+) -> dict:
     """Attach a cron schedule (v1.21.0, public beta) to an existing agent +
     environment. Requires an agent_id/environment_id created ahead of
     time via ManagedAgentsClient.create_agent()/create_environment() —
@@ -2038,10 +2221,13 @@ def cmd_agent_schedule_create(agent_id: str, environment_id: str, cron_expressio
     persistent agent/environment rather than a throwaway pair, since it
     needs to keep firing after this command returns."""
     mac = ManagedAgentsClient(api_key)
-    dep = mac.create_scheduled_deployment(agent_id, environment_id, cron_expression,
-                                          timezone=timezone, task=task)
-    print(f"\033[92m✓ scheduled deployment created\033[0m  id={dep['id']}  "
-          f"cron='{cron_expression}' tz={timezone}")
+    dep = mac.create_scheduled_deployment(
+        agent_id, environment_id, cron_expression, timezone=timezone, task=task
+    )
+    print(
+        f"\033[92m✓ scheduled deployment created\033[0m  id={dep['id']}  "
+        f"cron='{cron_expression}' tz={timezone}"
+    )
     return dep
 
 
@@ -2073,13 +2259,16 @@ def cmd_agent_env_self_hosted_create(name: str, api_key: str) -> dict:
     env = mac.create_environment(name=name, env_type="self_hosted")
     print(f"\033[92m✓ self-hosted environment created\033[0m  id={env['id']}")
     print("  Next steps (not done by this command):")
-    print(f"    1. In the Console, open environment {env['id']} and click "
-          f"'Generate environment key'")
-    print(f"    2. Run a worker with ANTHROPIC_ENVIRONMENT_ID={env['id']} and "
-          f"ANTHROPIC_ENVIRONMENT_KEY set — e.g. `ant beta:worker poll` or the "
-          f"EnvironmentWorker SDK helper")
-    print(f"    3. Check --agent-env-work-stats {env['id']} for "
-          f"workers_polling > 0 before pointing a session at it")
+    print(f"    1. In the Console, open environment {env['id']} and click " f"'Generate environment key'")
+    print(
+        f"    2. Run a worker with ANTHROPIC_ENVIRONMENT_ID={env['id']} and "
+        f"ANTHROPIC_ENVIRONMENT_KEY set — e.g. `ant beta:worker poll` or the "
+        f"EnvironmentWorker SDK helper"
+    )
+    print(
+        f"    3. Check --agent-env-work-stats {env['id']} for "
+        f"workers_polling > 0 before pointing a session at it"
+    )
     return env
 
 
@@ -2093,12 +2282,16 @@ def cmd_agent_env_work_stats(environment_id: str, api_key: str) -> dict:
     mac = ManagedAgentsClient(api_key)
     stats = mac.get_environment_work_stats(environment_id)
     print(f"\033[94mℹ work queue stats for {environment_id}\033[0m")
-    print(f"  depth={stats['depth']}  pending={stats['pending']}  "
-          f"workers_polling={stats['workers_polling']}  "
-          f"oldest_queued_at={stats['oldest_queued_at']}")
+    print(
+        f"  depth={stats['depth']}  pending={stats['pending']}  "
+        f"workers_polling={stats['workers_polling']}  "
+        f"oldest_queued_at={stats['oldest_queued_at']}"
+    )
     if stats["workers_polling"] == 0:
-        print("  \033[93m⚠ no worker has polled in the last 30s — sessions "
-              "routed here will queue, not fail\033[0m")
+        print(
+            "  \033[93m⚠ no worker has polled in the last 30s — sessions "
+            "routed here will queue, not fail\033[0m"
+        )
     return stats
 
 
@@ -2111,16 +2304,21 @@ def cmd_agent_webhook_register(url: str, api_key: str, events: Optional[list] = 
     return webhook
 
 
-def cmd_agent_create(name: str, api_key: str, model: str = "claude-opus-4-8",
-                     system: str = "You are a helpful coding assistant.",
-                     effort: Optional[str] = None,
-                     inference_geo: Optional[str] = None) -> dict:
+def cmd_agent_create(
+    name: str,
+    api_key: str,
+    model: str = "claude-opus-4-8",
+    system: str = "You are a helpful coding assistant.",
+    effort: Optional[str] = None,
+    inference_geo: Optional[str] = None,
+) -> dict:
     mac = ManagedAgentsClient(api_key)
-    agent = mac.create_agent(name, model=model, system=system, effort=effort,
-                             inference_geo=inference_geo)
-    print(f"\033[92m✓ agent created\033[0m  id={agent['id']}  name={name}  model={model}"
-          + (f"  effort={effort}" if effort else "")
-          + (f"  inference_geo={inference_geo}" if inference_geo else ""))
+    agent = mac.create_agent(name, model=model, system=system, effort=effort, inference_geo=inference_geo)
+    print(
+        f"\033[92m✓ agent created\033[0m  id={agent['id']}  name={name}  model={model}"
+        + (f"  effort={effort}" if effort else "")
+        + (f"  inference_geo={inference_geo}" if inference_geo else "")
+    )
     return agent
 
 
@@ -2135,25 +2333,39 @@ def cmd_agent_get(agent_id: str, api_key: str, version: Optional[int] = None) ->
 def cmd_agent_list(api_key: str, limit: int = 50) -> dict:
     mac = ManagedAgentsClient(api_key)
     result = mac.list_agents(limit=limit)
-    print(f"\033[92m✓ agents\033[0m")
+    print("\033[92m✓ agents\033[0m")
     for a in result["raw"]:
         print(f"  id={getattr(a, 'id', '?')}  name={getattr(a, 'name', '?')}")
     return result
 
 
-def cmd_agent_update(agent_id: str, api_key: str, name: Optional[str] = None,
-                     model: Optional[str] = None, effort: Optional[str] = None,
-                     system: Optional[str] = None, version: Optional[int] = None,
-                     inference_geo: Optional[str] = None) -> dict:
+def cmd_agent_update(
+    agent_id: str,
+    api_key: str,
+    name: Optional[str] = None,
+    model: Optional[str] = None,
+    effort: Optional[str] = None,
+    system: Optional[str] = None,
+    version: Optional[int] = None,
+    inference_geo: Optional[str] = None,
+) -> dict:
     mac = ManagedAgentsClient(api_key)
-    agent = mac.update_agent(agent_id, name=name, model=model, effort=effort,
-                             system=system, version=version, inference_geo=inference_geo)
+    agent = mac.update_agent(
+        agent_id,
+        name=name,
+        model=model,
+        effort=effort,
+        system=system,
+        version=version,
+        inference_geo=inference_geo,
+    )
     print(f"\033[92m✓ agent updated\033[0m  id={agent_id}  new_version={agent['version']}")
     return agent
 
 
-def cmd_agent_review_multiagent(path: str, specialists: list, api_key: str,
-                                model: str = "claude-opus-4-8") -> dict:
+def cmd_agent_review_multiagent(
+    path: str, specialists: list, api_key: str, model: str = "claude-opus-4-8"
+) -> dict:
     """Native Multiagent orchestration (v1.21.0, un-deferred from
     v1.20.0): run named specialist code reviewers (see
     REVIEW_SPECIALIST_PRESETS) as parallel subagents that share one
@@ -2165,15 +2377,15 @@ def cmd_agent_review_multiagent(path: str, specialists: list, api_key: str,
     unknown = [s for s in specialists if s not in REVIEW_SPECIALIST_PRESETS]
     if unknown:
         raise ValueError(
-            f"Unknown specialist(s) {unknown}: choose from "
-            f"{sorted(REVIEW_SPECIALIST_PRESETS)}"
+            f"Unknown specialist(s) {unknown}: choose from " f"{sorted(REVIEW_SPECIALIST_PRESETS)}"
         )
     mac = ManagedAgentsClient(api_key)
     print(f"\033[94mℹ Creating {len(specialists)} specialist agent(s)…\033[0m")
     specialist_ids = []
     for name in specialists:
         agent = mac.create_agent(
-            name=f"review-{name}-{uuid.uuid4().hex[:8]}", model=model,
+            name=f"review-{name}-{uuid.uuid4().hex[:8]}",
+            model=model,
             system=REVIEW_SPECIALIST_PRESETS[name],
         )
         specialist_ids.append(agent["id"])
@@ -2187,13 +2399,13 @@ def cmd_agent_review_multiagent(path: str, specialists: list, api_key: str,
         "referencing all of them, organized by severity."
     )
     coordinator = mac.create_agent(
-        name=f"review-coordinator-{uuid.uuid4().hex[:8]}", model=model,
+        name=f"review-coordinator-{uuid.uuid4().hex[:8]}",
+        model=model,
         system=coordinator_system,
         multiagent=build_multiagent_config(specialist_ids),
     )
-    env  = mac.create_environment(name=f"ai-coder-review-env-{uuid.uuid4().hex[:8]}")
-    sess = mac.create_session(coordinator["id"], env["id"],
-                              title=f"multiagent review: {path}"[:60])
+    env = mac.create_environment(name=f"ai-coder-review-env-{uuid.uuid4().hex[:8]}")
+    sess = mac.create_session(coordinator["id"], env["id"], title=f"multiagent review: {path}"[:60])
     print(f"\033[92m✓ session {sess['id']}\033[0m — running review…\n")
 
     task = (
@@ -2213,19 +2425,22 @@ def cmd_agent_outcome_rubric_upload(file_path: str, api_key: str, model: str) ->
     re-reading the local file into the request body every time (v1.21.0,
     the file_id form of define_outcome()'s rubric)."""
     from claude_files import FilesAPI
+
     fa = FilesAPI(api_key=api_key, model=model)
     print(f"\033[94mℹ Uploading rubric {file_path}…\033[0m")
     result = fa.upload(file_path)
     print(f"\033[92m✓ rubric uploaded\033[0m  file_id={result['id']}")
-    print(f"  Reuse with: ai-coder --agent-managed-run \"...\" --agent-outcome \"...\" "
-          f"--agent-outcome-rubric-file {result['id']}")
+    print(
+        f'  Reuse with: ai-coder --agent-managed-run "..." --agent-outcome "..." '
+        f"--agent-outcome-rubric-file {result['id']}"
+    )
     return result["id"]
 
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_agent_chat(prompt: str, api_key: str, model: str,
-                   session_id: str = None, new: bool = False):
+
+def cmd_agent_chat(prompt: str, api_key: str, model: str, session_id: str = None, new: bool = False):
     if session_id and not new:
         try:
             session = AgentSession.load(session_id)
@@ -2237,19 +2452,19 @@ def cmd_agent_chat(prompt: str, api_key: str, model: str,
         session = AgentSession()
         print(f"\033[94mℹ New session: {session.id}\033[0m\n")
 
-    agent  = ManagedAgent(api_key=api_key, model=model)
+    agent = ManagedAgent(api_key=api_key, model=model)
     result = agent.chat(prompt, session)
     print(result)
     print(f"\n\033[90m[session: {session.id}  turns: {len(session.history)//2}]\033[0m")
-    print(f"\033[90m  Resume: ai-coder --agent-session {session.id} -p \"follow-up\"\033[0m")
+    print(f'\033[90m  Resume: ai-coder --agent-session {session.id} -p "follow-up"\033[0m')
     return result
 
 
 def cmd_agent_orchestrate(goal: str, api_key: str, model: str, session_id: str = None):
     session = AgentSession(session_id=session_id) if session_id else AgentSession()
-    agent   = ManagedAgent(api_key=api_key, model=model)
-    result  = agent.orchestrate(goal, session)
-    print(f"\n\033[92m✓ Orchestration complete\033[0m\n")
+    agent = ManagedAgent(api_key=api_key, model=model)
+    result = agent.orchestrate(goal, session)
+    print("\n\033[92m✓ Orchestration complete\033[0m\n")
     print(result["final"])
     return result
 
@@ -2264,7 +2479,7 @@ def cmd_agent_list_sessions():
     print("─" * 60)
     for sf in sessions[-20:]:
         try:
-            d     = json.loads(sf.read_text())
+            d = json.loads(sf.read_text())
             turns = len(d.get("history", [])) // 2
             print(f"{d['id']:<16}{d.get('name','')[:24]:<25}{turns:<8}{d.get('updated_at','')[:10]}")
         except Exception:
@@ -2276,8 +2491,10 @@ def cmd_agent_session_get(session_id: str, api_key: str) -> dict:
     and consumed list cost (v1.39.0, public beta)."""
     mac = ManagedAgentsClient(api_key)
     info = mac.get_session(session_id)
-    print(f"\033[92m✓ session {session_id}\033[0m  status={info['status']}"
-          + (f"  stop_reason={info['stop_reason']}" if info['stop_reason'] else ""))
+    print(
+        f"\033[92m✓ session {session_id}\033[0m  status={info['status']}"
+        + (f"  stop_reason={info['stop_reason']}" if info["stop_reason"] else "")
+    )
     if info["budget"]:
         cap = info["budget"].get("max_list_cost", {}).get("amount")
         spent = info["list_cost_usd_cents"]

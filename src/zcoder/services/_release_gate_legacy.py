@@ -24,11 +24,11 @@ Evaluates all required gates with real execution evidence:
   - DOCS: PASS
   - FINAL: PASS_WITH_LIMITATIONS
 """
+
 from __future__ import annotations
 
 import dataclasses
 import enum
-import json
 import time
 from typing import Any, Dict, List, Optional
 
@@ -426,8 +426,6 @@ class ProductionReleaseGate:
             ],
         )
 
-
-
     def record(
         self,
         name: str,
@@ -474,4 +472,3 @@ class ProductionReleaseGate:
 if __name__ == "__main__":
     gate = ProductionReleaseGate()
     gate.print_report()
-

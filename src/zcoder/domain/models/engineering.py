@@ -1,4 +1,5 @@
 """engineering_models.py — Durable Engineering Runtime Entities."""
+
 from __future__ import annotations
 
 import enum

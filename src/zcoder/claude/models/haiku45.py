@@ -31,11 +31,11 @@ CLI flags:
 """
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Optional
 
-from claude_models import FAST_MODE_SUPPORTED, SERVICE_TIER_UNSUPPORTED, INFERENCE_GEO_SUPPORTED
+from claude_models import FAST_MODE_SUPPORTED, INFERENCE_GEO_SUPPORTED, SERVICE_TIER_UNSUPPORTED
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
@@ -43,7 +43,7 @@ MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 HAIKU45_MODEL_ID = "claude-haiku-4-5-20251001"
-HAIKU45_ALIAS    = "claude-haiku-4-5"  # dateless alias, per claude_models.MODEL_ID_ALIASES
+HAIKU45_ALIAS = "claude-haiku-4-5"  # dateless alias, per claude_models.MODEL_ID_ALIASES
 
 # Minimum budget_tokens the API accepts for extended thinking. Anthropic's
 # docs specify 1024 as the floor for `thinking: {"type": "enabled", ...}`
@@ -51,20 +51,20 @@ HAIKU45_ALIAS    = "claude-haiku-4-5"  # dateless alias, per claude_models.MODEL
 MIN_THINKING_BUDGET = 1024
 
 HAIKU45_INFO = {
-    "display_name":      "Claude Haiku 4.5",
-    "tier":              "current",
-    "context_window":    200_000,
+    "display_name": "Claude Haiku 4.5",
+    "tier": "current",
+    "context_window": 200_000,
     "max_output_tokens": 64_000,
-    "price_input_per_mtok_usd":  1.0,
+    "price_input_per_mtok_usd": 1.0,
     "price_output_per_mtok_usd": 5.0,
-    "thinking":          "extended (manual budget_tokens — NOT adaptive)",
+    "thinking": "extended (manual budget_tokens — NOT adaptive)",
     "fast_mode_supported": HAIKU45_MODEL_ID in FAST_MODE_SUPPORTED,
     "service_tier_supported": HAIKU45_MODEL_ID not in SERVICE_TIER_UNSUPPORTED,
     "inference_geo_supported": HAIKU45_MODEL_ID in INFERENCE_GEO_SUPPORTED,
     "alias": HAIKU45_ALIAS,
     "notes": "Fastest, most cost-effective current-tier model. The only "
-             "current model using extended (not adaptive) thinking — always "
-             "pass an explicit budget_tokens, never type:'adaptive'.",
+    "current model using extended (not adaptive) thinking — always "
+    "pass an explicit budget_tokens, never type:'adaptive'.",
 }
 
 
@@ -94,8 +94,10 @@ def validate_fast_mode(want_fast: bool) -> Optional[str]:
         return None
     if HAIKU45_MODEL_ID in FAST_MODE_SUPPORTED:
         return None
-    return ("fast mode (speed:\"fast\") is restricted to Opus models per "
-            "claude_models.FAST_MODE_SUPPORTED — not available on Haiku 4.5.")
+    return (
+        'fast mode (speed:"fast") is restricted to Opus models per '
+        "claude_models.FAST_MODE_SUPPORTED — not available on Haiku 4.5."
+    )
 
 
 def validate_inference_geo(use_geo: bool) -> Optional[str]:
@@ -103,9 +105,11 @@ def validate_inference_geo(use_geo: bool) -> Optional[str]:
         return None
     if HAIKU45_MODEL_ID in INFERENCE_GEO_SUPPORTED:
         return None
-    return ("inference_geo data residency is not supported on Haiku 4.5 per "
-            "claude_models.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
-            "only as of the 2026-07-02 catalog check) — sending it will 400.")
+    return (
+        "inference_geo data residency is not supported on Haiku 4.5 per "
+        "claude_models.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
+        "only as of the 2026-07-02 catalog check) — sending it will 400."
+    )
 
 
 class Haiku45Client:
@@ -124,8 +128,10 @@ class Haiku45Client:
             "anthropic-version": "2023-06-01",
         }
         req = urllib.request.Request(
-            MESSAGES_ENDPOINT, data=json.dumps(payload).encode(),
-            headers=headers, method="POST",
+            MESSAGES_ENDPOINT,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
         )
         return urlopen_json(req, timeout=300)
 
@@ -137,9 +143,14 @@ class Haiku45Client:
         except Exception as e:
             return {"error": str(e)}
 
-    def call(self, prompt: str, system: Optional[str] = None,
-             thinking_budget: Optional[int] = None, fast: bool = False,
-             use_geo: bool = False) -> dict:
+    def call(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        thinking_budget: Optional[int] = None,
+        fast: bool = False,
+        use_geo: bool = False,
+    ) -> dict:
         fast_err = validate_fast_mode(fast)
         if fast_err:
             raise ValueError(fast_err)
@@ -168,8 +179,10 @@ class Haiku45Client:
 
 
 def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
-    return (input_tokens / 1_000_000 * HAIKU45_INFO["price_input_per_mtok_usd"] +
-            output_tokens / 1_000_000 * HAIKU45_INFO["price_output_per_mtok_usd"])
+    return (
+        input_tokens / 1_000_000 * HAIKU45_INFO["price_input_per_mtok_usd"]
+        + output_tokens / 1_000_000 * HAIKU45_INFO["price_output_per_mtok_usd"]
+    )
 
 
 def cmd_haiku45_info():
@@ -177,21 +190,30 @@ def cmd_haiku45_info():
     print(f"\n\033[94mClaude Haiku 4.5\033[0m  ({HAIKU45_MODEL_ID}, alias: {info['alias']})")
     print(f"  Context window:    {info['context_window']:,} tokens")
     print(f"  Max output:        {info['max_output_tokens']:,} tokens")
-    print(f"  Pricing:           ${info['price_input_per_mtok_usd']}/MTok in, "
-          f"${info['price_output_per_mtok_usd']}/MTok out")
+    print(
+        f"  Pricing:           ${info['price_input_per_mtok_usd']}/MTok in, "
+        f"${info['price_output_per_mtok_usd']}/MTok out"
+    )
     print(f"  Thinking:          {info['thinking']}")
-    print(f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'NOT supported (Opus-only)'}")
+    print(
+        f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'NOT supported (Opus-only)'}"
+    )
     print(f"  Priority Tier:     {'supported' if info['service_tier_supported'] else 'not supported'}")
     print(f"  Data residency:    {'supported' if info['inference_geo_supported'] else 'NOT supported'}")
     print(f"\n  Notes: {info['notes']}\n")
 
 
-def cmd_haiku45_call(prompt: str, api_key: str, thinking_budget: Optional[int] = None,
-                     fast: bool = False, use_geo: bool = False, system: Optional[str] = None):
+def cmd_haiku45_call(
+    prompt: str,
+    api_key: str,
+    thinking_budget: Optional[int] = None,
+    fast: bool = False,
+    use_geo: bool = False,
+    system: Optional[str] = None,
+):
     client = Haiku45Client(api_key=api_key)
     try:
-        data = client.call(prompt, system=system, thinking_budget=thinking_budget,
-                           fast=fast, use_geo=use_geo)
+        data = client.call(prompt, system=system, thinking_budget=thinking_budget, fast=fast, use_geo=use_geo)
     except ValueError as e:
         print(f"\033[91m✗ {e}\033[0m")
         return None

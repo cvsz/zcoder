@@ -27,11 +27,9 @@ CLI flags:
                           web_fetch_20260318, both defaults as of v1.24.0
 """
 
-import sys
-import json
-import anthropic
 from typing import Optional
 
+import anthropic
 
 WEB_SEARCH_TOOL = {
     "type": "web_search_20260318",
@@ -47,10 +45,9 @@ WEB_FETCH_TOOL = {
 class SearchCoder:
     """Claude with web search and fetch tools."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6",
-                 max_tokens: int = 4096):
-        self.client     = anthropic.Anthropic(api_key=api_key)
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 4096):
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model
         self.max_tokens = max_tokens
 
     def search(
@@ -94,7 +91,7 @@ class SearchCoder:
         resp = self.client.messages.create(**kwargs)
 
         response_text = ""
-        citations     = []
+        citations = []
         searches_made = 0
 
         for block in resp.content:
@@ -106,19 +103,21 @@ class SearchCoder:
             elif btype == "web_search_tool_result":
                 for item in getattr(block, "content", []):
                     if getattr(item, "type", "") == "web_search_result":
-                        citations.append({
-                            "title": getattr(item, "title", ""),
-                            "url":   getattr(item, "url", ""),
-                        })
+                        citations.append(
+                            {
+                                "title": getattr(item, "title", ""),
+                                "url": getattr(item, "url", ""),
+                            }
+                        )
 
         usage = resp.usage.model_dump() if hasattr(resp.usage, "model_dump") else {}
 
         return {
-            "response":     response_text,
-            "citations":    citations,
-            "searches":     searches_made,
-            "usage":        usage,
-            "stop_reason":  resp.stop_reason,
+            "response": response_text,
+            "citations": citations,
+            "searches": searches_made,
+            "usage": usage,
+            "stop_reason": resp.stop_reason,
         }
 
     def fetch_and_summarise(self, url: str, instruction: str = "") -> str:
@@ -130,9 +129,16 @@ class SearchCoder:
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_web_search(prompt: str, api_key: str, model: str,
-                   max_searches: int = 5, show_citations: bool = True,
-                   web_fetch: bool = False, response_inclusion: Optional[str] = None):
+
+def cmd_web_search(
+    prompt: str,
+    api_key: str,
+    model: str,
+    max_searches: int = 5,
+    show_citations: bool = True,
+    web_fetch: bool = False,
+    response_inclusion: Optional[str] = None,
+):
     print(f"\033[94mℹ Web Search enabled | max_searches={max_searches}\033[0m\n")
     sc = SearchCoder(api_key=api_key, model=model)
     result = sc.search(
@@ -150,7 +156,9 @@ def cmd_web_search(prompt: str, api_key: str, model: str,
             print(f"\033[90m[{i}] {c['title']}\n    {c['url']}\033[0m")
     u = result.get("usage", {})
     searches = result.get("searches", 0)
-    print(f"\n\033[90m[searches={searches}  input={u.get('input_tokens',0)}  output={u.get('output_tokens',0)}]\033[0m")
+    print(
+        f"\n\033[90m[searches={searches}  input={u.get('input_tokens',0)}  output={u.get('output_tokens',0)}]\033[0m"
+    )
     return result["response"]
 
 

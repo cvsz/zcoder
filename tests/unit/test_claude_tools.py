@@ -5,12 +5,11 @@ Covers claude_tools.py's v1.24.0 server tool version bumps
 the new response_inclusion parameter — see
 docs/36_upgrade_v1.24.0_audit_and_impl.md Finding 1.
 """
+
 import json
 
-import pytest
-
 import claude_tools as mod
-from claude_tools import ToolCoder, SERVER_TOOLS, RETIRED_TOOL_VERSIONS
+from claude_tools import RETIRED_TOOL_VERSIONS, SERVER_TOOLS, ToolCoder
 
 
 class _FakeResp:
@@ -60,8 +59,7 @@ def test_generate_with_server_tools_response_inclusion_applied(monkeypatch):
     _install_fake_urlopen(monkeypatch, captured)
     tc = ToolCoder(api_key="sk-test")
 
-    tc.generate_with_server_tools("do it", ["web_search", "web_fetch"],
-                                  response_inclusion="excluded")
+    tc.generate_with_server_tools("do it", ["web_search", "web_fetch"], response_inclusion="excluded")
 
     tools = captured["body"]["tools"]
     web_search = next(t for t in tools if t["name"] == "web_search")
@@ -161,14 +159,14 @@ def test_validate_mid_conversation_tool_change_unsupported_model_warns():
 
 
 def test_with_mid_conversation_tool_changes_adds_beta_header_for_supported_model():
-    from claude_tools import with_mid_conversation_tool_changes, MID_CONVERSATION_TOOL_CHANGES_BETA
+    from claude_tools import MID_CONVERSATION_TOOL_CHANGES_BETA, with_mid_conversation_tool_changes
 
     headers = with_mid_conversation_tool_changes({}, "claude-opus-5")
     assert MID_CONVERSATION_TOOL_CHANGES_BETA in headers["anthropic-beta"]
 
 
 def test_with_mid_conversation_tool_changes_appends_to_existing_beta_header():
-    from claude_tools import with_mid_conversation_tool_changes, MID_CONVERSATION_TOOL_CHANGES_BETA
+    from claude_tools import MID_CONVERSATION_TOOL_CHANGES_BETA, with_mid_conversation_tool_changes
 
     headers = with_mid_conversation_tool_changes({"anthropic-beta": "some-other-beta"}, "claude-fable-5")
     assert "some-other-beta" in headers["anthropic-beta"]

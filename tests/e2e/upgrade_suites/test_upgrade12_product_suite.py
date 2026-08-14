@@ -7,21 +7,19 @@ Verifies:
   4. Webhook Signing & SSRF Defense (HMAC-SHA256 signature verification, loopback protection)
   5. Python SDK Client contract execution
 """
+
 import time
-import pytest
 
 from product_models import (
-    CustomerAccount,
     CustomerWebhookEndpoint,
     EntitlementService,
     FakeBillingProvider,
     PlanTier,
-    StripeBillingProvider,
     Subscription,
     SubscriptionStatus,
 )
-from public_api_v1 import APIError, PublicAPIV1Router
-from sdk_client import ZCoderClient, ZCoderSDKException
+from public_api_v1 import PublicAPIV1Router
+from sdk_client import ZCoderClient
 from tenant_models import EnterpriseRole, RequestContext
 
 
@@ -33,13 +31,15 @@ def test_entitlements_by_plan_tier():
     assert free_ent.sso_oidc_enabled is False
 
     # 2. Enterprise plan
-    service.set_subscription(Subscription(
-        id="sub_ent",
-        account_id="acc_1",
-        organization_id="org_ent",
-        plan_tier=PlanTier.ENTERPRISE,
-        status=SubscriptionStatus.ACTIVE,
-    ))
+    service.set_subscription(
+        Subscription(
+            id="sub_ent",
+            account_id="acc_1",
+            organization_id="org_ent",
+            plan_tier=PlanTier.ENTERPRISE,
+            status=SubscriptionStatus.ACTIVE,
+        )
+    )
     ent = service.get_entitlements("org_ent")
     assert ent.sso_oidc_enabled is True
     assert ent.scim_enabled is True

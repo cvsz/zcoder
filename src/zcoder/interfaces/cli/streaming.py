@@ -1,4 +1,5 @@
 """Small, UI-framework-independent helpers for streamed TUI responses."""
+
 from __future__ import annotations
 
 

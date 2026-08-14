@@ -1,10 +1,12 @@
 """tests/test_claude_cost_optimizer.py"""
+
 import pytest
+
 from claude_cost_optimizer import (
+    INFERENCE_GEO_MULTIPLIER,
+    INFERENCE_GEO_SUPPORTED,
     PRICE,
     TIER_MODELS,
-    INFERENCE_GEO_SUPPORTED,
-    INFERENCE_GEO_MULTIPLIER,
     estimate_cost,
 )
 

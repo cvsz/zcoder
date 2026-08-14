@@ -5,10 +5,11 @@ AI Model Coder CLI v1.7.0
 Manages full project lifecycles: create, plan, scaffold, track tasks,
 run agents across a project, and maintain a project manifest.
 """
-import os
+
 import json
-import uuid
+import os
 import shutil
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +17,7 @@ PROJECTS_DIR = os.path.expanduser("~/.ai-coder/projects")
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -52,28 +54,36 @@ def _save_manifest(project_id: str, data: dict):
 
 # ── Project Status ──────────────────────────────────────────────────────────
 
+
 class ProjectStatus:
     PLANNING = "planning"
-    ACTIVE   = "active"
-    PAUSED   = "paused"
-    DONE     = "done"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    DONE = "done"
     ARCHIVED = "archived"
 
 
 # ── Task ───────────────────────────────────────────────────────────────────
 
+
 class Task:
-    def __init__(self, title: str, description: str = "", agent: str = "",
-                 priority: str = "medium", task_id: str = None):
-        self.id          = task_id or str(uuid.uuid4())[:8]
-        self.title       = title
+    def __init__(
+        self,
+        title: str,
+        description: str = "",
+        agent: str = "",
+        priority: str = "medium",
+        task_id: str = None,
+    ):
+        self.id = task_id or str(uuid.uuid4())[:8]
+        self.title = title
         self.description = description
-        self.agent       = agent            # which agent handles this
-        self.priority    = priority         # low / medium / high / critical
-        self.status      = "todo"           # todo / in_progress / done / blocked
-        self.created_at  = _now()
-        self.updated_at  = _now()
-        self.result      = ""
+        self.agent = agent  # which agent handles this
+        self.priority = priority  # low / medium / high / critical
+        self.status = "todo"  # todo / in_progress / done / blocked
+        self.created_at = _now()
+        self.updated_at = _now()
+        self.result = ""
 
     def to_dict(self) -> dict:
         return self.__dict__
@@ -87,32 +97,32 @@ class Task:
 
 # ── ProjectManager ─────────────────────────────────────────────────────────
 
+
 class ProjectManager:
     """Create, manage, and run Feature Projects."""
 
     # ── CRUD ───────────────────────────────────────────────────────────────
 
-    def create_project(self, name: str, description: str = "",
-                       template: str = "blank") -> dict:
+    def create_project(self, name: str, description: str = "", template: str = "blank") -> dict:
         """Create a new project and return its manifest."""
         pid = str(uuid.uuid4())[:12]
         templates = self._builtin_templates()
         tpl = templates.get(template, templates["blank"])
 
         manifest = {
-            "id":          pid,
-            "name":        name,
+            "id": pid,
+            "name": name,
             "description": description,
-            "template":    template,
-            "status":      ProjectStatus.PLANNING,
-            "created_at":  _now(),
-            "updated_at":  _now(),
-            "tasks":       [t.to_dict() for t in tpl["tasks"]],
-            "context":     tpl.get("context", ""),
-            "files":       [],
-            "tags":        [],
+            "template": template,
+            "status": ProjectStatus.PLANNING,
+            "created_at": _now(),
+            "updated_at": _now(),
+            "tasks": [t.to_dict() for t in tpl["tasks"]],
+            "context": tpl.get("context", ""),
+            "files": [],
+            "tags": [],
             "agents_used": [],
-            "run_log":     [],
+            "run_log": [],
         }
         _save_manifest(pid, manifest)
 
@@ -131,15 +141,17 @@ class ProjectManager:
                 try:
                     with open(mp) as f:
                         m = json.load(f)
-                    projects.append({
-                        "id":          m["id"],
-                        "name":        m["name"],
-                        "status":      m["status"],
-                        "tasks_total": len(m.get("tasks", [])),
-                        "tasks_done":  sum(1 for t in m.get("tasks", []) if t.get("status") == "done"),
-                        "created_at":  m.get("created_at", ""),
-                        "updated_at":  m.get("updated_at", ""),
-                    })
+                    projects.append(
+                        {
+                            "id": m["id"],
+                            "name": m["name"],
+                            "status": m["status"],
+                            "tasks_total": len(m.get("tasks", [])),
+                            "tasks_done": sum(1 for t in m.get("tasks", []) if t.get("status") == "done"),
+                            "created_at": m.get("created_at", ""),
+                            "updated_at": m.get("updated_at", ""),
+                        }
+                    )
                 except Exception:
                     pass
         return projects
@@ -168,8 +180,9 @@ class ProjectManager:
 
     # ── Tasks ──────────────────────────────────────────────────────────────
 
-    def add_task(self, project_id: str, title: str, description: str = "",
-                 agent: str = "", priority: str = "medium") -> dict:
+    def add_task(
+        self, project_id: str, title: str, description: str = "", agent: str = "", priority: str = "medium"
+    ) -> dict:
         m = _load_manifest(project_id)
         task = Task(title, description, agent, priority)
         m["tasks"].append(task.to_dict())
@@ -266,13 +279,15 @@ class ProjectManager:
 
         # Log to run_log
         mn = _load_manifest(project_id)
-        mn["run_log"].append({
-            "timestamp": _now(),
-            "task_id":   task_id,
-            "task":      task_data["title"],
-            "agent":     task_data.get("agent", "ai"),
-            "status":    "done",
-        })
+        mn["run_log"].append(
+            {
+                "timestamp": _now(),
+                "task_id": task_id,
+                "task": task_data["title"],
+                "agent": task_data.get("agent", "ai"),
+                "status": "done",
+            }
+        )
         _save_manifest(project_id, mn)
 
         # Save result to workspace
@@ -298,9 +313,9 @@ class ProjectManager:
     def show_project(self, project_id: str) -> str:
         m = _load_manifest(project_id)
         tasks = m.get("tasks", [])
-        done  = sum(1 for t in tasks if t.get("status") == "done")
-        pct   = int(done / len(tasks) * 100) if tasks else 0
-        bar   = "█" * (pct // 5) + "░" * (20 - pct // 5)
+        done = sum(1 for t in tasks if t.get("status") == "done")
+        pct = int(done / len(tasks) * 100) if tasks else 0
+        bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
 
         lines = [
             f"\n{'═'*60}",
@@ -318,7 +333,7 @@ class ProjectManager:
             icons = {"todo": "○", "in_progress": "◐", "done": "●", "blocked": "✗"}
             pri_colors = {"critical": "31", "high": "33", "medium": "36", "low": "37"}
             for t in tasks:
-                icon  = icons.get(t.get("status", "todo"), "○")
+                icon = icons.get(t.get("status", "todo"), "○")
                 color = pri_colors.get(t.get("priority", "medium"), "37")
                 lines.append(
                     f"  {icon} [{t['id']}] \033[{color}m{t['title']}\033[0m"
@@ -337,59 +352,64 @@ class ProjectManager:
             "web_app": {
                 "context": "Full-stack web application project.",
                 "tasks": tasks(
-                    ("Architecture Design", "Define system architecture and tech stack.", "code_generator", "high"),
-                    ("Backend API",         "Implement REST API with authentication.",    "code_generator", "high"),
-                    ("Frontend UI",         "Build responsive frontend interface.",        "code_generator", "medium"),
-                    ("Database Schema",     "Design and implement database schema.",       "code_generator", "high"),
-                    ("Unit Tests",          "Write comprehensive test suite.",            "testing_agent",  "medium"),
-                    ("Security Audit",      "Review for common vulnerabilities.",         "security_auditor","high"),
-                    ("Documentation",       "API docs and README.",                       "documentation_agent","low"),
+                    (
+                        "Architecture Design",
+                        "Define system architecture and tech stack.",
+                        "code_generator",
+                        "high",
+                    ),
+                    ("Backend API", "Implement REST API with authentication.", "code_generator", "high"),
+                    ("Frontend UI", "Build responsive frontend interface.", "code_generator", "medium"),
+                    ("Database Schema", "Design and implement database schema.", "code_generator", "high"),
+                    ("Unit Tests", "Write comprehensive test suite.", "testing_agent", "medium"),
+                    ("Security Audit", "Review for common vulnerabilities.", "security_auditor", "high"),
+                    ("Documentation", "API docs and README.", "documentation_agent", "low"),
                 ),
             },
             "api": {
                 "context": "REST API project.",
                 "tasks": tasks(
-                    ("API Design",     "Design endpoints and data models.", "code_generator",      "high"),
-                    ("Implementation", "Implement all endpoints.",          "code_generator",      "high"),
-                    ("Auth Layer",     "Add JWT/OAuth authentication.",     "code_generator",      "high"),
-                    ("Tests",          "Integration and unit tests.",       "testing_agent",       "medium"),
-                    ("Security",       "Rate limiting, input validation.",  "security_auditor",    "high"),
-                    ("Docs",           "OpenAPI/Swagger documentation.",    "documentation_agent", "medium"),
+                    ("API Design", "Design endpoints and data models.", "code_generator", "high"),
+                    ("Implementation", "Implement all endpoints.", "code_generator", "high"),
+                    ("Auth Layer", "Add JWT/OAuth authentication.", "code_generator", "high"),
+                    ("Tests", "Integration and unit tests.", "testing_agent", "medium"),
+                    ("Security", "Rate limiting, input validation.", "security_auditor", "high"),
+                    ("Docs", "OpenAPI/Swagger documentation.", "documentation_agent", "medium"),
                 ),
             },
             "cli_tool": {
                 "context": "Command-line tool project.",
                 "tasks": tasks(
-                    ("CLI Design",    "Define commands and flags.",         "code_generator",      "high"),
-                    ("Core Logic",    "Implement main functionality.",      "code_generator",      "high"),
-                    ("Config",        "Config file and env var support.",   "code_generator",      "medium"),
-                    ("Tests",         "Unit tests for all commands.",       "testing_agent",       "medium"),
-                    ("Packaging",     "setup.py and distribution.",         "code_generator",      "low"),
-                    ("README",        "Usage guide with examples.",         "documentation_agent", "medium"),
+                    ("CLI Design", "Define commands and flags.", "code_generator", "high"),
+                    ("Core Logic", "Implement main functionality.", "code_generator", "high"),
+                    ("Config", "Config file and env var support.", "code_generator", "medium"),
+                    ("Tests", "Unit tests for all commands.", "testing_agent", "medium"),
+                    ("Packaging", "setup.py and distribution.", "code_generator", "low"),
+                    ("README", "Usage guide with examples.", "documentation_agent", "medium"),
                 ),
             },
             "data_pipeline": {
                 "context": "Data pipeline / ETL project.",
                 "tasks": tasks(
-                    ("Schema Design",  "Define input/output schemas.",     "code_generator",      "high"),
-                    ("Ingestion",      "Data ingestion from sources.",     "code_generator",      "high"),
-                    ("Transform",      "Transformation and cleaning.",     "code_generator",      "high"),
-                    ("Validation",     "Data quality checks.",             "testing_agent",       "medium"),
-                    ("Optimization",   "Performance tuning.",              "optimizer",           "medium"),
-                    ("Monitoring",     "Logging and alerting.",            "code_generator",      "low"),
-                    ("Docs",           "Pipeline documentation.",          "documentation_agent", "low"),
+                    ("Schema Design", "Define input/output schemas.", "code_generator", "high"),
+                    ("Ingestion", "Data ingestion from sources.", "code_generator", "high"),
+                    ("Transform", "Transformation and cleaning.", "code_generator", "high"),
+                    ("Validation", "Data quality checks.", "testing_agent", "medium"),
+                    ("Optimization", "Performance tuning.", "optimizer", "medium"),
+                    ("Monitoring", "Logging and alerting.", "code_generator", "low"),
+                    ("Docs", "Pipeline documentation.", "documentation_agent", "low"),
                 ),
             },
             "ml_model": {
                 "context": "Machine learning model project.",
                 "tasks": tasks(
-                    ("Data Prep",      "Data loading and preprocessing.",  "code_generator",      "high"),
-                    ("EDA",            "Exploratory data analysis.",       "code_generator",      "medium"),
-                    ("Model Design",   "Architecture selection.",          "code_generator",      "high"),
-                    ("Training",       "Training loop implementation.",    "code_generator",      "high"),
-                    ("Evaluation",     "Metrics and validation.",          "testing_agent",       "high"),
-                    ("Serving",        "Inference API or export.",         "code_generator",      "medium"),
-                    ("Docs",           "Model card and usage guide.",      "documentation_agent", "low"),
+                    ("Data Prep", "Data loading and preprocessing.", "code_generator", "high"),
+                    ("EDA", "Exploratory data analysis.", "code_generator", "medium"),
+                    ("Model Design", "Architecture selection.", "code_generator", "high"),
+                    ("Training", "Training loop implementation.", "code_generator", "high"),
+                    ("Evaluation", "Metrics and validation.", "testing_agent", "high"),
+                    ("Serving", "Inference API or export.", "code_generator", "medium"),
+                    ("Docs", "Model card and usage guide.", "documentation_agent", "low"),
                 ),
             },
         }
@@ -399,6 +419,7 @@ class ProjectManager:
 
 
 # ── CLI helpers (called from main.py) ─────────────────────────────────────
+
 
 def cmd_project_create(name, description="", template="blank"):
     pm = ProjectManager()
@@ -418,9 +439,9 @@ def cmd_project_list():
     print(f"\n{'ID':<14}{'NAME':<25}{'STATUS':<12}{'PROGRESS':<12}{'UPDATED'}")
     print("─" * 75)
     for p in projects:
-        done  = p["tasks_done"]
+        done = p["tasks_done"]
         total = p["tasks_total"]
-        prog  = f"{done}/{total}" if total else "—"
+        prog = f"{done}/{total}" if total else "—"
         print(f"{p['id']:<14}{p['name'][:24]:<25}{p['status']:<12}{prog:<12}{p['updated_at'][:10]}")
 
 
@@ -458,12 +479,12 @@ def cmd_project_templates():
     templates = pm.list_templates()
     print("\nAvailable project templates:")
     descriptions = {
-        "blank":         "Empty project — start from scratch",
-        "web_app":       "Full-stack web app (backend + frontend + DB + security)",
-        "api":           "REST API with auth, tests, and OpenAPI docs",
-        "cli_tool":      "Command-line tool with packaging and README",
+        "blank": "Empty project — start from scratch",
+        "web_app": "Full-stack web app (backend + frontend + DB + security)",
+        "api": "REST API with auth, tests, and OpenAPI docs",
+        "cli_tool": "Command-line tool with packaging and README",
         "data_pipeline": "ETL/data pipeline with validation and monitoring",
-        "ml_model":      "Machine learning project from data prep to serving",
+        "ml_model": "Machine learning project from data prep to serving",
     }
     for t in templates:
         print(f"  {t:<18} — {descriptions.get(t, '')}")

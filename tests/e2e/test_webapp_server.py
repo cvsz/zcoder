@@ -5,10 +5,12 @@ Coder.generate() / anthropic streaming calls are monkeypatched so no real
 API calls happen anywhere in this file, same convention as
 tests/test_coder.py.
 """
+
 import sys
 from pathlib import Path
 
 import pytest
+
 pytest.importorskip("fastapi", reason="optional dependency for webapp, see webapp/requirements-web.txt")
 from fastapi.testclient import TestClient
 
@@ -143,6 +145,7 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch):
             self.messages = FakeMessages()
 
     import types
+
     fake_anthropic_module = types.SimpleNamespace(Anthropic=FakeAnthropic)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
 

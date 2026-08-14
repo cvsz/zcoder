@@ -1,10 +1,10 @@
 """tests/test_backup_restore.py — Tests for backup and restore functionality."""
+
 import json
 import os
-import tempfile
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -85,6 +85,7 @@ class TestPgDumpBackup:
     def test_backup_timeout_handling(self, backup_manager):
         """Backup handles subprocess timeout correctly."""
         import subprocess
+
         backup_manager.database_url = "postgresql://localhost/testdb"
 
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("pg_dump", 3600)):

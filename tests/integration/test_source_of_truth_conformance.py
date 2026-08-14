@@ -4,12 +4,8 @@ tests/test_source_of_truth_conformance.py — Source-of-Truth Conformance Tests
 Validates ZCoder runtime behavior and constants directly against independent
 authoritative Anthropic specifications, preventing regressions and false releases.
 """
-from datetime import date
-import io
-import urllib.response
-import pytest
 
-from claude_models import MODEL_CATALOG, RETIRED_MODELS, DEPRECATED_MODELS, INFERENCE_GEO_SUPPORTED
+from claude_models import DEPRECATED_MODELS, INFERENCE_GEO_SUPPORTED, MODEL_CATALOG, RETIRED_MODELS
 from claude_sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD, current_pricing
 from resilience import extract_response_metadata
 

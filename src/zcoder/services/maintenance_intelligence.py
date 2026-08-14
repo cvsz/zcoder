@@ -1,7 +1,11 @@
 """maintenance_intelligence_service.py — Service to analyze signals and propose recommendations."""
+
 from __future__ import annotations
+
 from typing import List
-from intelligence_models import MaintenanceSignal, MaintenanceRecommendation, SignalType
+
+from intelligence_models import MaintenanceRecommendation, MaintenanceSignal, SignalType
+
 
 class MaintenanceIntelligenceService:
     def __init__(self):
@@ -15,21 +19,25 @@ class MaintenanceIntelligenceService:
         # Basic deterministic rules
         for signal in self.signals:
             if signal.type == SignalType.CI_FAILURE:
-                recommendations.append(MaintenanceRecommendation(
-                    repository=signal.repository,
-                    type="REPAIR_CI",
-                    priority=2,
-                    risk="medium",
-                    reason=f"CI failure detected in source: {signal.source}",
-                    evidence=[signal]
-                ))
+                recommendations.append(
+                    MaintenanceRecommendation(
+                        repository=signal.repository,
+                        type="REPAIR_CI",
+                        priority=2,
+                        risk="medium",
+                        reason=f"CI failure detected in source: {signal.source}",
+                        evidence=[signal],
+                    )
+                )
             elif signal.type == SignalType.DEPENDENCY_OUTDATED:
-                recommendations.append(MaintenanceRecommendation(
-                    repository=signal.repository,
-                    type="PATCH_DEPENDENCY",
-                    priority=1,
-                    risk="low",
-                    reason=f"Dependency outdated: {signal.evidence.get('package')}",
-                    evidence=[signal]
-                ))
+                recommendations.append(
+                    MaintenanceRecommendation(
+                        repository=signal.repository,
+                        type="PATCH_DEPENDENCY",
+                        priority=1,
+                        risk="low",
+                        reason=f"Dependency outdated: {signal.evidence.get('package')}",
+                        evidence=[signal],
+                    )
+                )
         return recommendations

@@ -1,8 +1,11 @@
 """engineering_worker.py — Executes claimed engineering tasks."""
+
 from __future__ import annotations
 
 import time
+
 from engineering_store_interface import EngineeringStore
+
 
 class EngineeringWorker:
     def __init__(self, store: EngineeringStore, worker_id: str):
@@ -21,4 +24,4 @@ class EngineeringWorker:
                 # Mark succeeded (simplified)
                 # ...
             else:
-                time.sleep(1) # Backoff
+                time.sleep(1)  # Backoff

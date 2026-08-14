@@ -3,12 +3,12 @@
 Covers claude_wif.py — Workload Identity Federation (v1.23.0).
 See docs/35_upgrade_v1.23.0_audit_and_impl.md Finding 1.
 """
+
 import json
 
 import pytest
 
 import claude_wif as wif
-
 
 # ── resolve_wif_env() ─────────────────────────────────────────────────
 
@@ -27,8 +27,10 @@ def test_resolve_wif_env_empty_returns_none():
 def test_resolve_wif_env_full_literal_token():
     cfg = wif.resolve_wif_env(FULL_ENV)
     assert cfg == {
-        "federation_rule_id": "fdrl_1", "organization_id": "org_1",
-        "service_account_id": "svac_1", "workspace_id": None,
+        "federation_rule_id": "fdrl_1",
+        "organization_id": "org_1",
+        "service_account_id": "svac_1",
+        "workspace_id": None,
         "identity_token": "eyFakeJwt",
     }
 
@@ -39,10 +41,14 @@ def test_resolve_wif_env_includes_workspace_id_when_set():
     assert cfg["workspace_id"] == "wrkspc_1"
 
 
-@pytest.mark.parametrize("missing", [
-    "ANTHROPIC_FEDERATION_RULE_ID", "ANTHROPIC_ORGANIZATION_ID",
-    "ANTHROPIC_SERVICE_ACCOUNT_ID",
-])
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "ANTHROPIC_FEDERATION_RULE_ID",
+        "ANTHROPIC_ORGANIZATION_ID",
+        "ANTHROPIC_SERVICE_ACCOUNT_ID",
+    ],
+)
 def test_resolve_wif_env_missing_required_var_returns_none(missing):
     env = dict(FULL_ENV)
     del env[missing]
@@ -95,10 +101,16 @@ def test_exchange_sends_jwt_bearer_grant(monkeypatch):
 
     def fake_urlopen(req, timeout=None):
         captured["body"] = json.loads(req.data.decode())
-        return _FakeResp(json.dumps({
-            "access_token": "sk-ant-oat01-abcdefghijklmno",
-            "expires_in": 3600, "token_type": "bearer", "scope": "workspace:developer",
-        }).encode())
+        return _FakeResp(
+            json.dumps(
+                {
+                    "access_token": "sk-ant-oat01-abcdefghijklmno",
+                    "expires_in": 3600,
+                    "token_type": "bearer",
+                    "scope": "workspace:developer",
+                }
+            ).encode()
+        )
 
     monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
     exchanger = wif.WIFCredentialExchanger()
@@ -119,8 +131,7 @@ def test_exchange_includes_workspace_id_when_given(monkeypatch):
         return _FakeResp(json.dumps({"access_token": "tok", "expires_in": 3600}).encode())
 
     monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
-    wif.WIFCredentialExchanger().exchange("fdrl_1", "org_1", "svac_1", "tok",
-                                          workspace_id="wrkspc_1")
+    wif.WIFCredentialExchanger().exchange("fdrl_1", "org_1", "svac_1", "tok", workspace_id="wrkspc_1")
 
     assert captured["body"]["workspace_id"] == "wrkspc_1"
 
@@ -156,6 +167,7 @@ def _install_fake_admin_urlopen(monkeypatch, captured: dict, response_body: dict
         if req.data:
             captured["body"] = json.loads(req.data.decode())
         return _FakeResp(json.dumps(response_body).encode())
+
     monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
 
 
@@ -209,8 +221,14 @@ def test_wif_admin_client_create_federation_rule_includes_optional_fields_when_g
     _install_fake_admin_urlopen(monkeypatch, captured, {"id": "fdrl_1"})
     client = wif.WIFAdminClient("token")
 
-    client.create_federation_rule("rule1", "fdis_1", "svac_1", {"subject_prefix": "repo:x"},
-                                  oauth_scope="workspace:developer", token_lifetime_seconds=600)
+    client.create_federation_rule(
+        "rule1",
+        "fdis_1",
+        "svac_1",
+        {"subject_prefix": "repo:x"},
+        oauth_scope="workspace:developer",
+        token_lifetime_seconds=600,
+    )
 
     assert captured["body"]["oauth_scope"] == "workspace:developer"
     assert captured["body"]["token_lifetime_seconds"] == 600
@@ -254,8 +272,12 @@ def test_cmd_wif_exchange_token_never_prints_full_access_token(monkeypatch, caps
     long_token = "sk-ant-oat01-" + "x" * 40
 
     def fake_exchange(self, **kwargs):
-        return {"access_token": long_token, "expires_in": 3600,
-               "token_type": "bearer", "scope": "workspace:developer"}
+        return {
+            "access_token": long_token,
+            "expires_in": 3600,
+            "token_type": "bearer",
+            "scope": "workspace:developer",
+        }
 
     monkeypatch.setattr(wif.WIFCredentialExchanger, "exchange", fake_exchange)
 

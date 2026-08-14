@@ -14,15 +14,14 @@ This module is intended to be run as a separate OS process:
 Or via Docker:
     CMD ["python", "worker_process.py", "--worker-id", "${HOSTNAME}", "--pool-type", "standard"]
 """
+
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import signal
 import socket
-import sys
 import threading
 import time
 import uuid
@@ -33,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 # ─── Worker state ─────────────────────────────────────────────────────────────
+
 
 class WorkerState:
     IDLE = "IDLE"
@@ -90,6 +90,7 @@ class Worker:
         if use_postgres or database_url:
             try:
                 from postgres_store import PostgresControlPlaneStore
+
                 self._store = PostgresControlPlaneStore(
                     dsn=database_url or os.environ.get("DATABASE_URL", "")
                 )
@@ -99,12 +100,14 @@ class Worker:
                 raise
         else:
             from control_plane import ControlPlaneStore
+
             db_path = Path.home() / ".zcoder" / "control_plane.db"
             self._store = ControlPlaneStore(db_path=db_path)
             logger.info(f"Worker {self.worker_id} using SQLite at {db_path}")
 
         try:
             from observability_otel import get_metrics
+
             self._metrics = get_metrics()
         except Exception:
             self._metrics = None
@@ -221,8 +224,7 @@ class Worker:
             # Mark succeeded
             renew_stop.set()
             success = self._store.mutate_with_fencing(
-                job.id, self.worker_id, fencing_token,
-                JobStatus.SUCCEEDED, job.cost_usd
+                job.id, self.worker_id, fencing_token, JobStatus.SUCCEEDED, job.cost_usd
             )
             if not success:
                 logger.warning(
@@ -238,8 +240,7 @@ class Worker:
             logger.error(f"Job {job.id} FAILED: {e}")
             try:
                 self._store.mutate_with_fencing(
-                    job.id, self.worker_id, fencing_token,
-                    JobStatus.FAILED, job.cost_usd
+                    job.id, self.worker_id, fencing_token, JobStatus.FAILED, job.cost_usd
                 )
             except Exception as ee:
                 logger.error(f"Could not mark job {job.id} FAILED: {ee}")
@@ -279,7 +280,9 @@ class Worker:
             try:
                 if hasattr(self._store, "renew_lease"):
                     renewed = self._store.renew_lease(
-                        job_id, self.worker_id, fencing_token,
+                        job_id,
+                        self.worker_id,
+                        fencing_token,
                         lease_duration=self.lease_duration,
                     )
                     if not renewed:
@@ -341,14 +344,14 @@ class Worker:
         for job_id, info in list(self._active_jobs.items()):
             job = info["job"]
             fencing_token = info["fencing_token"]
-            logger.warning(
-                f"Shutdown timeout exceeded — releasing job {job_id} "
-                f"back to READY state"
-            )
+            logger.warning(f"Shutdown timeout exceeded — releasing job {job_id} " f"back to READY state")
             try:
                 self._store.mutate_with_fencing(
-                    job_id, self.worker_id, fencing_token,
-                    JobStatus.READY, job.cost_usd,
+                    job_id,
+                    self.worker_id,
+                    fencing_token,
+                    JobStatus.READY,
+                    job.cost_usd,
                 )
             except Exception as e:
                 logger.error(f"Could not release job {job_id}: {e}")
@@ -386,6 +389,7 @@ class Worker:
 
 # ─── Entrypoint ───────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     logging.basicConfig(
         level=os.environ.get("ZCODER_LOG_LEVEL", "INFO"),
@@ -394,7 +398,9 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="ZCoder Worker Process")
     parser.add_argument("--worker-id", default="", help="Worker identity (default: auto-generated)")
-    parser.add_argument("--pool-type", default="standard", choices=["standard", "sandbox", "trusted", "high-isolation"])
+    parser.add_argument(
+        "--pool-type", default="standard", choices=["standard", "sandbox", "trusted", "high-isolation"]
+    )
     parser.add_argument("--concurrency", type=int, default=int(os.environ.get("WORKER_CONCURRENCY", "2")))
     parser.add_argument("--lease-duration", type=float, default=120.0)
     parser.add_argument("--heartbeat", type=float, default=30.0)

@@ -1,4 +1,5 @@
 """Secure request construction for the Claude remote MCP connector."""
+
 from __future__ import annotations
 
 import os
@@ -11,7 +12,9 @@ class MCPConfigurationError(ValueError):
     pass
 
 
-def build_remote_mcp(server_name: str, url: str, tool_names: list[str], token_env: str | None = None) -> tuple[list[dict], list[dict], list[str]]:
+def build_remote_mcp(
+    server_name: str, url: str, tool_names: list[str], token_env: str | None = None
+) -> tuple[list[dict], list[dict], list[str]]:
     """Return Messages API MCP payloads.
 
     Tokens are resolved only from an environment variable and are never
@@ -19,7 +22,11 @@ def build_remote_mcp(server_name: str, url: str, tool_names: list[str], token_en
     allowlisted; deferred loading is enabled to control prompt growth.
     """
     parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.hostname in {"localhost", "127.0.0.1", "::1"}:
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    ):
         raise MCPConfigurationError("Remote MCP URL must be a non-loopback HTTPS URL")
     if not server_name or not server_name.replace("_", "").replace("-", "").isalnum():
         raise MCPConfigurationError("MCP server name must contain only letters, numbers, '_' or '-'")

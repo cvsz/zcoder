@@ -6,16 +6,16 @@ Separates:
   • EntitlementService (feature gating with versioned bundles; never overrides RBAC)
   • Webhook subscriptions, delivery logging, HMAC-SHA256 signatures, and replay safety
 """
+
 from __future__ import annotations
 
 import dataclasses
 import enum
 import hashlib
 import hmac
-import json
 import time
 import uuid
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Set
 
 
 class AccountStatus(str, enum.Enum):
@@ -201,6 +201,7 @@ class EntitlementService:
 # Provider-Neutral Billing Interface & Adapters
 # ---------------------------------------------------------------------------
 
+
 class BillingProvider:
     """Abstract interface for commercial billing providers (e.g. Stripe, Fake)."""
 
@@ -313,6 +314,7 @@ class StripeBillingProvider(BillingProvider):
 # ---------------------------------------------------------------------------
 # Customer Outbound Webhook Models & Delivery
 # ---------------------------------------------------------------------------
+
 
 class WebhookDeliveryStatus(str, enum.Enum):
     PENDING = "PENDING"

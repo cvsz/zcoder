@@ -6,6 +6,7 @@ cursor-safety in the iterate_* generators, the Content-Disposition
 filename parser, and the dry-run-by-default guard on every destructive
 cmd_* function.
 """
+
 import json
 
 import pytest
@@ -19,7 +20,6 @@ from claude_compliance_api import (
     cmd_compliance_file_delete,
     cmd_compliance_project_delete,
 )
-
 
 # ── error classification / retry contract ────────────────────────────────
 
@@ -99,10 +99,13 @@ def test_request_retries_429_then_succeeds(monkeypatch):
         def __init__(self, body):
             self._body = body
             self.headers = {}
+
         def read(self):
             return self._body
+
         def __enter__(self):
             return self
+
         def __exit__(self, *a):
             return False
 
@@ -110,8 +113,8 @@ def test_request_retries_429_then_succeeds(monkeypatch):
         calls["n"] += 1
         if calls["n"] < 3:
             import urllib.error
-            raise urllib.error.HTTPError(req.full_url, 429, "rate limited",
-                                         {"request-id": "r1"}, None)
+
+            raise urllib.error.HTTPError(req.full_url, 429, "rate limited", {"request-id": "r1"}, None)
         return FakeResp(json.dumps({"data": [], "has_more": False}).encode())
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
@@ -126,25 +129,35 @@ def test_request_retries_429_then_succeeds(monkeypatch):
 
 def test_request_does_not_retry_403(monkeypatch):
     import claude_compliance_api as mod
+
     calls = {"n": 0}
 
     def fake_urlopen(req, timeout=None):
         calls["n"] += 1
         import urllib.error
-        body = json.dumps({"error": {"type": "permission_error",
-                                     "message": "Missing required scopes."}}).encode()
-        raise urllib.error.HTTPError(req.full_url, 403, "forbidden", {}, None).__class__(
-            req.full_url, 403, "forbidden", {}, None
-        ) if False else _http_error(req.full_url, 403, body)
+
+        body = json.dumps(
+            {"error": {"type": "permission_error", "message": "Missing required scopes."}}
+        ).encode()
+        raise (
+            urllib.error.HTTPError(req.full_url, 403, "forbidden", {}, None).__class__(
+                req.full_url, 403, "forbidden", {}, None
+            )
+            if False
+            else _http_error(req.full_url, 403, body)
+        )
 
     def _http_error(url, code, body):
-        import urllib.error, io
+        import io
+        import urllib.error
+
         e = urllib.error.HTTPError(url, code, "forbidden", {}, io.BytesIO(body))
         return e
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
-    client = ComplianceApiClient(api_key="k", sleep_fn=lambda s: (_ for _ in ()).throw(
-        AssertionError("must not sleep/retry on 403")))
+    client = ComplianceApiClient(
+        api_key="k", sleep_fn=lambda s: (_ for _ in ()).throw(AssertionError("must not sleep/retry on 403"))
+    )
 
     with pytest.raises(ComplianceApiError) as exc_info:
         client.list_organizations()
@@ -156,11 +169,14 @@ def test_request_does_not_retry_403(monkeypatch):
 
 def test_request_gives_up_after_max_retries(monkeypatch):
     import claude_compliance_api as mod
+
     calls = {"n": 0}
 
     def fake_urlopen(req, timeout=None):
         calls["n"] += 1
-        import urllib.error, io
+        import io
+        import urllib.error
+
         body = json.dumps({"error": {"type": "rate_limit_error", "message": "slow down"}}).encode()
         raise urllib.error.HTTPError(req.full_url, 429, "rate limited", {}, io.BytesIO(body))
 
@@ -235,6 +251,7 @@ def test_iterate_activities_stops_on_error_without_yielding_partial_next_page(mo
 def test_cmd_chat_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("must not construct a client without --compliance-yes")
+
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", boom)
 
     result = cmd_compliance_chat_delete("k", "claude_chat_1")
@@ -248,6 +265,7 @@ def test_cmd_chat_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
 def test_cmd_file_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("must not construct a client without --compliance-yes")
+
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", boom)
 
     result = cmd_compliance_file_delete("k", "claude_file_1")
@@ -259,6 +277,7 @@ def test_cmd_file_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
 def test_cmd_project_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("must not construct a client without --compliance-yes")
+
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", boom)
 
     result = cmd_compliance_project_delete("k", "claude_proj_1")
@@ -271,6 +290,7 @@ def test_cmd_chat_delete_with_yes_calls_client(monkeypatch, capsys):
     class FakeClient:
         def __init__(self, api_key):
             pass
+
         def delete_chat(self, chat_id):
             return {"id": chat_id, "type": "claude_chat_deleted"}
 
@@ -286,9 +306,9 @@ def test_cmd_project_delete_with_yes_surfaces_409_hint(monkeypatch, capsys):
     class FakeClient:
         def __init__(self, api_key):
             pass
+
         def delete_project(self, project_id):
-            raise ComplianceApiError(status=409, error_type="conflict_error",
-                                     message="has chats attached")
+            raise ComplianceApiError(status=409, error_type="conflict_error", message="has chats attached")
 
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
 
@@ -300,6 +320,7 @@ def test_cmd_project_delete_with_yes_surfaces_409_hint(monkeypatch, capsys):
 
 
 # ── Local sessions (Cowork / Claude Code) ────────────────────────────────
+
 
 def test_list_local_sessions_endpoint_and_params(monkeypatch):
     client = ComplianceApiClient("sk-ant-api01-test")
@@ -353,12 +374,19 @@ def test_cmd_compliance_local_sessions_list(capsys, monkeypatch):
     class FakeClient:
         def __init__(self, api_key):
             pass
+
         def list_local_sessions(self, user_ids=None, limit=100):
             return {
                 "data": [
-                    {"id": "loc_sess_1", "app_type": "cowork", "user_id": "usr_1", "created_at": "2026-08-10T12:00:00Z", "title": "Analyze logs"}
+                    {
+                        "id": "loc_sess_1",
+                        "app_type": "cowork",
+                        "user_id": "usr_1",
+                        "created_at": "2026-08-10T12:00:00Z",
+                        "title": "Analyze logs",
+                    }
                 ],
-                "has_more": False
+                "has_more": False,
             }
 
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
@@ -375,6 +403,7 @@ def test_cmd_compliance_local_session_info(capsys, monkeypatch):
     class FakeClient:
         def __init__(self, api_key):
             pass
+
         def get_local_session(self, session_id):
             return {"id": session_id, "app_type": "claude_code", "user_id": "usr_2"}
 
@@ -391,11 +420,20 @@ def test_cmd_compliance_local_session_messages(capsys, monkeypatch):
     class FakeClient:
         def __init__(self, api_key):
             pass
+
         def get_local_session_messages(self, session_id):
             return {
                 "data": [
-                    {"role": "user", "created_at": "2026-08-10T12:00:00Z", "content": [{"type": "text", "text": "build test"}]},
-                    {"role": "assistant", "created_at": "2026-08-10T12:00:05Z", "content": [{"type": "tool_use", "name": "run_command", "input": {"cmd": "pytest"}}]}
+                    {
+                        "role": "user",
+                        "created_at": "2026-08-10T12:00:00Z",
+                        "content": [{"type": "text", "text": "build test"}],
+                    },
+                    {
+                        "role": "assistant",
+                        "created_at": "2026-08-10T12:00:05Z",
+                        "content": [{"type": "tool_use", "name": "run_command", "input": {"cmd": "pytest"}}],
+                    },
                 ]
             }
 

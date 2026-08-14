@@ -15,29 +15,29 @@ CLI flags:
 """
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Optional
-from utils import sampling_kwargs
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
+from utils import sampling_kwargs
 
 ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 # ── Built-in routing table ──────────────────────────────────────────────────
 DEFAULT_ROUTING_TABLE = {
-    "code":          "Write, review, refactor, debug, or explain code in any language",
-    "research":      "Deep factual research, literature review, or evidence synthesis",
-    "write":         "Long-form writing, editing, summarisation, translation, or copywriting",
-    "analyse":       "Data analysis, statistical interpretation, or business insight extraction",
-    "plan":          "Project planning, task breakdown, roadmaps, or strategy",
-    "brainstorm":    "Idea generation, creative thinking, or blue-sky exploration",
-    "security":      "Security review, threat modelling, CVE analysis, or hardening advice",
-    "architect":     "System design, architecture decisions, or technology selection",
-    "debug":         "Root-cause analysis and bug fixing for code or systems",
-    "automate":      "Workflow automation, scripting, CI/CD, or DevOps pipeline design",
+    "code": "Write, review, refactor, debug, or explain code in any language",
+    "research": "Deep factual research, literature review, or evidence synthesis",
+    "write": "Long-form writing, editing, summarisation, translation, or copywriting",
+    "analyse": "Data analysis, statistical interpretation, or business insight extraction",
+    "plan": "Project planning, task breakdown, roadmaps, or strategy",
+    "brainstorm": "Idea generation, creative thinking, or blue-sky exploration",
+    "security": "Security review, threat modelling, CVE analysis, or hardening advice",
+    "architect": "System design, architecture decisions, or technology selection",
+    "debug": "Root-cause analysis and bug fixing for code or systems",
+    "automate": "Workflow automation, scripting, CI/CD, or DevOps pipeline design",
 }
 
 
@@ -49,8 +49,10 @@ def _call(api_key: str, payload: dict) -> dict:
         "anthropic-version": "2023-06-01",
     }
     req = urllib.request.Request(
-        ENDPOINT, data=json.dumps(payload).encode(),
-        headers=headers, method="POST",
+        ENDPOINT,
+        data=json.dumps(payload).encode(),
+        headers=headers,
+        method="POST",
     )
     return urlopen_json(req, timeout=60)
 
@@ -76,14 +78,18 @@ def classify(prompt: str, table: dict, api_key: str, model: str) -> tuple[str, s
     classifier_prompt = (
         f"You are a routing classifier. Given a user request, choose the single best "
         f"specialist agent from the list below. Reply with ONLY a JSON object: "
-        f'{{\"agent\": \"<agent_name>\", \"reason\": \"<one sentence>\"}}\n\n'
+        f'{{"agent": "<agent_name>", "reason": "<one sentence>"}}\n\n'
         f"Agents:\n{options}\n\nUser request: {prompt}"
     )
-    data = _post(api_key, {
-        "model": model, "max_tokens": 200,
-        **sampling_kwargs(model, temperature=0.0),
-        "messages": [{"role": "user", "content": classifier_prompt}],
-    })
+    data = _post(
+        api_key,
+        {
+            "model": model,
+            "max_tokens": 200,
+            **sampling_kwargs(model, temperature=0.0),
+            "messages": [{"role": "user", "content": classifier_prompt}],
+        },
+    )
     raw = _text(data).strip()
     try:
         parsed = json.loads(raw)
@@ -110,12 +116,16 @@ def route_and_call(
         results = {}
         for agent_name, description in table.items():
             system = f"You are a specialist in: {description}. Answer as that expert."
-            data = _post(api_key, {
-                "model": model, "max_tokens": 2048,
-                **sampling_kwargs(model, temperature=0.5),
-                "system": system,
-                "messages": [{"role": "user", "content": prompt}],
-            })
+            data = _post(
+                api_key,
+                {
+                    "model": model,
+                    "max_tokens": 2048,
+                    **sampling_kwargs(model, temperature=0.5),
+                    "system": system,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
             results[agent_name] = _text(data)
         # Synthesise the best answer
         synthesis_prompt = (
@@ -125,11 +135,15 @@ def route_and_call(
             + "\n\n".join(f"[{k.upper()}]\n{v}" for k, v in results.items())
             + f"\n\nOriginal question: {prompt}"
         )
-        data = _post(api_key, {
-            "model": model, "max_tokens": 4096,
-            **sampling_kwargs(model, temperature=0.3),
-            "messages": [{"role": "user", "content": synthesis_prompt}],
-        })
+        data = _post(
+            api_key,
+            {
+                "model": model,
+                "max_tokens": 4096,
+                **sampling_kwargs(model, temperature=0.3),
+                "messages": [{"role": "user", "content": synthesis_prompt}],
+            },
+        )
         return _text(data)
 
     agent_name, reason = classify(prompt, table, api_key, model)
@@ -137,18 +151,27 @@ def route_and_call(
         print(f"\033[90m→ Routing to [{agent_name}]: {reason}\033[0m\n")
 
     system = f"You are a specialist in: {table[agent_name]}. Answer as that expert."
-    data = _post(api_key, {
-        "model": model, "max_tokens": 4096,
-        **sampling_kwargs(model, temperature=0.6),
-        "system": system,
-        "messages": [{"role": "user", "content": prompt}],
-    })
+    data = _post(
+        api_key,
+        {
+            "model": model,
+            "max_tokens": 4096,
+            **sampling_kwargs(model, temperature=0.6),
+            "system": system,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+    )
     return _text(data)
 
 
-def cmd_route(prompt: str, api_key: str, model: str,
-              explain: bool = False, parallel: bool = False,
-              extra_table: Optional[dict] = None):
+def cmd_route(
+    prompt: str,
+    api_key: str,
+    model: str,
+    explain: bool = False,
+    parallel: bool = False,
+    extra_table: Optional[dict] = None,
+):
     table = dict(DEFAULT_ROUTING_TABLE)
     if extra_table:
         table.update(extra_table)

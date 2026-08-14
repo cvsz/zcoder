@@ -18,6 +18,7 @@ Design notes:
   consumed by resilience.retry() so retry policy lives with the error
   taxonomy instead of being re-decided ad hoc at every call site.
 """
+
 from __future__ import annotations
 
 
@@ -43,16 +44,19 @@ class AICoderError(Exception):
 
 class ConfigError(AICoderError):
     """Missing or invalid configuration (API key, malformed config file, ...)."""
+
     error_code = "CONFIG_ERROR"
 
 
 class AuthenticationError(AICoderError):
     """API key rejected (HTTP 401)."""
+
     error_code = "AUTH_ERROR"
 
 
 class RateLimitError(AICoderError):
     """HTTP 429 — caller should back off. Retryable by definition."""
+
     error_code = "RATE_LIMIT"
     RETRYABLE = True
 
@@ -63,12 +67,14 @@ class RateLimitError(AICoderError):
 
 class TransientAPIError(AICoderError):
     """5xx / network timeouts / connection resets — safe to retry."""
+
     error_code = "TRANSIENT_API_ERROR"
     RETRYABLE = True
 
 
 class APIError(AICoderError):
     """Non-retryable 4xx from the Anthropic API (bad request, not found, ...)."""
+
     error_code = "API_ERROR"
 
     def __init__(self, message: str, *, status_code: int | None = None, **kwargs):
@@ -79,11 +85,13 @@ class APIError(AICoderError):
 class RefusalError(AICoderError):
     """Model declined the request (`stop_reason == "refusal"`). Not retryable —
     retrying the identical request will refuse again."""
+
     error_code = "MODEL_REFUSAL"
 
 
 class ValidationError(AICoderError):
     """Bad input from the caller/user — file path, argument, or payload shape."""
+
     error_code = "VALIDATION_ERROR"
 
 
@@ -91,10 +99,12 @@ class SecurityError(AICoderError):
     """A security control rejected the operation (path traversal, disallowed
     scheme, secret detected in output, etc). Never retryable — retrying
     without changing the input will trip the same control again."""
+
     error_code = "SECURITY_ERROR"
 
 
 class CircuitOpenError(AICoderError):
     """resilience.CircuitBreaker is open; the call was short-circuited
     without hitting the network at all."""
+
     error_code = "CIRCUIT_OPEN"

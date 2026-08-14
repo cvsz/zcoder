@@ -5,6 +5,7 @@ Provides:
   • Drift detection for models, pricing, and deprecations
   • Release-gate aggregation and JSON reporting
 """
+
 from __future__ import annotations
 
 import json
@@ -26,7 +27,7 @@ def load_manifest(path: Optional[Path] = None) -> Dict[str, Any]:
     content = manifest_path.read_text(encoding="utf-8")
     if yaml:
         return yaml.safe_load(content) or {}
-    
+
     # Fallback parser for basic key values
     lines = content.splitlines()
     data: Dict[str, Any] = {"models": {}, "retirements": {}}
@@ -41,7 +42,7 @@ def load_manifest(path: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def run_conformance_check() -> Dict[str, Any]:
-    from claude_models import RETIRED_MODELS, INFERENCE_GEO_SUPPORTED
+    from claude_models import INFERENCE_GEO_SUPPORTED, RETIRED_MODELS
     from claude_sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD
 
     manifest = load_manifest()
@@ -49,7 +50,9 @@ def run_conformance_check() -> Dict[str, Any]:
 
     # Check Sonnet 5 price conformance
     if STANDARD_PRICE_IN_USD != 2.0 or STANDARD_PRICE_OUT_USD != 10.0:
-        errors.append(f"Sonnet 5 pricing drift: expected 2.0/10.0, got {STANDARD_PRICE_IN_USD}/{STANDARD_PRICE_OUT_USD}")
+        errors.append(
+            f"Sonnet 5 pricing drift: expected 2.0/10.0, got {STANDARD_PRICE_IN_USD}/{STANDARD_PRICE_OUT_USD}"
+        )
 
     # Check Opus 4.1 retirement
     if "claude-opus-4-1-20250805" not in RETIRED_MODELS:
@@ -70,7 +73,7 @@ def run_conformance_check() -> Dict[str, Any]:
 
 def run_release_gate() -> Dict[str, Any]:
     conf = run_conformance_check()
-    
+
     gates = {
         "SOURCE_TRUTH": conf["status"] == "PASS",
         "VERSION": True,
