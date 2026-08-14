@@ -34,7 +34,7 @@ class TestFleetE2E(unittest.TestCase):
         self.assertEqual(len(task_ids), 1)
 
         # 3. Worker (simplified to run once for test)
-        worker = EngineeringWorker(self.eng_store, "worker1")
+        EngineeringWorker(self.eng_store, "worker1")
         task = self.eng_store.claim_task()
         self.assertIsNotNone(task)
         self.assertEqual(task.id, task_ids[0])

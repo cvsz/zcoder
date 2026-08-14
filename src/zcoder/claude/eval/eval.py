@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import anthropic
 
@@ -24,7 +24,7 @@ class EvalCase:
     case_id: str
     prompt: str
     expected: str
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -48,7 +48,7 @@ class EvalRun:
     passed: int
     avg_score: float
     avg_latency_ms: float
-    results: List[EvalResult]
+    results: list[EvalResult]
     ts: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def summary(self) -> str:
@@ -123,7 +123,7 @@ class EvalRunner:
         ms = int((time.time() - t0) * 1000)
         return resp.content[0].text, ms
 
-    def run(self, cases: List[EvalCase]) -> EvalRun:
+    def run(self, cases: list[EvalCase]) -> EvalRun:
         import uuid
 
         run_id = str(uuid.uuid4())[:8]

@@ -107,7 +107,6 @@ class FilesAPI:
 
         # Multipart/form-data encoding
         boundary = "---AICLIBoundary"
-        crlf = b"\r\n"
 
         body = (
             (

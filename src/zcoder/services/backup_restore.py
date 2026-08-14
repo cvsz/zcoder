@@ -22,7 +22,7 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +35,16 @@ class BackupRecord:
     backup_id: str
     backup_type: str  # pg_dump | wal_segment | base_backup
     started_at: float
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
     success: bool = False
     size_bytes: int = 0
     destination: str = ""
     sha256: str = ""
-    error: Optional[str] = None
-    restore_drill_at: Optional[float] = None
-    restore_drill_success: Optional[bool] = None
+    error: str | None = None
+    restore_drill_at: float | None = None
+    restore_drill_success: bool | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -58,7 +58,7 @@ class RestoreDrillResult:
     jobs_verified: int = 0
     events_verified: int = 0
     repos_verified: int = 0
-    error: Optional[str] = None
+    error: str | None = None
     rto_seconds: float = 0.0
     notes: str = ""
 
@@ -178,8 +178,8 @@ class BackupManager:
         self,
         backup_id: str,
         target_database_url: str = "",
-        expected_job_ids: Optional[List[str]] = None,
-        expected_repo_ids: Optional[List[str]] = None,
+        expected_job_ids: list[str] | None = None,
+        expected_repo_ids: list[str] | None = None,
     ) -> RestoreDrillResult:
         """
         Restore a backup into a fresh database and verify state.
@@ -274,8 +274,8 @@ class BackupManager:
     def _verify_restored_state(
         self,
         database_url: str,
-        expected_job_ids: List[str],
-        expected_repo_ids: List[str],
+        expected_job_ids: list[str],
+        expected_repo_ids: list[str],
     ) -> tuple[int, int]:
         """Verify that expected records exist in the restored database."""
         try:
@@ -338,7 +338,7 @@ class BackupManager:
     # ── WAL archiving configuration ───────────────────────────────────────
 
     @staticmethod
-    def get_wal_archive_config(archive_path: str = "/var/lib/zcoder/wal") -> Dict[str, str]:
+    def get_wal_archive_config(archive_path: str = "/var/lib/zcoder/wal") -> dict[str, str]:
         """
         Return PostgreSQL configuration parameters needed for WAL archiving.
 
@@ -381,7 +381,7 @@ class BackupManager:
         with open(manifest_path, "w") as f:
             json.dump(record.to_dict(), f, indent=2, default=str)
 
-    def get_freshness_report(self) -> Dict[str, Any]:
+    def get_freshness_report(self) -> dict[str, Any]:
         """Scan backup directory for freshness information."""
         backups = sorted(
             self.backup_destination.glob("pgdump_*.sql.gz"),

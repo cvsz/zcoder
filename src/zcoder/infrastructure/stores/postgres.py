@@ -28,7 +28,7 @@ import time
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from legacy_job_models import Job, JobStatus
 
@@ -187,7 +187,7 @@ class PostgresControlPlaneStore:
         self._min_conn = min_conn
         self._max_conn = max_conn
         self._connect_timeout = connect_timeout
-        self._pool: Optional[Any] = None
+        self._pool: Any | None = None
         self._init_pool()
 
     def _init_pool(self) -> None:
@@ -276,9 +276,7 @@ class PostgresControlPlaneStore:
                 )
         return job
 
-    def claim_job_with_fencing(
-        self, worker_id: str, lease_duration: float = 120.0
-    ) -> Optional[Tuple[Job, int]]:
+    def claim_job_with_fencing(self, worker_id: str, lease_duration: float = 120.0) -> tuple[Job, int] | None:
         """
         Atomically claim the oldest available job using SELECT ... FOR UPDATE SKIP LOCKED.
 
@@ -408,7 +406,7 @@ class PostgresControlPlaneStore:
                     logger.info(f"Reconciled {count} expired leases: {[r[0] for r in rows]}")
                 return count
 
-    def get_job(self, job_id: str) -> Optional[Job]:
+    def get_job(self, job_id: str) -> Job | None:
         """Fetch a single job by ID."""
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -438,9 +436,9 @@ class PostgresControlPlaneStore:
 
     def list_jobs(
         self,
-        status_filter: Optional[str] = None,
+        status_filter: str | None = None,
         limit: int = 100,
-    ) -> List[Job]:
+    ) -> list[Job]:
         """List jobs with optional status filter."""
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -483,7 +481,7 @@ class PostgresControlPlaneStore:
 
     # ── Outbox ────────────────────────────────────────────────────────────
 
-    def enqueue_outbox(self, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def enqueue_outbox(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         msg_id = f"out_{uuid.uuid4().hex[:8]}"
         now = time.time()
         with self._get_conn() as conn:
@@ -505,7 +503,7 @@ class PostgresControlPlaneStore:
     ) -> int:
         """Process pending outbox messages with retry and exponential backoff."""
         processed = 0
-        now = time.time()
+        time.time()
 
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -635,7 +633,7 @@ class PostgresControlPlaneStore:
                     (time.time(), active_jobs, worker_id),
                 )
 
-    def get_active_workers(self, max_idle_seconds: float = 300.0) -> List[Dict[str, Any]]:
+    def get_active_workers(self, max_idle_seconds: float = 300.0) -> list[dict[str, Any]]:
         threshold = time.time() - max_idle_seconds
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -724,7 +722,7 @@ class PostgresControlPlaneStore:
                     (time.time(), success, backup_id),
                 )
 
-    def get_backup_freshness(self) -> Dict[str, Any]:
+    def get_backup_freshness(self) -> dict[str, Any]:
         """Return info about backup and restore drill freshness."""
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -761,7 +759,7 @@ class PostgresControlPlaneStore:
 
     # ── Stats ─────────────────────────────────────────────────────────────
 
-    def get_queue_stats(self) -> Dict[str, int]:
+    def get_queue_stats(self) -> dict[str, int]:
         """Return queue depth by status."""
         with self._get_conn() as conn:
             with conn.cursor() as cur:

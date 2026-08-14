@@ -16,7 +16,7 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Optional
 
 HOOKS_FILE = Path.home() / ".ai-coder" / "hooks.json"
 PERMS_FILE = Path.home() / ".ai-coder" / "permissions.json"
@@ -65,7 +65,7 @@ class HookResult:
 
 class HookManager:
     def __init__(self):
-        self.hooks: List[Hook] = []
+        self.hooks: list[Hook] = []
         self._load()
 
     def _load(self):
@@ -90,7 +90,7 @@ class HookManager:
             return True
         return False
 
-    def fire(self, event: HookEvent, tool_name: Optional[str] = None) -> List[HookResult]:
+    def fire(self, event: HookEvent, tool_name: Optional[str] = None) -> list[HookResult]:
         env = {**os.environ}
         if tool_name:
             env["AI_CODER_TOOL_NAME"] = tool_name
@@ -192,7 +192,7 @@ DEFAULT_RULES = [
 
 class PermissionEngine:
     def __init__(self):
-        self.rules: List[PermRule] = []
+        self.rules: list[PermRule] = []
         self._load()
 
     def _load(self):
@@ -259,7 +259,7 @@ class PlanStep:
 @dataclass
 class Plan:
     task: str
-    steps: List[PlanStep]
+    steps: list[PlanStep]
     approved: bool = False
 
     def to_markdown(self) -> str:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import time
-from typing import List, Optional
 
 from engineering_models import Attempt, Checkpoint, EngineeringTask, TaskStatus
 from engineering_store_interface import EngineeringStore
@@ -66,7 +65,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
             with conn.cursor() as cur:
                 cur.execute(schema)
 
-    def claim_task(self) -> Optional[EngineeringTask]:
+    def claim_task(self) -> EngineeringTask | None:
         """Atomically claim a CREATED task for processing."""
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -128,7 +127,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     ),
                 )
 
-    def get_task(self, task_id: str) -> Optional[EngineeringTask]:
+    def get_task(self, task_id: str) -> EngineeringTask | None:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM engineering_tasks WHERE id = %s", (task_id,))
@@ -186,7 +185,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     ),
                 )
 
-    def get_latest_checkpoint(self, attempt_id: str) -> Optional[Checkpoint]:
+    def get_latest_checkpoint(self, attempt_id: str) -> Checkpoint | None:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -210,7 +209,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     timestamp=row[6],
                 )
 
-    def list_tasks(self, status: Optional[str] = None) -> List[EngineeringTask]:
+    def list_tasks(self, status: str | None = None) -> list[EngineeringTask]:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 if status:

@@ -6,7 +6,6 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-from typing import List, Optional
 
 from engineering_models import Attempt, Checkpoint, EngineeringTask, TaskStatus
 from engineering_store_interface import EngineeringStore
@@ -15,7 +14,7 @@ from engineering_store_interface import EngineeringStore
 class SQLiteEngineeringStore(EngineeringStore):
     """SQLite-backed persistent store for engineering tasks."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or (Path.home() / ".zcoder" / "engineering.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -78,7 +77,7 @@ class SQLiteEngineeringStore(EngineeringStore):
                 ),
             )
 
-    def get_task(self, task_id: str) -> Optional[EngineeringTask]:
+    def get_task(self, task_id: str) -> EngineeringTask | None:
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
@@ -129,7 +128,7 @@ class SQLiteEngineeringStore(EngineeringStore):
                 ),
             )
 
-    def get_latest_checkpoint(self, attempt_id: str) -> Optional[Checkpoint]:
+    def get_latest_checkpoint(self, attempt_id: str) -> Checkpoint | None:
         with self._get_connection() as conn:
             cur = conn.cursor()
             cur.execute(
@@ -153,7 +152,7 @@ class SQLiteEngineeringStore(EngineeringStore):
                 timestamp=row[6],
             )
 
-    def list_tasks(self, status: Optional[str] = None) -> List[EngineeringTask]:
+    def list_tasks(self, status: str | None = None) -> list[EngineeringTask]:
         with self._get_connection() as conn:
             cur = conn.cursor()
             if status:

@@ -6,7 +6,6 @@ import enum
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import List
 
 
 class RepoStatus(str, enum.Enum):
@@ -43,5 +42,5 @@ class EngineeringCampaign:
     id: str = field(default_factory=lambda: f"camp_{uuid.uuid4().hex}")
     name: str = ""
     status: CampaignStatus = CampaignStatus.DRAFT
-    repositories: List[str] = field(default_factory=list)
+    repositories: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)

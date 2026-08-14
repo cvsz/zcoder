@@ -6,7 +6,7 @@ import enum
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class TaskStatus(str, enum.Enum):
@@ -26,7 +26,7 @@ class EngineeringTask:
     status: TaskStatus = TaskStatus.CREATED
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -36,7 +36,7 @@ class Attempt:
     generation: int = 1
     status: str = "PENDING"
     started_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
 
 
 @dataclass
@@ -46,5 +46,5 @@ class Checkpoint:
     attempt_id: str = ""
     sequence: int = 0
     phase: str = ""
-    state_snapshot: Dict[str, Any] = field(default_factory=dict)
+    state_snapshot: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)

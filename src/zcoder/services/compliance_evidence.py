@@ -13,7 +13,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class ControlStatus(str, enum.Enum):
@@ -30,11 +30,11 @@ class ComplianceControl:
     family: str  # AccessControl | TenantIsolation | Encryption | Backup | Logging | IncidentResponse
     title: str
     objective: str
-    framework_mappings: List[str] = dataclasses.field(
+    framework_mappings: list[str] = dataclasses.field(
         default_factory=list
     )  # e.g. ["SOC2:CC6.1", "ISO27001:A.9.1"]
     status: ControlStatus = ControlStatus.NOT_TESTED
-    last_evidence_at: Optional[float] = None
+    last_evidence_at: float | None = None
     evidence_ttl_seconds: float = 86400.0 * 30.0  # 30 days default TTL
     evidence_summary: str = ""
 
@@ -54,8 +54,8 @@ class ComplianceCatalog:
     """Manages compliance controls and tracks automated evidence collection status."""
 
     def __init__(self):
-        self.controls: Dict[str, ComplianceControl] = {}
-        self.exceptions: Dict[str, ControlException] = {}
+        self.controls: dict[str, ComplianceControl] = {}
+        self.exceptions: dict[str, ControlException] = {}
         self._init_standard_controls()
 
     def _init_standard_controls(self):
@@ -117,7 +117,7 @@ class ComplianceCatalog:
             return ControlStatus.STALE
         return control.status
 
-    def generate_report(self) -> Dict[str, Any]:
+    def generate_report(self) -> dict[str, Any]:
         report = {}
         for c_id, ctrl in self.controls.items():
             report[c_id] = {

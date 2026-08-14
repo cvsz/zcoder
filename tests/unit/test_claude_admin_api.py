@@ -486,7 +486,7 @@ def test_get_claude_code_usage_report_passes_page_cursor(monkeypatch):
 
 
 def test_cmd_claude_code_usage_report_prints_wrong_key_hint(monkeypatch, capsys):
-    client = AdminApiClient(admin_api_key="admin-k")
+    AdminApiClient(admin_api_key="admin-k")
     monkeypatch.setattr(
         AdminApiClient,
         "get_claude_code_usage_report",

@@ -15,7 +15,7 @@ import hashlib
 import hmac
 import time
 import uuid
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 
 class AccountStatus(str, enum.Enum):
@@ -60,7 +60,7 @@ class EntitlementBundle:
     priority_support: bool = False
 
 
-PLAN_ENTITLEMENTS: Dict[PlanTier, EntitlementBundle] = {
+PLAN_ENTITLEMENTS: dict[PlanTier, EntitlementBundle] = {
     PlanTier.COMMUNITY_FREE: EntitlementBundle(
         version="2026.1",
         max_projects=1,
@@ -143,7 +143,7 @@ class CustomerAccount:
     email: str
     status: AccountStatus = AccountStatus.ACTIVE
     created_at: float = dataclasses.field(default_factory=time.time)
-    metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
@@ -155,9 +155,9 @@ class Subscription:
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE
     current_period_start: float = dataclasses.field(default_factory=time.time)
     current_period_end: float = dataclasses.field(default_factory=lambda: time.time() + 86400 * 30)
-    provider_subscription_ref: Optional[str] = None
+    provider_subscription_ref: str | None = None
     cancel_at_period_end: bool = False
-    trial_ends_at: Optional[float] = None
+    trial_ends_at: float | None = None
     entitlement_version: str = "2026.1"
 
 
@@ -168,8 +168,8 @@ class EntitlementService:
     A paid plan never bypasses or overrides RBAC permission requirements.
     """
 
-    def __init__(self, subscriptions: Optional[Dict[str, Subscription]] = None):
-        self._subscriptions: Dict[str, Subscription] = subscriptions or {}
+    def __init__(self, subscriptions: dict[str, Subscription] | None = None):
+        self._subscriptions: dict[str, Subscription] = subscriptions or {}
 
     def set_subscription(self, sub: Subscription) -> None:
         self._subscriptions[sub.organization_id] = sub
@@ -214,7 +214,7 @@ class BillingProvider:
     def report_usage(self, customer_ref: str, meter_event_id: str, metric: str, quantity: float) -> bool:
         raise NotImplementedError
 
-    def reconcile_subscription(self, customer_ref: str) -> Dict[str, Any]:
+    def reconcile_subscription(self, customer_ref: str) -> dict[str, Any]:
         raise NotImplementedError
 
     def verify_webhook_signature(self, payload: bytes, signature_header: str, secret: str) -> bool:
@@ -225,9 +225,9 @@ class FakeBillingProvider(BillingProvider):
     """Deterministic, in-memory billing provider for offline CI, local dev, and testing."""
 
     def __init__(self):
-        self.customers: Dict[str, Dict[str, Any]] = {}
-        self.subscriptions: Dict[str, Dict[str, Any]] = {}
-        self.usage_records: Dict[str, Dict[str, Any]] = {}
+        self.customers: dict[str, dict[str, Any]] = {}
+        self.subscriptions: dict[str, dict[str, Any]] = {}
+        self.usage_records: dict[str, dict[str, Any]] = {}
 
     def create_customer(self, organization_id: str, email: str, name: str) -> str:
         ref = f"cus_fake_{uuid.uuid4().hex[:12]}"
@@ -263,7 +263,7 @@ class FakeBillingProvider(BillingProvider):
         }
         return True
 
-    def reconcile_subscription(self, customer_ref: str) -> Dict[str, Any]:
+    def reconcile_subscription(self, customer_ref: str) -> dict[str, Any]:
         for sub in self.subscriptions.values():
             if sub["customer_ref"] == customer_ref:
                 return sub
@@ -295,7 +295,7 @@ class StripeBillingProvider(BillingProvider):
     def report_usage(self, customer_ref: str, meter_event_id: str, metric: str, quantity: float) -> bool:
         return True
 
-    def reconcile_subscription(self, customer_ref: str) -> Dict[str, Any]:
+    def reconcile_subscription(self, customer_ref: str) -> dict[str, Any]:
         return {"status": "active", "customer_ref": customer_ref}
 
     def verify_webhook_signature(self, payload: bytes, signature_header: str, secret: str) -> bool:
@@ -328,7 +328,7 @@ class CustomerWebhookEndpoint:
     id: str
     organization_id: str
     url: str
-    event_types: Set[str]
+    event_types: set[str]
     secret: str
     active: bool = True
     created_at: float = dataclasses.field(default_factory=time.time)
@@ -347,7 +347,7 @@ class WebhookDelivery:
     event_id: str
     event_type: str
     status: WebhookDeliveryStatus = WebhookDeliveryStatus.PENDING
-    http_status: Optional[int] = None
+    http_status: int | None = None
     attempts: int = 0
     created_at: float = dataclasses.field(default_factory=time.time)
-    last_attempt_at: Optional[float] = None
+    last_attempt_at: float | None = None

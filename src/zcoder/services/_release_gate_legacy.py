@@ -30,7 +30,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class EvidenceLevel(str, enum.Enum):
@@ -57,13 +57,13 @@ class GateResult:
     evidence_level: EvidenceLevel
     command: str
     notes: str
-    limitations: List[str] = dataclasses.field(default_factory=list)
+    limitations: list[str] = dataclasses.field(default_factory=list)
     timestamp: float = dataclasses.field(default_factory=time.time)
 
 
 class ProductionReleaseGate:
     def __init__(self):
-        self.gates: Dict[str, GateResult] = {}
+        self.gates: dict[str, GateResult] = {}
         self._init_upgrade11_gates()
 
     def _init_upgrade11_gates(self):
@@ -433,7 +433,7 @@ class ProductionReleaseGate:
         evidence_level: EvidenceLevel,
         command: str,
         notes: str,
-        limitations: Optional[List[str]] = None,
+        limitations: list[str] | None = None,
     ):
         self.gates[name] = GateResult(
             name=name,
@@ -444,7 +444,7 @@ class ProductionReleaseGate:
             limitations=limitations or [],
         )
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             name: {
                 "verdict": g.verdict.value,
