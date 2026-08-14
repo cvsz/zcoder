@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Callable, ContextManager
+from collections.abc import Callable
+from contextlib import AbstractContextManager
+from typing import Any
 
 
 class PostgresUpgradeRunLeaseError(RuntimeError):
@@ -20,7 +22,7 @@ def advisory_lock_key(namespace: str) -> int:
     return unsigned if unsigned < 2**63 else unsigned - 2**64
 
 
-ConnectionScopeFactory = Callable[[], ContextManager[Any]]
+ConnectionScopeFactory = Callable[[], AbstractContextManager[Any]]
 
 
 class PostgresAdvisoryRunLease:
@@ -40,7 +42,7 @@ class PostgresAdvisoryRunLease:
         self.connection_scope = connection_scope
         self.namespace = namespace.strip()
         self.lock_key = advisory_lock_key(self.namespace)
-        self._scope: ContextManager[Any] | None = None
+        self._scope: AbstractContextManager[Any] | None = None
         self._connection: Any = None
         self._acquired = False
 
