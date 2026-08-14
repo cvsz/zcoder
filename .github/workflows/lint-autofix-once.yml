@@ -1,4 +1,4 @@
-name: One-shot lint autofix
+name: One-shot CI diagnostics
 
 on:
   push:
@@ -7,38 +7,46 @@ on:
       - '.github/workflows/lint-autofix-once.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  autofix:
-    if: ${{ !contains(github.event.head_commit.message, '[lint-autofix]') }}
+  diagnostics:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install lint tools
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-      - name: Apply safe Ruff fixes
-        run: ruff check . --fix || true
-      - name: Apply Black formatting
-        run: black .
-      - name: Show remaining Ruff violations
-        run: ruff check . || true
-      - name: Commit autofix
+          pip install -e .
+      - name: Collect Ruff diagnostics
         shell: bash
         run: |
-          if git diff --quiet; then
-            echo 'No autofix changes produced.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'style: apply safe Ruff and Black fixes [lint-autofix]'
-          git push origin HEAD:main
+          ruff check . --output-format=json > ruff.json || true
+          ruff check . > ruff.txt 2>&1 || true
+      - name: Collect Black diagnostics
+        shell: bash
+        run: black --check . > black.txt 2>&1 || true
+      - name: Collect Bandit diagnostics
+        shell: bash
+        run: |
+          bandit -r . -ll -f json -o bandit.json || true
+          bandit -r . -ll > bandit.txt 2>&1 || true
+      - name: Collect pytest diagnostics
+        shell: bash
+        run: pytest --cov --cov-report=term-missing > pytest.txt 2>&1 || true
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics
+          path: |
+            ruff.json
+            ruff.txt
+            black.txt
+            bandit.json
+            bandit.txt
+            pytest.txt
