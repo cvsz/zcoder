@@ -1,72 +1,50 @@
-"""agent_runtime.py — Autonomous Agent Runtime Platform for ZCoder
+"""Autonomous agent runtime compatibility surface for ZCoder.
 
-Supports:
-  • Durable Engineering Task Model & SQLite/Postgres Engineering Store
-  • Multi-mode Execution: Direct, Agent SDK, Managed Agents, and Fake (testing)
-  • Operator Approvals & Command/Tool Safety Policy Engine
-  • Workspace change tracking & Validation Pipeline
+The durable runtime uses :class:`EngineeringTask` and :class:`EngineeringStore`,
+while older callers still import the legacy job runtime symbols from
+``agent_runtime``.  Keep both surfaces available from this module so the
+src-layout migration remains backward compatible.
 """
 
 from __future__ import annotations
 
-import enum
-import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
+from typing import Callable, Protocol
 
 from engineering_models import EngineeringTask
 from engineering_store_interface import EngineeringStore
-
-
-class JobStatus(str, enum.Enum):
-    CREATED = "CREATED"
-    PLANNING = "PLANNING"
-    READY = "READY"
-    RUNNING = "RUNNING"
-    WAITING_APPROVAL = "WAITING_APPROVAL"
-    PAUSED = "PAUSED"
-    RETRYING = "RETRYING"
-    BUDGET_REACHED = "BUDGET_REACHED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
-    SUCCEEDED = "SUCCEEDED"
-
-
-class ToolPolicy(str, enum.Enum):
-    ALLOW = "ALLOW"
-    DENY = "DENY"
-    REQUIRE_APPROVAL = "REQUIRE_APPROVAL"
-
-
-@dataclass
-class Job:
-    id: str
-    task: str
-    runtime: str = "direct"
-    status: str = "CREATED"
-    workspace: str = "."
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
-    model: str = "claude-sonnet-5"
-    budget_usd: float = 0.0
-    cost_usd: float = 0.0
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-class PolicyEngine:
-    DANGEROUS_COMMANDS = ["rm -rf", "git push -f", "git reset --hard", "drop table", "mkfs", "dd if="]
-
-    def evaluate_command(self, cmd: str) -> ToolPolicy:
-        for danger in self.DANGEROUS_COMMANDS:
-            if danger in cmd:
-                return ToolPolicy.REQUIRE_APPROVAL
-        return ToolPolicy.ALLOW
+from legacy_job_models import (
+    ApprovalRequest,
+    FakeRuntime,
+    Job,
+    JobEvent,
+    JobOrchestrator,
+    JobStatus,
+    JobStore,
+    PolicyEngine,
+    ToolPolicy,
+)
 
 
 class AgentRuntimeProtocol(Protocol):
+    """Contract implemented by durable engineering runtime adapters."""
+
     def execute_task(
-        self, task: EngineeringTask, store: EngineeringStore, validator: Callable[[], bool] | None = None
+        self,
+        task: EngineeringTask,
+        store: EngineeringStore,
+        validator: Callable[[], bool] | None = None,
     ) -> bool: ...
 
 
-from legacy_job_models import ToolPolicy
+__all__ = [
+    "AgentRuntimeProtocol",
+    "ApprovalRequest",
+    "FakeRuntime",
+    "Job",
+    "JobEvent",
+    "JobOrchestrator",
+    "JobStatus",
+    "JobStore",
+    "PolicyEngine",
+    "ToolPolicy",
+]
