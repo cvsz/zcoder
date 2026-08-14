@@ -24,7 +24,9 @@ class Recommendation:
 
 class Intelligence:
     def __init__(self, recommendations=None):
-        self.recommendations = [Recommendation()] if recommendations is None else list(recommendations)
+        self.recommendations = (
+            [Recommendation()] if recommendations is None else list(recommendations)
+        )
 
     def generate_recommendations(self):
         return list(self.recommendations)
@@ -32,7 +34,9 @@ class Intelligence:
 
 class Pipeline:
     def __init__(self, state=LoopState.COMPLETED):
-        self.ledger = SimpleNamespace(terminal_counts=lambda: {"SUCCEEDED": 1, "BLOCKED": 0})
+        self.ledger = SimpleNamespace(
+            terminal_counts=lambda: {"SUCCEEDED": 1, "BLOCKED": 0}
+        )
         self.state = state
         self.seed = None
 
@@ -70,7 +74,9 @@ class FailingSink:
 
 def test_completed_campaign_emits_finite_ordered_lifecycle_events():
     sink = RecordingSink()
-    report = MaintenanceCampaignService(Pipeline(), Intelligence(), event_sink=sink).run()
+    report = MaintenanceCampaignService(
+        Pipeline(), Intelligence(), event_sink=sink
+    ).run()
 
     assert [event.event_type for event in sink.events] == [
         MaintenanceCampaignEventType.STARTED,
@@ -140,7 +146,9 @@ def test_empty_campaign_events_are_still_finite_and_resume_pipeline():
     sink = RecordingSink()
     pipeline = Pipeline()
 
-    report = MaintenanceCampaignService(pipeline, Intelligence([]), event_sink=sink).run()
+    report = MaintenanceCampaignService(
+        pipeline, Intelligence([]), event_sink=sink
+    ).run()
 
     assert pipeline.seed == []
     assert report.recommendations_discovered == 0
