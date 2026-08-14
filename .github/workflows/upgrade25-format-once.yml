@@ -1,0 +1,51 @@
+name: Upgrade-25 Format Once
+
+on:
+  push:
+    branches:
+      - feat/upgrade-25-end-to-end-pipeline
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/upgrade-25-end-to-end-pipeline
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install canonical formatter
+        run: pip install black==26.5.1
+
+      - name: Format Upgrade-25 files
+        run: |
+          black --line-length 110 \
+            src/zcoder/services/continuous_engineering.py \
+            src/zcoder/services/upgrade_state.py \
+            tests/unit/test_continuous_engineering.py
+
+      - name: Remove one-shot workflow and commit formatting
+        run: |
+          rm .github/workflows/upgrade25-format-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/zcoder/services/continuous_engineering.py \
+            src/zcoder/services/upgrade_state.py \
+            tests/unit/test_continuous_engineering.py \
+            .github/workflows/upgrade25-format-once.yml
+          if git diff --cached --quiet; then
+            echo "No formatting changes required"
+          else
+            git commit -m "style: format Upgrade-25 pipeline"
+            git push origin HEAD:feat/upgrade-25-end-to-end-pipeline
+          fi
