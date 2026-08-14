@@ -214,8 +214,7 @@ def away_summary(cwd: str, since_iso: str) -> str:
     commits: list[str] = []
     try:
         r = subprocess.run(
-            f'git log --since="{since_iso}" --oneline',
-            shell=True,
+            ["git", "log", f"--since={since_iso}", "--oneline"],
             cwd=cwd,
             capture_output=True,
             text=True,

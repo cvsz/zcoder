@@ -107,6 +107,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
+from resilience import safe_urlopen
+
 COMPLIANCE_BASE = "https://api.anthropic.com/v1/compliance"
 
 # Shared across every /v1/compliance/* endpoint, per parent organization
@@ -245,7 +247,7 @@ class ComplianceApiClient:
         while True:
             req = urllib.request.Request(url, headers=self._headers(), method=method)
             try:
-                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                with safe_urlopen(req, timeout=self.timeout) as r:
                     body = r.read()
                     headers = dict(r.headers)
                     if raw:

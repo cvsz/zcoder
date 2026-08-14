@@ -102,6 +102,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from resilience import safe_urlopen
+
 ADMIN_BASE = "https://api.anthropic.com/v1/organizations"
 
 # Claude Enterprise (claude.ai) User Management API (v1.38.0) — beta for all
@@ -152,7 +154,7 @@ class AdminApiClient:
             )
         req = urllib.request.Request(url, headers=self._headers(beta=beta), method="GET")
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with safe_urlopen(req, timeout=60) as r:
                 return json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
             return {"error": e.read().decode(), "status": e.code}
@@ -167,7 +169,7 @@ class AdminApiClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with safe_urlopen(req, timeout=60) as r:
                 return json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
             return {"error": e.read().decode(), "status": e.code}
@@ -177,7 +179,7 @@ class AdminApiClient:
     def _delete(self, path: str, beta: Optional[str] = None) -> dict:
         req = urllib.request.Request(f"{ADMIN_BASE}{path}", headers=self._headers(beta=beta), method="DELETE")
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with safe_urlopen(req, timeout=60) as r:
                 body = r.read().decode()
                 return json.loads(body) if body else {"deleted": True}
         except urllib.error.HTTPError as e:
