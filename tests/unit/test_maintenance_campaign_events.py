@@ -110,7 +110,9 @@ def test_completed_campaign_scheduler_contract_returns_zero():
     assert result.report.state == LoopState.COMPLETED.value
 
 
-def test_observer_failure_is_best_effort_and_counted_without_changing_engineering_result(caplog):
+def test_observer_failure_is_best_effort_and_counted_without_changing_engineering_result(
+    caplog,
+):
     sink = FailingSink()
     logger = logging.getLogger("zcoder.services.maintenance_campaign")
 
