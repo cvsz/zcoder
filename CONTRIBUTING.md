@@ -5,52 +5,78 @@
 ```bash
 git clone <repo>
 cd zcoder
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
 ```
+
+The canonical implementation is under `src/zcoder/`. Historical top-level import names are compatibility aliases only; new internal code must use `zcoder.*` imports.
 
 ## Before opening a PR
 
+Run the repository checks through the Makefile:
+
 ```bash
-ruff check .
-black --check .
-mypy . --ignore-missing-imports   # best-effort; not all modules are fully typed yet
-bandit -r . -x ./tests
-pytest --cov
+make check
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of the above across Python
-3.9–3.12 plus a Docker build smoke test. A PR won't merge if any of these
-fail.
+Or run the gates individually:
 
-## Conventions
+```bash
+python -m ruff check .
+python -m black --check .
+python -m mypy src/zcoder webapp --ignore-missing-imports
+python -m bandit -r src/zcoder webapp scripts -ll
+python -m pytest --cov --cov-report=term-missing
+```
 
-- **New API calls that hit the network** should raise `exceptions.py`
-  types (`TransientAPIError`, `RateLimitError`, `APIError`, ...), not bare
-  `Exception`, so `resilience.retry()` can classify them correctly. Wrap
-  the call in `@resilience.retry(...)` rather than hand-rolling a retry
-  loop. **Exception:** `claude_admin_api.py` and `claude_compliance_api.py`
-  implement their own retry/backoff directly, because Anthropic documents
-  a specific retry contract for those endpoint families independently of
-  the general API's; reusing `resilience.retry()` there would couple two
-  contracts that happen to look similar today but aren't guaranteed to
-  stay that way. Don't follow this as a general pattern — it's specific
-  to those two modules.
-- **New user-supplied paths/names** go through `security.safe_resolve()` /
-  `security.validate_name()` before touching the filesystem.
-- **New logging** uses `logging_config.get_logger(__name__)`, not bare
-  `print()` for anything other than direct CLI output the user asked for.
-  Structured fields go in `extra={...}`, not string-interpolated into the
-  message (keeps JSON log output queryable).
-- **New tests** live under `tests/`, one file per module
-  (`tests/test_<module>.py`), and must not make real network calls — mock
-  `urllib.request.urlopen` as in `tests/test_coder.py`.
-- Every `claude_*.py` module documents which CLI flags it backs in its
-  module docstring (existing convention — keep it going).
+CI (`.github/workflows/ci.yml`) runs lint/security checks, pytest with coverage on Python 3.9–3.12, package/import smoke tests, and a Docker build smoke test.
+
+## Architecture and dependency rules
+
+Follow [`ARCHITECTURE.md`](ARCHITECTURE.md):
+
+```text
+interfaces + api -> services -> domain <- infrastructure
+```
+
+- `domain/` must not import concrete infrastructure, CLI/TUI, FastAPI, or web adapters.
+- Infrastructure implements domain/application ports; it does not define business invariants.
+- Provider-specific behavior stays within its provider integration boundary.
+- CLI, SDK, TUI, web, and worker surfaces delegate to shared application code.
+
+## Test placement
+
+Place tests by execution semantics:
+
+- `tests/unit/` — isolated module/service/CLI behavior;
+- `tests/integration/` — stores, identity, conformance, and adapter integration;
+- `tests/e2e/` — restart/crash/fleet/enterprise/web scenarios;
+- `tests/e2e/upgrade_suites/` — historical upgrade acceptance suites.
+
+Tests must not make accidental real provider calls. Mock external HTTP/provider behavior unless the test is explicitly documented and gated as a live integration test.
+
+## Code conventions
+
+- Network failures should use the typed errors in `zcoder.core.exceptions` so `zcoder.core.resilience` can classify retryability.
+- New user-controlled paths/names must go through `zcoder.core.security` validation before filesystem or outbound-request use.
+- New structured logging uses `zcoder.config.logging.get_logger(__name__)`; never log secrets.
+- New Claude/provider capability code belongs in the matching `zcoder.claude.*` package rather than creating another flat root module.
+- Preserve backward compatibility shims only at explicit public boundaries; do not add new code to the shim layer.
+
+## Documentation
+
+`docs/README.md` defines the documentation taxonomy. Put new material in the matching directory (`architecture`, `security`, `compliance`, `operations`, `enterprise`, `guides`, `upgrades`, or `prompts`) rather than the `docs/` root.
+
+Historical detailed release notes live under `docs/upgrades/`.
 
 ## Versioning
 
-`CHANGELOG.md` is the source of truth for what shipped in each version;
-`docs/*_upgrade_*.md` holds the detailed per-release notes for anything
-non-trivial. Bump `VERSION` in `main.py` and `version` in `pyproject.toml`
-together.
+`CHANGELOG.md` is the release history. Bump the version in `src/zcoder/main.py` and `pyproject.toml` together and verify the installed CLI before release:
+
+```bash
+python -m pip install -e .
+zcoder --version
+python main.py --version
+```
