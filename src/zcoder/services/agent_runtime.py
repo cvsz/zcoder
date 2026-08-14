@@ -12,7 +12,7 @@ from __future__ import annotations
 import enum
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, Protocol
+from typing import Any, Callable, Protocol
 
 from engineering_models import EngineeringTask
 from engineering_store_interface import EngineeringStore
@@ -50,7 +50,7 @@ class Job:
     model: str = "claude-sonnet-5"
     budget_usd: float = 0.0
     cost_usd: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class PolicyEngine:
@@ -65,7 +65,7 @@ class PolicyEngine:
 
 class AgentRuntimeProtocol(Protocol):
     def execute_task(
-        self, task: EngineeringTask, store: EngineeringStore, validator: Optional[Callable[[], bool]] = None
+        self, task: EngineeringTask, store: EngineeringStore, validator: Callable[[], bool] | None = None
     ) -> bool: ...
 
 

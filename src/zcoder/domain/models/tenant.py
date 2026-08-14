@@ -20,7 +20,7 @@ import enum
 import hashlib
 import secrets
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 # ─── Organization & Project Lifecycle ────────────────────────────────────────
 
@@ -59,7 +59,7 @@ class EnterpriseRole(str, enum.Enum):
     SECURITY_AUDITOR = "SecurityAuditor"
 
 
-ROLE_PERMISSIONS: Dict[EnterpriseRole, Set[str]] = {
+ROLE_PERMISSIONS: dict[EnterpriseRole, set[str]] = {
     EnterpriseRole.ORG_OWNER: {
         "org.read",
         "org.manage",
@@ -169,9 +169,9 @@ class RequestContext:
 
     principal_id: str
     organization_id: str
-    project_id: Optional[str] = None
+    project_id: str | None = None
     role: EnterpriseRole = EnterpriseRole.VIEWER
-    permissions: Set[str] = dataclasses.field(default_factory=set)
+    permissions: set[str] = dataclasses.field(default_factory=set)
     authentication_method: str = "token"  # token | apikey | scim | break_glass
     is_global_admin: bool = False
 
@@ -191,7 +191,7 @@ class RequestContext:
                 f"in organization '{self.organization_id}'"
             )
 
-    def validate_tenant_access(self, target_org_id: str, target_project_id: Optional[str] = None) -> None:
+    def validate_tenant_access(self, target_org_id: str, target_project_id: str | None = None) -> None:
         """Enforce zero-trust tenant boundary: caller cannot access another org's resources."""
         if self.is_global_admin:
             return
@@ -225,7 +225,7 @@ class Organization:
     slug: str
     status: OrgStatus = OrgStatus.ACTIVE
     created_at: float = dataclasses.field(default_factory=time.time)
-    metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
@@ -252,7 +252,7 @@ class Membership:
 class ServiceAccount:
     id: str
     organization_id: str
-    project_id: Optional[str]
+    project_id: str | None
     name: str
     role: EnterpriseRole = EnterpriseRole.OPERATOR
     status: str = "ACTIVE"
@@ -265,21 +265,21 @@ class ApiKey:
     prefix: str
     secret_hash: str
     organization_id: str
-    project_id: Optional[str]
+    project_id: str | None
     principal_id: str
-    scopes: List[str]
+    scopes: list[str]
     status: str = "ACTIVE"  # ACTIVE | REVOKED | EXPIRED
     created_at: float = dataclasses.field(default_factory=time.time)
-    expires_at: Optional[float] = None
-    last_used_at: Optional[float] = None
+    expires_at: float | None = None
+    last_used_at: float | None = None
 
     @staticmethod
     def generate(
         organization_id: str,
         principal_id: str,
-        project_id: Optional[str] = None,
-        scopes: Optional[List[str]] = None,
-        ttl_seconds: Optional[float] = None,
+        project_id: str | None = None,
+        scopes: list[str] | None = None,
+        ttl_seconds: float | None = None,
     ) -> tuple[ApiKey, str]:
         prefix = f"zck_{organization_id[:6]}_{secrets.token_hex(4)}"
         secret_part = secrets.token_urlsafe(32)
@@ -318,7 +318,7 @@ class ApiKey:
 class UsageEvent:
     id: str
     organization_id: str
-    project_id: Optional[str]
+    project_id: str | None
     job_id: str
     metric: str  # tokens_in | tokens_out | runtime_seconds | job_execution
     quantity: float
@@ -326,7 +326,7 @@ class UsageEvent:
     cost_usd: float = 0.0
     source: str = "ZCODER_MEASURED"  # PROVIDER_REPORTED | RUNTIME_REPORTED | ZCODER_MEASURED
     occurred_at: float = dataclasses.field(default_factory=time.time)
-    dedup_key: Optional[str] = None
+    dedup_key: str | None = None
 
 
 @dataclasses.dataclass
@@ -353,7 +353,7 @@ class EnterpriseAuditEvent:
     resource: str
     result: str  # ALLOWED | DENIED | SUCCESS | FAILED
     timestamp: float = dataclasses.field(default_factory=time.time)
-    source_ip: Optional[str] = None
-    request_id: Optional[str] = None
-    metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    source_ip: str | None = None
+    request_id: str | None = None
+    metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
     schema_version: str = "1.0"

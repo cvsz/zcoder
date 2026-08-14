@@ -19,7 +19,7 @@ import os
 import secrets
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class ZCoderRole(str, enum.Enum):
 
 
 # Privilege levels: higher = more access
-_ROLE_LEVEL: Dict[ZCoderRole, int] = {
+_ROLE_LEVEL: dict[ZCoderRole, int] = {
     ZCoderRole.VIEWER: 1,
     ZCoderRole.OPERATOR: 2,
     ZCoderRole.ADMIN: 3,
@@ -76,7 +76,7 @@ class AuthenticatedIdentity:
     audience: str = ""
     issued_at: float = field(default_factory=time.time)
     expires_at: float = 0.0
-    raw_claims: Dict[str, Any] = field(default_factory=dict)
+    raw_claims: dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_expired(self) -> bool:
@@ -117,16 +117,16 @@ class _JwksCache:
     """Simple TTL cache for JWKS endpoint keys."""
 
     def __init__(self, ttl_seconds: float = 3600) -> None:
-        self._cache: Dict[str, Any] = {}
+        self._cache: dict[str, Any] = {}
         self._fetched_at: float = 0.0
         self._ttl = ttl_seconds
 
-    def get(self, jwks_uri: str) -> Optional[Dict[str, Any]]:
+    def get(self, jwks_uri: str) -> dict[str, Any] | None:
         if time.time() - self._fetched_at < self._ttl:
             return self._cache
         return None
 
-    def set(self, jwks_uri: str, keys: Dict[str, Any]) -> None:
+    def set(self, jwks_uri: str, keys: dict[str, Any]) -> None:
         self._cache = keys
         self._fetched_at = time.time()
 
@@ -134,7 +134,7 @@ class _JwksCache:
 _jwks_cache = _JwksCache()
 
 
-def _fetch_jwks(jwks_uri: str) -> Dict[str, Any]:
+def _fetch_jwks(jwks_uri: str) -> dict[str, Any]:
     """Fetch JWKS keys from OIDC provider."""
     cached = _jwks_cache.get(jwks_uri)
     if cached:
@@ -229,7 +229,7 @@ class OidcValidator:
         _audit_log("AUTH_SUCCESS", identity.sub, {"role": role.value, "iss": identity.issuer})
         return identity
 
-    def _get_key(self, jwks: Dict[str, Any], kid: str, alg: str) -> Any:
+    def _get_key(self, jwks: dict[str, Any], kid: str, alg: str) -> Any:
         """Extract and return the appropriate signing key from JWKS."""
         keys = jwks.get("keys", [])
         for key_data in keys:
@@ -279,7 +279,7 @@ class SessionStore:
     """
 
     def __init__(self, max_age_seconds: float = 3600.0) -> None:
-        self._sessions: Dict[str, Session] = {}
+        self._sessions: dict[str, Session] = {}
         self._max_age = max_age_seconds
 
     def create(self, identity: AuthenticatedIdentity) -> Session:
@@ -293,7 +293,7 @@ class SessionStore:
         _audit_log("SESSION_CREATED", identity.sub, {"session_id": session_id[:8] + "..."})
         return session
 
-    def get(self, session_id: str) -> Optional[Session]:
+    def get(self, session_id: str) -> Session | None:
         session = self._sessions.get(session_id)
         if session is None:
             return None
@@ -325,7 +325,7 @@ class RbacPolicy:
     """
 
     # Action → minimum required role
-    ACTION_ROLES: Dict[str, ZCoderRole] = {
+    ACTION_ROLES: dict[str, ZCoderRole] = {
         # Viewer-level: read-only
         "job.list": ZCoderRole.VIEWER,
         "job.view": ZCoderRole.VIEWER,
@@ -381,7 +381,7 @@ class RbacPolicy:
 # ─── Audit logging ────────────────────────────────────────────────────────────
 
 
-def _audit_log(event: str, subject: str, context: Dict[str, Any]) -> None:
+def _audit_log(event: str, subject: str, context: dict[str, Any]) -> None:
     """Emit a structured audit log entry. Does NOT log raw tokens."""
     # Ensure no tokens are logged
     safe_context = {
@@ -420,7 +420,7 @@ class ApiKeyValidator:
 
     def validate_key(
         self, api_key: str, expected_role: ZCoderRole = ZCoderRole.VIEWER
-    ) -> Optional[AuthenticatedIdentity]:
+    ) -> AuthenticatedIdentity | None:
         """Validate an API key and return the identity."""
         try:
             parts = api_key.split("_", 3)
@@ -456,7 +456,7 @@ class BreakGlassAdmin:
         return bool(os.environ.get("ZCODER_BREAK_GLASS_SECRET", ""))
 
     @staticmethod
-    def authenticate(token: str) -> Optional[AuthenticatedIdentity]:
+    def authenticate(token: str) -> AuthenticatedIdentity | None:
         """Authenticate using break-glass token. Always emits an audit log."""
         expected = os.environ.get("ZCODER_BREAK_GLASS_SECRET", "")
         if not expected:

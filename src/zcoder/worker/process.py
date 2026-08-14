@@ -26,7 +26,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +77,10 @@ class Worker:
 
         self._state = WorkerState.IDLE
         self._state_lock = threading.Lock()
-        self._active_jobs: Dict[str, Any] = {}  # job_id → {job, fencing_token, thread}
+        self._active_jobs: dict[str, Any] = {}  # job_id → {job, fencing_token, thread}
         self._stop_event = threading.Event()
-        self._store: Optional[Any] = None
-        self._metrics: Optional[Any] = None
+        self._store: Any | None = None
+        self._metrics: Any | None = None
 
         # Set up store
         self._setup_store(database_url, use_postgres)
@@ -376,7 +376,7 @@ class Worker:
         with self._state_lock:
             return self._state
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "worker_id": self.worker_id,
             "pool_type": self.pool_type,

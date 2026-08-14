@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from engineering_models import Attempt, Checkpoint, EngineeringTask
 
@@ -17,7 +16,7 @@ class EngineeringStore(ABC):
         pass
 
     @abstractmethod
-    def get_task(self, task_id: str) -> Optional[EngineeringTask]:
+    def get_task(self, task_id: str) -> EngineeringTask | None:
         """Retrieve EngineeringTask by ID."""
         pass
 
@@ -32,11 +31,11 @@ class EngineeringStore(ABC):
         pass
 
     @abstractmethod
-    def get_latest_checkpoint(self, attempt_id: str) -> Optional[Checkpoint]:
+    def get_latest_checkpoint(self, attempt_id: str) -> Checkpoint | None:
         """Retrieve the latest checkpoint for an attempt."""
         pass
 
     @abstractmethod
-    def list_tasks(self, status: Optional[str] = None) -> List[EngineeringTask]:
+    def list_tasks(self, status: str | None = None) -> list[EngineeringTask]:
         """List tasks, optionally filtered by status."""
         pass

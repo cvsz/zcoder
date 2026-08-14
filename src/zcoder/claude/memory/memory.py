@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 MEMORY_DIR = Path.home() / ".ai-coder" / "memory"
 
@@ -31,7 +31,7 @@ class MemEntry:
     mid: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     content: str = ""
     mtype: MemType = MemType.FACT
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     importance: int = 5  # 1–10; 10 = never auto-deleted
     created: str = field(default_factory=lambda: datetime.now().isoformat())
     accessed: Optional[str] = None
@@ -63,7 +63,7 @@ class MemEntry:
 class MemoryStore:
     def __init__(self, ns: str = "default"):
         self.ns = ns
-        self.entries: List[MemEntry] = []
+        self.entries: list[MemEntry] = []
         self._load()
 
     def _path(self) -> Path:
@@ -82,7 +82,7 @@ class MemoryStore:
         self,
         content: str,
         mtype: MemType = MemType.FACT,
-        tags: Optional[List[str]] = None,
+        tags: Optional[list[str]] = None,
         importance: int = 5,
     ) -> MemEntry:
         e = MemEntry(content=content, mtype=mtype, tags=tags or [], importance=importance)
@@ -90,7 +90,7 @@ class MemoryStore:
         self.save()
         return e
 
-    def recall(self, query: str, limit: int = 6) -> List[MemEntry]:
+    def recall(self, query: str, limit: int = 6) -> list[MemEntry]:
         words = set(query.lower().split())
         scored = []
         for e in self.entries:
@@ -124,7 +124,7 @@ class MemoryStore:
             lines.append(f"- [{h.mtype.value}] {h.content}")
         return "\n".join(lines)
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         by_type = {}
         for t in MemType:
             by_type[t.value] = sum(1 for e in self.entries if e.mtype == t)
@@ -132,7 +132,7 @@ class MemoryStore:
 
     def enforce_retention(
         self, max_age_days: int = 365, max_entries: int = 2000, protect_above: int = 9
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         now = datetime.now()
         removed_age = 0
         removed_cap = 0
@@ -145,7 +145,7 @@ class MemoryStore:
         removed_age = len(self.entries) - len(kept)
         self.entries = kept
         if len(self.entries) > max_entries:
-            prot = [e for e in self.entries if e.importance >= protect_above]
+            [e for e in self.entries if e.importance >= protect_above]
             unprot = sorted(
                 [e for e in self.entries if e.importance < protect_above], key=lambda e: e.importance
             )

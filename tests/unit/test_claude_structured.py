@@ -82,6 +82,6 @@ def test_json_schema_mode_raises_on_missing_required_field():
     with patch("claude_structured.urlopen_json", _fake_urlopen_json):
         try:
             sc.json_schema("extract the name", schema)
-            assert False, "expected ValueError for missing required field"
+            raise AssertionError("expected ValueError for missing required field")
         except ValueError as e:
             assert "name" in str(e)

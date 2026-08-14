@@ -15,7 +15,7 @@ import hashlib
 import hmac
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from agent_runtime import Job, JobStatus, JobStore
 
@@ -59,10 +59,10 @@ class CheckRun:
     id: str
     name: str
     status: str
-    conclusion: Optional[CheckConclusion]
+    conclusion: CheckConclusion | None
     html_url: str
     started_at: float
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
 
 
 @dataclass
@@ -77,18 +77,18 @@ class Worker:
 class GitHubProviderProtocol:
     def create_branch(self, repo: str, branch: str, base_sha: str) -> str: ...
     def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest: ...
-    def get_pr(self, repo: str, pr_number: int) -> Optional[PullRequest]: ...
-    def list_checks(self, repo: str, ref: str) -> List[CheckRun]: ...
-    def list_reviews(self, repo: str, pr_number: int) -> List[Dict[str, Any]]: ...
+    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None: ...
+    def list_checks(self, repo: str, ref: str) -> list[CheckRun]: ...
+    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]: ...
     def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool: ...
 
 
 class FakeGitHubProvider:
     def __init__(self):
-        self.prs: Dict[int, PullRequest] = {}
-        self.branches: Dict[str, str] = {}
-        self.checks: Dict[str, List[CheckRun]] = {}
-        self.reviews: Dict[int, List[Dict[str, Any]]] = {}
+        self.prs: dict[int, PullRequest] = {}
+        self.branches: dict[str, str] = {}
+        self.checks: dict[str, list[CheckRun]] = {}
+        self.reviews: dict[int, list[dict[str, Any]]] = {}
         self.next_pr_number = 1
 
     def create_branch(self, repo: str, branch: str, base_sha: str) -> str:
@@ -114,13 +114,13 @@ class FakeGitHubProvider:
         self.next_pr_number += 1
         return pr
 
-    def get_pr(self, repo: str, pr_number: int) -> Optional[PullRequest]:
+    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None:
         return self.prs.get(pr_number)
 
-    def set_checks(self, ref: str, checks: List[CheckRun]):
+    def set_checks(self, ref: str, checks: list[CheckRun]):
         self.checks[ref] = checks
 
-    def list_checks(self, repo: str, ref: str) -> List[CheckRun]:
+    def list_checks(self, repo: str, ref: str) -> list[CheckRun]:
         return self.checks.get(ref, [])
 
     def add_review(self, pr_number: int, state: ReviewState, author: str = "reviewer"):
@@ -128,7 +128,7 @@ class FakeGitHubProvider:
             self.reviews[pr_number] = []
         self.reviews[pr_number].append({"state": state.value, "user": author, "time": time.time()})
 
-    def list_reviews(self, repo: str, pr_number: int) -> List[Dict[str, Any]]:
+    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]:
         return self.reviews.get(pr_number, [])
 
     def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool:
@@ -143,7 +143,7 @@ class DistributedScheduler:
     def __init__(self, store: JobStore):
         self.store = store
 
-    def claim_next_job(self, worker_id: str, lease_duration_sec: float = 60.0) -> Optional[Job]:
+    def claim_next_job(self, worker_id: str, lease_duration_sec: float = 60.0) -> Job | None:
         # Atomic claim simulation with store
         jobs = self.store.list_jobs()
         for job in jobs:
@@ -181,8 +181,8 @@ class GitHubOrchestrator:
         return pr
 
     def evaluate_merge_readiness(
-        self, repo: str, pr_number: int, required_checks: List[str]
-    ) -> Tuple[bool, str]:
+        self, repo: str, pr_number: int, required_checks: list[str]
+    ) -> tuple[bool, str]:
         pr = self.gh.get_pr(repo, pr_number)
         if not pr:
             return False, "PR not found"
@@ -250,7 +250,7 @@ class GitHubOrchestrator:
         provided_sig = signature_header[7:]
         return hmac.compare_digest(expected_sig, provided_sig)
 
-    def handle_webhook_delivery(self, delivery_id: str, event_type: str, payload: Dict[str, Any]) -> bool:
+    def handle_webhook_delivery(self, delivery_id: str, event_type: str, payload: dict[str, Any]) -> bool:
         if delivery_id in self.processed_webhooks:
             return False  # Idempotently ignored
         self.processed_webhooks.add(delivery_id)

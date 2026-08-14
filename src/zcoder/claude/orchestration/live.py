@@ -10,7 +10,7 @@ slash-command set as interactive mode.
 import json
 import sys
 import threading
-from typing import Any, Dict, List
+from typing import Any
 
 import anthropic
 
@@ -25,7 +25,7 @@ LIVE_SYSTEM = (
 
 class AmbientBuffer:
     def __init__(self, maxlen: int = 20):
-        self._events: List[Dict[str, str]] = []
+        self._events: list[dict[str, str]] = []
         self._lock = threading.Lock()
         self._maxlen = maxlen
 
@@ -61,7 +61,7 @@ class LiveSession:
         self.model = model
         self.temperature = temperature
         self.personality = personality_prompt
-        self.history: List[Dict[str, str]] = []
+        self.history: list[dict[str, str]] = []
         self.ambient = AmbientBuffer()
         self.streaming = False
 
@@ -76,7 +76,7 @@ class LiveSession:
 
     def send(self, text: str) -> str:
         self.history.append({"role": "user", "content": text})
-        full: List[str] = []
+        full: list[str] = []
         self.streaming = True
         try:
             with self.client.messages.stream(
@@ -100,7 +100,7 @@ class LiveSession:
         self.history.append({"role": "assistant", "content": result})
         return result
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         return {
             "model": self.model,
             "turns": len(self.history),

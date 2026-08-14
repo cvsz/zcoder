@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 import anthropic
 
@@ -25,15 +25,15 @@ SYS_SYNTH = "You are a research synthesis expert. Connect ideas, note tensions."
 @dataclass
 class SubQ:
     question: str
-    findings: List[str] = field(default_factory=list)
-    sources: List[str] = field(default_factory=list)
+    findings: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
     answered: bool = False
 
 
 @dataclass
 class Report:
     topic: str
-    sub_questions: List[SubQ]
+    sub_questions: list[SubQ]
     synthesis: str = ""
     created: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -87,7 +87,7 @@ class DeepResearchAgent:
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
 
-    def plan(self, topic: str, depth: int = 4) -> List[SubQ]:
+    def plan(self, topic: str, depth: int = 4) -> list[SubQ]:
         raw = self._call(
             SYS_PLAN,
             f"Break '{topic}' into exactly {depth} focused, non-overlapping research "
@@ -102,7 +102,7 @@ class DeepResearchAgent:
             qs = [l.lstrip("-· ").strip() for l in raw.splitlines() if l.strip()][:depth]
         return [SubQ(question=q) for q in qs[:depth]]
 
-    def gather(self, sq: SubQ, source_urls: Optional[List[str]] = None) -> SubQ:
+    def gather(self, sq: SubQ, source_urls: Optional[list[str]] = None) -> SubQ:
         ctx_parts = []
         for url in source_urls or []:
             body = self._fetch(url)
@@ -124,7 +124,7 @@ class DeepResearchAgent:
         sq.answered = True
         return sq
 
-    def synthesize(self, topic: str, sqs: List[SubQ]) -> str:
+    def synthesize(self, topic: str, sqs: list[SubQ]) -> str:
         block = "\n\n".join(f"Q: {sq.question}\n" + "\n".join(f"- {f}" for f in sq.findings) for sq in sqs)
         return self._call(
             SYS_SYNTH,
@@ -133,7 +133,7 @@ class DeepResearchAgent:
             max_tokens=1024,
         )
 
-    def run(self, topic: str, depth: int = 4, source_urls: Optional[List[str]] = None) -> Report:
+    def run(self, topic: str, depth: int = 4, source_urls: Optional[list[str]] = None) -> Report:
         sqs = self.plan(topic, depth)
         for sq in sqs:
             self.gather(sq, source_urls)
@@ -146,7 +146,7 @@ def cmd_research(
     api_key: str,
     model: str,
     depth: int = 4,
-    source_urls: Optional[List[str]] = None,
+    source_urls: Optional[list[str]] = None,
     output: Optional[str] = None,
 ):
     print(f"🔎 Deep Research: {topic!r}  (depth={depth})\n")

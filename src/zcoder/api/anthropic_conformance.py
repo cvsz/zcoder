@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import yaml  # type: ignore
@@ -19,7 +19,7 @@ except ImportError:
     yaml = None
 
 
-def load_manifest(path: Optional[Path] = None) -> Dict[str, Any]:
+def load_manifest(path: Path | None = None) -> dict[str, Any]:
     manifest_path = path or (Path(__file__).resolve().parent / "anthropic-conformance.yaml")
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found at {manifest_path}")
@@ -30,7 +30,7 @@ def load_manifest(path: Optional[Path] = None) -> Dict[str, Any]:
 
     # Fallback parser for basic key values
     lines = content.splitlines()
-    data: Dict[str, Any] = {"models": {}, "retirements": {}}
+    data: dict[str, Any] = {"models": {}, "retirements": {}}
     for line in lines:
         if line.startswith("version:"):
             data["version"] = line.split(":", 1)[1].strip().strip('"')
@@ -41,12 +41,12 @@ def load_manifest(path: Optional[Path] = None) -> Dict[str, Any]:
     return data
 
 
-def run_conformance_check() -> Dict[str, Any]:
+def run_conformance_check() -> dict[str, Any]:
     from claude_models import INFERENCE_GEO_SUPPORTED, RETIRED_MODELS
     from claude_sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD
 
     manifest = load_manifest()
-    errors: List[str] = []
+    errors: list[str] = []
 
     # Check Sonnet 5 price conformance
     if STANDARD_PRICE_IN_USD != 2.0 or STANDARD_PRICE_OUT_USD != 10.0:
@@ -71,7 +71,7 @@ def run_conformance_check() -> Dict[str, Any]:
     }
 
 
-def run_release_gate() -> Dict[str, Any]:
+def run_release_gate() -> dict[str, Any]:
     conf = run_conformance_check()
 
     gates = {

@@ -427,7 +427,7 @@ def cmd_artifact_tag(artifact_id, tag):
 
 def cmd_artifact_attach(artifact_id, project_id):
     am = ArtifactManager()
-    meta = am.attach_to_project(artifact_id, project_id)
+    am.attach_to_project(artifact_id, project_id)
     print(f"\033[92m✓ Artifact {artifact_id} attached to project {project_id}\033[0m")
 
 

@@ -9,7 +9,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 
 class JobStatus(str, enum.Enum):
@@ -38,7 +38,7 @@ class Job:
     model: str = "claude-sonnet-5"
     budget_usd: float = 0.0
     cost_usd: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -48,7 +48,7 @@ class JobEvent:
     sequence: int
     event_type: str
     timestamp: float
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -63,7 +63,7 @@ class ApprovalRequest:
 
 
 class JobStore:
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or (Path.home() / ".zcoder" / "jobs.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -131,7 +131,7 @@ class JobStore:
                 ),
             )
 
-    def get_job(self, job_id: str) -> Optional[Job]:
+    def get_job(self, job_id: str) -> Job | None:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
@@ -155,7 +155,7 @@ class JobStore:
                 metadata=json.loads(row[10]),
             )
 
-    def list_jobs(self) -> List[Job]:
+    def list_jobs(self) -> list[Job]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
@@ -178,7 +178,7 @@ class JobStore:
                 for row in cur.fetchall()
             ]
 
-    def add_event(self, job_id: str, event_type: str, payload: Dict[str, Any]) -> JobEvent:
+    def add_event(self, job_id: str, event_type: str, payload: dict[str, Any]) -> JobEvent:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT COALESCE(MAX(sequence), 0) + 1 FROM events WHERE job_id = ?", (job_id,))
@@ -200,7 +200,7 @@ class JobStore:
             )
             return evt
 
-    def list_events(self, job_id: str) -> List[JobEvent]:
+    def list_events(self, job_id: str) -> list[JobEvent]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
@@ -273,7 +273,7 @@ class FakeRuntime:
         self.should_succeed = should_succeed
         self.cost = cost
 
-    def execute_task(self, job: Job, store: JobStore, validator: Optional[Callable[[], bool]] = None) -> bool:
+    def execute_task(self, job: Job, store: JobStore, validator: Callable[[], bool] | None = None) -> bool:
         job.status = JobStatus.RUNNING.value
         store.save_job(job)
         store.add_event(job.id, "job.started", {"runtime": "fake"})
@@ -307,7 +307,7 @@ class FakeRuntime:
 
 
 class JobOrchestrator:
-    def __init__(self, store: Optional[JobStore] = None):
+    def __init__(self, store: JobStore | None = None):
         self.store = store or JobStore()
         self.policy = PolicyEngine()
 
@@ -319,9 +319,7 @@ class JobOrchestrator:
         self.store.save_job(job)
         return job
 
-    def run_job(
-        self, job_id: str, runtime_adapter: Any, validator: Optional[Callable[[], bool]] = None
-    ) -> bool:
+    def run_job(self, job_id: str, runtime_adapter: Any, validator: Callable[[], bool] | None = None) -> bool:
         job = self.store.get_job(job_id)
         if not job:
             raise ValueError(f"Job {job_id} not found")

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
-from typing import Any, Dict, List
+from typing import Any
 
 from tenant_models import RequestContext
 
@@ -19,14 +19,14 @@ from tenant_models import RequestContext
 @dataclasses.dataclass
 class PolicyObligation:
     type: str  # require_approval | require_sandbox | max_budget | allowed_runtime | deny_secret_access
-    parameters: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    parameters: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class PolicyDecision:
     allow: bool
     reason: str
-    obligations: List[PolicyObligation] = dataclasses.field(default_factory=list)
+    obligations: list[PolicyObligation] = dataclasses.field(default_factory=list)
     policy_version: str = "1.0.0"
     policy_hash: str = ""
 
@@ -37,7 +37,7 @@ class PolicyRule:
     action_pattern: str  # e.g. "job.*", "repo.manage"
     condition: str  # pythonic boolean expr or rule type
     effect: str  # ALLOW | DENY
-    obligations: List[PolicyObligation] = dataclasses.field(default_factory=list)
+    obligations: list[PolicyObligation] = dataclasses.field(default_factory=list)
 
 
 class EnterprisePolicyEngine:
@@ -46,7 +46,7 @@ class EnterprisePolicyEngine:
     def __init__(self, organization_id: str, version: str = "1.0.0"):
         self.organization_id = organization_id
         self.version = version
-        self.rules: List[PolicyRule] = []
+        self.rules: list[PolicyRule] = []
         self._compute_hash()
 
     def _compute_hash(self) -> None:
@@ -57,7 +57,7 @@ class EnterprisePolicyEngine:
         self.rules.append(rule)
         self._compute_hash()
 
-    def evaluate(self, ctx: RequestContext, action: str, resource: Dict[str, Any]) -> PolicyDecision:
+    def evaluate(self, ctx: RequestContext, action: str, resource: dict[str, Any]) -> PolicyDecision:
         """Evaluate action against policies. Fails closed (default DENY)."""
         ctx.validate_tenant_access(self.organization_id)
 
@@ -71,7 +71,7 @@ class EnterprisePolicyEngine:
             )
 
         # Check explicit rules
-        obligations: List[PolicyObligation] = []
+        obligations: list[PolicyObligation] = []
         for rule in self.rules:
             if self._matches_action(rule.action_pattern, action):
                 if rule.effect == "DENY":
@@ -98,7 +98,7 @@ class EnterprisePolicyEngine:
             policy_hash=self.policy_hash,
         )
 
-    def explain(self, ctx: RequestContext, action: str, resource: Dict[str, Any]) -> Dict[str, Any]:
+    def explain(self, ctx: RequestContext, action: str, resource: dict[str, Any]) -> dict[str, Any]:
         """Explain policy evaluation without mutating any state."""
         decision = self.evaluate(ctx, action, resource)
         return {

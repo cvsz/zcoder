@@ -17,7 +17,6 @@ import base64
 import mimetypes
 import sys
 from pathlib import Path
-from typing import List
 
 import anthropic
 
@@ -93,7 +92,7 @@ class VisionCoder:
         system = "You are an expert developer. Write clean, production-ready code."
         return self._call(content, system)
 
-    def compare_images(self, paths: List[str], prompt: str = "") -> str:
+    def compare_images(self, paths: list[str], prompt: str = "") -> str:
         content = [_image_block(path=p) for p in paths]
         content.append(
             {
@@ -170,7 +169,7 @@ def cmd_vision_pdf(path: str, prompt: str, api_key: str, model: str):
     return result
 
 
-def cmd_vision_compare(paths: List[str], prompt: str, api_key: str, model: str):
+def cmd_vision_compare(paths: list[str], prompt: str, api_key: str, model: str):
     for p in paths:
         _validate_image(p)
     vc = VisionCoder(api_key=api_key, model=model)

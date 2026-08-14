@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from engineering_models import Attempt, EngineeringTask, TaskStatus
 from engineering_store_interface import EngineeringStore
 
@@ -17,7 +15,7 @@ class EngineeringOrchestrator:
         self.store.save_task(task)
         return task
 
-    def start_task(self, task_id: str) -> Optional[Attempt]:
+    def start_task(self, task_id: str) -> Attempt | None:
         task = self.store.get_task(task_id)
         if not task:
             return None

@@ -14,7 +14,7 @@ import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Sub-configuration sections
@@ -64,7 +64,7 @@ class GitHubAppConfig:
     private_key_path: str = ""  # Path to PEM file; NOT inline key
     private_key_env: str = ""  # Env var name containing PEM content
     webhook_secret_env: str = "GITHUB_WEBHOOK_SECRET"
-    installation_id: Optional[int] = None
+    installation_id: int | None = None
 
 
 @dataclass
@@ -133,7 +133,7 @@ class SecurityConfig:
     rate_limit_job_submit_per_minute: int = 30
     max_webhook_payload_bytes: int = 10 * 1024 * 1024  # 10 MB
     max_api_payload_bytes: int = 4 * 1024 * 1024  # 4 MB
-    trusted_proxy_cidrs: List[str] = field(default_factory=list)
+    trusted_proxy_cidrs: list[str] = field(default_factory=list)
     content_security_policy: str = "default-src 'self'"
     referrer_policy: str = "strict-origin-when-cross-origin"
     frame_options: str = "DENY"
@@ -199,8 +199,8 @@ def _redact_value(key: str, value: Any) -> Any:
     return value
 
 
-def _redact_dict(d: Dict[str, Any]) -> Dict[str, Any]:
-    result: Dict[str, Any] = {}
+def _redact_dict(d: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
     for k, v in d.items():
         if isinstance(v, dict):
             result[k] = _redact_dict(v)
@@ -272,10 +272,10 @@ class ConfigValidationError(Exception):
     """Raised when configuration is invalid for the selected profile."""
 
 
-def validate_config(cfg: ProductionConfig) -> List[str]:
+def validate_config(cfg: ProductionConfig) -> list[str]:
     """Validate configuration for the selected profile. Returns list of warnings/errors."""
-    errors: List[str] = []
-    warnings: List[str] = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     if cfg.profile == "production":
         if cfg.debug:
@@ -311,10 +311,10 @@ def validate_config(cfg: ProductionConfig) -> List[str]:
 # Public API
 # ---------------------------------------------------------------------------
 
-_DEFAULT_CONFIG: Optional[ProductionConfig] = None
+_DEFAULT_CONFIG: ProductionConfig | None = None
 
 
-def load_config(config_file: Optional[str] = None) -> ProductionConfig:
+def load_config(config_file: str | None = None) -> ProductionConfig:
     """Load configuration with full precedence chain."""
     cfg = ProductionConfig()  # start with defaults
 
@@ -350,7 +350,7 @@ def get_config() -> ProductionConfig:
     return _DEFAULT_CONFIG
 
 
-def show_effective_config(cfg: Optional[ProductionConfig] = None) -> str:
+def show_effective_config(cfg: ProductionConfig | None = None) -> str:
     """Return the effective configuration as a redacted JSON string."""
     if cfg is None:
         cfg = get_config()

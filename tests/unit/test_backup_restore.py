@@ -53,7 +53,7 @@ class TestBackupManagerInit:
     def test_destination_created_on_init(self, tmp_path):
         dest = tmp_path / "new_backup_dir"
         assert not dest.exists()
-        mgr = BackupManager(
+        BackupManager(
             database_url="",
             backup_destination=str(dest),
         )
@@ -187,7 +187,7 @@ class TestRetentionPolicy:
         recent_backup.write_bytes(b"recent backup")
         # mtime is now (very recent)
 
-        deleted = backup_manager.enforce_retention()
+        backup_manager.enforce_retention()
         assert recent_backup.exists()
 
 
