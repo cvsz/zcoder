@@ -230,7 +230,12 @@ def _risk_mapper(task_risk: Any) -> Callable[[str], Any]:
     values = {str(member.value).lower(): member for member in task_risk}
 
     def map_risk(value: str) -> Any:
-        return values.get(str(value).lower(), values["medium"])
+        normalized = str(value).strip().lower()
+        try:
+            return values[normalized]
+        except KeyError as exc:
+            supported = ", ".join(sorted(values))
+            raise ValueError(f"unknown task risk {value!r}; expected one of: {supported}") from exc
 
     return map_risk
 
