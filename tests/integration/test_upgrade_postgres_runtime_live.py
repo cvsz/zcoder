@@ -33,7 +33,9 @@ def pg_is_available() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(not pg_is_available(), reason="DATABASE_URL PostgreSQL instance not reachable")
+pytestmark = pytest.mark.skipif(
+    not pg_is_available(), reason="DATABASE_URL PostgreSQL instance not reachable"
+)
 
 
 def _runtime(store, namespace):
