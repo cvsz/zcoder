@@ -1,0 +1,15 @@
+Implement Upgrade-33 as a bounded production-backend exposure slice for cvsz/zcoder.
+
+Objective: expose the already verified fenced PostgreSQL runtime as an explicit continuous-engineering backend with safe CLI credential handling and deterministic connection-pool cleanup.
+
+Requirements:
+- add build_postgres_store_pipeline() by composing PostgresEngineeringStore, EngineeringStoreUpgradeLedger, PostgresUpgradeFence, PostgresAdvisoryRunLease, PostgresFencedRunLease, and FencedUpgradeEngineeringStore;
+- acquire advisory ownership before fence generation and require the active token for every ledger task/control mutation;
+- expose postgres in --state-backend while keeping json as the default and sqlite unchanged;
+- read PostgreSQL credentials from DATABASE_URL in CLI mode and fail closed when absent;
+- never include DATABASE_URL in run reports or CLI output;
+- add idempotent pipeline close/context-manager lifecycle and close PostgreSQL resources on normal, exceptional, and builder-failure paths;
+- add unit tests for CLI routing, secret non-disclosure, defaults, missing credentials, and lifecycle;
+- add live DATABASE_URL integration tests proving restart completed-work deduplication and concurrent runner exclusion through the production builder;
+- do not use filesystem locking for PostgreSQL fleet exclusivity;
+- preserve Upgrade-20 execution authority, Upgrade-24 budgets, local-only push default, JSON/SQLite compatibility, and every existing CI/security gate.
