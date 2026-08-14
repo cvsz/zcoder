@@ -10,7 +10,7 @@ from sqlite_engineering_store import SQLiteEngineeringStore
 
 class TestHardCrash(unittest.TestCase):
     def setUp(self):
-        self.db_path = Path("crash_test.db")
+        self.db_path = Path("crash_test.db").resolve()
         if self.db_path.exists():
             os.remove(self.db_path)
         self.store = SQLiteEngineeringStore(db_path=self.db_path)
@@ -36,7 +36,10 @@ for i in range(1000):
 """
         # Run subprocess
         env = os.environ.copy()
-        env["PYTHONPATH"] = os.getcwd()
+        repo_root = Path(__file__).resolve().parents[2]
+        src_path = repo_root / "src"
+        existing_pp = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = f"{src_path}:{repo_root}:{existing_pp}" if existing_pp else f"{src_path}:{repo_root}"
         proc = subprocess.Popen([sys.executable, "-c", script], env=env)
 
         # Give it some time to start writing
