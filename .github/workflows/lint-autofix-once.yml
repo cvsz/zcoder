@@ -1,4 +1,4 @@
-name: One-shot CI diagnostics
+name: One-shot Ruff unsafe autofix
 
 on:
   push:
@@ -7,13 +7,15 @@ on:
       - '.github/workflows/lint-autofix-once.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnostics:
+  autofix:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -21,32 +23,32 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-          pip install -e .
-      - name: Collect Ruff diagnostics
+      - name: Apply Ruff unsafe fixes
+        run: ruff check . --fix --unsafe-fixes || true
+      - name: Apply Black formatting
+        run: black .
+      - name: Collect residual Ruff diagnostics
         shell: bash
         run: |
-          ruff check . --output-format=json > ruff.json || true
-          ruff check . > ruff.txt 2>&1 || true
-      - name: Collect Black diagnostics
-        shell: bash
-        run: black --check . > black.txt 2>&1 || true
-      - name: Collect Bandit diagnostics
-        shell: bash
-        run: |
-          bandit -r . -ll -f json -o bandit.json || true
-          bandit -r . -ll > bandit.txt 2>&1 || true
-      - name: Collect pytest diagnostics
-        shell: bash
-        run: pytest --cov --cov-report=term-missing > pytest.txt 2>&1 || true
-      - name: Upload diagnostics
+          ruff check . --output-format=json > ruff-after.json || true
+          ruff check . > ruff-after.txt 2>&1 || true
+      - name: Upload residual diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-diagnostics
+          name: ruff-after-unsafe
           path: |
-            ruff.json
-            ruff.txt
-            black.txt
-            bandit.json
-            bandit.txt
-            pytest.txt
+            ruff-after.json
+            ruff-after.txt
+      - name: Commit autofix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No unsafe autofix changes produced.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'style: apply remaining Ruff autofixes [lint-autofix]'
+          git push origin HEAD:main
