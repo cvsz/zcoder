@@ -1,0 +1,34 @@
+You are implementing Upgrade-24 for zcoder: the Continuous Upgrade / Update / Feature Implementation Loop.
+
+Goal
+Build a bounded meta-orchestrator that repeatedly discovers and executes independently verifiable vertical slices across UPGRADE, UPDATE, IMPLEMENT_FEATURE, and REPAIR work while composing the existing Upgrade-20 autonomous engineering loop and Upgrade-23 maintenance intelligence.
+
+Required invariants
+1. Never run an unbounded autonomous loop. Enforce global iteration and no-progress budgets.
+2. Execute one vertical slice per iteration and validate it before choosing the next item.
+3. Deduplicate rediscovered work by stable content identity.
+4. Keep provider/GitHub/shell side effects behind injected adapters or callbacks.
+5. Treat newly introduced regressions as a hard stop by default.
+6. Support rollback before retry/halt when the caller provides a rollback adapter.
+7. Preserve structured checkpoints after every iteration and at final termination.
+8. Keep Upgrade-20 responsible for task-level worktree, edit, validation, review, security, commit, push, PR, and CI-repair semantics.
+9. Keep Upgrade-24 responsible for queue-level prioritization, work classification, retry/no-progress policy, and multi-item progression.
+10. Maintain Python 3.9 compatibility and existing Clean Architecture dependency direction.
+
+Implementation targets
+- src/zcoder/services/upgrade_loop.py
+- tests/unit/test_upgrade_loop.py
+- docs/upgrades/UPGRADE-24.md
+- exec-planning.md
+
+Verification
+Run the focused Upgrade-24 unit tests first, then the full repository suite. Do not weaken tests or gates to obtain green status. If a pre-existing failure exists, record baseline vs post-change delta and ensure the change introduces zero new regressions.
+
+Completion criteria
+- upgrade/update/feature/repair work kinds supported;
+- priority ordering and discovery dedupe verified;
+- bounded retries and no-progress detection verified;
+- regression guard and rollback verified;
+- checkpoints verified;
+- Upgrade-23 recommendation adapter verified;
+- full suite remains at least as green as the pre-change baseline.
