@@ -1,0 +1,177 @@
+# Upgrade-25 Implementation Prompt
+
+Implement **Upgrade-25: Durable End-to-End Continuous Engineering Pipeline** for zcoder.
+
+## Starting point
+
+Assume Upgrade-24 already provides the provider-neutral `ContinuousUpgradeLoop` with:
+
+- `UPGRADE`, `UPDATE`, `IMPLEMENT_FEATURE`, and `REPAIR` work kinds;
+- stable content fingerprints;
+- priority ordering;
+- per-item attempt budgets;
+- global iteration and no-progress budgets;
+- structured validation results;
+- regression halt semantics;
+- checkpoint callbacks.
+
+Assume Upgrade-20 already owns task-level autonomous engineering semantics and Upgrade-23 already owns maintenance signal/recommendation generation.
+
+## Goal
+
+Turn the Upgrade-24 callback framework into a restart-safe, directly invokable pipeline without creating a second engineering task engine.
+
+The implementation must compose existing capabilities rather than duplicate them.
+
+## Requirements
+
+### 1. Upgrade-20 executor adapter
+
+Create an adapter that converts one `UpgradeWorkItem` into one Upgrade-20 task.
+
+Requirements:
+
+- deterministic task ID derived from the stable work fingerprint;
+- preserve work title and description;
+- map work risk to Upgrade-20 `TaskRisk`;
+- mark source as workflow/automation rather than pretending user CLI input;
+- invoke the existing `AutonomousEngineeringLoop`;
+- normalize task terminal status into Upgrade-24 `ValidationResult`;
+- do not bypass Upgrade-20 security, review, approval, or push policy.
+
+### 2. Durable restart/resume
+
+Persist enough information to survive process restart:
+
+- work fingerprint;
+- stable item ID;
+- work kind/title/payload;
+- priority and risk;
+- max attempts and consumed attempts;
+- current state;
+- last error;
+- loop checkpoints.
+
+Persistence must be atomic. For the local implementation, use write-to-temp + flush/fsync + atomic replace.
+
+Corrupt or unsupported durable state must fail closed. Never silently erase state and restart from an empty ledger.
+
+### 3. Cross-process idempotency
+
+A work fingerprint that has already reached `SUCCEEDED` must never execute again after restart.
+
+Pending/non-terminal work must resume.
+
+Persisted `BLOCKED` work must remain visible and must not produce a false overall `COMPLETED` result.
+
+Provide an explicit operator option to retry blocked work and reset its attempt budget.
+
+### 4. Repository context safety
+
+Build a bounded text snapshot for the Upgrade-20 executor.
+
+At minimum:
+
+- enforce max files;
+- enforce max bytes per file;
+- enforce max total bytes;
+- skip binary/non-UTF-8 files;
+- skip symlinks;
+- exclude `.git`, caches, virtualenvs, build outputs, `node_modules`, and similar generated directories;
+- exclude `.env*`, private-key files, and common certificate/key suffixes.
+
+Do not ingest unrestricted repository contents into the engineering context.
+
+### 5. Upgrade-23 discovery source
+
+Create a work source that calls the existing Upgrade-23 maintenance service and adapts recommendations with `work_from_maintenance_recommendation()`.
+
+Discovery may run every queue iteration, but already completed fingerprints must remain idempotent across restarts.
+
+### 6. GitHub CI repair reuse
+
+Reuse the existing `GitHubOrchestrator.execute_ci_repair_loop()` instead of implementing a second repair engine.
+
+Accept GitHub repair metadata from a `REPAIR` work-item payload:
+
+- `github_job_id`;
+- `github_repo` or `repository`;
+- `github_pr`.
+
+Keep CI repair bounded. A repair-budget failure must become validation failure and then follow the existing Upgrade-24 retry/block policy.
+
+### 7. Push safety
+
+Default to Upgrade-20 local-only push policy.
+
+Automatic push must require an explicit operator opt-in. Never silently escalate a local run into repository mutation.
+
+### 8. Invokable interface
+
+Provide an executable module interface using:
+
+```bash
+python -m zcoder.services.continuous_engineering
+```
+
+Support:
+
+- repository root;
+- durable state file;
+- project ID;
+- one explicit feature seed;
+- JSON work-file seeds;
+- priority and risk;
+- maximum iterations;
+- explicit retry of blocked work;
+- explicit push opt-in.
+
+Return structured JSON output and a non-zero exit code for halted/budget-exhausted runs.
+
+### 9. Tests
+
+Add focused tests for:
+
+- successful feature -> Upgrade-20 -> durable success;
+- source/risk propagation;
+- restart skips completed fingerprint;
+- failed validation retries then blocks;
+- persisted blockers remain visible after restart;
+- explicit blocked retry resets attempt budget;
+- pending item resumes after restart;
+- Upgrade-23 recommendation discovery;
+- GitHub CI repair adapter invocation;
+- CI repair failure propagation;
+- repository snapshot secret exclusions and size limits;
+- corrupt durable state fail-closed behavior;
+- all four work kinds in JSON input.
+
+### 10. Documentation
+
+Add `docs/upgrades/UPGRADE-25.md` and update the canonical execution plan after CI verification.
+
+## Safety invariants
+
+- One independently verifiable work item per Upgrade-24 iteration.
+- No unbounded retry loops.
+- No test/security gate weakening.
+- No silent paid-provider fallback.
+- No duplicate completed work after restart.
+- No false `COMPLETED` result while durable blockers remain.
+- No automatic push unless explicitly opted in.
+- No secret files in repository snapshots.
+- No second competing GitHub CI repair implementation.
+
+## Acceptance criteria
+
+Upgrade-25 is complete when:
+
+1. the pipeline is directly invokable;
+2. Upgrade-24 work executes through Upgrade-20;
+3. Upgrade-23 recommendations can enter discovery;
+4. durable restart/resume is verified;
+5. completed work is idempotent across restart;
+6. blockers remain visible and can only be retried explicitly;
+7. optional GitHub CI repair uses the existing bounded orchestrator;
+8. tests, lint, formatting, security checks, and hosted CI are green;
+9. documentation accurately separates verified behavior from future work.
