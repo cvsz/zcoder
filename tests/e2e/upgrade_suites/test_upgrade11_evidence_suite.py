@@ -25,11 +25,27 @@ PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172
 
 def test_version_single_source_of_truth():
     """Verify that main.py version matches pyproject.toml version exactly."""
-    import tomllib
+    try:
+        import tomllib
 
-    with open("pyproject.toml", "rb") as f:
-        pyproj = tomllib.load(f)
-    toml_ver = pyproj["project"]["version"]
+        with open("pyproject.toml", "rb") as f:
+            pyproj = tomllib.load(f)
+        toml_ver = pyproj["project"]["version"]
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+
+            with open("pyproject.toml", "rb") as f:
+                pyproj = tomllib.load(f)
+            toml_ver = pyproj["project"]["version"]
+        except ImportError:
+            import re
+
+            with open("pyproject.toml", "r", encoding="utf-8") as f:
+                content = f.read()
+            match = re.search(r'version\s*=\s*"([^"]+)"', content)
+            toml_ver = match.group(1) if match else None
+
     assert main.VERSION == toml_ver == "1.40.0"
 
 
