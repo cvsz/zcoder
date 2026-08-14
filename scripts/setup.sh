@@ -11,7 +11,7 @@ if sys.version_info < (3, 9):
     raise SystemExit("ERROR: Python 3.9+ is required")
 PY
 
-VENV="${ZCODER_VENV:-.venv}"
+VENV="${ZCODER_VENV:-venv}"
 [ -x "$VENV/bin/python" ] || python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --upgrade pip
 "$VENV/bin/python" -m pip install -e .
