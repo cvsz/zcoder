@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 import pytest
 
-from agent_runtime import Job, JobStatus, JobStore
+from legacy_job_models import Job, JobStatus, JobStore
 from github_orchestrator import (
     CheckConclusion,
     CheckRun,
