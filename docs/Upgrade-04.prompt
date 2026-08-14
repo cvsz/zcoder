@@ -1,0 +1,1236 @@
+# Mission: Forensic truth audit ZCoder v1.40.0, repair all Anthropic inaccuracies, then discover and implement the next legitimate upgrade
+
+You are working directly inside the current ZCoder repository after the v1.40.0 release-gate work.
+
+Treat **all previous release reports, audit documents, tests, model tables, comments, and implementation claims as potentially wrong until independently verified against current first-party Anthropic documentation**.
+
+This is not merely another feature-addition pass.
+
+Your priorities are:
+
+1. prove that v1.40.0 is factually correct;
+2. fix any false-positive release-gate results;
+3. fix runtime behavior affected by those inaccuracies;
+4. strengthen tests so the same class of error cannot recur;
+5. then discover all newer or still-missing Anthropic capabilities;
+6. implement legitimate production-useful gaps;
+7. determine whether the resulting release should be v1.40.1, v1.41.0, or another SemVer version.
+
+---
+
+# 0. Non-negotiable source policy
+
+Use **first-party sources only** for Anthropic platform facts.
+
+Authoritative sources include:
+
+* Claude Platform release notes
+* Claude API reference
+* Models overview
+* Pricing
+* Model deprecations
+* Model migration guides
+* Managed Agents documentation
+* Agent SDK documentation
+* Claude Code official changelog
+* Admin API
+* Compliance API
+* Agent Skills
+* MCP
+* Claude Platform on AWS
+* Amazon Bedrock Anthropic documentation where appropriate
+* Google Cloud Anthropic documentation where appropriate
+* Microsoft Foundry Anthropic documentation where appropriate
+* Anthropic Help Center for Enterprise functionality
+* Anthropic official announcements when they define product/API behavior
+
+Do NOT use:
+
+* blog reposts
+* SEO pages
+* Reddit
+* Stack Overflow
+* copied documentation
+* generated summaries
+* prior ZCoder documentation as source-of-truth
+* assumptions from API naming
+
+For every fact that affects code, capture its authoritative URL or source document in the audit report.
+
+---
+
+# 1. Establish baseline
+
+Before changing anything:
+
+```bash
+git status --short
+git log -20 --oneline
+git tag --sort=-version:refname | head -20
+
+python --version
+python -m pytest -q
+python main.py --help
+git diff --check
+```
+
+Also run available quality checks:
+
+```bash
+ruff check .
+black --check .
+mypy .
+```
+
+Record baseline results.
+
+Do not hide failures.
+
+---
+
+# 2. Re-open and challenge the v1.40.0 gate report
+
+Find the release-gate document that claims approximately:
+
+* v1.40.0
+* zero P0/P1 blockers
+* ~530 tests passing
+* complete Anthropic coverage
+
+Treat the PASS verdict as an assertion to test, not a fact.
+
+Create:
+
+```text
+docs/v1.40.0-truth-audit.md
+```
+
+or the repository's correct equivalent.
+
+For every row of the previous gate report, independently assign:
+
+```text
+VERIFIED_TRUE
+FACTUALLY_WRONG
+PARTIALLY_TRUE
+IMPLEMENTATION_WRONG
+TEST_FALSE_POSITIVE
+STALE
+UNVERIFIABLE
+DOCS_ONLY
+```
+
+Include source evidence.
+
+---
+
+# 3. P0 — Correct known high-risk contradictions first
+
+Explicitly re-verify the following before doing anything else.
+
+## 3.1 Claude Sonnet 5 pricing
+
+The previous report may claim that Sonnet 5 permanent pricing is:
+
+```text
+$3 / MTok input
+$15 / MTok output
+```
+
+Do not trust that value.
+
+Re-fetch current Anthropic Pricing and API release notes.
+
+Determine the current authoritative:
+
+* base input price
+* output price
+* 5-minute cache write price
+* 1-hour cache write price
+* cache-hit price
+* batch pricing
+* data-residency premium
+* platform-specific differences
+* fast-mode implications, if any
+
+Then search the entire repository:
+
+```bash
+grep -RIn \
+  -e 'sonnet.*3' \
+  -e 'sonnet.*15' \
+  -e '3.00' \
+  -e '15.00' \
+  -e 'SONNET_5' \
+  .
+```
+
+Inspect at minimum:
+
+* model registry
+* cost optimizer
+* token accounting
+* CLI cost display
+* TUI
+* web console
+* pricing docs
+* tests
+* examples
+* migration docs
+
+Fix every stale price.
+
+Do not retain old price as "future pricing" unless current Anthropic documentation explicitly says it will take effect.
+
+Add a regression test that would fail if the old price is accidentally restored.
+
+---
+
+## 3.2 `anthropic-workspace-id`
+
+The previous report may have classified:
+
+```text
+anthropic-workspace-id
+```
+
+as a request header associated with AWS/WIF configuration.
+
+Independently verify this.
+
+Distinguish clearly between:
+
+### Request-side workspace configuration
+
+Anything a caller intentionally sends to a platform.
+
+versus
+
+### Claude API response metadata
+
+Headers returned by Anthropic.
+
+If current Anthropic documentation defines:
+
+```text
+anthropic-workspace-id
+```
+
+as response metadata, implement it as response metadata.
+
+Audit every Claude API transport:
+
+```text
+Anthropic SDK
+raw HTTP
+streaming
+Messages
+Files
+Batches
+token counting
+tools
+structured output
+web-console backend
+TUI backend
+```
+
+Where technically applicable, expose:
+
+```python
+response_metadata.workspace_id
+```
+
+or an equivalent backward-compatible abstraction.
+
+Also capture:
+
+```text
+request_id
+workspace_id
+rate limit metadata
+service tier
+inference geo
+```
+
+where the actual API provides them.
+
+Do NOT overload WIF/AWS request configuration with Claude API response metadata.
+
+Tests must inject a fake response:
+
+```http
+anthropic-workspace-id: wrkspc_test123
+```
+
+and prove it reaches the metadata layer.
+
+---
+
+# 4. Verify the previous release date claims
+
+Do not assume that an audit performed on August 13 means Anthropic published an API release-note entry on August 13.
+
+Determine:
+
+```text
+latest official Claude Platform release-note entry
+latest Models docs update
+latest Pricing docs update
+latest Claude Code changelog entry
+latest Agent SDK release
+```
+
+Record separately:
+
+```text
+document fetch date
+document publication/release date
+feature release date
+```
+
+Never fabricate a feature release date from the audit execution date.
+
+---
+
+# 5. Re-audit model truth
+
+Re-fetch current Models documentation.
+
+Generate a canonical machine-readable model capability table.
+
+For every current model determine:
+
+```text
+API model ID
+display name
+availability
+GA/beta/limited availability
+context window
+max output
+input price
+output price
+cache pricing
+batch pricing
+new/old tokenizer generation
+adaptive thinking
+manual thinking
+thinking disable
+effort levels
+sampling restrictions
+assistant prefilling
+structured outputs
+Priority Tier
+fast mode
+task budgets
+advisor tool
+computer use
+high-resolution images
+inference_geo
+ZDR
+partner-cloud availability
+retirement status
+replacement model
+```
+
+Do not infer capabilities by model family.
+
+---
+
+# 6. Model retirement correctness
+
+Re-check every retired/deprecated model.
+
+Particularly audit:
+
+```text
+claude-opus-4-1-20250805
+```
+
+Verify:
+
+* current retirement state
+* current recommended replacement
+* first-party API behavior
+* partner-platform differences
+* migration warning
+* fallback logic
+
+A retired model on the first-party Claude API must not silently route as though still active.
+
+However, do not incorrectly mark it unavailable on partner platforms if Anthropic's official pricing/availability documentation still distinguishes those platforms.
+
+Model availability must therefore support:
+
+```text
+platform-aware status
+```
+
+rather than one global boolean where necessary.
+
+---
+
+# 7. Build platform-aware model resolution
+
+If not already present, refactor model support into something structurally similar to:
+
+```python
+ModelAvailability(
+    claude_api=...,
+    claude_platform_aws=...,
+    bedrock=...,
+    vertex_ai=...,
+    foundry=...,
+)
+```
+
+Avoid assumptions such as:
+
+```python
+retired == unavailable_everywhere
+```
+
+or:
+
+```python
+supported == supported_on_every_platform
+```
+
+Add tests for model/platform matrices.
+
+---
+
+# 8. Sonnet 5 tokenizer correctness
+
+Current/new-generation Claude models may tokenize equivalent text differently.
+
+Audit all logic that performs token-based decisions:
+
+* context budgeting
+* output budgeting
+* truncation
+* memory
+* RAG
+* summarization thresholds
+* context compaction
+* prompt caching
+* cost estimation
+* batch estimation
+* session planning
+* task budgets
+* TUI metrics
+* web metrics
+
+Never multiply old tokenizer counts by a guessed fixed factor in production.
+
+Prefer Anthropic's Token Counting API where exact counts matter.
+
+Estimated mode is acceptable only if clearly labelled and never used as authoritative API validation.
+
+Add:
+
+```text
+count_source = api | estimate
+```
+
+or equivalent metadata where useful.
+
+---
+
+# 9. Sonnet 5 request validator
+
+Search every request path.
+
+Current compatibility validation must be centralized so a caller cannot bypass it through another interface.
+
+Validate at minimum:
+
+* adaptive thinking defaults
+* thinking disabled
+* manual thinking
+* `budget_tokens`
+* `temperature`
+* `top_p`
+* `top_k`
+* assistant prefilling
+* Priority Tier
+* max output
+* context size
+
+Trace these routes:
+
+```text
+CLI
+Coder
+interactive
+TUI
+web API
+batch
+structured output
+agent loop
+tool loop
+fallback/router
+raw Messages client
+specialized model clients
+```
+
+Create shared validation if rules are duplicated.
+
+---
+
+# 10. Opus 5 migration correctness
+
+Re-fetch current Opus 5 documentation.
+
+Verify:
+
+* current API ID
+* pricing
+* context
+* maximum output
+* default thinking behavior
+* effort levels
+* restrictions on disabling thinking
+* fast mode
+* task budgets
+* advisor compatibility
+* supported platforms
+* inference geography
+* ZDR
+* server tools
+
+Specifically test invalid combinations.
+
+Do not assume Sonnet 5 and Opus 5 share identical thinking rules.
+
+---
+
+# 11. Managed Agents forensic audit
+
+Now re-test every v1.40 Managed Agents claim.
+
+## Session hard spend budgets
+
+Verify actual documented request shape for:
+
+* agent/session creation
+* session update
+* deployment defaults
+* budget removal
+* `budget_reached`
+* resume behavior
+
+Do not accept unit tests that merely assert the implementation's own invented schema.
+
+## Session advisor
+
+Verify:
+
+```json
+{
+  "type": "advisor"
+}
+```
+
+roster semantics against official documentation.
+
+Check:
+
+* model requirements
+* roster structure
+* overrides
+* primary-thread behavior
+* unsupported combinations
+
+Do not confuse Managed Agents advisor with Messages API Advisor Tool.
+
+## `inference_geo`
+
+Verify independently for:
+
+```text
+Messages API
+Managed Agents agent
+Managed Agents session override
+```
+
+These are separate surfaces.
+
+## GitHub-mounted skills
+
+Verify automatic discovery from:
+
+```text
+.claude/skills/
+```
+
+when mounting repositories.
+
+Ensure it remains distinct from:
+
+* local ZCoder skills
+* Claude Code skills
+* Agent SDK skills
+* Platform Skills API skill IDs
+
+---
+
+# 12. Compliance API full transcript audit
+
+Verify both transcript families.
+
+## Remote/cloud sessions
+
+Check actual endpoints for sessions started in Anthropic-hosted Claude surfaces.
+
+Verify:
+
+* list
+* transcript
+* metadata
+* pagination
+* scopes
+* errors
+
+## Local sessions
+
+Check:
+
+```text
+/v1/compliance/apps/sessions/local
+/v1/compliance/apps/sessions/local/{session_id}
+/v1/compliance/apps/sessions/local/{session_id}/messages
+```
+
+against current docs.
+
+Verify:
+
+* Compliance Access Key authentication
+* `read:compliance_user_data`
+* pagination
+* response schema
+* CLI output
+* JSON mode
+* redaction/logging safety
+
+---
+
+# 13. Enterprise inference hooks
+
+Determine whether ZCoder's previous classification is correct.
+
+Important distinction:
+
+Inference hooks govern prompts on Anthropic Enterprise surfaces.
+
+They are not automatically a normal Messages API feature.
+
+Determine exactly what customers can configure programmatically versus through Enterprise administration.
+
+If the configuration is not exposed through a public API suitable for ZCoder:
+
+```text
+DO NOT INVENT AN API
+```
+
+Instead implement only useful documented support such as:
+
+* configuration documentation
+* webhook/security-server example if appropriate
+* signature verification helper if officially specified
+* health-check tooling if legitimate
+* observability interpretation
+
+Classify remaining control-plane configuration as:
+
+```text
+CONSOLE_OR_ENTERPRISE_ADMIN_ONLY
+```
+
+when appropriate.
+
+---
+
+# 14. Search for features the previous audit completely missed
+
+After the correctness pass, perform another full release-note diff.
+
+Audit at least:
+
+```text
+Messages API
+Managed Agents
+Agent SDK
+Claude Code
+Admin API
+Compliance API
+Files API
+Message Batches
+Token Counting
+Skills API
+Agent Skills
+MCP
+MCP tunnels
+code execution
+web search
+web fetch
+computer use
+advisor
+task budgets
+effort
+thinking
+structured outputs
+prompt caching
+cache diagnostics
+context editing
+compaction
+memory
+memory stores
+dreams
+vaults
+credentials
+GitHub mounts
+environments
+self-hosted environments
+sessions
+threads
+thread streaming
+event deltas
+initial events
+outcomes
+deployments
+deployment runs
+scheduled deployments
+webhooks
+multiagent
+fallbacks
+refusals
+stop_details
+inference_geo
+Priority Tier
+fast mode
+high-resolution images
+mid-conversation system messages
+mid-conversation tool changes
+WIF
+AWS IAM
+Bedrock
+Google Cloud
+Microsoft Foundry
+Enterprise administration
+```
+
+For every candidate:
+
+```text
+IMPLEMENTED_VERIFIED
+IMPLEMENTED_INCORRECTLY
+PARTIAL
+MISSING
+STALE
+RETIRED
+NOT_APPLICABLE
+PRIVATE_PREVIEW
+CONSOLE_ONLY
+```
+
+No silent omissions.
+
+---
+
+# 15. Claude Code deep sync
+
+Read the current official Claude Code CHANGELOG from newest to the repository's last recorded sync.
+
+Do not add every Claude Code UI feature to ZCoder.
+
+Classify changes by architectural relevance:
+
+```text
+SDK_RELEVANT
+CLI_COMPATIBILITY
+AGENT_ARCHITECTURE
+TOOLS
+MCP
+SKILLS
+SECURITY
+OBSERVABILITY
+SESSION_MANAGEMENT
+CLAUDE_CODE_ONLY
+```
+
+Implement only capabilities that legitimately improve ZCoder.
+
+Pay particular attention to:
+
+* Agent SDK features
+* session discovery/resume
+* subagents
+* hooks
+* plugins
+* skills
+* MCP
+* settings hierarchy
+* model selection
+* effort/thinking
+* permission model
+* sandboxing
+* telemetry
+* long-running workflows
+
+---
+
+# 16. Anthropic SDK upgrade audit
+
+Determine the **current stable Anthropic Python SDK version at execution time**.
+
+Compare with repository requirements.
+
+Do not blindly upgrade.
+
+Produce:
+
+```text
+current pinned/minimum
+current upstream stable
+minimum required for each used feature
+breaking changes
+deprecated SDK calls
+raw HTTP dependencies
+migration risk
+```
+
+Prefer SDK-native implementations when they provide:
+
+* validated types
+* stable streaming
+* response metadata
+* retries
+* pagination
+* beta namespaces
+
+Keep raw HTTP only when justified.
+
+---
+
+# 17. Transport normalization
+
+If architecture warrants it, provide one shared transport boundary:
+
+```text
+AnthropicTransport
+├── SDKTransport
+├── RawHTTPTransport
+└── MockTransport
+```
+
+Normalize:
+
+```python
+AnthropicResponse[T](
+    data=T,
+    request_id=...,
+    workspace_id=...,
+    rate_limits=...,
+    model=...,
+    usage=...,
+    service_tier=...,
+    inference_geo=...,
+)
+```
+
+Backward compatibility is mandatory.
+
+Do not force a repository-wide rewrite if small adapters solve the issue.
+
+---
+
+# 18. Pricing source architecture
+
+Do not let static stale prices silently survive indefinitely.
+
+Design pricing metadata with:
+
+```text
+effective_from
+effective_until
+source
+last_verified_at
+platform
+model
+input
+output
+cache_5m_write
+cache_1h_write
+cache_read
+batch multiplier
+regional multiplier
+fast-mode pricing
+```
+
+Where practical, isolate pricing from capability definitions.
+
+Add sanity tests for currently active flagship model prices.
+
+Tests must make accidental stale-price regressions obvious.
+
+---
+
+# 19. Capability registry
+
+Consolidate model/feature compatibility if still fragmented.
+
+Example:
+
+```python
+capabilities.supports(
+    model="claude-sonnet-5",
+    feature="priority_tier",
+    platform="claude_api",
+)
+```
+
+Support validation for:
+
+```text
+thinking
+effort
+sampling
+prefill
+context
+output
+structured outputs
+tools
+computer use
+advisor
+task budgets
+fast mode
+priority tier
+data residency
+high-resolution images
+server fallback
+mid-conversation changes
+```
+
+One source of truth should drive:
+
+* request validation
+* CLI help
+* model listing
+* TUI
+* web console
+* tests
+
+---
+
+# 20. Create source-of-truth snapshot tests
+
+Add tests that defend against false release-gate PASS results.
+
+Examples:
+
+```text
+test_sonnet5_current_price
+test_workspace_id_is_response_metadata
+test_retired_model_first_party_status
+test_model_platform_availability
+test_sonnet5_manual_thinking_rejected
+test_sonnet5_sampling_rejected
+test_opus5_thinking_effort_matrix
+test_managed_agent_budget_wire_shape
+test_managed_agent_advisor_wire_shape
+test_compliance_local_session_wire_shape
+```
+
+Do not simply import the same constant under test as expected data.
+
+Expected values should be independently expressed in tests.
+
+---
+
+# 21. Introduce an Anthropic conformance manifest
+
+Create something equivalent to:
+
+```text
+anthropic-conformance.yaml
+```
+
+or JSON/Python data if better for the repository.
+
+Example conceptual schema:
+
+```yaml
+verified_at:
+release_notes_latest:
+models:
+features:
+beta_headers:
+retirements:
+pricing:
+platform_matrix:
+sources:
+```
+
+Each entry should include:
+
+```text
+source
+verified_at
+status
+tests
+implementation files
+```
+
+Use this manifest to make future audits incremental.
+
+Do not automatically fetch remote docs during normal application startup.
+
+---
+
+# 22. Release-gate generator
+
+Improve release auditing so future gates cannot declare PASS merely because tests pass.
+
+A PASS requires:
+
+```text
+CODE_PASS
+TEST_PASS
+DOC_PASS
+SOURCE_TRUTH_PASS
+MODEL_MATRIX_PASS
+PRICING_PASS
+DEPRECATION_PASS
+WIRE_FORMAT_PASS
+CLI_WIRING_PASS
+```
+
+Generate machine-readable:
+
+```json
+{
+  "result": "PASS",
+  "source_truth_verified": true,
+  "latest_release_note_date": "...",
+  "p0": 0,
+  "p1": 0,
+  "false_positive_claims": 0
+}
+```
+
+If any previous audit claim is factually wrong:
+
+```text
+SOURCE_TRUTH_PASS = false
+```
+
+until corrected.
+
+---
+
+# 23. Version decision
+
+Do not assume v1.41.0.
+
+Choose after seeing the actual changes.
+
+Use:
+
+### v1.40.1
+
+If work is primarily:
+
+* factual corrections
+* pricing corrections
+* header/metadata correctness
+* regression fixes
+* docs corrections
+
+### v1.41.0
+
+If significant backward-compatible functionality is also added.
+
+### major release
+
+Only for intentional incompatible changes.
+
+Document the SemVer decision.
+
+---
+
+# 24. Required implementation workflow
+
+Follow exactly:
+
+## Phase A — Baseline
+
+Run tests and capture repository state.
+
+## Phase B — Truth audit
+
+Re-fetch official Anthropic sources.
+
+## Phase C — Find contradictions
+
+Compare every v1.40 gate claim.
+
+## Phase D — P0/P1 repairs
+
+Correct factual/runtime defects immediately.
+
+## Phase E — Regression protection
+
+Add independent conformance tests.
+
+## Phase F — New-feature discovery
+
+Diff current Anthropic documentation against implementation.
+
+## Phase G — Implement
+
+Implement every applicable, public, production-useful P0/P1 gap.
+
+Implement sensible P2 gaps where low-risk.
+
+## Phase H — Documentation
+
+Update all affected documentation.
+
+## Phase I — Full verification
+
+Run complete suite.
+
+## Phase J — Adversarial second pass
+
+Search again specifically for anything you incorrectly marked complete.
+
+---
+
+# 25. Final commands
+
+At minimum:
+
+```bash
+python -m pytest -q
+python main.py --help
+git diff --check
+git status --short
+```
+
+And when available:
+
+```bash
+ruff check .
+black --check .
+mypy .
+```
+
+Also perform CLI wiring validation.
+
+---
+
+# 26. Final report
+
+Return exactly these sections.
+
+## 1. Previous Gate Claims Disproved
+
+Table:
+
+```text
+Claim | Previous status | Authoritative reality | Code impact | Fixed
+```
+
+If none, explicitly say none.
+
+## 2. Previous Gate Claims Verified
+
+Evidence-based list.
+
+## 3. Runtime Bugs Fixed
+
+Exact behavior and files.
+
+## 4. Pricing Corrections
+
+Old vs current values.
+
+## 5. Header / Metadata Corrections
+
+Request versus response semantics.
+
+## 6. Model Registry Corrections
+
+Including platform-specific availability.
+
+## 7. Newly Discovered Anthropic Features
+
+```text
+Priority | Feature | Source date | Old status | New implementation
+```
+
+## 8. SDK / Claude Code Synchronization
+
+What changed and what was intentionally not imported.
+
+## 9. Tests Added
+
+List independent regression/conformance tests.
+
+## 10. Final Test Results
+
+Exact commands and totals.
+
+## 11. Remaining Gaps
+
+Only genuine:
+
+```text
+private preview
+account entitlement
+console-only
+platform-only
+no public API
+intentionally out of scope
+```
+
+## 12. Release Version
+
+Chosen version + SemVer justification.
+
+## 13. Files Changed
+
+Exact paths.
+
+## 14. Source-of-Truth Snapshot
+
+```text
+Anthropic API release notes latest entry:
+Models docs verified:
+Pricing verified:
+Agent SDK verified:
+Claude Code changelog verified:
+Audit execution date:
+```
+
+## 15. Final Verdict
+
+Do **not** say:
+
+```text
+100% Anthropic support
+complete
+fully verified
+zero gaps
+```
+
+unless every applicable public feature has:
+
+1. an authoritative source;
+2. an implementation disposition;
+3. wire-format verification where applicable;
+4. test coverage;
+5. CLI/shared-service wiring where applicable.
+
+A green test suite alone is not sufficient evidence for a PASS.

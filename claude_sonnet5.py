@@ -2,15 +2,18 @@
 claude_sonnet5.py — Claude Sonnet 5 support (deep, model-specific module)
 AI Model Coder CLI v1.34.0
 
-Why this module exists: MODEL_CATALOG's claude-sonnet-5 row folds "$2/$10
-per MTok introductory pricing through 2026-08-31" into a plain notes
-string. That's a date-conditional fact, not a static one — a cost
-estimator built against the row's flat price_in/price_out (which are the
-$3/$15 standard rate) will silently overcharge-estimate every request made
-before 2026-08-31, and silently undercharge-estimate every one made after,
-depending on which number a caller hardcodes. This module makes the
-pricing cliff-edge an actual comparison against a date rather than prose
-a human has to remember to re-read.
+Why this module exists: MODEL_CATALOG's claude-sonnet-5 row carries a
+flat price_in/price_out entry. This module provides deeper per-model
+validation that a flat catalog entry can't express as executable logic.
+
+Pricing history (for cost-estimator accuracy):
+  * Jun 30, 2026 launch: introductory $2/$10 per MTok promised through Aug 31.
+  * Aug 10, 2026: Anthropic cancelled the planned Sep 1 price increase.
+    The $2/$10 introductory rate is now the permanent standard price.
+  * No future price change currently announced.
+  This module's previous PROMO_PRICE_IN/OUT and PROMO_END_DATE constants
+  are kept for backward compatibility but are no longer used by
+  current_pricing() — the function always returns the permanent $2/$10 rate.
 
 It also surfaces the two API-parameter support facts that are easy to get
 backwards for this specific model: Sonnet 5 is the one current-tier model
@@ -52,11 +55,15 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 SONNET5_MODEL_ID = "claude-sonnet-5"
 
-PROMO_PRICE_IN_USD      = 2.0
-PROMO_PRICE_OUT_USD     = 10.0
-STANDARD_PRICE_IN_USD   = 3.0
-STANDARD_PRICE_OUT_USD  = 15.0
-PROMO_END_DATE          = date(2026, 8, 31)  # introductory pricing ends after this date
+# Pricing history:
+#   Jun 30, 2026: launched at $2/$10 per MTok introductory rate
+#   Aug 10, 2026: planned increase to $3/$15 cancelled; $2/$10 is permanent standard price
+PROMO_PRICE_IN_USD      = 2.0   # historical
+PROMO_PRICE_OUT_USD     = 10.0  # historical
+STANDARD_PRICE_IN_USD   = 2.0   # permanent standard rate
+STANDARD_PRICE_OUT_USD  = 10.0  # permanent standard rate
+from datetime import date
+PROMO_END_DATE = date(2026, 8, 31)  # obsolete — increase was cancelled permanently
 
 SONNET5_INFO = {
     "display_name":      "Claude Sonnet 5",
@@ -69,19 +76,19 @@ SONNET5_INFO = {
     "inference_geo_supported": SONNET5_MODEL_ID in INFERENCE_GEO_SUPPORTED,
     "inference_geo_multiplier": INFERENCE_GEO_PRICING_MULTIPLIER,
     "notes": "Best speed/intelligence balance; builds on Sonnet 4.6. "
+             "Standard pricing is $2/$10 per MTok permanently. "
              "Unlike most current-tier models, does NOT support "
              "service_tier / Priority Tier.",
 }
 
 
-def current_pricing(as_of: Optional[date] = None) -> dict:
-    """Return the {'price_in', 'price_out', 'promo_active'} dict that
-    applies on `as_of` (default: today). Introductory pricing applies for
-    as_of <= PROMO_END_DATE; standard pricing applies after."""
-    as_of = as_of or date.today()
-    if as_of <= PROMO_END_DATE:
-        return {"price_in": PROMO_PRICE_IN_USD, "price_out": PROMO_PRICE_OUT_USD, "promo_active": True}
+def current_pricing(as_of=None) -> dict:
+    """Return the {'price_in', 'price_out', 'promo_active'} dict for Sonnet 5.
+    On August 10, 2026, Anthropic cancelled the planned price increase;
+    the $2/$10 per MTok rate is now the permanent standard price."""
     return {"price_in": STANDARD_PRICE_IN_USD, "price_out": STANDARD_PRICE_OUT_USD, "promo_active": False}
+
+
 
 
 def estimate_cost_usd(input_tokens: int, output_tokens: int,
@@ -203,13 +210,9 @@ def cmd_sonnet5_info():
     print(f"  Data residency:    {'supported' if info['inference_geo_supported'] else 'not supported'}"
           f" ({info['inference_geo_multiplier']}x pricing when used)")
     print(f"\n  Pricing today ({date.today().isoformat()}):")
-    if pricing["promo_active"]:
-        print(f"    \033[92m${pricing['price_in']}/${pricing['price_out']} per MTok "
-              f"(introductory — ends {PROMO_END_DATE.isoformat()})\033[0m")
-        print(f"    Standard rate after that date: ${STANDARD_PRICE_IN_USD}/${STANDARD_PRICE_OUT_USD} per MTok")
-    else:
-        print(f"    ${pricing['price_in']}/${pricing['price_out']} per MTok "
-              f"(standard — introductory pricing ended {PROMO_END_DATE.isoformat()})")
+    print(f"    ${pricing['price_in']}/${pricing['price_out']} per MTok (permanent standard rate)")
+    print(f"    Note: the planned Sep 1, 2026 price increase was permanently cancelled "
+          f"on Aug 7, 2026; ${STANDARD_PRICE_IN_USD}/${STANDARD_PRICE_OUT_USD} is the final standard price.")
     print(f"\n  Notes: {info['notes']}\n")
 
 
@@ -228,7 +231,7 @@ def cmd_sonnet5_call(prompt: str, api_key: str, use_geo: bool = False,
 
 
 def cmd_sonnet5_cost(spec: str):
-    """Parse 'IN,OUT' token counts and print a cost estimate at today's rate."""
+    """Parse 'IN,OUT' token counts and print a cost estimate at the current permanent rate."""
     try:
         in_tok, out_tok = (int(x.strip()) for x in spec.split(","))
     except ValueError:
@@ -236,7 +239,6 @@ def cmd_sonnet5_cost(spec: str):
         return
     cost = estimate_cost_usd(in_tok, out_tok)
     pricing = current_pricing()
-    label = "introductory" if pricing["promo_active"] else "standard"
     print(f"\n  {in_tok:,} input + {out_tok:,} output tokens on Sonnet 5")
-    print(f"  at today's {label} rate (${pricing['price_in']}/${pricing['price_out']} per MTok): "
+    print(f"  at standard rate (${pricing['price_in']}/${pricing['price_out']} per MTok): "
           f"\033[1m${cost:.4f}\033[0m\n")

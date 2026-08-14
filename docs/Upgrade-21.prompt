@@ -1,0 +1,2481 @@
+# UPGRADE-21
+# Durable Autonomous Engineering Runtime
+#
+# Real Git Worktrees
+# Durable SQLite/PostgreSQL Task State
+# Multi-Process Workers
+# Crash / Restart Recovery
+# Idempotent Commit / Push / PR Operations
+# CI Discovery & CI State Persistence
+# Real Local Model Evidence
+# Optional Real GitHub Sandbox Verification
+#
+# PRIMARY PRINCIPLES
+#
+# NO-COST FIRST
+# LOCAL-FIRST
+# DURABLE STATE > IN-MEMORY STATE
+# REAL GIT > WORKTREE SIMULATION
+# RESTART MUST NOT DUPLICATE SIDE EFFECTS
+# NO SILENT PUSH
+# NO SILENT MERGE
+# NO SILENT PAID FALLBACK
+# EVIDENCE MUST MATCH EXECUTION
+
+You are operating directly inside ZCoder after Upgrade-20.
+
+================================================================
+MISSION
+================================================================
+
+Upgrade-20 proved the autonomous engineering state machine at E3 using
+deterministic/system simulations.
+
+Upgrade-21 must convert the critical execution path from:
+
+IN-MEMORY / SIMULATED
+
+to:
+
+DURABLE / REAL LOCAL SYSTEM
+
+Target:
+
+EngineeringTask
+       │
+       ▼
+ Durable Task Store
+ SQLite / PostgreSQL
+       │
+       ▼
+ Durable Attempt
+       │
+       ▼
+ Real Git Repository
+       │
+       ▼
+ git worktree add
+       │
+       ▼
+ Actual filesystem edits
+       │
+       ▼
+ Actual validators
+       │
+       ▼
+ Actual git commit
+       │
+       ▼
+ Restart / Resume
+       │
+       ▼
+ Same task / same worktree / same commit
+       │
+       ▼
+ Optional Push
+       │
+       ▼
+ Optional GitHub PR
+       │
+       ▼
+ Optional CI Observation
+
+Upgrade-21 succeeds only when restarting ZCoder does not cause:
+
+- lost engineering tasks
+- lost checkpoints
+- duplicate worktrees
+- duplicate commits
+- duplicate pushes
+- duplicate pull requests
+- duplicate CI repair attempts
+
+================================================================
+PHASE 0 — UPGRADE-20 TRUTH AUDIT
+================================================================
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+
+python main.py --version
+python -m build
+
+git diff --check
+
+Run release gate.
+
+Inspect:
+
+local_ai_stack.py
+agent_runtime.py
+github_orchestrator.py
+control_plane.py
+release_gate.py
+
+Upgrade-19 bootstrap services
+Upgrade-20 engineering services
+
+and all persistence/storage modules.
+
+Produce:
+
+UPGRADE-20 DURABILITY MATRIX
+
+Capability
+Previous Status
+Persistence
+Real Git?
+Multi-Process?
+Restart Tested?
+Correct Evidence Tier
+Verdict
+
+================================================================
+1. CORRECT PREVIOUS CLAIMS
+================================================================
+
+Upgrade-20 report explicitly stated:
+
+Task lifecycle:
+    no real task persistence
+
+Worktree:
+    no real git worktree
+
+Checkpoint recovery:
+    in-memory only
+
+Do not carry these forward as production durability.
+
+Use:
+
+CONTRACT_PROVEN
+SYSTEM_PROVEN
+DURABILITY_NOT_PROVEN
+
+until executed evidence exists.
+
+================================================================
+2. DURABLE ENGINEERING STORE
+================================================================
+
+Create/consolidate:
+
+EngineeringStore
+
+Responsibilities:
+
+tasks
+attempts
+plans
+checkpoints
+worktrees
+validation results
+review results
+approvals
+commits
+remote operations
+CI state
+
+Do not create one database per subsystem unnecessarily.
+
+================================================================
+3. STORAGE INTERFACE
+================================================================
+
+Provide clean storage abstraction.
+
+Required implementations:
+
+SQLiteEngineeringStore
+PostgresEngineeringStore
+
+SQLite:
+
+CORE_FREE
+single-host durable operation
+
+PostgreSQL:
+
+SELF_HOSTED
+multi-process coordination
+
+================================================================
+4. NO IN-MEMORY PRODUCTION DEFAULT
+================================================================
+
+InMemoryEngineeringStore may remain for tests.
+
+It must never become default for:
+
+local persistent mode
+self-hosted mode
+production mode
+
+================================================================
+5. TASK PERSISTENCE
+================================================================
+
+Persist complete EngineeringTask identity.
+
+Restart process.
+
+Reload same task.
+
+Prove:
+
+task_id unchanged
+state unchanged
+history intact
+
+================================================================
+6. ATTEMPT PERSISTENCE
+================================================================
+
+ExecutionAttempt must survive restart.
+
+Retry creates:
+
+new attempt
+
+Resume restores:
+
+existing attempt
+
+Do not confuse retry and resume.
+
+================================================================
+7. STATE TRANSITIONS
+================================================================
+
+Persist transitions transactionally.
+
+Invalid transition must fail.
+
+Example:
+
+SUCCEEDED
+→ RUNNING
+
+must not occur accidentally.
+
+================================================================
+8. STATE VERSION
+================================================================
+
+Add optimistic concurrency/version field where appropriate.
+
+Prevent two workers from overwriting task state.
+
+================================================================
+9. CHECKPOINT PERSISTENCE
+================================================================
+
+Persist checkpoints durably.
+
+Checkpoint fields should include:
+
+task
+attempt
+phase
+sequence
+timestamp
+state snapshot/reference
+worktree
+base commit
+current commit
+validation state
+
+================================================================
+10. CHECKPOINT ORDER
+================================================================
+
+Use monotonic checkpoint sequence.
+
+Concurrent writers cannot reorder state silently.
+
+================================================================
+11. RESUME FROM PROCESS RESTART
+================================================================
+
+Required system test:
+
+start task
+reach checkpoint
+terminate ZCoder process
+
+start new ZCoder process
+
+resume same task
+
+No in-process Python object may be required.
+
+================================================================
+12. HARD CRASH TEST
+================================================================
+
+Do not test only graceful shutdown.
+
+Kill worker process abruptly.
+
+Restart.
+
+Recover.
+
+================================================================
+13. SQLITE DURABILITY TEST
+================================================================
+
+Use actual SQLite file.
+
+Process A:
+
+create task/checkpoint
+
+exit
+
+Process B:
+
+load/resume
+
+Verify exact state.
+
+================================================================
+14. SQLITE TRANSACTION SAFETY
+================================================================
+
+Use appropriate transaction semantics.
+
+Do not rely on application mutex alone.
+
+================================================================
+15. SQLITE WAL
+================================================================
+
+Evaluate SQLite WAL mode for local durability/concurrency.
+
+Use it only if appropriate for current access pattern.
+
+Document decision.
+
+================================================================
+16. POSTGRESQL ENGINEERING STORE
+================================================================
+
+Use existing PostgreSQL infrastructure.
+
+Do not build second PostgreSQL stack.
+
+Tenant-owned rows must remain organization/project scoped.
+
+================================================================
+17. POSTGRESQL RLS
+================================================================
+
+Engineering tasks/attempts/checkpoints owned by tenants require existing
+RLS discipline.
+
+Add policies where missing.
+
+================================================================
+18. MULTI-PROCESS WORKERS
+================================================================
+
+Run at least two independent OS processes against same PostgreSQL store.
+
+Both attempt to claim engineering jobs.
+
+Each task executes once.
+
+================================================================
+19. CLAIM LEASE
+================================================================
+
+Reuse existing lease/fencing mechanism.
+
+Do not introduce a competing lease implementation.
+
+================================================================
+20. STALE WORKER
+================================================================
+
+Worker A owns task.
+
+Lease expires / ownership moves to B.
+
+A must not:
+
+commit
+push
+create PR
+
+after losing ownership.
+
+================================================================
+21. EXTERNAL MUTATION FENCE
+================================================================
+
+Immediately before:
+
+commit if globally coordinated
+push
+PR create
+PR update
+merge
+
+verify:
+
+current authoritative ownership
+attempt
+generation/fence
+
+================================================================
+22. REAL GIT REPOSITORY TEST
+================================================================
+
+Create actual temporary Git repository using real git binary.
+
+Run:
+
+git init
+git config local identity
+create files
+commit baseline
+
+No FakeGit implementation for this test.
+
+================================================================
+23. REAL WORKTREE
+================================================================
+
+Use actual:
+
+git worktree add
+
+or equivalent safe Git invocation.
+
+Verify:
+
+separate directory
+separate branch
+shared object database
+correct base SHA
+
+================================================================
+24. WORKTREE REGISTRY
+================================================================
+
+Persist managed worktree:
+
+task
+attempt
+path
+branch
+base SHA
+created_at
+owner
+state
+
+================================================================
+25. REAL WORKTREE RESTART
+================================================================
+
+Process A creates worktree.
+
+Crash.
+
+Process B restarts.
+
+Reconcile existing actual git worktree.
+
+Do not create duplicate.
+
+================================================================
+26. GIT WORKTREE LIST RECONCILIATION
+================================================================
+
+Use actual Git state as one source of truth.
+
+Compare:
+
+database record
+git worktree list
+
+Resolve:
+
+missing
+orphaned
+duplicate
+stale
+
+safely.
+
+================================================================
+27. ORPHAN WORKTREE
+================================================================
+
+If ZCoder record exists but worktree disappeared:
+
+mark:
+
+WORKTREE_MISSING
+
+Do not recreate blindly after code may have been lost.
+
+================================================================
+28. UNKNOWN WORKTREE
+================================================================
+
+Do not delete human-created worktree.
+
+Only ZCoder-managed marker/registry may authorize cleanup.
+
+================================================================
+29. REAL PATCH
+================================================================
+
+System test must write actual file inside actual worktree.
+
+Then verify primary working tree unchanged.
+
+================================================================
+30. REAL VALIDATION
+================================================================
+
+Create deterministic repository with failing pytest test.
+
+Baseline:
+
+test fails.
+
+Repair:
+
+file changes.
+
+Final:
+
+test passes.
+
+Use actual pytest subprocess.
+
+================================================================
+31. REAL TEST DELTA
+================================================================
+
+Prove:
+
+baseline failures = N
+final failures = 0
+
+fixed = N
+new regressions = 0
+
+================================================================
+32. REAL GIT DIFF
+================================================================
+
+Use actual Git diff.
+
+Review actual diff output.
+
+Do not generate synthetic diff object only.
+
+================================================================
+33. REAL STATIC REVIEW
+================================================================
+
+Feed actual changed diff into StaticReviewer.
+
+Verify:
+
+secret
+test weakening
+unsafe file
+
+hard gates remain effective.
+
+================================================================
+34. REAL COMMIT
+================================================================
+
+Run actual:
+
+git add
+git commit
+
+inside managed worktree.
+
+Record real commit SHA.
+
+================================================================
+35. COMMIT IDENTITY
+================================================================
+
+Test config uses isolated local Git identity.
+
+Production uses configured identity.
+
+Do not silently rewrite user's global Git config.
+
+================================================================
+36. COMMIT CRASH WINDOW
+================================================================
+
+Important fault:
+
+git commit succeeds
+
+but process crashes before database checkpoint.
+
+Restart.
+
+Detect existing commit.
+
+Do not commit same diff twice.
+
+================================================================
+37. COMMIT RECONCILIATION
+================================================================
+
+Use:
+
+attempt metadata
+worktree HEAD
+expected parent
+tree/diff state
+
+to determine whether commit already happened.
+
+================================================================
+38. COMMIT OPERATION RECORD
+================================================================
+
+Persist durable operation:
+
+operation_id
+task
+attempt
+type=COMMIT
+state
+expected_parent
+result_sha
+created_at
+
+================================================================
+39. DURABLE SIDE-EFFECT JOURNAL
+================================================================
+
+Introduce/reuse durable external-operation journal.
+
+Operations:
+
+COMMIT
+PUSH
+CREATE_PR
+UPDATE_PR
+MERGE
+
+States:
+
+PLANNED
+IN_PROGRESS
+SUCCEEDED
+FAILED
+UNKNOWN
+
+================================================================
+40. UNKNOWN STATE
+================================================================
+
+Network/process crash can make outcome unknown.
+
+UNKNOWN must trigger reconciliation.
+
+Never immediately retry blindly.
+
+================================================================
+41. PUSH OPERATION
+================================================================
+
+Keep AUTO_LOCAL_ONLY default.
+
+Real push tests only against:
+
+local bare repository
+
+or explicitly configured sandbox remote.
+
+================================================================
+42. LOCAL BARE REMOTE
+================================================================
+
+For no-cost E3/E4 local Git proof:
+
+create local bare Git repository.
+
+Use it as real remote.
+
+Test:
+
+push
+branch existence
+retry
+
+No GitHub required.
+
+================================================================
+43. PUSH IDEMPOTENCY
+================================================================
+
+Crash after remote accepted push.
+
+Restart.
+
+Check remote ref.
+
+Do not create redundant divergent push.
+
+================================================================
+44. FORCE PUSH
+================================================================
+
+Still default denied.
+
+Do not add simply for test convenience.
+
+================================================================
+45. LOCAL REMOTE E2E
+================================================================
+
+Required:
+
+repo
+→ worktree
+→ patch
+→ tests
+→ commit
+→ local bare remote push
+
+All using real Git.
+
+================================================================
+46. GITHUB PROVIDER LAYER
+================================================================
+
+Keep FakeGitHubProvider for deterministic tests.
+
+Do not label it E4.
+
+================================================================
+47. OPTIONAL REAL GITHUB SANDBOX
+================================================================
+
+Support explicitly configured test repository.
+
+Requirements:
+
+dedicated sandbox repository
+explicit env/config
+never default user's production repo
+safe test branch namespace
+
+================================================================
+48. REAL GITHUB TEST SAFETY
+================================================================
+
+Before mutation verify:
+
+repository allowlisted
+test mode
+branch prefix
+base branch
+
+If not:
+
+abort.
+
+================================================================
+49. REAL PR TEST
+================================================================
+
+Optional E4:
+
+push branch
+create PR
+read PR
+verify same PR via operation ID/branch
+
+Do not merge by default.
+
+================================================================
+50. PR RECONCILIATION
+================================================================
+
+Crash after GitHub accepted PR.
+
+Restart.
+
+Search by:
+
+repository
+head branch
+task metadata
+
+Recover PR ID.
+
+No duplicate.
+
+================================================================
+51. PR OPERATION JOURNAL
+================================================================
+
+Persist:
+
+operation
+repository
+head
+base
+provider request reference
+PR number/url
+status
+
+================================================================
+52. GITHUB WEBHOOK
+================================================================
+
+If GitHub sandbox emits webhook:
+
+ingest through existing durable inbox.
+
+Do not require webhook for PR verification if polling API is sufficient.
+
+================================================================
+53. CI DISCOVERY
+================================================================
+
+Upgrade-19 still reported:
+
+CI_DISCOVERY = NOT_TESTED
+
+Implement actual `.github/workflows` discovery.
+
+================================================================
+54. WORKFLOW PARSER
+================================================================
+
+Parse bounded workflow metadata.
+
+Discover:
+
+workflow name
+triggers
+jobs
+likely test/lint/build steps
+
+Do not execute workflow YAML locally.
+
+================================================================
+55. CI COMMAND EVIDENCE
+================================================================
+
+CI workflow may provide evidence for validation discovery.
+
+But:
+
+CI shell fragment
+!=
+automatically safe local command.
+
+================================================================
+56. CI OBSERVATION MODEL
+================================================================
+
+Persist:
+
+provider
+run ID
+workflow
+commit SHA
+status
+conclusion
+started
+completed
+
+================================================================
+57. FAKE CI E2E
+================================================================
+
+FakeGitHub:
+
+PR
+→ CI pending
+→ fail
+→ repair
+→ push
+→ pass
+
+Persist every state across process restart.
+
+================================================================
+58. CI REPAIR PERSISTENCE
+================================================================
+
+CI repair attempts survive restart.
+
+Do not reset repair count to zero.
+
+================================================================
+59. CI REPAIR BOUND
+================================================================
+
+Persist:
+
+max repairs
+repairs consumed
+
+Crash cannot reset budget.
+
+================================================================
+60. CI FAILURE FINGERPRINT
+================================================================
+
+Same CI failure + same patch result:
+
+no-progress.
+
+Do not spam commits.
+
+================================================================
+61. OPTIONAL REAL CI SANDBOX
+================================================================
+
+Only if sandbox supports deterministic cheap workflow.
+
+Run actual workflow.
+
+Observe result.
+
+Evidence:
+
+E4.
+
+================================================================
+62. MERGE REMAINS SEPARATE
+================================================================
+
+Do NOT make real merge a requirement of Upgrade-21.
+
+Focus:
+
+durability + PR/CI truth.
+
+Merge remains explicit high-risk operation.
+
+================================================================
+63. APPROVAL PERSISTENCE
+================================================================
+
+Approvals must survive restart.
+
+Persist:
+
+task
+attempt
+action
+payload hash
+policy version
+actor
+expiry
+
+================================================================
+64. APPROVAL REPLAY
+================================================================
+
+Restart cannot accidentally detach approval from payload.
+
+================================================================
+65. APPROVAL EXPIRY
+================================================================
+
+Expired approval:
+
+invalid after restart.
+
+================================================================
+66. CANCEL PERSISTENCE
+================================================================
+
+Cancellation survives process restart.
+
+Cancelled task must not resume execution automatically.
+
+================================================================
+67. PAUSE PERSISTENCE
+================================================================
+
+Paused task remains paused.
+
+================================================================
+68. RETRY PERSISTENCE
+================================================================
+
+Retry creates durable new attempt.
+
+Historical attempts remain queryable.
+
+================================================================
+69. EVENT STORE
+================================================================
+
+Use existing durable event architecture.
+
+Engineering state transitions emit durable events.
+
+================================================================
+70. EVENT REPLAY
+================================================================
+
+Restart can reconstruct useful timeline from store.
+
+Do not require event replay to reconstruct all state if snapshots/store
+are authoritative.
+
+================================================================
+71. OUTBOX
+================================================================
+
+Remote external operations should use durable outbox/journal semantics
+where applicable.
+
+================================================================
+72. OPERATION IDEMPOTENCY
+================================================================
+
+Each external mutation has stable:
+
+operation_id
+
+Retry/restart uses same operation identity.
+
+================================================================
+73. PROCESS-LEVEL E2E
+================================================================
+
+Do not test crash recovery in same Python process only.
+
+Use subprocesses.
+
+Example:
+
+Process A
+creates task
+creates worktree
+writes checkpoint
+exits forcibly
+
+Process B
+loads DB
+resumes
+
+================================================================
+74. KILL POINTS
+================================================================
+
+Inject crash at:
+
+after task creation
+after worktree
+after edit
+after validation
+after commit
+after push
+after PR
+
+================================================================
+75. FAILURE INJECTION
+================================================================
+
+Provide deterministic test hook.
+
+Do not scatter `os._exit()` in production logic.
+
+================================================================
+76. CRASH AFTER EDIT
+================================================================
+
+Restart should inspect worktree state.
+
+Continue validation rather than regenerate patch blindly.
+
+================================================================
+77. CRASH AFTER VALIDATION
+================================================================
+
+Checkpoint preserves result.
+
+Avoid unnecessary re-execution when evidence is still valid.
+
+================================================================
+78. VALIDATION INVALIDATION
+================================================================
+
+If worktree changes after validation:
+
+old result becomes stale.
+
+================================================================
+79. CRASH AFTER COMMIT
+================================================================
+
+Detect commit.
+
+Update checkpoint.
+
+No duplicate commit.
+
+================================================================
+80. CRASH AFTER PUSH
+================================================================
+
+Inspect remote ref.
+
+Reconcile.
+
+================================================================
+81. CRASH AFTER PR
+================================================================
+
+Inspect provider.
+
+Reconcile.
+
+================================================================
+82. MULTI-PROCESS CLAIM TEST
+================================================================
+
+At least:
+
+3 independent worker processes
+
+multiple engineering tasks
+
+prove:
+
+exactly one authoritative attempt executes each claim.
+
+================================================================
+83. SAME-REPO CONCURRENCY
+================================================================
+
+Two tasks same repository.
+
+Each:
+
+separate branch
+separate worktree
+separate checkpoints
+
+No filesystem collision.
+
+================================================================
+84. BASE BRANCH ADVANCE
+================================================================
+
+Task A begins.
+
+Base branch advances.
+
+Before push/PR:
+
+detect drift.
+
+================================================================
+85. BASE DRIFT POLICY
+================================================================
+
+Possible:
+
+CONTINUE_IF_SAFE
+REBASE_REQUIRED
+REPLAN_REQUIRED
+BLOCK
+
+Do not silently ignore.
+
+================================================================
+86. REAL REBASE TEST
+================================================================
+
+Use local Git fixture.
+
+Test clean rebase.
+
+Test conflict.
+
+================================================================
+87. REBASE CONFLICT
+================================================================
+
+Conflict:
+
+WAITING_APPROVAL
+or
+FAILED_CONFLICT
+
+according to policy.
+
+Do not auto-resolve dangerous conflicts invisibly.
+
+================================================================
+88. DURABLE PROJECT READINESS
+================================================================
+
+Readiness/baseline data may persist.
+
+But verify staleness against HEAD/config fingerprint.
+
+================================================================
+89. CONFIG MERGE
+================================================================
+
+Upgrade-19 left CONFIG_MERGE NOT_TESTED.
+
+Implement now.
+
+Rules:
+
+existing human values preserved
+generated defaults fill missing
+security policy cannot be weakened
+
+================================================================
+90. CONFIG MERGE TEST
+================================================================
+
+Existing `.zcoder` config.
+
+Bootstrap refresh.
+
+Verify manual values remain.
+
+================================================================
+91. DRIFT DETECTION
+================================================================
+
+Upgrade-19 left DRIFT_DETECTION NOT_TESTED.
+
+Implement deterministic drift detection.
+
+Detect:
+
+HEAD
+manifest
+CI
+AGENTS
+validators
+model/project config
+
+================================================================
+92. NO POLLING REQUIREMENT
+================================================================
+
+Drift detection need not continuously poll.
+
+On:
+
+status
+bootstrap refresh
+task start
+
+is acceptable.
+
+================================================================
+93. MCP TRUST
+================================================================
+
+Upgrade-19 left MCP_TRUST NOT_TESTED.
+
+Close this gate.
+
+Discovered unknown MCP server:
+
+DISABLED_UNTRUSTED
+
+until approved.
+
+================================================================
+94. MCP TRUST PERSISTENCE
+================================================================
+
+Trust decision stored durably.
+
+Restart preserves decision.
+
+================================================================
+95. MCP SECRET BOUNDARY
+================================================================
+
+MCP credentials remain SecretRef.
+
+No task/checkpoint dump contains raw secret.
+
+================================================================
+96. REAL LOCAL MODEL — OPTIONAL BUT PRIORITY
+================================================================
+
+Upgrade-20:
+
+REAL_LOCAL_RUNTIME = NOT_TESTED
+
+Try to close if environment permits.
+
+Do not fabricate.
+
+================================================================
+97. LOCAL RUNTIME DISCOVERY
+================================================================
+
+Check actual:
+
+llama.cpp
+Ollama list
+configured local endpoint
+
+If none:
+
+NOT_TESTED
+
+is acceptable.
+
+================================================================
+98. NO AUTOMATIC LARGE DOWNLOAD
+================================================================
+
+Still prohibited.
+
+================================================================
+99. SMALL LOCAL MODEL
+================================================================
+
+If explicitly available/configured:
+
+run real deterministic small coding fixture.
+
+Record:
+
+runtime
+version
+model
+digest
+actual tokens
+patch
+tests
+
+================================================================
+100. REAL LOCAL ENGINEERING EVIDENCE
+================================================================
+
+E4 requires:
+
+actual local model
+actual Git worktree
+actual patch
+actual validation
+actual commit
+
+This is stronger than merely real inference.
+
+================================================================
+101. REAL MODEL FAILURE
+================================================================
+
+If model cannot solve fixture:
+
+LOCAL_RUNTIME_VERIFIED may PASS
+
+while:
+
+LOCAL_ENGINEERING_VERIFIED = FAILED_MODEL_QUALITY
+
+Do not fake success.
+
+================================================================
+102. SELF-HOSTED WEB
+================================================================
+
+Upgrade-20:
+
+WEB_SELF_HOSTED = NOT_TESTED.
+
+If Web is claimed as release profile:
+
+install its optional dependencies in dedicated profile and run tests.
+
+Otherwise keep NOT_TESTED.
+
+================================================================
+103. DATABASE SCHEMA MIGRATIONS
+================================================================
+
+Create migration for durable engineering state.
+
+Do not create tables ad hoc during runtime production startup.
+
+================================================================
+104. SQLITE MIGRATION
+================================================================
+
+Provide explicit schema version.
+
+================================================================
+105. POSTGRES MIGRATION
+================================================================
+
+Integrate into existing migration system.
+
+Verify RLS policies.
+
+================================================================
+106. MIGRATION ROLLBACK / COMPATIBILITY
+================================================================
+
+Document supported upgrade path.
+
+Avoid destructive migration.
+
+================================================================
+107. STORAGE RECOVERY
+================================================================
+
+Corrupt/missing SQLite DB:
+
+fail clearly.
+
+Do not silently initialize new empty state over corrupted store.
+
+================================================================
+108. SQLITE BACKUP
+================================================================
+
+Local durable state should participate in local backup.
+
+No PITR claim.
+
+================================================================
+109. POSTGRES BACKUP
+================================================================
+
+Existing backup system should include engineering tables.
+
+================================================================
+110. ARTIFACT REFERENCES
+================================================================
+
+Checkpoint/store should reference large logs/diffs via artifact IDs.
+
+Do not store megabytes of stdout in task row.
+
+================================================================
+111. LOG RETENTION
+================================================================
+
+Bound detailed execution logs.
+
+================================================================
+112. SECRET REDACTION
+================================================================
+
+Apply before persistence.
+
+================================================================
+113. TASK QUERY API
+================================================================
+
+Provide durable queries:
+
+list tasks
+get task
+attempt history
+checkpoints
+operations
+
+================================================================
+114. CLI
+================================================================
+
+Commands should survive restart:
+
+zcoder jobs list
+zcoder jobs status ID
+zcoder jobs watch ID
+zcoder jobs plan ID
+zcoder jobs diff ID
+zcoder jobs resume ID
+zcoder jobs retry ID
+zcoder jobs cancel ID
+
+================================================================
+115. RESTART UX
+================================================================
+
+After restart:
+
+zcoder jobs list
+
+must show previous tasks.
+
+================================================================
+116. DAEMON MODE
+================================================================
+
+If agent worker daemon exists:
+
+engineering state comes from durable store.
+
+No essential scheduler state only in RAM.
+
+================================================================
+117. SINGLE-HOST LOCAL MODE
+================================================================
+
+SQLite + local Git + local model/FakeLocalModel.
+
+No external infrastructure.
+
+================================================================
+118. MULTI-PROCESS SELF-HOSTED MODE
+================================================================
+
+PostgreSQL coordination.
+
+Same durable engineering model.
+
+================================================================
+119. NO REDIS/KAFKA
+================================================================
+
+Do not introduce them.
+
+Use existing database coordination primitives.
+
+================================================================
+120. OBSERVABILITY
+================================================================
+
+Metrics:
+
+engineering_store_operations_total
+engineering_resume_total
+operation_reconciliations_total
+orphan_worktrees_total
+duplicate_prevented_total
+ci_repairs_total
+
+Avoid high-cardinality task IDs.
+
+================================================================
+121. DURABILITY SLO BOUNDARY
+================================================================
+
+Do not claim SLO yet.
+
+Measure:
+
+recovery success
+resume latency
+
+for tests.
+
+================================================================
+122. DATA INTEGRITY CHECK
+================================================================
+
+Provide doctor diagnostics:
+
+zcoder doctor engineering
+
+Check:
+
+schema version
+store connectivity
+orphan attempts
+orphan worktrees
+unknown operations
+stale leases
+
+================================================================
+123. RECONCILIATION COMMAND
+================================================================
+
+Optional:
+
+zcoder jobs reconcile
+
+Read-only by default.
+
+Apply mutation only with explicit flag.
+
+================================================================
+124. ORPHAN REPORT
+================================================================
+
+List:
+
+DB-only worktrees
+Git-only managed worktrees
+unknown operations
+stale attempts
+
+================================================================
+125. SECURITY
+================================================================
+
+Audit:
+
+SQL injection
+tenant scope
+path traversal
+symlink
+Git command injection
+branch injection
+remote URL
+MCP trust
+checkpoint secret leakage
+operation replay
+approval replay
+
+================================================================
+126. REMOTE URL SAFETY
+================================================================
+
+Task/issue text cannot replace Git remote.
+
+Remote comes from trusted project config/repository.
+
+================================================================
+127. BRANCH INJECTION
+================================================================
+
+Branch generated using safe identifier.
+
+No shell metacharacters.
+
+================================================================
+128. GIT CONFIG SAFETY
+================================================================
+
+Do not edit global Git config.
+
+================================================================
+129. HOOKS
+================================================================
+
+Understand Git hooks may execute during commit.
+
+Document/security-review this behavior.
+
+For deterministic tests:
+
+control hooks.
+
+================================================================
+130. GIT HOOK POLICY
+================================================================
+
+Do not disable project hooks globally merely to make tests pass.
+
+Local task policy may explicitly control hook execution.
+
+================================================================
+131. SUBMODULES
+================================================================
+
+Detect submodules.
+
+Do not modify/update recursively without explicit requirement.
+
+================================================================
+132. LARGE FILES
+================================================================
+
+Respect Git LFS/project behavior where present.
+
+Do not auto-install Git LFS.
+
+================================================================
+133. REAL GIT TEST SUITE
+================================================================
+
+Add dedicated tests using actual git CLI.
+
+Do not mock Git subprocess.
+
+================================================================
+134. DURABLE STORE TEST SUITE
+================================================================
+
+Separate:
+
+SQLite
+PostgreSQL
+
+================================================================
+135. SUBPROCESS RECOVERY TEST SUITE
+================================================================
+
+Required process A/B crash tests.
+
+================================================================
+136. OPERATION JOURNAL TEST SUITE
+================================================================
+
+Test:
+
+commit known success
+commit unknown
+push unknown
+PR unknown
+reconcile
+
+================================================================
+137. CI DISCOVERY TEST SUITE
+================================================================
+
+Fixtures:
+
+GitHub Actions test workflow
+lint workflow
+malformed workflow
+unsafe shell fragments
+
+================================================================
+138. MCP TRUST TEST SUITE
+================================================================
+
+Unknown server never auto-enables.
+
+================================================================
+139. CONFIG MERGE TEST SUITE
+================================================================
+
+Human config preserved.
+
+================================================================
+140. DRIFT TEST SUITE
+================================================================
+
+Manifest/HEAD changes invalidate readiness/baseline as intended.
+
+================================================================
+141. TEST COVERAGE EXPECTATION
+================================================================
+
+Upgrade-20 added 69 meaningful tests.
+
+Upgrade-21 should continue substantive behavioral coverage.
+
+Do not return to 3-test upgrade increments.
+
+================================================================
+142. REALITY TEST PROFILE
+================================================================
+
+Add profile:
+
+DURABLE_LOCAL_ENGINEERING
+
+Requires:
+
+real SQLite
+real Git repo
+real Git worktree
+real validators
+real git commit
+process restart
+resume
+
+Does NOT require a real LLM.
+
+================================================================
+143. REAL_GIT_ENGINEERING
+================================================================
+
+Evidence tier:
+
+E4 local-system
+
+when actual git CLI/filesystem/processes are exercised.
+
+================================================================
+144. LOCAL_MODEL_ENGINEERING
+================================================================
+
+Separate profile requiring actual model.
+
+================================================================
+145. GITHUB_SANDBOX
+================================================================
+
+Separate optional profile requiring real GitHub sandbox.
+
+================================================================
+146. CI_SANDBOX
+================================================================
+
+Separate optional profile requiring real CI execution.
+
+================================================================
+147. RELEASE PROFILES
+================================================================
+
+Maintain:
+
+CORE_FREE
+PROJECT_BOOTSTRAP
+LOCAL_DX_READY
+LOCAL_PRODUCTION_RUNTIME
+QUALITY_ENGINEERING
+AUTONOMOUS_ENGINEERING
+
+Add:
+
+DURABLE_ENGINEERING
+REAL_GIT_ENGINEERING
+
+Keep:
+
+LOCAL_RUNTIME_VERIFIED
+LOCAL_ENGINEERING_VERIFIED
+PR_AUTOMATION_VERIFIED
+
+================================================================
+148. DURABLE_ENGINEERING PROFILE
+================================================================
+
+Requires:
+
+persistent store
+persistent attempts
+persistent checkpoints
+process restart
+operation journal
+idempotent resume
+durable approvals
+cancel/retry persistence
+
+================================================================
+149. REAL_GIT_ENGINEERING PROFILE
+================================================================
+
+Additionally:
+
+real repository
+real worktree
+real diff
+real validator
+real commit
+local remote push
+
+================================================================
+150. RELEASE GATES
+================================================================
+
+Add:
+
+ENGINEERING_STORE
+SQLITE_DURABILITY
+POSTGRES_ENGINEERING_STORE
+
+TASK_PERSISTENCE
+ATTEMPT_PERSISTENCE
+CHECKPOINT_PERSISTENCE
+
+PROCESS_RESTART_RECOVERY
+HARD_CRASH_RECOVERY
+
+REAL_GIT_REPOSITORY
+REAL_GIT_WORKTREE
+WORKTREE_RECONCILIATION
+
+REAL_GIT_DIFF
+REAL_VALIDATION
+REAL_COMMIT
+
+OPERATION_JOURNAL
+COMMIT_RECONCILIATION
+PUSH_RECONCILIATION
+
+LOCAL_REMOTE_PUSH
+
+CI_DISCOVERY
+CI_STATE_PERSISTENCE
+CI_REPAIR_PERSISTENCE
+
+CONFIG_MERGE
+DRIFT_DETECTION
+MCP_TRUST
+
+DURABLE_ENGINEERING
+REAL_GIT_ENGINEERING
+
+================================================================
+151. RELEASE GATE EXAMPLE
+================================================================
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+NO_COST_CORE: PASS
+ZERO_PAID_CALLS: PASS
+OFFLINE_EXECUTION: PASS
+
+AUTONOMOUS_ENGINEERING: PASS
+
+ENGINEERING_STORE: PASS
+SQLITE_DURABILITY: PASS
+POSTGRES_ENGINEERING_STORE:
+    evidence-derived
+
+TASK_PERSISTENCE: PASS
+ATTEMPT_PERSISTENCE: PASS
+CHECKPOINT_PERSISTENCE: PASS
+
+PROCESS_RESTART_RECOVERY: PASS
+HARD_CRASH_RECOVERY: PASS
+
+REAL_GIT_REPOSITORY: PASS
+REAL_GIT_WORKTREE: PASS
+WORKTREE_RECONCILIATION: PASS
+
+REAL_GIT_DIFF: PASS
+REAL_VALIDATION: PASS
+REAL_COMMIT: PASS
+
+OPERATION_JOURNAL: PASS
+COMMIT_RECONCILIATION: PASS
+PUSH_RECONCILIATION: PASS
+LOCAL_REMOTE_PUSH: PASS
+
+CI_DISCOVERY: PASS
+CI_STATE_PERSISTENCE: PASS
+CI_REPAIR_PERSISTENCE: PASS
+
+CONFIG_MERGE: PASS
+DRIFT_DETECTION: PASS
+MCP_TRUST: PASS
+
+DURABLE_ENGINEERING: PASS
+REAL_GIT_ENGINEERING: PASS
+
+REAL_LOCAL_RUNTIME:
+    evidence-derived
+
+LOCAL_ENGINEERING_VERIFIED:
+    evidence-derived
+
+PR_AUTOMATION_VERIFIED:
+    evidence-derived
+
+REAL_GITHUB_SANDBOX:
+    NOT_TESTED or PASS
+
+REAL_CI_SANDBOX:
+    NOT_TESTED or PASS
+
+WEB_SELF_HOSTED:
+    evidence-derived
+
+PITR:
+    PASS_WITH_LIMITATIONS
+
+SECURITY: PASS
+DOCS: PASS
+
+FINAL:
+    evidence-derived
+
+================================================================
+152. VERSION DECISION
+================================================================
+
+The repository has accumulated Upgrades 14-20 under v1.40.0.
+
+Inspect:
+
+tags
+release metadata
+package metadata
+
+If 1.40.0 remains genuinely unreleased:
+
+document pre-release accumulation.
+
+If 1.40.0 is already published:
+
+choose a new SemVer.
+
+Do not keep changing released code while claiming same immutable release
+version.
+
+================================================================
+153. DOCUMENTATION
+================================================================
+
+Add:
+
+docs/UPGRADE-21.md
+docs/ENGINEERING-DURABILITY.md
+docs/ENGINEERING-STORE.md
+docs/ENGINEERING-RECOVERY.md
+docs/REAL-GIT-EXECUTION.md
+docs/OPERATION-JOURNAL.md
+docs/GIT-RECONCILIATION.md
+docs/CI-DISCOVERY.md
+docs/CI-STATE.md
+docs/GITHUB-SANDBOX-TESTING.md
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+docs/AUTONOMOUS-ENGINEERING.md
+docs/PROJECT-BOOTSTRAP.md
+
+================================================================
+154. REQUIRED FINAL COMMANDS
+================================================================
+
+Run:
+
+python -m pytest -q -ra
+python main.py --version
+python -m build
+
+clean wheel install
+zcoder --version
+
+git diff --check
+git status --short
+
+Run separately:
+
+SQLite durable store suite
+PostgreSQL engineering store suite if available
+
+real Git suite
+real worktree suite
+real validation suite
+real commit suite
+local bare remote push suite
+
+process restart suite
+hard crash suite
+operation reconciliation suite
+
+CI discovery suite
+CI persistence suite
+
+config merge
+drift
+MCP trust
+
+offline durable E2E
+zero-paid durable E2E
+
+Optional:
+
+real local model E2E
+real GitHub sandbox
+real CI sandbox
+
+Never fabricate unavailable environments.
+
+================================================================
+155. REQUIRED PROCESS-RESTART EVIDENCE
+================================================================
+
+Report actual:
+
+Process A PID
+checkpoint written
+forced termination
+Process B PID
+task restored
+attempt restored
+worktree restored
+commit detected
+final outcome
+
+Do not describe a same-process object reload as crash recovery.
+
+================================================================
+156. REQUIRED REAL GIT EVIDENCE
+================================================================
+
+Report:
+
+git version
+repo path
+baseline SHA
+worktree path
+branch
+patch
+validator before
+validator after
+commit SHA
+local remote ref
+
+This may use temporary test repository.
+
+================================================================
+157. DEFINITION OF DONE
+================================================================
+
+Upgrade-21 is complete only when:
+
+[ ] Upgrade-20 durability claims are corrected
+[ ] durable EngineeringStore exists
+[ ] SQLite is default durable local store
+[ ] PostgreSQL implementation uses existing tenancy model
+[ ] tasks survive process restart
+[ ] attempts survive restart
+[ ] checkpoints survive restart
+[ ] approvals survive restart
+[ ] cancellations survive restart
+[ ] retry history survives restart
+[ ] hard crash is tested with separate process
+[ ] real Git repository is exercised
+[ ] actual git worktree is exercised
+[ ] primary workspace remains unchanged
+[ ] worktree reconciliation works after restart
+[ ] real validator fail->pass is executed
+[ ] actual Git diff feeds review
+[ ] actual commit is created
+[ ] commit crash window is reconciled
+[ ] local bare remote push is real
+[ ] push crash window is reconciled
+[ ] external-operation journal exists
+[ ] unknown operation state triggers reconcile, not blind retry
+[ ] CI discovery is implemented
+[ ] CI repair budgets persist
+[ ] CONFIG_MERGE gap is closed
+[ ] DRIFT_DETECTION gap is closed
+[ ] MCP_TRUST gap is closed
+[ ] multi-process task claiming is safe
+[ ] stale worker cannot mutate remote state
+[ ] GitHub remains optional
+[ ] no-cost local engineering requires no cloud account
+[ ] real local model evidence remains separately classified
+[ ] real GitHub evidence remains separately classified
+[ ] inherited RLS/security/runtime gates remain green
+
+================================================================
+158. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-20 Durability Corrections
+
+Capability | Previous | Actual Evidence | Corrected Tier | Verdict
+
+## 3. Version Decision
+
+## 4. Durable Engineering Architecture
+
+## 5. Engineering Store
+
+Backend:
+Schema version:
+Durability:
+Tenant isolation:
+
+## 6. Task Persistence
+
+## 7. Attempt Persistence
+
+## 8. Checkpoint Persistence
+
+## 9. Process Restart
+
+Process A:
+Crash point:
+Process B:
+Recovered state:
+Result:
+
+## 10. Hard Crash Recovery
+
+## 11. Real Git Repository
+
+Git version:
+Repository:
+Baseline SHA:
+
+## 12. Real Git Worktree
+
+Path:
+Branch:
+Base SHA:
+Primary workspace changed?:
+
+## 13. Real Edit / Diff
+
+## 14. Real Validation
+
+Command | Before | After | Delta
+
+## 15. Real Commit
+
+Commit SHA:
+Parent:
+Idempotency:
+
+## 16. Operation Journal
+
+## 17. Commit Reconciliation
+
+## 18. Local Remote Push
+
+Remote:
+Branch:
+Result:
+Restart reconciliation:
+
+## 19. GitHub
+
+Fake provider:
+Real sandbox:
+PR:
+Evidence tier:
+
+## 20. CI Discovery
+
+## 21. CI State / Repair Persistence
+
+## 22. Config Merge
+
+## 23. Drift Detection
+
+## 24. MCP Trust
+
+## 25. Multi-Process Coordination
+
+Processes:
+Tasks:
+Duplicate executions:
+Stale worker mutations:
+
+## 26. Offline / Zero-Paid Proof
+
+Anthropic:
+OpenAI paid:
+Stripe:
+Hosted embeddings:
+Other paid:
+
+## 27. Real Local Model
+
+Status:
+Runtime:
+Model:
+Digest:
+Evidence:
+
+## 28. Real Autonomous Local Engineering
+
+Status:
+Patch:
+Validation:
+Commit:
+Evidence tier:
+
+## 29. Real GitHub Sandbox
+
+Status:
+PR:
+CI:
+Evidence tier:
+
+## 30. Security Review
+
+## 31. Tests
+
+passed:
+failed:
+required skipped:
+optional skipped:
+xfailed:
+deselected:
+
+Break down:
+
+store
+SQLite
+PostgreSQL
+restart
+hard crash
+real Git
+worktree
+validation
+commit
+push
+reconciliation
+CI
+config/drift
+MCP
+security
+offline
+real local
+GitHub sandbox
+
+## 32. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 33. Release Profiles
+
+CORE_FREE:
+PROJECT_BOOTSTRAP:
+LOCAL_DX_READY:
+AUTONOMOUS_ENGINEERING:
+DURABLE_ENGINEERING:
+REAL_GIT_ENGINEERING:
+LOCAL_PRODUCTION_RUNTIME:
+QUALITY_ENGINEERING:
+LOCAL_RUNTIME_VERIFIED:
+LOCAL_ENGINEERING_VERIFIED:
+PR_AUTOMATION_VERIFIED:
+SELF_HOSTED:
+SAAS:
+
+## 34. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+NO_COST_CORE:
+ZERO_PAID_CALLS:
+OFFLINE_EXECUTION:
+
+AUTONOMOUS_ENGINEERING:
+
+ENGINEERING_STORE:
+SQLITE_DURABILITY:
+POSTGRES_ENGINEERING_STORE:
+
+TASK_PERSISTENCE:
+ATTEMPT_PERSISTENCE:
+CHECKPOINT_PERSISTENCE:
+
+PROCESS_RESTART_RECOVERY:
+HARD_CRASH_RECOVERY:
+
+REAL_GIT_REPOSITORY:
+REAL_GIT_WORKTREE:
+WORKTREE_RECONCILIATION:
+
+REAL_GIT_DIFF:
+REAL_VALIDATION:
+REAL_COMMIT:
+
+OPERATION_JOURNAL:
+COMMIT_RECONCILIATION:
+PUSH_RECONCILIATION:
+LOCAL_REMOTE_PUSH:
+
+CI_DISCOVERY:
+CI_STATE_PERSISTENCE:
+CI_REPAIR_PERSISTENCE:
+
+CONFIG_MERGE:
+DRIFT_DETECTION:
+MCP_TRUST:
+
+DURABLE_ENGINEERING:
+REAL_GIT_ENGINEERING:
+
+REAL_LOCAL_RUNTIME:
+LOCAL_ENGINEERING_VERIFIED:
+
+PR_AUTOMATION_VERIFIED:
+REAL_GITHUB_SANDBOX:
+REAL_CI_SANDBOX:
+
+WEB_SELF_HOSTED:
+
+PITR:
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 35. Files Changed
+
+## 36. Remaining Limitations
+
+Explicitly state:
+
+real SQLite restart?
+real PostgreSQL multi-process?
+real git worktree?
+real git commit?
+real local remote push?
+real local model?
+real autonomous model-generated patch?
+real GitHub sandbox?
+real CI?
+merge?
+Web?
+Windows?
+macOS?
+GPU?
+PITR?
+PostgreSQL HA?
+multi-region?
+
+## 37. Final Verdict
+
+Never call:
+
+CHECKPOINT RECOVERY DURABLE
+
+when checkpoints only exist in RAM.
+
+Never call:
+
+REAL GIT WORKTREE VERIFIED
+
+without actual git worktree execution.
+
+Never call:
+
+LOCAL ENGINEERING VERIFIED
+
+because FakeLocalModel modified a fixture.
+
+Never call:
+
+PR AUTOMATION VERIFIED
+
+because FakeGitHub returned a fake PR number.
+
+Never blindly repeat push/PR after an UNKNOWN side-effect state.
+
+Reconcile first.
+
+Upgrade-21 succeeds when an autonomous engineering task can survive the
+death of the ZCoder process and continue from durable state against a
+real Git repository without duplicating commits or remote mutations.

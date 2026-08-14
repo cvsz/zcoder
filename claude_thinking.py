@@ -65,6 +65,7 @@ EFFORT_BUDGETS = {
 # accepted (--effort-legacy-budget can still target these). On every
 # other model in this set, manual budget_tokens is a hard 400 error.
 ADAPTIVE_THINKING_MODELS = {
+    "claude-opus-5",
     "claude-mythos-5", "claude-fable-5",
     "claude-opus-4-8", "claude-opus-4-7",
     "claude-sonnet-5",
@@ -75,6 +76,7 @@ ADAPTIVE_THINKING_MODELS = {
 # Models where budget_tokens is a hard 400 — adaptive is the *only*
 # working mode, --effort-legacy-budget must refuse rather than fail late.
 BUDGET_TOKENS_UNSUPPORTED_MODELS = {
+    "claude-opus-5",
     "claude-mythos-5", "claude-fable-5",
     "claude-opus-4-8", "claude-opus-4-7",
     "claude-sonnet-5",

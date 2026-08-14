@@ -1,0 +1,2512 @@
+# UPGRADE-09
+
+# Production Deployment Stack, Reliability Engineering,
+
+# Identity, Secrets, Observability, Backup/PITR,
+
+# Rolling Upgrades & Disaster-Recovery Verification
+
+You are working directly inside ZCoder after Upgrade-08.
+
+Upgrade-08 reportedly provides:
+
+* SQLite local mode
+* PostgreSQL control-plane architecture
+* migrations
+* atomic claims
+* fencing tokens
+* leases
+* durable outbox
+* webhook inbox deduplication
+* GitHub App fleet registry
+* installation routing
+* repository trust policies
+* tenant isolation
+* Operations API
+* 544 tests passing
+* 2 optional skips
+* FINAL PASS
+
+Treat every claim as untrusted until verified.
+
+============================================================
+MISSION
+=======
+
+Turn ZCoder into a deployable and operable production service with
+measurable reliability properties.
+
+This release is NOT primarily about adding more agent features.
+
+The objective is:
+
+CODE
+↓
+BUILD
+↓
+SIGNED / SCANNED ARTIFACT
+↓
+DEPLOY
+↓
+HEALTH / READINESS
+↓
+OBSERVE
+↓
+SCALE
+↓
+ROLL
+↓
+BACK UP
+↓
+RESTORE
+↓
+FAIL OVER / RECOVER
+↓
+PROVE THE SYSTEM STILL WORKS
+
+Target deployment architecture:
+
+```
+                Internet / Internal Network
+                          │
+                          ▼
+                 Ingress / Load Balancer
+                          │
+             ┌────────────┴─────────────┐
+             ▼                          ▼
+      Control Plane API A        Control Plane API B
+             │                          │
+             └────────────┬─────────────┘
+                          │
+                          ▼
+                     PostgreSQL
+                   Primary / HA
+                          │
+             ┌────────────┼────────────┐
+             ▼            ▼            ▼
+          Worker A     Worker B     Worker C
+             │            │            │
+             ├ Agent SDK  ├ Managed    ├ Direct
+             │            │ Agents     │
+             └────────────┴────────────┘
+
+                          │
+                   OpenTelemetry
+                          │
+             ┌────────────┼────────────┐
+             ▼            ▼            ▼
+          Metrics       Traces       Logs
+             │
+          Alerts
+```
+
+Keep SQLite/local mode working.
+
+Production mode must use explicit production configuration and must not
+silently degrade to unsafe local behavior.
+
+============================================================
+PHASE 0 — PROVE UPGRADE-08 FIRST
+================================
+
+Before implementing deployment infrastructure, verify the control plane.
+
+Run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -20
+
+python -m pytest -q
+python main.py --version
+python main.py --help
+python -m build
+git diff --check
+
+Inspect:
+
+control_plane.py
+agent_runtime.py
+github_orchestrator.py
+database/storage modules
+migration code
+tests/test_control_plane.py
+release gate
+CI workflows
+deployment files if any
+
+Create:
+
+UPGRADE-08 PRODUCTION PROOF MATRIX
+
+Capability
+Previous Claim
+Unit Evidence
+Real PostgreSQL Evidence
+Multi-Process Evidence
+Failure-Recovery Evidence
+Verdict
+
+Allowed verdicts:
+
+VERIFIED
+UNIT_ONLY
+MOCK_ONLY
+SINGLE_PROCESS_ONLY
+POSTGRES_NOT_PROVEN
+PARTIAL
+INCORRECT
+MISSING
+
+Do not proceed to production claims while any P0 item is UNIT_ONLY or
+POSTGRES_NOT_PROVEN.
+
+============================================================
+
+1. REAL POSTGRESQL INTEGRATION TEST
+   ============================================================
+
+Bring up an actual PostgreSQL instance using:
+
+* CI service container
+* Docker Compose
+* Testcontainers
+* or equivalent isolated test infrastructure
+
+Do not use SQLite compatibility tests as evidence of PostgreSQL
+correctness.
+
+Test actual:
+
+transactions
+row locking
+SKIP LOCKED behavior where used
+unique constraints
+fencing
+lease renewal
+outbox claims
+inbox deduplication
+migration execution
+rollback behavior
+
+============================================================
+2. MULTI-PROCESS CLAIM TEST
+===========================
+
+Start:
+
+1 PostgreSQL
+2 independent worker OS processes
+
+Queue many jobs.
+
+Prove:
+
+each job claimed once
+no duplicate execution
+fencing generation is monotonic
+leases renew
+worker identity persists
+events remain ordered per job
+
+Do not use two Python objects inside one process as proof.
+
+============================================================
+3. WORKER CRASH PROOF
+=====================
+
+Worker A:
+
+claim job
+begin work
+
+Kill Worker A abruptly.
+
+Wait for controlled lease expiration.
+
+Worker B must:
+
+detect expiration
+reconcile external state
+acquire a newer fencing generation
+continue or correctly stop
+
+A stale Worker A write must be rejected if it returns.
+
+Test this explicitly.
+
+============================================================
+4. CONTROL PLANE CRASH PROOF
+============================
+
+Run workers independently.
+
+Kill API/scheduler.
+
+Workers should continue according to architecture.
+
+Restart API/scheduler.
+
+Verify:
+
+jobs
+workers
+leases
+events
+approvals
+GitHub mappings
+outbox
+
+are reconstructed from durable state.
+
+============================================================
+5. DATABASE RESTART PROOF
+=========================
+
+Restart PostgreSQL while the system is active.
+
+Verify:
+
+connection pool recovery
+transaction rollback
+lease behavior
+outbox safety
+no duplicate external mutation
+
+Do not claim DB restart tolerance if the service requires manual process
+restart unless documented.
+
+============================================================
+6. UPGRADE-08 GATE CORRECTION
+=============================
+
+If Upgrade-08 marked:
+
+MULTI_HOST_CLAIMS: PASS
+
+without a real shared PostgreSQL multi-process test, correct the audit
+history.
+
+Do not silently preserve a false PASS.
+
+Record:
+
+PREVIOUS_FALSE_POSITIVE
+
+where warranted.
+
+============================================================
+7. DEPLOYMENT PROFILES
+======================
+
+Provide at least:
+
+local
+development
+production
+
+Example conceptual behavior:
+
+local:
+SQLite
+one process
+no external ingress requirement
+
+development:
+Compose
+PostgreSQL
+API
+worker
+
+production:
+PostgreSQL
+authenticated API
+secure secrets
+multiple replicas
+health checks
+observability
+backup requirements
+
+Do not infer production merely from DEBUG=false.
+
+============================================================
+8. DOCKERFILE
+=============
+
+Create/harden production Docker images.
+
+Requirements:
+
+multi-stage build where beneficial
+minimal runtime dependencies
+non-root user
+deterministic package install
+no compiler toolchain in runtime image unless needed
+explicit entrypoint
+health behavior
+clean signal propagation
+
+Do not copy:
+
+.git
+.env
+tests secrets
+local databases
+credentials
+dist junk
+
+Use .dockerignore.
+
+============================================================
+9. IMAGE USER
+=============
+
+Application container must not run as root by default.
+
+Use a dedicated UID/GID.
+
+Ensure writable paths are explicit.
+
+Do not chmod 777 as a workaround.
+
+============================================================
+10. IMAGE IMMUTABILITY
+======================
+
+Treat application container filesystem as read-only where practical.
+
+Writable state belongs in:
+
+temporary directory
+workspace volume
+explicit persistent store
+
+Control-plane state belongs in PostgreSQL, not local container disk.
+
+============================================================
+11. CONTAINER SIGNAL HANDLING
+=============================
+
+PID 1 must handle SIGTERM correctly.
+
+Test:
+
+API shutdown
+worker shutdown
+
+Worker should:
+
+stop taking new jobs
+checkpoint/release safely
+close DB connections
+
+Do not wait for lease expiry unnecessarily during graceful shutdown if
+safe release is possible.
+
+============================================================
+12. DOCKER COMPOSE
+==================
+
+Provide production-like developer stack:
+
+services:
+
+postgres
+api
+worker
+optional observability components
+
+Use health dependencies correctly.
+
+Do not treat Compose as production HA.
+
+Document:
+
+docker compose up
+
+for reproducible local integration.
+
+============================================================
+13. COMPOSE POSTGRES
+====================
+
+Do not expose PostgreSQL publicly by default.
+
+Use internal network.
+
+Persist database data in explicit volume.
+
+Use healthcheck.
+
+Do not embed production passwords into compose.yaml.
+
+============================================================
+14. KUBERNETES BASE MANIFESTS
+=============================
+
+Provide production-capable Kubernetes resources or Helm templates.
+
+At minimum:
+
+API Deployment
+Worker Deployment
+Service
+ConfigMap where appropriate
+Secret references
+ServiceAccount
+PodDisruptionBudget
+NetworkPolicy where supported
+HorizontalPodAutoscaler where justified
+
+Do not deploy PostgreSQL inside the same chart as a fake HA production
+database unless explicitly marked development-only.
+
+============================================================
+15. HELM CHART
+==============
+
+Prefer a maintainable Helm chart if project conventions allow.
+
+Suggested:
+
+deploy/helm/zcoder/
+
+Chart.yaml
+values.yaml
+templates/
+
+Support values for:
+
+image
+replicas
+resources
+database
+worker concurrency
+ingress
+service
+telemetry
+auth
+secrets
+GitHub App
+Anthropic config
+
+Validate:
+
+helm lint
+
+and render manifests in CI.
+
+============================================================
+16. KUBERNETES READINESS
+========================
+
+Readiness must answer:
+
+"Can this instance safely receive traffic?"
+
+API readiness may depend on:
+
+database reachable
+migrations compatible
+required configuration valid
+
+Do not make GitHub/Anthropic transient outages necessarily fail
+readiness unless architecture requires them for all requests.
+
+============================================================
+17. KUBERNETES LIVENESS
+=======================
+
+Liveness answers:
+
+"Is the process internally healthy enough that restart is useful?"
+
+Do not make liveness depend on every external dependency.
+
+Otherwise a PostgreSQL outage can cause an unnecessary pod restart
+storm.
+
+============================================================
+18. STARTUP PROBE
+=================
+
+If startup may take time because of:
+
+initialization
+migration checks
+cache loading
+
+use startup semantics rather than huge liveness delays.
+
+============================================================
+19. HEALTH ENDPOINTS
+====================
+
+Implement clearly:
+
+/health/live
+/health/ready
+
+Optionally:
+
+/health/details
+
+Detailed health output must require appropriate access if it exposes
+sensitive operational information.
+
+============================================================
+20. MIGRATION SAFETY ON KUBERNETES
+==================================
+
+Do not let every API replica independently run unsafe schema migration.
+
+Implement one controlled strategy:
+
+migration Job
+init process with DB lock
+release pipeline migration step
+
+Document it.
+
+============================================================
+21. ROLLING DEPLOYMENT
+======================
+
+Configure rolling updates so old and new replicas overlap safely.
+
+Prove:
+
+old worker and new worker coexist
+protocol/version compatibility works
+fencing remains safe
+no duplicate work
+API continues serving
+
+============================================================
+22. ROLLING DB MIGRATION
+========================
+
+Apply expand/migrate/contract where schema changes require compatibility
+between versions.
+
+Test at least one representative migration with:
+
+old worker
+new schema
+new worker
+
+Do not claim zero-downtime migration for schemas not designed for it.
+
+============================================================
+23. POD DISRUPTION BUDGET
+=========================
+
+Protect API availability against voluntary disruptions where multiple
+replicas exist.
+
+Do not configure impossible PDB values such as requiring all replicas
+while also expecting routine node maintenance.
+
+============================================================
+24. RESOURCE REQUESTS
+=====================
+
+Set realistic baseline:
+
+CPU request
+memory request
+
+Workers and API should have separate profiles.
+
+Do not copy arbitrary internet values.
+
+Measure or document assumptions.
+
+============================================================
+25. RESOURCE LIMITS
+===================
+
+Decide deliberately whether CPU limits are appropriate.
+
+Set memory limits where useful.
+
+Test behavior near limits.
+
+Do not configure tiny memory limits simply to make manifests look
+complete.
+
+============================================================
+26. HORIZONTAL AUTOSCALING
+==========================
+
+API scaling signals may include:
+
+CPU
+request rate
+latency
+
+Worker scaling should preferably reflect:
+
+queue depth
+job wait time
+worker utilization
+
+CPU-only scaling may be a poor proxy for agent job demand.
+
+Design metric abstraction.
+
+============================================================
+27. SCALE-TO-ZERO
+=================
+
+Do not scale workers to zero if:
+
+lease reconciliation
+webhook processing
+required background maintenance
+
+depends on a worker existing.
+
+Separate maintenance roles if needed.
+
+============================================================
+28. NETWORK POLICY
+==================
+
+Define intended flows:
+
+Ingress -> API
+API -> PostgreSQL
+workers -> PostgreSQL
+API/workers -> GitHub
+workers -> Anthropic
+telemetry -> Collector
+
+Default deny where cluster/network implementation supports it.
+
+Do not permit workers arbitrary east-west traffic unnecessarily.
+
+============================================================
+29. EGRESS POLICY
+=================
+
+Worker egress is security-sensitive.
+
+Represent:
+
+GitHub API
+Anthropic API
+approved MCP targets
+package registries if explicitly required
+
+Do not pretend Kubernetes NetworkPolicy alone provides DNS/FQDN-aware
+security on every implementation.
+
+Document limitations.
+
+============================================================
+30. SERVICE ACCOUNTS
+====================
+
+Use dedicated Kubernetes ServiceAccounts.
+
+Do not mount broad Kubernetes API credentials into pods that do not need
+them.
+
+Disable automatic service account token mounting where unnecessary.
+
+============================================================
+31. KUBERNETES RBAC
+===================
+
+If ZCoder does not need Kubernetes API access:
+
+grant none.
+
+If deployment/operations integrations need it later:
+
+create minimum role.
+
+Never use cluster-admin by default.
+
+============================================================
+32. POD SECURITY
+================
+
+Harden pod/container securityContext.
+
+Consider:
+
+runAsNonRoot
+allowPrivilegeEscalation=false
+readOnlyRootFilesystem
+capabilities drop
+seccomp profile
+
+Account for worker sandbox requirements explicitly.
+
+Do not weaken the API pod because one specialized worker needs extra
+capability.
+
+============================================================
+33. WORKER POOLS
+================
+
+Different worker security requirements may justify pools:
+
+standard
+sandbox
+trusted
+high-isolation
+
+Scheduler uses worker capabilities.
+
+Do not let a restricted repository run on a privileged worker merely
+because it is idle.
+
+============================================================
+34. NODE PLACEMENT
+==================
+
+Support optional:
+
+nodeSelector
+affinity
+tolerations
+
+for specialized workers.
+
+Do not hardcode provider-specific labels.
+
+============================================================
+35. SECRET MANAGEMENT ABSTRACTION
+=================================
+
+Extend SecretRef.
+
+Potential providers:
+
+environment
+mounted file
+Kubernetes Secret reference
+external secret manager adapter
+
+Do not hardcode one cloud secret manager unless requested.
+
+============================================================
+36. NO PLAINTEXT SECRETS IN VALUES
+==================================
+
+Helm values should reference existing secret names/keys.
+
+Do not encourage:
+
+githubPrivateKey: |
+-----BEGIN PRIVATE KEY-----
+
+in committed values.
+
+============================================================
+37. SECRET ROTATION
+===================
+
+Document behavior for rotating:
+
+GitHub App private key
+webhook secret
+database credentials
+Anthropic credentials
+
+Prefer reload/restart semantics that avoid downtime where practical.
+
+============================================================
+38. GITHUB ACTIONS OIDC
+=======================
+
+For cloud deployments initiated from GitHub Actions:
+
+prefer OIDC-based short-lived cloud identity where supported.
+
+Do not require static long-lived cloud access keys in GitHub Secrets
+when OIDC can replace them.
+
+Scope trust conditions narrowly.
+
+============================================================
+39. DEPLOYMENT ENVIRONMENTS
+===========================
+
+Use GitHub Environments for production deployment workflows where
+appropriate.
+
+Apply:
+
+environment protection
+branch/tag restrictions
+required approval where required by policy
+
+Do not let an arbitrary PR deploy to production.
+
+============================================================
+40. RELEASE ARTIFACT
+====================
+
+Build once.
+
+Promote the same immutable image/artifact between:
+
+staging
+production
+
+Do not rebuild from source separately for production if avoidable.
+
+============================================================
+41. IMAGE TAGGING
+=================
+
+Publish immutable identity such as:
+
+version
+Git SHA
+
+Avoid production deployment solely by mutable:
+
+latest
+
+If convenience tags exist, deployment should still resolve immutable
+digest/tag.
+
+============================================================
+42. CONTAINER IMAGE DIGEST
+==========================
+
+Record image digest in release report.
+
+Support deployment by digest where practical.
+
+============================================================
+43. SBOM
+========
+
+Generate release SBOM.
+
+CycloneDX or SPDX is acceptable.
+
+Cover at least container/application dependencies.
+
+============================================================
+44. PROVENANCE
+==============
+
+Where build infrastructure supports it, emit artifact provenance.
+
+Do not falsely claim SLSA compliance unless requirements are actually
+met.
+
+============================================================
+45. VULNERABILITY SCAN
+======================
+
+Scan:
+
+Python dependencies
+container image
+
+Define severity policy.
+
+Do not fail every release forever on an irrelevant unfixed transitive
+finding without triage policy.
+
+But known exploitable critical vulnerabilities must block production.
+
+============================================================
+46. SIGNING
+===========
+
+Support artifact/container signing where practical.
+
+Keep signing keys out of repository.
+
+Keyless/OIDC-backed signing is welcome if environment supports it.
+
+Do not make unconfigured signing silently PASS.
+
+============================================================
+47. OBSERVABILITY ARCHITECTURE
+==============================
+
+Adopt OpenTelemetry as telemetry abstraction if consistent with current
+code.
+
+Instrument:
+
+API
+scheduler
+workers
+database
+GitHub calls
+Anthropic calls
+job execution
+outbox
+reconciler
+
+Avoid vendor lock-in in application instrumentation.
+
+============================================================
+48. TELEMETRY SIGNALS
+=====================
+
+Support:
+
+metrics
+traces
+logs correlation
+
+Do not force all logs through OTLP if existing structured logging is
+better retained.
+
+Correlate using:
+
+trace_id
+job_id
+attempt_id
+worker_id
+
+Do not expose these as high-cardinality Prometheus labels
+indiscriminately.
+
+============================================================
+49. OTEL COLLECTOR
+==================
+
+Provide optional OpenTelemetry Collector deployment/configuration.
+
+Do not send application telemetry directly to many vendors if a
+Collector architecture is selected.
+
+Support exporter configuration.
+
+============================================================
+50. TELEMETRY SECURITY
+======================
+
+Collector endpoints must not be anonymously exposed to the internet.
+
+Configure:
+
+authentication/encryption where required
+bounded receivers
+memory protection
+batching
+sensitive-data scrubbing
+
+Never export:
+
+API keys
+Authorization
+private keys
+raw vault secret values
+
+============================================================
+51. PROMETHEUS METRICS
+======================
+
+Expose useful application metrics.
+
+Examples:
+
+zcoder_jobs_queued
+zcoder_jobs_running
+zcoder_job_wait_seconds
+zcoder_job_duration_seconds
+zcoder_worker_active
+zcoder_worker_lease_expirations_total
+zcoder_outbox_pending
+zcoder_outbox_failures_total
+zcoder_webhooks_total
+zcoder_github_api_errors_total
+zcoder_anthropic_errors_total
+zcoder_db_pool_in_use
+zcoder_approvals_pending
+
+Use bounded labels.
+
+============================================================
+52. RED METRICS
+===============
+
+For API:
+
+rate
+errors
+duration
+
+For workers:
+
+queue wait
+execution duration
+failure rate
+capacity utilization
+
+For outbox:
+
+backlog
+age
+delivery latency
+failure rate
+
+============================================================
+53. DATABASE METRICS
+====================
+
+Monitor at least:
+
+connectivity
+pool saturation
+transaction errors
+lock wait symptoms
+query latency
+storage/connection pressure
+
+Do not collect sensitive query parameters.
+
+============================================================
+54. ALERTING
+============
+
+Create actionable alerts.
+
+Examples:
+
+APIUnavailable
+WorkerFleetEmpty
+QueueBacklogGrowing
+OldestQueuedJobTooOld
+OutboxStuck
+WebhookFailureRateHigh
+DatabaseUnavailable
+LeaseExpirySpike
+GitHubRateLimitCritical
+AnthropicFailureRateHigh
+BackupMissing
+RestoreDrillStale
+
+Every alert should include:
+
+meaning
+impact
+first diagnostic steps
+runbook link
+
+============================================================
+55. ALERTMANAGER
+================
+
+If shipping Prometheus stack examples, configure Alertmanager or leave
+notification routing explicitly external.
+
+Do not assume Prometheus itself delivers production notifications.
+
+============================================================
+56. DASHBOARDS
+==============
+
+Provide dashboard definitions or documented panels.
+
+At minimum:
+
+Platform overview
+Jobs
+Workers
+PostgreSQL
+GitHub
+Anthropic
+Outbox/webhooks
+Cost
+
+Dashboards should answer operational questions, not merely look good.
+
+============================================================
+57. SLOs
+========
+
+Define initial service objectives.
+
+Possible dimensions:
+
+API availability
+job start latency
+control-plane event durability
+webhook processing latency
+outbox delivery latency
+
+Do not invent unrealistic 99.999% goals.
+
+Derive initial targets from expected deployment scale.
+
+============================================================
+58. SLI DEFINITIONS
+===================
+
+Document exact numerator/denominator.
+
+Example:
+
+API availability =
+successful eligible API requests /
+all eligible API requests
+
+Exclude only explicitly defined categories.
+
+============================================================
+59. ERROR BUDGET
+================
+
+If SLO framework is implemented, calculate error budget.
+
+Use it as operational signal, not marketing text.
+
+============================================================
+60. TRACING
+===========
+
+Trace important flow:
+
+GitHub webhook
+→ event
+→ scheduler
+→ job
+→ worker
+→ runtime
+→ GitHub PR
+→ CI
+→ repair
+
+Preserve correlation across async outbox boundaries.
+
+============================================================
+61. LOG RETENTION
+=================
+
+Define configurable retention.
+
+Do not keep:
+
+agent logs
+GitHub logs
+events
+
+forever merely because storage is cheap today.
+
+Audit/event retention may differ from debug logs.
+
+============================================================
+62. PII / SENSITIVE LOG REVIEW
+==============================
+
+Audit whether repository names, prompts, code snippets or usernames are
+sensitive in a deployment context.
+
+Provide redaction/minimization controls.
+
+============================================================
+63. POSTGRESQL BACKUP STRATEGY
+==============================
+
+Implement/document at least one tested production backup strategy.
+
+For simple logical backup:
+
+pg_dump / pg_restore
+
+For production recovery requirements consider:
+
+base backup
+WAL archiving
+PITR
+
+Do not call pg_dump alone a complete low-RPO disaster-recovery strategy.
+
+============================================================
+64. PITR
+========
+
+Where production profile claims PITR:
+
+configure/test:
+
+base backup
+WAL archive
+recovery target
+
+Do not claim PITR merely because archive_mode appears in a sample config.
+
+Perform restore.
+
+============================================================
+65. BACKUP ENCRYPTION
+=====================
+
+Production backups may contain:
+
+jobs
+repository metadata
+events
+audit history
+
+Protect them appropriately.
+
+Do not store backup encryption keys beside the backups.
+
+============================================================
+66. BACKUP RETENTION
+====================
+
+Define policy:
+
+daily
+weekly
+WAL retention
+or deployment-specific equivalents
+
+Document tradeoffs.
+
+Do not hardcode one policy as universal.
+
+============================================================
+67. RESTORE TEST
+================
+
+Mandatory.
+
+Create data:
+
+job
+events
+repository mapping
+approval
+outbox result
+
+Back it up.
+
+Restore into fresh PostgreSQL.
+
+Verify identities and state.
+
+A backup that has never been restored is not considered verified.
+
+============================================================
+68. RPO / RTO
+=============
+
+Document:
+
+target RPO
+target RTO
+
+for each deployment profile.
+
+Then measure restore drill performance separately.
+
+Do not guarantee numbers without evidence.
+
+============================================================
+69. DISASTER RECOVERY RUNBOOK
+=============================
+
+Create:
+
+docs/DISASTER-RECOVERY.md
+
+Cover:
+
+database lost
+control plane lost
+all workers lost
+GitHub App key compromised
+Anthropic credential compromised
+webhook secret compromised
+bad deployment
+schema migration failure
+
+============================================================
+70. BAD DEPLOYMENT ROLLBACK
+===========================
+
+Test application rollback:
+
+new version unhealthy
+→ readiness fails
+→ no traffic
+→ rollback
+
+Ensure DB migration compatibility.
+
+Code rollback is not safe if migration already destroyed old-schema
+compatibility.
+
+============================================================
+71. MIGRATION ROLLBACK POLICY
+=============================
+
+Do not promise automatic database rollback for every migration.
+
+Prefer forward-fix and reversible/compatible migration design.
+
+Classify migration:
+
+online-compatible
+maintenance-required
+irreversible
+
+============================================================
+72. DRILL — WORKER LOSS
+=======================
+
+Simulate losing a worker node/pod.
+
+Verify:
+
+lease expires
+job reconciles
+new worker claims
+stale fencing token blocked
+
+============================================================
+73. DRILL — API INSTANCE LOSS
+=============================
+
+Kill one API replica.
+
+Traffic should continue through another healthy replica when multiple
+replicas are configured.
+
+============================================================
+74. DRILL — DATABASE CONNECTION LOSS
+====================================
+
+Temporarily block PostgreSQL connectivity.
+
+Observe:
+
+readiness
+retry behavior
+metrics
+alerts
+recovery
+
+Avoid restart storms.
+
+============================================================
+75. DRILL — GITHUB OUTAGE
+=========================
+
+Simulate GitHub API failure.
+
+Expected:
+
+outbox/retry
+backoff
+rate limiting
+no duplicate PR/merge
+visibility to operator
+
+============================================================
+76. DRILL — ANTHROPIC OUTAGE
+============================
+
+Simulate Anthropic transient failure.
+
+Expected:
+
+bounded retries
+provider state visible
+new work may pause according to policy
+existing state remains durable
+
+Do not endlessly retry expensive calls.
+
+============================================================
+77. DRILL — STUCK OUTBOX
+========================
+
+Create an external action that repeatedly fails.
+
+Verify:
+
+retry
+backoff
+DEAD state
+alert
+operator retry path
+
+============================================================
+78. CHAOS TEST BOUNDARY
+=======================
+
+Do not introduce a massive chaos platform merely to satisfy this prompt.
+
+Use deterministic failure injection first.
+
+Containers/process killing and network interruption are sufficient for
+Upgrade-09.
+
+============================================================
+79. AUTHENTICATION FOR OPERATIONS UI
+====================================
+
+Production Web/API must require authentication.
+
+Implement a clean auth boundary.
+
+Support at least one production-capable method appropriate to the
+project.
+
+Potential architecture:
+
+OIDC identity provider
+→ validated identity
+→ ZCoder role
+
+Do not build a custom password database unless there is a strong reason.
+
+============================================================
+80. OIDC VALIDATION
+===================
+
+If OIDC is implemented:
+
+validate:
+
+issuer
+audience
+signature
+expiry
+nonce/state where applicable
+
+Do not decode JWT and trust claims without verification.
+
+============================================================
+81. ROLE MAPPING
+================
+
+Map authenticated principals to:
+
+VIEWER
+OPERATOR
+ADMIN
+
+Enforce authorization server-side.
+
+Do not rely on hidden UI buttons.
+
+============================================================
+82. SESSION SECURITY
+====================
+
+If browser sessions are used:
+
+secure cookies
+HttpOnly
+SameSite
+CSRF protection where required
+session expiration
+
+Do not put long-lived identity tokens in localStorage if avoidable.
+
+============================================================
+83. BREAK-GLASS ADMIN
+=====================
+
+If emergency admin access exists:
+
+make it explicit
+audited
+disabled by default where possible
+
+Do not create universal hardcoded credentials.
+
+============================================================
+84. AUDIT AUTH EVENTS
+=====================
+
+Audit:
+
+login
+logout
+denied privileged action
+role change
+policy change
+secret reference change
+
+Do not log raw identity tokens.
+
+============================================================
+85. TLS
+=======
+
+Production ingress should use TLS.
+
+Support termination at:
+
+Ingress
+load balancer
+reverse proxy
+
+Application should correctly understand forwarded scheme/client context
+only from trusted proxies.
+
+============================================================
+86. TRUSTED PROXY
+=================
+
+Do not trust arbitrary:
+
+X-Forwarded-For
+X-Forwarded-Proto
+
+unless request originated from configured proxy boundary.
+
+============================================================
+87. SECURITY HEADERS
+====================
+
+For web console configure suitable:
+
+Content-Security-Policy
+frame restrictions
+content-type protections
+referrer policy
+
+Do not blindly paste a policy that breaks the application.
+
+============================================================
+88. API RATE LIMITING
+=====================
+
+Protect externally reachable endpoints.
+
+Particularly:
+
+login
+webhooks
+expensive job submission
+
+Do not rate-limit internal worker heartbeat through a generic tiny
+public API quota.
+
+============================================================
+89. PAYLOAD LIMITS
+==================
+
+Set explicit request limits for:
+
+webhooks
+job task input
+uploaded artifacts
+API JSON
+
+Protect against memory exhaustion.
+
+============================================================
+90. IMAGE/DEPENDENCY UPDATE POLICY
+==================================
+
+Pin base images intentionally.
+
+Use automated dependency/update tooling only through review.
+
+Do not auto-deploy base-image updates to production without tests.
+
+============================================================
+91. KUBERNETES CONFIG VALIDATION
+================================
+
+CI must run appropriate validation:
+
+helm lint
+helm template
+
+plus schema/static checks available in the environment.
+
+Do not require access to a production cluster for normal PR validation.
+
+============================================================
+92. EPHEMERAL DEPLOYMENT TEST
+=============================
+
+Use:
+
+kind
+k3d
+minikube
+or equivalent
+
+if practical.
+
+Deploy:
+
+API
+worker
+PostgreSQL test instance
+
+Then smoke test:
+
+health
+job submission
+worker claim
+event persistence
+
+This is stronger evidence than manifest rendering alone.
+
+============================================================
+93. UPGRADE TEST
+================
+
+In ephemeral environment:
+
+deploy previous version
+create active durable state
+deploy new version using rolling strategy
+verify state/job continuity
+
+This is mandatory before claiming rolling-upgrade safety.
+
+============================================================
+94. HPA TEST
+============
+
+Do not require real cloud autoscaling.
+
+Validate HPA manifests and, where feasible, synthetic scaling behavior.
+
+State clearly what was not live-proven.
+
+============================================================
+95. LOAD TEST
+=============
+
+Add a bounded synthetic load scenario.
+
+Measure:
+
+API throughput
+queueing
+claim latency
+DB connections
+job scheduling overhead
+webhook ingestion
+
+Do not spend Anthropic tokens for load testing.
+
+Use FakeRuntime.
+
+============================================================
+96. CAPACITY BASELINE
+=====================
+
+Report measured environment and results.
+
+Example:
+
+API replicas:
+workers:
+PostgreSQL:
+jobs:
+webhook rate:
+
+p50:
+p95:
+p99:
+
+Do not publish performance claims without hardware/environment context.
+
+============================================================
+97. QUEUE BACKPRESSURE TEST
+===========================
+
+Submit more jobs than worker capacity.
+
+Verify:
+
+queue grows safely
+API remains responsive
+DB does not thrash
+scheduler remains bounded
+job priority/fairness stays correct
+
+============================================================
+98. DATABASE POOL SATURATION
+============================
+
+Artificially constrain pool.
+
+Verify:
+
+bounded waiting
+timeouts
+useful metrics
+no deadlock cascade
+
+============================================================
+99. COST OBSERVABILITY
+======================
+
+Expose aggregated costs by:
+
+job
+repository
+installation
+runtime
+
+Avoid high-cardinality Prometheus cost labels.
+
+Detailed cost belongs in DB/API/dashboard.
+
+============================================================
+100. DEPLOYMENT COST AWARENESS
+==============================
+
+Document major infrastructure cost drivers:
+
+workers
+PostgreSQL
+observability retention
+egress
+Anthropic usage
+
+Do not invent a universal monthly cost without deployment assumptions.
+
+============================================================
+101. PRODUCTION CONFIG SCHEMA
+=============================
+
+Formalize configuration.
+
+Validate:
+
+database
+auth
+GitHub App
+Anthropic
+worker
+telemetry
+backup
+security
+
+Unknown/deprecated critical fields should produce warnings/errors.
+
+============================================================
+102. CONFIG PRECEDENCE
+======================
+
+Document:
+
+defaults
+config file
+environment
+secret provider
+CLI
+
+Avoid ambiguous precedence.
+
+============================================================
+103. CONFIG DUMP
+================
+
+Provide:
+
+zcoder config show-effective
+
+Redact secrets.
+
+Useful for operations/debugging.
+
+============================================================
+104. DOCTOR
+===========
+
+Expand:
+
+zcoder doctor
+
+Check:
+
+database
+migration
+GitHub App
+Anthropic
+workers
+telemetry
+backup freshness
+build/version
+configuration security
+
+Support:
+
+--json
+
+============================================================
+105. DEPLOYMENT CLI
+===================
+
+Do not reinvent kubectl/helm.
+
+ZCoder may provide:
+
+zcoder deploy check
+
+but actual deployment should remain standard infrastructure tooling.
+
+============================================================
+106. RELEASE WORKFLOW
+=====================
+
+Design pipeline:
+
+test
+→ integration
+→ build
+→ SBOM
+→ scan
+→ sign
+→ publish immutable artifact
+→ staging
+→ smoke
+→ approval
+→ production
+→ post-deploy verify
+
+Every stage must consume the same release identity.
+
+============================================================
+107. GITHUB ENVIRONMENT PROTECTION
+==================================
+
+Production deployment job must use explicit deployment environment where
+GitHub Actions is the chosen CI/CD system.
+
+Do not expose production credentials to pre-approval jobs.
+
+============================================================
+108. OIDC CLOUD AUTH
+====================
+
+If deployment target is AWS/Azure/GCP or another OIDC-capable provider,
+configure GitHub OIDC appropriately.
+
+Do not assume a provider if none is selected.
+
+Provide provider-neutral architecture and one example only if justified.
+
+============================================================
+109. DEPLOYMENT APPROVAL
+========================
+
+Autonomous coding success is NOT equivalent to production deployment
+approval.
+
+Production mutation remains separately authorized.
+
+Do not let ZCoder approve its own production deployment by default.
+
+============================================================
+110. POST-DEPLOY VALIDATION
+===========================
+
+After deployment:
+
+check rollout
+readiness
+API smoke
+database schema
+worker registration
+queue health
+GitHub webhook processing
+telemetry
+
+If critical validation fails:
+
+halt promotion / rollback according to policy.
+
+============================================================
+111. RUNBOOKS
+=============
+
+Create useful runbooks:
+
+docs/runbooks/API-DOWN.md
+docs/runbooks/DB-DOWN.md
+docs/runbooks/QUEUE-BACKLOG.md
+docs/runbooks/WORKER-LOSS.md
+docs/runbooks/GITHUB-OUTAGE.md
+docs/runbooks/ANTHROPIC-OUTAGE.md
+docs/runbooks/OUTBOX-STUCK.md
+docs/runbooks/BACKUP-RESTORE.md
+
+No empty templates.
+
+============================================================
+112. SECURITY THREAT MODEL UPDATE
+=================================
+
+Expand threat model for:
+
+Kubernetes
+Ingress
+OIDC
+CI/CD
+container supply chain
+telemetry pipeline
+backup storage
+secret manager
+compromised worker
+malicious container image
+stolen signing identity
+
+============================================================
+113. SECURITY TESTS
+===================
+
+Add tests for:
+
+anonymous mutation denied
+viewer mutation denied
+OIDC invalid issuer
+OIDC invalid audience
+expired token
+secret redaction
+webhook payload size
+untrusted proxy header
+sensitive endpoint access
+config output redaction
+
+============================================================
+114. DEPLOYMENT SECURITY TEST
+=============================
+
+Inspect rendered Kubernetes manifests.
+
+Fail CI if production profile unintentionally has:
+
+privileged=true
+runAsUser=0
+hostNetwork=true
+hostPID=true
+wildcard RBAC
+plaintext known secret values
+
+Allow explicitly reviewed exceptions only.
+
+============================================================
+115. BACKUP MONITOR
+===================
+
+Production profile should expose backup freshness state.
+
+A successful backup command is not enough.
+
+Track:
+
+last backup
+last verified restore
+WAL/archive status where applicable
+
+============================================================
+116. RESTORE DRILL AGE
+======================
+
+Alert if restore verification has not occurred within configured policy.
+
+Do not infer restorability solely from backup timestamps.
+
+============================================================
+117. DEPLOYMENT HISTORY
+=======================
+
+Track:
+
+version
+image digest
+deployment time
+actor
+environment
+migration version
+result
+
+Do not put this only in CI logs.
+
+============================================================
+118. ROLLBACK HISTORY
+=====================
+
+Record rollback:
+
+from
+to
+reason
+actor
+result
+
+Audit production mutation.
+
+============================================================
+119. MAINTENANCE MODE
+=====================
+
+Support controlled maintenance behavior if schema/operations require it.
+
+Do not use maintenance mode for every deploy.
+
+============================================================
+120. GRACEFUL DRAIN
+===================
+
+Worker deployment termination should:
+
+mark draining
+stop claims
+finish/checkpoint work
+release safely
+terminate
+
+Kubernetes termination grace period must cover the intended shutdown
+behavior.
+
+============================================================
+121. LONG-RUNNING JOBS DURING DEPLOYMENT
+========================================
+
+Define policy:
+
+finish on old worker
+checkpoint/reconcile
+remote managed job reconnect
+
+Do not kill long-running jobs simply to roll out a patch unless policy
+allows it.
+
+============================================================
+122. PROTOCOL COMPATIBILITY
+===========================
+
+Persist protocol/version compatibility where API/workers communicate.
+
+New control plane must not assign unsupported task formats to older
+workers during rollout.
+
+============================================================
+123. FEATURE GATES
+==================
+
+For risky new infrastructure behavior, use explicit feature/config gates
+when useful.
+
+Do not accumulate permanent dead flags.
+
+============================================================
+124. PRODUCTION RELEASE GATE
+============================
+
+Extend release gate substantially.
+
+Required:
+
+SOURCE_TRUTH
+TESTS
+BUILD
+INSTALL
+
+POSTGRES_REAL
+MULTI_PROCESS
+WORKER_CRASH_RECOVERY
+DB_RESTART_RECOVERY
+
+CONTAINER
+COMPOSE
+KUBERNETES
+HELM
+ROLLING_UPGRADE
+
+AUTH
+SECRETS
+NETWORK_POLICY
+SUPPLY_CHAIN
+
+OBSERVABILITY
+ALERTING
+SLO
+
+BACKUP
+RESTORE
+PITR
+
+SECURITY
+DOCS
+
+FINAL
+
+A unit-test-only success cannot satisfy:
+
+POSTGRES_REAL
+MULTI_PROCESS
+RESTORE
+ROLLING_UPGRADE
+
+============================================================
+125. RELEASE-GATE EVIDENCE
+==========================
+
+Each gate should record:
+
+status
+evidence command/test
+timestamp
+environment
+notes
+
+Example:
+
+POSTGRES_REAL:
+PASS
+evidence:
+pytest tests/integration/postgres -q
+
+Do not let code set all booleans to True without evidence.
+
+============================================================
+126. CI JOBS
+============
+
+Suggested CI:
+
+lint
+typecheck
+unit
+full-dependencies
+postgres-integration
+multi-worker
+package-build
+wheel-install
+container-build
+container-scan
+helm-lint
+k8s-render
+ephemeral-k8s
+security
+conformance
+release-gate
+
+Heavy ephemeral deployment tests may run on main/release/nightly if PR
+cost is excessive.
+
+============================================================
+127. NIGHTLY RELIABILITY TEST
+=============================
+
+Create optional scheduled workflow for:
+
+PostgreSQL restart
+worker crash
+backup/restore
+ephemeral Kubernetes deployment
+
+Do not run destructive tests against production infrastructure.
+
+============================================================
+128. VERSIONING
+===============
+
+Inspect actual release/tag history.
+
+This upgrade represents production deployment/reliability functionality.
+
+Choose SemVer based on actual published history.
+
+Do not continue expanding an unreleased historical version forever if
+the project now contains multiple major capability increments.
+
+Record why the version was chosen.
+
+============================================================
+129. REQUIRED DOCUMENTS
+=======================
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+
+Add:
+
+docs/UPGRADE-09.md
+docs/DEPLOYMENT.md
+docs/KUBERNETES.md
+docs/HELM.md
+docs/OBSERVABILITY.md
+docs/SLO.md
+docs/BACKUP-RESTORE.md
+docs/DISASTER-RECOVERY.md
+docs/IDENTITY.md
+docs/SECRETS.md
+docs/RELEASE-PROCESS.md
+
+and substantive runbooks.
+
+============================================================
+130. FINAL VERIFICATION COMMANDS
+================================
+
+At minimum:
+
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+git status --short
+
+Then separately:
+
+PostgreSQL integration suite
+multi-process worker suite
+worker crash test
+database restart test
+Compose smoke
+container smoke
+helm lint
+helm template
+ephemeral Kubernetes test
+rolling-upgrade test
+backup/restore test
+release gate
+
+Run available:
+
+ruff check .
+black --check .
+mypy .
+
+Do not omit failed commands.
+
+============================================================
+131. DEFINITION OF DONE
+=======================
+
+Upgrade-09 is complete only when:
+
+[ ] Upgrade-08 multi-host claims are backed by real PostgreSQL tests
+[ ] at least two independent workers are tested
+[ ] stale fencing token is rejected
+[ ] worker crash recovery is verified
+[ ] DB restart behavior is verified
+[ ] production container runs non-root
+[ ] clean signal handling works
+[ ] Compose stack boots
+[ ] Kubernetes manifests/Helm chart validate
+[ ] liveness/readiness are semantically correct
+[ ] rolling deployment is tested
+[ ] PDB/resource configuration exists where applicable
+[ ] worker draining works
+[ ] production API authentication exists
+[ ] server-side RBAC is enforced
+[ ] secrets are referenced rather than committed
+[ ] OIDC/cloud deployment path avoids long-lived secrets where supported
+[ ] telemetry is implemented
+[ ] metrics are bounded-cardinality
+[ ] actionable alerts exist
+[ ] SLI/SLO definitions exist
+[ ] backup is produced
+[ ] backup is restored successfully
+[ ] PITR is tested before claiming PITR support
+[ ] DR runbook exists
+[ ] at least one failure drill is automated
+[ ] artifacts have SBOM
+[ ] image/dependencies are scanned
+[ ] immutable release identity exists
+[ ] production deployment remains separately approved
+[ ] no P0/P1 production-security defect remains
+[ ] release gate uses real evidence
+
+============================================================
+132. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-08 Production Proof
+
+Table:
+
+Capability
+Previous Claim
+Actual Test
+Evidence
+Verdict
+
+## 3. PostgreSQL Multi-Host Verification
+
+Report separately:
+
+process count
+jobs submitted
+jobs executed
+duplicate executions
+lease recoveries
+fencing rejections
+
+## 4. Containerization
+
+## 5. Docker Compose
+
+## 6. Kubernetes / Helm
+
+## 7. Health / Readiness / Draining
+
+## 8. Scaling
+
+## 9. Identity / RBAC
+
+## 10. Secrets
+
+## 11. CI/CD / OIDC
+
+## 12. Supply Chain
+
+SBOM
+scan
+signing/provenance status
+
+## 13. Observability
+
+Metrics
+Traces
+Logs
+Dashboards
+
+## 14. SLI / SLO / Alerts
+
+## 15. PostgreSQL Backup / PITR
+
+## 16. Restore Drill
+
+Report actual restored dataset/state.
+
+## 17. Failure Drills
+
+Worker loss
+API loss
+DB loss
+GitHub outage
+Anthropic outage
+
+## 18. Rolling Upgrade
+
+Old version
+New version
+Active jobs
+Result
+
+## 19. Security Review
+
+## 20. Tests
+
+Report exact:
+
+passed
+failed
+skipped
+xfailed
+deselected
+
+Separately:
+
+unit
+PostgreSQL
+multi-process
+container
+Kubernetes
+DR
+
+## 21. CI Workflows
+
+## 22. Packaging / Image
+
+Include immutable image digest where generated.
+
+## 23. Release Gate
+
+SOURCE_TRUTH:
+TESTS:
+BUILD:
+INSTALL:
+
+POSTGRES_REAL:
+MULTI_PROCESS:
+WORKER_CRASH_RECOVERY:
+DB_RESTART_RECOVERY:
+
+CONTAINER:
+COMPOSE:
+KUBERNETES:
+HELM:
+ROLLING_UPGRADE:
+
+AUTH:
+SECRETS:
+NETWORK_POLICY:
+SUPPLY_CHAIN:
+
+OBSERVABILITY:
+ALERTING:
+SLO:
+
+BACKUP:
+RESTORE:
+PITR:
+
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 24. Version Decision
+
+## 25. Files Changed
+
+## 26. Remaining Limitations
+
+Explicitly classify:
+
+multi-process proven?
+multi-host simulated?
+network partition tolerance?
+PostgreSQL HA?
+automatic DB failover?
+cross-region?
+multi-tenant SaaS?
+zero-downtime schema migration?
+PITR verified?
+production cloud deployment live-tested?
+
+## 27. Final Verdict
+
+Do not say:
+
+PRODUCTION READY
+HIGHLY AVAILABLE
+FAULT TOLERANT
+ZERO DOWNTIME
+DISASTER RECOVERY VERIFIED
+PITR SUPPORTED
+
+unless each exact claim has corresponding executed evidence.
+
+Mocks, static manifests and unit tests are insufficient evidence for
+those claims.

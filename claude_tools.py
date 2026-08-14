@@ -251,6 +251,7 @@ COMPACTION_BETA = "compact-2026-01-12"
 # on Claude Code or Cowork surfaces, Messages API only.
 TASK_BUDGET_BETA = "task-budgets-2026-03-13"
 TASK_BUDGET_MODELS = {
+    "claude-opus-5",
     "claude-fable-5", "claude-mythos-5",
     "claude-opus-4-8", "claude-opus-4-7",
 }

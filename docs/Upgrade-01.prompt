@@ -1,0 +1,827 @@
+# Mission: Deep-audit and fully upgrade ZCoder against the latest Anthropic platform
+
+You are operating directly inside the ZCoder repository.
+
+Current project baseline:
+
+* Project: ZCoder / AI Model Coder CLI
+* Current release: v1.38.0
+* Primary language: Python
+* Main entry point: `main.py`
+* Core Anthropic modules use the `claude_*.py` naming convention
+* The project already contains extensive Anthropic API, Claude Code, Agent SDK, Managed Agents, Admin API, Compliance API, Skills, MCP, memory, tools, streaming, structured output, model routing, observability, TUI, and web-console support.
+* Do NOT assume a capability is missing merely because it is new.
+* Do NOT implement duplicate abstractions.
+* Do NOT invent Anthropic APIs, beta headers, model IDs, parameters, endpoints, or SDK methods.
+
+Your job is to perform a fresh, evidence-driven Anthropic gap audit and then implement every legitimate, production-useful missing capability.
+
+## 1. Fetch the current Anthropic source of truth
+
+Before changing code, re-fetch the current documentation.
+
+Use first-party Anthropic sources as authoritative:
+
+1. Claude Platform release notes
+2. Claude API reference
+3. Current models overview
+4. Model migration/deprecation documentation
+5. Pricing documentation
+6. Managed Agents documentation
+7. Agent SDK documentation and changelog
+8. Claude Code documentation and changelog
+9. MCP documentation
+10. Agent Skills documentation
+11. Admin API documentation
+12. Compliance API documentation
+13. Authentication / WIF documentation
+14. Claude Enterprise administration documentation
+15. Tool-use reference
+16. Prompt caching documentation
+17. Token counting documentation
+18. Structured outputs documentation
+19. Data residency documentation
+20. Anthropic official announcements when they define API behavior
+
+Determine the latest documented state **at execution time**.
+
+Do not rely solely on this prompt's August 2026 examples. Anthropic may have shipped something newer.
+
+Record:
+
+* documentation date
+* release date
+* feature name
+* GA / beta / research-preview status
+* exact API endpoint
+* exact API request shape
+* exact response shape
+* beta header, if any
+* model compatibility
+* cloud/platform compatibility
+* pricing implications
+* ZDR/data-retention implications
+* deprecation/retirement status
+
+## 2. Establish the repository baseline
+
+Before modifications:
+
+Run and record:
+
+```bash
+git status --short
+git log -10 --oneline
+python --version
+python -m pytest -q
+```
+
+If available also run:
+
+```bash
+ruff check .
+black --check .
+mypy .
+python main.py --help
+```
+
+Do not modify files until you understand the baseline failures.
+
+Classify each test failure as:
+
+* pre-existing
+* environment-dependent
+* genuine regression
+* stale test
+* missing implementation
+
+Never hide or delete a failing test merely to obtain green CI.
+
+## 3. Audit the repository before creating anything
+
+Search the complete repository for every candidate capability.
+
+Inspect at minimum:
+
+* `main.py`
+* `coder.py`
+* `config.py`
+* `claude_models.py`
+* `claude_agents_sdk.py`
+* `claude_admin_api.py`
+* `claude_compliance_api.py`
+* `claude_tools.py`
+* `claude_code.py`
+* `claude_skills_api.py`
+* `claude_wif.py`
+* `claude_thinking.py`
+* `claude_opus5.py`
+* `claude_sonnet5.py`
+* `claude_fable5.py`
+* `claude_mythos5.py`
+* `claude_memory.py`
+* `claude_advisor.py`
+* `claude_cache.py`
+* `claude_stream.py`
+* `claude_structured.py`
+* all tests
+* `README.md`
+* `ROADMAP.md`
+* `IMPLEMENTATION_CHECKLIST.md`
+* `CHANGELOG.md`
+* `ARCHITECTURE.md`
+* `docs/`
+
+For every Anthropic feature, classify it:
+
+* COMPLETE
+* COMPLETE BUT UNWIRED
+* PARTIAL
+* BUGGY
+* STALE
+* DEPRECATED
+* RETIRED
+* MISSING
+* NOT APPLICABLE
+* DOCS-ONLY / NO PUBLIC API
+
+Show evidence for the classification.
+
+Do not duplicate functionality that already exists under another module or CLI flag.
+
+## 4. Priority audit: Anthropic changes after the current v1.38 cycle
+
+Explicitly investigate these areas first, then continue beyond them.
+
+### A. Managed Agents session hard budgets
+
+Determine whether ZCoder supports the current Managed Agents session spending-budget API.
+
+This is distinct from:
+
+* thinking token budgets
+* advisory task budgets
+* advisor `max_tokens`
+
+Verify the actual schema and lifecycle.
+
+Required behavior if supported by Anthropic:
+
+* create session with hard spend budget
+* inspect budget state
+* update budget
+* remove budget
+* handle `budget_reached`
+* resume after increasing/removing budget
+* deployment-level default session budget where supported
+* CLI flags
+* serialization
+* tests
+* docs
+
+Do not conflate this feature with the existing `--task-budget`.
+
+### B. Managed Agents session advisor
+
+ZCoder already has the Messages API Advisor Tool.
+
+Audit the newer Managed Agents multiagent-roster advisor functionality separately.
+
+If missing, implement the real documented capability including:
+
+* advisor roster entry
+* advisor model
+* compatibility validation
+* agent/session configuration
+* session override support if documented
+* result/event parsing
+* CLI access
+* tests
+
+Reuse shared validation where appropriate without incorrectly merging two different APIs.
+
+### C. Managed Agents inference geography
+
+The repository already has Messages API `inference_geo` handling.
+
+Audit the newer Managed Agents configuration independently.
+
+Verify support for:
+
+* agent model-level `inference_geo`
+* session override
+* valid geography values
+* data residency semantics
+* pricing multiplier
+* unsupported model/platform combinations
+
+Do not assume Messages API and Managed Agents request shapes are identical.
+
+### D. GitHub repository Agent Skills
+
+Audit Managed Agents' ability to discover skills from a mounted repository's:
+
+```text
+.claude/skills/
+```
+
+If missing:
+
+* support repository mounting as documented
+* preserve existing local skill system
+* preserve platform `skill_id` system
+* distinguish:
+
+  * local ZCoder skills
+  * Agent SDK/Claude Code skills
+  * Claude Platform Skills API
+  * Managed Agents repo-discovered skills
+* add tests proving no namespace collision
+
+### E. Enterprise inference hooks
+
+Audit Anthropic's current Enterprise inference-hook API/configuration.
+
+If public API integration exists and is applicable:
+
+* implement configuration/status functionality
+* verify signing/verification behavior
+* allow/deny handling
+* configurable failure behavior
+* compliance-event relationship
+* safe CLI interface
+* tests
+
+If configuration is Console-only or otherwise cannot legitimately be implemented, document it as a confirmed non-gap.
+
+Never manufacture an endpoint.
+
+### F. Compliance API — remote session transcripts
+
+Audit support for enterprise Compliance API access to cloud-hosted Cowork / Claude sessions.
+
+If supported and missing, add exact documented endpoints for:
+
+* list remote sessions
+* inspect remote session metadata where available
+* retrieve transcript/messages
+* pagination
+* scopes
+* errors
+* output JSON
+* human-readable CLI display
+
+### G. Compliance API — local Claude Code/Cowork sessions
+
+Audit the current APIs for sessions executed on users' machines.
+
+If missing, implement:
+
+* list local sessions
+* get local session metadata
+* get session messages/transcript
+* pagination/filtering where supported
+* required Compliance Access Key scope
+* safe handling of enterprise content
+
+No destructive commands unless Anthropic explicitly documents them.
+
+### H. `anthropic-workspace-id` response metadata
+
+Audit all appropriate first-party Claude API clients.
+
+If Anthropic currently returns the workspace identifier response header:
+
+* expose it without breaking existing method return types
+* decide on a backward-compatible metadata abstraction
+* make it available to logging/observability
+* redact nothing that is not a secret
+* add tests for header extraction
+* document behavior for Default Workspace
+* avoid leaking unrelated response headers
+
+### I. Model retirement and alias health
+
+Re-query the Models API/current model table.
+
+Do not rely on stale constants alone.
+
+Audit:
+
+* active models
+* aliases
+* retired models
+* deprecated models
+* suggested replacements
+* context windows
+* output limits
+* effort support
+* adaptive-thinking behavior
+* sampling restrictions
+* fast-mode compatibility
+* Priority Tier compatibility
+* data residency
+* ZDR
+* pricing
+* tokenizer generation
+
+Explicitly remove or mark any retired model that would otherwise produce an API error.
+
+Preserve deprecated IDs only where useful for migration/reporting.
+
+### J. Sonnet 5 tokenizer/cost correctness
+
+Audit all token- and cost-sensitive code.
+
+Check:
+
+* token counters
+* cost optimizer
+* context-limit calculation
+* prompt truncation
+* RAG chunk budgets
+* memory budgets
+* batch estimates
+* UI/TUI metrics
+* cached token accounting
+* thinking-token accounting
+* max output calculations
+
+Never estimate a new model's token usage using an older tokenizer when Anthropic provides token counting.
+
+### K. Claude Sonnet 5 migration restrictions
+
+Verify every call path rejects/removes invalid combinations such as:
+
+* manual extended thinking where unsupported
+* non-default `temperature`
+* non-default `top_p`
+* non-default `top_k`
+* unsupported assistant prefilling
+
+Search beyond `claude_sonnet5.py`.
+
+Ensure generic routes through `Coder`, web API, TUI, batch, agents, structured output and other modules cannot bypass the compatibility checks.
+
+## 5. Continue beyond the known list
+
+The above list is only a bootstrap.
+
+Compare **every Anthropic release after the repository's last verified audit date** against the repository.
+
+Search for changes involving:
+
+* Messages API
+* model capabilities
+* models
+* tokenization
+* pricing
+* API headers
+* rate limits
+* prompt caching
+* batches
+* Files API
+* citations
+* PDF/document processing
+* vision
+* high-resolution images
+* code execution
+* web search
+* web fetch
+* computer use
+* tool search
+* programmatic tool calling
+* fine-grained tool streaming
+* context editing
+* compaction
+* memory
+* structured outputs
+* thinking
+* effort
+* refusals
+* server-side fallback
+* mid-conversation system messages
+* mid-conversation tool changes
+* Skills
+* MCP
+* MCP tunnels
+* Managed Agents
+* environments
+* self-hosted sandboxes
+* sessions
+* threads
+* event deltas
+* deployments
+* scheduled deployments
+* deployment runs
+* webhooks
+* outcomes
+* multiagent orchestration
+* advisors
+* dreams
+* vaults
+* credentials
+* GitHub mounts
+* Admin APIs
+* workspace administration
+* enterprise user management
+* Compliance API
+* WIF/IAM
+* AWS/Bedrock
+* Claude Platform on AWS
+* Google Cloud
+* Microsoft Foundry
+* Agent SDK
+* Claude Code
+
+## 6. SDK modernization audit
+
+Inspect installed/pinned Python Anthropic SDK requirements.
+
+The current project historically pinned:
+
+```text
+anthropic>=0.75.0
+```
+
+Do not blindly bump it.
+
+Determine:
+
+1. current stable Python SDK version
+2. minimum version needed by every ZCoder feature
+3. breaking changes since the existing minimum
+4. whether raw `urllib` implementations should remain
+5. whether replacing hand-written transports with the SDK improves correctness
+6. whether such migration would create unnecessary regressions
+
+Prefer a gradual adapter architecture over a massive rewrite.
+
+Where appropriate establish:
+
+```text
+Transport
+├── Anthropic Python SDK adapter
+├── Raw HTTP adapter where genuinely necessary
+└── test/mock transport
+```
+
+Centralize where practical:
+
+* base URL
+* authentication headers
+* beta headers
+* retries
+* timeout
+* error normalization
+* response metadata
+* request IDs
+* workspace IDs
+* streaming
+* telemetry hooks
+
+Do not rewrite stable modules merely for aesthetic consistency.
+
+## 7. Architecture improvements
+
+Look for cross-cutting duplication and correctness hazards.
+
+Potential targets:
+
+### Capability registry
+
+Create or improve a machine-readable capability registry capable of answering:
+
+```text
+model supports adaptive thinking?
+model supports thinking disable?
+allowed effort levels?
+sampling parameters allowed?
+fast mode?
+Priority Tier?
+1M context?
+max output?
+computer use?
+advisor?
+task budgets?
+data residency?
+ZDR?
+minimum cacheable tokens?
+supported server tools?
+```
+
+Make validation use this registry instead of scattered hardcoded logic where practical.
+
+### Beta feature registry
+
+Create one authoritative definition for:
+
+* beta header
+* feature name
+* status
+* models
+* platforms
+* first-supported date
+* retirement date if applicable
+
+Avoid beta-header drift across modules.
+
+### API metadata
+
+Provide consistent metadata for:
+
+* request ID
+* workspace ID
+* rate-limit headers where applicable
+* model used
+* usage
+* stop reason
+* stop details
+* service tier
+* inference geography
+
+Maintain backward compatibility.
+
+## 8. CLI upgrades
+
+Expose newly implemented functionality through the CLI.
+
+Requirements:
+
+* coherent argument groups
+* useful `--help`
+* mutually-exclusive flags where appropriate
+* no silent invalid combinations
+* API validation before spending tokens where possible
+* JSON output for automation where useful
+* human-readable output by default
+* destructive operations dry-run by default when applicable
+
+Avoid adding dozens of unrelated top-level flags if a coherent subcommand structure is clearly better.
+
+However, maintain compatibility with existing flags.
+
+## 9. Web console / TUI audit
+
+Ensure new core capabilities do not exist only in CLI code when they belong in shared services.
+
+Audit:
+
+* model catalog
+* model compatibility validation
+* streaming
+* usage/cost metadata
+* workspace metadata
+* session stop reasons
+* refusal handling
+* Managed Agent status
+* session-budget status if applicable
+
+Do not force enterprise administration capabilities into end-user UI unless genuinely useful.
+
+## 10. Tests
+
+Every implemented feature requires tests.
+
+At minimum add:
+
+### Unit tests
+
+* request URL
+* method
+* payload
+* query parameters
+* beta headers
+* regular headers
+* parsing
+* validation
+* errors
+* pagination
+* compatibility
+
+### Regression tests
+
+For every bug found.
+
+### CLI wiring tests
+
+Prove every new CLI option actually reaches the implementation.
+
+### Negative tests
+
+Prove invalid model/feature combinations fail locally when possible.
+
+### Backward compatibility
+
+Existing public methods and CLI commands must still function.
+
+No network-dependent test should be required for default CI.
+
+Mock at the HTTP/SDK boundary.
+
+## 11. Security requirements
+
+Never log:
+
+* Anthropic API keys
+* Admin API keys
+* Compliance Access Keys
+* OAuth secrets
+* vault secret material
+* GitHub tokens
+* Authorization headers
+
+Validate:
+
+* URLs
+* file paths
+* repository identifiers
+* IDs
+* webhook destinations
+* pagination limits
+* user-provided JSON
+* output paths
+
+Use timeouts on all network calls.
+
+Keep destructive enterprise API calls safe-by-default.
+
+## 12. Documentation
+
+Update as appropriate:
+
+* `README.md`
+* `CHANGELOG.md`
+* `ROADMAP.md`
+* `IMPLEMENTATION_CHECKLIST.md`
+* `ARCHITECTURE.md`
+* `.env.example`
+* CLI examples
+* relevant `docs/*.md`
+
+Create a new audit document such as:
+
+```text
+docs/52_upgrade_v1.39.0_anthropic_august_2026_audit.md
+```
+
+or choose the next correct release/document number based on the actual repository state.
+
+The audit document must contain:
+
+1. sources checked
+2. dates checked
+3. complete candidate-feature matrix
+4. current repo status
+5. gaps found
+6. confirmed non-gaps
+7. changes implemented
+8. tests added
+9. migration concerns
+10. deferred items with exact reason
+11. known limitations
+
+## 13. Versioning
+
+After determining actual scope, choose the appropriate release version.
+
+Do not automatically assume `v1.39.0`.
+
+Use SemVer reasoning:
+
+* patch: bug/deprecation corrections only
+* minor: backward-compatible functionality
+* major: breaking public behavior
+
+Update all version references consistently.
+
+## 14. Required workflow
+
+Use this exact sequence:
+
+### Phase 1 — Discover
+
+Fetch official Anthropic documentation and enumerate changes since the previous audit.
+
+### Phase 2 — Compare
+
+Map each Anthropic capability against existing ZCoder code.
+
+### Phase 3 — Report
+
+Before editing, output:
+
+```text
+ANTHROPIC GAP AUDIT
+
+P0
+...
+
+P1
+...
+
+P2
+...
+
+CONFIRMED NON-GAPS
+...
+
+DEPRECATED/REMOVE
+...
+
+DOCS-ONLY / CANNOT IMPLEMENT
+...
+```
+
+### Phase 4 — Implement
+
+Implement P0 first, then P1, then sensible P2 work.
+
+Do not stop after producing a plan if the repository can be modified.
+
+### Phase 5 — Test
+
+Run the complete test suite and static checks.
+
+### Phase 6 — Re-audit
+
+Repeat searches against Anthropic release notes and repository code to make sure no candidate was accidentally omitted.
+
+### Phase 7 — Release validation
+
+Run:
+
+```bash
+python -m pytest -q
+python main.py --help
+git diff --check
+git status --short
+```
+
+and available lint/type checks.
+
+## 15. Definition of done
+
+The work is complete only when:
+
+* current Anthropic release notes have been re-fetched
+* every relevant release item has a recorded disposition
+* legitimate gaps are implemented
+* no documented API has been invented
+* new behavior has tests
+* old tests remain passing or failures are explicitly explained
+* deprecated/retired behavior is handled
+* model compatibility rules are accurate
+* docs reflect implementation
+* version metadata is consistent
+* `git diff --check` is clean
+* CLI wiring is proven
+* no secrets appear in logs/tests/docs
+* there is a final gap matrix showing nothing silently skipped
+
+## Final response format
+
+Return:
+
+### 1. Source-of-truth snapshot
+
+Latest Anthropic documentation/release date checked.
+
+### 2. Gaps discovered
+
+Table:
+`Priority | Anthropic capability | ZCoder status | Evidence | Action`
+
+### 3. Implemented changes
+
+Files and behavior.
+
+### 4. Bugs fixed
+
+Including previously implemented features that were technically incorrect.
+
+### 5. Deprecated/retired behavior
+
+What changed and migration path.
+
+### 6. Tests
+
+New tests + final totals.
+
+### 7. Remaining gaps
+
+Only genuine blockers such as private preview, unavailable API, or missing account entitlement.
+
+### 8. Release
+
+Version selected and why.
+
+### 9. Git diff summary
+
+Exact files changed.
+
+### 10. Final verdict
+
+State whether ZCoder now covers all currently public, applicable Anthropic capabilities.
+
+Do not claim 100% coverage unless the evidence supports it.

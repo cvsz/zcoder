@@ -1,0 +1,2345 @@
+# UPGRADE-07
+# Distributed Engineering Orchestrator, GitHub PR Automation,
+# CI Feedback Loop & Autonomous Repository Operations
+
+You are working directly inside ZCoder after Upgrade-06.
+
+Expected current baseline:
+
+- v1.40.0 remains the working unreleased baseline unless repository state proves otherwise
+- durable SQLite JobStore exists
+- structured EventStore exists
+- approval persistence exists
+- DirectRuntime exists
+- AgentSDKRuntime exists
+- ManagedAgentRuntime exists
+- FakeRuntime exists
+- policy/validation infrastructure exists
+- package build/release gates exist
+- Anthropic conformance infrastructure exists
+- current test suite reports approximately:
+  535 passed
+  2 optional skips
+  0 failures
+
+Do NOT trust these claims merely because Upgrade-06 reported them.
+
+================================================================
+MISSION
+================================================================
+
+Upgrade ZCoder from a single-machine autonomous job runtime into a
+production-grade engineering orchestration platform capable of:
+
+1. receiving engineering tasks
+2. scheduling them safely
+3. creating isolated Git workspaces
+4. executing agents through supported runtimes
+5. producing reviewed commits
+6. opening GitHub pull requests
+7. observing GitHub CI/check results
+8. diagnosing CI failures
+9. performing bounded repair loops
+10. updating the same PR safely
+11. handling human review/approval
+12. using protected branches and merge queues correctly
+13. merging only when repository policy permits
+14. preserving a durable audit trail
+15. recovering after process crashes
+16. avoiding duplicate work
+17. controlling concurrency and spend
+18. coordinating multiple repositories/jobs where appropriate
+
+Target architecture:
+
+Task
+  │
+  ▼
+ZCoder Orchestrator
+  │
+  ├── Scheduler
+  ├── Job Store
+  ├── Runtime Router
+  ├── Policy / Approval Engine
+  ├── Git Workspace Manager
+  ├── GitHub Adapter
+  ├── CI Observer
+  ├── Repair Controller
+  ├── Review Controller
+  └── Merge Controller
+        │
+        ▼
+GitHub
+  ├── Branch
+  ├── Pull Request
+  ├── Checks
+  ├── Reviews
+  ├── Actions
+  ├── Rulesets
+  └── Merge Queue
+
+Do NOT turn ZCoder into an uncontrolled auto-merge bot.
+
+================================================================
+PHASE 0 — FORENSIC VERIFICATION OF UPGRADE-06
+================================================================
+
+Before building distributed functionality, prove that Upgrade-06's
+runtime architecture is real.
+
+Run:
+
+git status --short
+git log -20 --oneline
+git tag --sort=-version:refname | head -20
+
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+
+Inspect:
+
+agent_runtime.py
+all runtime adapter classes
+job persistence
+event persistence
+approval persistence
+policy engine
+validation pipeline
+tests/test_agent_runtime.py
+all related CLI wiring
+
+Produce:
+
+UPGRADE-06 RUNTIME VERIFICATION
+
+Capability | Claimed | Actual | Evidence | Test Coverage | Status
+
+Statuses:
+
+VERIFIED
+PARTIAL
+DEAD_WIRING
+MOCK_ONLY
+UNTESTED
+INCORRECT
+MISSING
+
+Do not proceed with distributed scheduling until all P0 runtime defects
+are fixed.
+
+================================================================
+1. RUNTIME CONTRACT TEST EXPANSION
+================================================================
+
+Six runtime tests are not sufficient for production claims.
+
+Build comprehensive contract tests for every runtime implementation.
+
+Every adapter must be tested for:
+
+start
+status
+events
+cancel
+resume
+failure
+timeout
+approval
+budget reached
+reconnection
+event deduplication
+cleanup
+
+Use shared tests where semantics are truly common.
+
+Do NOT force unsupported capabilities to pass fake tests.
+
+Represent unsupported behavior explicitly.
+
+Example:
+
+RuntimeCapabilities(
+    resume=True,
+    remote_reconnect=False,
+    multiagent=False,
+    ...
+)
+
+================================================================
+2. AGENT SDK RUNTIME — REALITY CHECK
+================================================================
+
+Verify AgentSDKRuntime against the CURRENT official Claude Agent SDK.
+
+Test real adapter wiring separately from FakeRuntime.
+
+Trace:
+
+ZCoder job
+ -> AgentSDKRuntime.start()
+ -> actual Agent SDK call
+ -> session identifier
+ -> event stream
+ -> ZCoder normalized events
+ -> completion state
+
+Verify:
+
+sessions
+resume
+permissions
+hooks
+subagents
+MCP
+skills
+cancellation
+errors
+
+Do not count a wrapper that never invokes the SDK as IMPLEMENTED.
+
+Use mocks at the SDK boundary for offline CI.
+
+Optional live tests may exist separately.
+
+================================================================
+3. MANAGED AGENTS RUNTIME — REALITY CHECK
+================================================================
+
+Re-fetch current official Managed Agents documentation.
+
+Verify actual:
+
+agent creation/reference
+environment
+session creation
+session events
+thread events
+budgets
+resume
+cancel/stop semantics
+multiagent roster
+memory
+remote identifiers
+
+Trace actual HTTP/SDK wire shape independently.
+
+Test:
+
+start session
+persist session ID
+consume events
+disconnect
+reconnect
+deduplicate
+budget_reached
+budget update
+resume
+terminal state
+cancel
+
+Do not allow local JobStore state to masquerade as remote resumability.
+
+================================================================
+4. STATE MACHINE EXPANSION
+================================================================
+
+Audit current job state transitions exhaustively.
+
+Generate transition tests for every pair.
+
+Expected examples:
+
+CREATED -> PLANNING
+PLANNING -> READY
+READY -> RUNNING
+RUNNING -> WAITING_APPROVAL
+WAITING_APPROVAL -> RUNNING
+RUNNING -> BUDGET_REACHED
+BUDGET_REACHED -> RUNNING
+RUNNING -> FAILED
+RUNNING -> SUCCEEDED
+RUNNING -> CANCELLED
+
+Reject illegal transitions.
+
+Use a central transition table.
+
+Do not scatter state rules across handlers.
+
+================================================================
+5. CRASH RECOVERY TEST MATRIX
+================================================================
+
+Simulate process death during:
+
+PLANNING
+RUNNING
+WAITING_APPROVAL
+VALIDATING
+RETRYING
+BUDGET_REACHED
+
+Then rebuild service objects from SQLite.
+
+Verify jobs become:
+
+reconciled
+resumable
+failed
+or operator-action-required
+
+according to explicit policy.
+
+Never leave stale RUNNING records forever.
+
+================================================================
+6. RACE CONDITION TESTS
+================================================================
+
+Test:
+
+approval and cancel arriving simultaneously
+cancel and tool completion simultaneously
+budget reached while cancellation happens
+remote completion during reconnect
+duplicate webhook/events
+two workers claiming same job
+retry while previous attempt finishes
+
+Use synchronization primitives, not arbitrary sleep().
+
+================================================================
+7. DISTRIBUTED WORKER MODEL
+================================================================
+
+Introduce a worker abstraction.
+
+Concept:
+
+Worker:
+    id
+    hostname
+    capabilities
+    runtimes
+    max_concurrency
+    heartbeat
+    last_seen
+    status
+
+Worker status:
+
+ONLINE
+DRAINING
+OFFLINE
+DEGRADED
+
+Jobs should be claimable by workers.
+
+Do not immediately introduce Kubernetes.
+
+Support local multi-worker processes first.
+
+================================================================
+8. DURABLE JOB CLAIMING
+================================================================
+
+Prevent two workers from executing the same job.
+
+Implement atomic job claiming using SQLite transaction semantics for the
+local backend.
+
+Fields may include:
+
+claimed_by
+claimed_at
+lease_expires_at
+
+Claiming must be atomic.
+
+Test concurrent claim attempts.
+
+Exactly one worker wins.
+
+================================================================
+9. LEASES
+================================================================
+
+Use leases so a crashed worker does not permanently own a job.
+
+Support:
+
+lease acquire
+lease heartbeat
+lease renewal
+lease expiration
+reclaim
+
+Protect against duplicate execution.
+
+Take particular care when a Managed Agent remote session may still be
+running after the local worker lease expires.
+
+Reconciliation must occur before launching a replacement execution.
+
+================================================================
+10. WORKER HEARTBEATS
+================================================================
+
+Workers should periodically record liveness.
+
+Do not write heartbeats so frequently that SQLite becomes a bottleneck.
+
+Make interval configurable.
+
+Scheduler should avoid OFFLINE workers.
+
+================================================================
+11. SCHEDULER
+================================================================
+
+Build a scheduler with bounded concurrency.
+
+Inputs:
+
+job priority
+runtime requirement
+repository
+worker capability
+budget
+workspace availability
+operator policy
+
+Initial priorities:
+
+LOW
+NORMAL
+HIGH
+
+Do not allow starvation.
+
+Implement deterministic selection where possible.
+
+================================================================
+12. QUEUE STATES
+================================================================
+
+Extend job lifecycle if necessary:
+
+QUEUED
+CLAIMED
+
+Do so carefully and migrate existing databases safely.
+
+Example:
+
+CREATED
+ -> PLANNING
+ -> READY
+ -> QUEUED
+ -> CLAIMED
+ -> RUNNING
+
+Do not create state explosion unless semantics require it.
+
+================================================================
+13. PER-REPOSITORY CONCURRENCY
+================================================================
+
+Concurrent jobs touching the same repository need controls.
+
+Policies:
+
+parallel-worktrees
+serialize
+read-only-parallel
+exclusive
+
+Default mutation jobs should use independent worktrees.
+
+Configure a maximum concurrent mutation count per repository.
+
+================================================================
+14. RESOURCE CONCURRENCY
+================================================================
+
+Support limits such as:
+
+max_total_jobs
+max_local_jobs
+max_managed_jobs
+max_agent_sdk_jobs
+max_validators
+max_git_operations
+
+Avoid unbounded asyncio.gather().
+
+================================================================
+15. FAIRNESS
+================================================================
+
+Prevent high-volume repositories from starving others.
+
+Consider simple weighted/fair scheduling.
+
+Do not build an unnecessarily complex cluster scheduler.
+
+================================================================
+16. GITHUB ADAPTER
+================================================================
+
+Create a dedicated GitHub integration boundary.
+
+Do NOT scatter GitHub HTTP calls through orchestration code.
+
+Concept:
+
+GitHubProvider:
+    get_repository()
+    create_branch()
+    push_branch()
+    create_pull_request()
+    get_pull_request()
+    list_reviews()
+    list_checks()
+    get_workflow_runs()
+    add_comment()
+    update_pull_request()
+    request_review()
+    merge_pull_request()
+    enqueue_merge()
+
+Use an official/current GitHub API surface.
+
+If GitHub CLI is retained as an adapter, isolate it.
+
+================================================================
+17. AUTHENTICATION
+================================================================
+
+Support appropriate GitHub auth types:
+
+GitHub App
+fine-grained PAT where suitable
+GITHUB_TOKEN in Actions contexts where sufficient
+
+Prefer GitHub App authentication for autonomous service operation.
+
+Never log tokens.
+
+Never store plaintext tokens in JobStore/EventStore.
+
+Represent:
+
+CredentialRef
+
+not secret value.
+
+================================================================
+18. GITHUB PERMISSION MINIMIZATION
+================================================================
+
+Determine minimum required permissions.
+
+Examples may include:
+
+contents
+pull_requests
+checks/actions read
+issues/comments
+metadata
+
+Do NOT request administration permissions merely for convenience.
+
+Merge/ruleset administration should remain separate.
+
+Document exact permission requirements.
+
+================================================================
+19. REPOSITORY REGISTRATION
+================================================================
+
+Create repository configuration.
+
+Example:
+
+.zcoder/config.yaml
+
+repository:
+  default_branch: main
+
+github:
+  owner: ...
+  repo: ...
+
+automation:
+  create_pr: true
+  auto_merge: false
+
+policy:
+  required_validators:
+    - tests
+
+Do not require GitHub for local-only usage.
+
+================================================================
+20. GIT WORKFLOW
+================================================================
+
+A GitHub-backed job should use:
+
+base SHA
+isolated branch
+isolated worktree
+commits
+push
+PR
+
+Record:
+
+repository
+base_ref
+base_sha
+branch
+head_sha
+PR number
+PR URL/id
+
+Never depend only on branch names for identity.
+
+================================================================
+21. BRANCH NAMING
+================================================================
+
+Generate safe deterministic-ish branches:
+
+zcoder/job-<short-id>-<slug>
+
+Validate Git refs.
+
+Avoid collisions.
+
+Do not allow user task text to inject arbitrary refs.
+
+================================================================
+22. COMMIT POLICY
+================================================================
+
+Agents may edit files, but commits should be created through the
+orchestrator.
+
+Record:
+
+commit SHA
+author policy
+message
+job ID
+
+Suggested trailer:
+
+ZCoder-Job: job_...
+
+Do not forge human authorship.
+
+Use an identifiable bot/service identity where appropriate.
+
+================================================================
+23. COMMIT CONTENT VERIFICATION
+================================================================
+
+Before commit:
+
+inspect actual git diff.
+
+Reject:
+
+unexpected files
+secret files
+credential material
+oversized binaries
+paths outside allowed scope
+
+Run configured validators.
+
+================================================================
+24. PUSH POLICY
+================================================================
+
+Pushing is an external mutation.
+
+Policy engine must classify it separately from local git commit.
+
+Possible policy:
+
+ALLOW for job-owned branch
+REQUIRE_APPROVAL for arbitrary branch
+DENY for protected default branch
+
+Never force-push default/protected branches.
+
+================================================================
+25. PULL REQUEST CREATION
+================================================================
+
+Add support for creating PRs.
+
+A PR should contain:
+
+summary
+changes
+validation
+risk
+job ID
+runtime
+test results
+known limitations
+
+Do not fill PR body with raw internal chain-of-thought.
+
+Use concise execution evidence.
+
+================================================================
+26. PR IDEMPOTENCY
+================================================================
+
+Retrying the same job must not create duplicate PRs.
+
+Persist PR number/node ID.
+
+Before creating a PR, check whether the job already owns one.
+
+================================================================
+27. PR UPDATE LOOP
+================================================================
+
+If CI fails:
+
+same job
+same branch
+same PR
+
+unless policy explicitly requires a new attempt/PR.
+
+Do not create PR spam.
+
+================================================================
+28. CI OBSERVER
+================================================================
+
+Implement GitHub CI/check observation.
+
+Normalize:
+
+PENDING
+RUNNING
+SUCCESS
+FAILURE
+CANCELLED
+TIMED_OUT
+ACTION_REQUIRED
+SKIPPED
+NEUTRAL
+
+Capture:
+
+check name
+workflow
+run ID
+URL/reference
+conclusion
+started/completed times
+
+Do not scrape rendered GitHub pages.
+
+================================================================
+29. REQUIRED CHECKS
+================================================================
+
+Differentiate:
+
+all observed checks
+
+from:
+
+required checks
+
+Repository protection/ruleset semantics should remain authoritative.
+
+Do not allow ZCoder to declare a PR mergeable merely because one test
+workflow passed.
+
+================================================================
+30. CI FAILURE COLLECTION
+================================================================
+
+When CI fails:
+
+collect enough logs/artifacts to diagnose the failure.
+
+Do not blindly feed megabytes of raw logs into an LLM.
+
+Pipeline:
+
+download
+ -> normalize
+ -> locate failing steps
+ -> extract bounded relevant context
+ -> save full log as artifact
+ -> give agent concise failure context
+
+================================================================
+31. LOG SECURITY
+================================================================
+
+GitHub Actions logs may contain secrets or sensitive content.
+
+Redact known credentials before presenting logs to agents/events.
+
+Respect GitHub secret masking but do not assume it catches everything.
+
+================================================================
+32. CI REPAIR LOOP
+================================================================
+
+Implement:
+
+PR opened
+ -> checks running
+ -> checks fail
+ -> diagnose
+ -> repair
+ -> validate locally
+ -> commit
+ -> push
+ -> checks rerun
+
+Bound repair attempts.
+
+Example:
+
+max_ci_repairs = 3
+
+After limit:
+
+WAITING_OPERATOR
+or FAILED_VALIDATION
+
+No infinite repair loops.
+
+================================================================
+33. FAILURE FINGERPRINTING
+================================================================
+
+Fingerprint CI failures using structured information.
+
+Examples:
+
+workflow
+job
+step
+test
+error class
+
+If the identical failure repeats after multiple repair attempts,
+escalate instead of looping.
+
+================================================================
+34. STALE BASE HANDLING
+================================================================
+
+Default branch may advance while agent works.
+
+Detect base drift before merge.
+
+Policies:
+
+rebase
+merge-base-update
+re-run
+operator-required
+
+Never silently rewrite complicated conflicts.
+
+================================================================
+35. REBASE SAFETY
+================================================================
+
+Automated rebase is allowed only for the agent-owned branch and subject
+to policy.
+
+If conflicts occur:
+
+agent may attempt conflict resolution within bounded workflow
+
+but must re-run validators.
+
+Never rewrite another contributor's branch.
+
+================================================================
+36. HUMAN REVIEW
+================================================================
+
+Observe PR reviews.
+
+Normalize:
+
+APPROVED
+CHANGES_REQUESTED
+COMMENTED
+DISMISSED
+
+Human review takes precedence over autonomous merge desire.
+
+Do not automatically dismiss reviews.
+
+================================================================
+37. REVIEW FEEDBACK INGESTION
+================================================================
+
+When a reviewer requests changes:
+
+convert review comments into structured work items.
+
+Preserve:
+
+author
+file
+line/context
+comment ID
+timestamp
+
+Do not treat every discussion comment as mandatory instruction.
+
+Policy may distinguish trusted reviewers.
+
+================================================================
+38. REVIEW REPAIR LOOP
+================================================================
+
+Workflow:
+
+CHANGES_REQUESTED
+ -> analyze feedback
+ -> plan modifications
+ -> edit
+ -> validate
+ -> commit
+ -> push
+ -> reply/update status
+
+Bound attempts.
+
+Do not mark human feedback resolved without actual evidence.
+
+================================================================
+39. AUTOMATED REVIEW AGENT
+================================================================
+
+Optionally run an independent ZCoder reviewer before PR or merge.
+
+Reviewer should receive:
+
+diff
+relevant architecture
+test results
+
+not implementation agent's hidden reasoning.
+
+Review:
+
+correctness
+security
+tests
+compatibility
+maintainability
+
+================================================================
+40. CHECK RUN / STATUS REPORTING
+================================================================
+
+Where appropriate, publish ZCoder job status back to GitHub.
+
+Example:
+
+ZCoder / Agent Validation
+
+States should reflect actual job status.
+
+Do not publish SUCCESS while required validators remain pending.
+
+================================================================
+41. COMMENTS
+================================================================
+
+ZCoder may post concise status comments.
+
+Avoid noisy per-event comments.
+
+Prefer:
+
+start
+meaningful blocker
+final summary
+
+or Check Runs where better.
+
+================================================================
+42. MERGE POLICY
+================================================================
+
+Merge must be governed by explicit policy.
+
+Example:
+
+merge:
+  enabled: true
+  require:
+    - zcoder_validators
+    - github_required_checks
+    - required_reviews
+  strategy: squash
+  queue: preferred
+
+Default should NOT automatically merge arbitrary repositories.
+
+================================================================
+43. PROTECTED BRANCHES / RULESETS
+================================================================
+
+Do not bypass protected branch or ruleset requirements.
+
+Never use administrator override to make automation easier.
+
+If repository policy blocks merge:
+
+report WAITING_POLICY
+
+not ERROR.
+
+================================================================
+44. MERGE QUEUE
+================================================================
+
+Support GitHub merge queue only when repository configuration supports it.
+
+Important:
+
+GitHub Actions workflows used as required checks for merge queue must
+handle the merge_group event.
+
+Audit repository workflows before enabling queue automation.
+
+Do not assume pull_request-only workflows will run correctly in a merge
+queue.
+
+================================================================
+45. MERGE QUEUE AUTH
+================================================================
+
+Verify CURRENT GitHub authentication requirements before implementing
+programmatic enqueue behavior.
+
+Do not assume GITHUB_TOKEN has all queue permissions.
+
+Support GitHub App credentials when necessary.
+
+Fail with a clear policy/authentication error rather than bypassing the
+queue.
+
+================================================================
+46. AUTO-MERGE
+================================================================
+
+Distinguish:
+
+GitHub auto-merge
+merge queue
+direct merge
+
+These are separate mechanisms.
+
+ZCoder should select based on repository policy.
+
+Do not implement direct merge fallback if queue is mandatory.
+
+================================================================
+47. MERGE STATE MACHINE
+================================================================
+
+Introduce explicit PR automation states as necessary:
+
+NO_PR
+PR_OPEN
+CI_PENDING
+CI_FAILED
+REVIEW_PENDING
+CHANGES_REQUESTED
+MERGE_READY
+QUEUED_FOR_MERGE
+MERGED
+CLOSED
+
+Do not overload Job.status with every GitHub-specific detail.
+
+Use a separate repository/PR state model.
+
+================================================================
+48. POST-MERGE VERIFICATION
+================================================================
+
+After merge:
+
+verify resulting commit is reachable from expected default branch.
+
+Record:
+
+merge SHA
+merged_at
+merge method
+
+Optionally observe post-merge CI.
+
+Do not claim job fully delivered if merge API response was ambiguous.
+
+================================================================
+49. ISSUE-TO-JOB
+================================================================
+
+Optionally support creating a job from a GitHub issue.
+
+Example:
+
+zcoder github run-issue 123
+
+Fetch:
+
+title
+body
+labels
+repository metadata
+
+Treat issue content as UNTRUSTED user input.
+
+Do not obey embedded instructions that override security/policy.
+
+================================================================
+50. PR-TO-JOB
+================================================================
+
+Support jobs such as:
+
+zcoder github review-pr 456
+zcoder github fix-pr 456
+
+Never mutate someone else's branch unless repository policy explicitly
+permits it.
+
+Preferred fix strategy may be separate agent-owned branch/PR.
+
+================================================================
+51. WEBHOOK RECEIVER
+================================================================
+
+Support GitHub webhooks where useful:
+
+pull_request
+pull_request_review
+check_run
+check_suite
+workflow_run
+push
+issues
+issue_comment
+
+Do not enable every event unnecessarily.
+
+Verify signatures using GitHub's current documented mechanism.
+
+Reject invalid payloads.
+
+================================================================
+52. WEBHOOK IDEMPOTENCY
+================================================================
+
+Persist delivery IDs.
+
+Duplicate delivery must not:
+
+start duplicate job
+post duplicate comment
+merge twice
+rerun repair twice
+
+================================================================
+53. WEBHOOK REPLAY DEFENSE
+================================================================
+
+Verify signature and delivery identity.
+
+Apply bounded retention for processed delivery IDs.
+
+Do not trust user-controlled headers.
+
+================================================================
+54. POLLING FALLBACK
+================================================================
+
+GitHub integrations must remain usable without public webhook ingress.
+
+Support polling/status refresh as a fallback.
+
+Avoid aggressive polling.
+
+Use backoff.
+
+================================================================
+55. EVENT NORMALIZATION
+================================================================
+
+Normalize GitHub events into the shared ZCoder event system.
+
+Examples:
+
+github.pr.created
+github.check.started
+github.check.failed
+github.review.approved
+github.review.changes_requested
+github.merge.queued
+github.pr.merged
+
+Keep raw payload reference separately where necessary.
+
+================================================================
+56. EVENT DEDUPLICATION
+================================================================
+
+Same GitHub state may arrive via:
+
+webhook
+polling
+manual refresh
+
+Deduplicate.
+
+Side effects must be idempotent.
+
+================================================================
+57. CROSS-SYSTEM CORRELATION
+================================================================
+
+Record durable mappings:
+
+ZCoder job ID
+Git repository
+branch
+commit
+GitHub PR
+GitHub workflow run
+Anthropic session
+runtime thread
+
+This should make one job traceable end-to-end.
+
+================================================================
+58. DISTRIBUTED EVENT ORDERING
+================================================================
+
+Do not assume GitHub and runtime events arrive chronologically.
+
+Use:
+
+source timestamp
+ingest timestamp
+local sequence
+
+State reducers must tolerate late events.
+
+================================================================
+59. OUTBOX PATTERN
+================================================================
+
+For local persistent mutations that require an external GitHub side
+effect, consider a durable outbox.
+
+Example:
+
+DB transaction:
+  update job state
+  record event
+  enqueue "github.create_pr"
+
+Worker:
+  process outbox
+  mark delivered
+
+This prevents crashes between state update and remote call.
+
+Do not introduce external message brokers yet unless necessary.
+
+================================================================
+60. IDEMPOTENCY KEYS FOR EXTERNAL ACTIONS
+================================================================
+
+For each external mutation define idempotency behavior:
+
+push
+PR creation
+comment
+review request
+merge
+queue enrollment
+
+Where GitHub API lacks native idempotency keys, use local durable
+correlation and reconciliation.
+
+================================================================
+61. DISTRIBUTED LOCKING
+================================================================
+
+For SQLite/local deployment use database transactional locking/leases.
+
+Do not fake distributed safety with Python threading.Lock.
+
+If multiple hosts truly share no transactional datastore, report that
+SQLite backend supports only single-host/multi-process orchestration.
+
+Design interface for future Postgres.
+
+================================================================
+62. STORAGE ABSTRACTION
+================================================================
+
+Evolve persistence behind interfaces:
+
+JobStore
+EventStore
+ApprovalStore
+WorkerStore
+OutboxStore
+RepositoryStore
+
+Do not immediately implement every backend.
+
+SQLite remains default.
+
+Prepare PostgreSQL adapter boundary.
+
+================================================================
+63. DATABASE MIGRATIONS
+================================================================
+
+Upgrade-07 schema changes require explicit migration.
+
+Track schema version.
+
+Migration must preserve Upgrade-06 jobs/events.
+
+Test migration from previous schema.
+
+================================================================
+64. SCHEDULER RECOVERY
+================================================================
+
+Restart scheduler with:
+
+queued jobs
+claimed expired jobs
+managed remote sessions
+open GitHub PRs
+pending CI
+
+Reconcile all without duplicating work.
+
+================================================================
+65. REPOSITORY RECONCILIATION
+================================================================
+
+A branch or PR may change while ZCoder is offline.
+
+On recovery re-fetch:
+
+branch SHA
+PR state
+reviews
+checks
+merge state
+
+Do not trust stale local GitHub state.
+
+================================================================
+66. MANAGED AGENT RECONCILIATION
+================================================================
+
+If a job used Managed Agents and its local worker died:
+
+check remote session first.
+
+If remote session is still running:
+
+reconnect
+
+not start another session.
+
+================================================================
+67. OPERATOR CONTROLS
+================================================================
+
+Add coherent commands:
+
+zcoder workers list
+zcoder workers show ID
+zcoder workers drain ID
+
+zcoder queue list
+
+zcoder github repos
+zcoder github status JOB
+
+zcoder jobs show JOB
+zcoder jobs watch JOB
+zcoder jobs retry JOB
+zcoder jobs cancel JOB
+
+Exact command structure may follow existing CLI style.
+
+================================================================
+68. GITHUB JOB SUBMISSION
+================================================================
+
+Target workflow:
+
+zcoder run \
+  "Fix failing authentication tests" \
+  --repo OWNER/REPO \
+  --github-pr
+
+Expected behavior:
+
+clone/worktree
+branch
+agent work
+validation
+commit
+push
+PR
+CI observation
+
+No auto-merge unless explicitly configured.
+
+================================================================
+69. DRY RUN
+================================================================
+
+Support:
+
+--dry-run
+
+Show intended:
+
+runtime
+workspace
+branch
+tools
+GitHub mutations
+validators
+approval requirements
+merge policy
+
+Dry-run must not push/create PR/merge.
+
+================================================================
+70. NON-INTERACTIVE AUTOMATION
+================================================================
+
+For CI/service mode:
+
+--non-interactive
+
+Approval-required action should transition to:
+
+WAITING_APPROVAL
+
+not hang on stdin.
+
+================================================================
+71. POLICY PRECEDENCE
+================================================================
+
+Define policy precedence clearly.
+
+Example:
+
+global
+ -> repository
+ -> job
+
+But lower-level policy must not be able to weaken immutable global
+security restrictions unless explicit override mechanism exists.
+
+================================================================
+72. TRUSTED REPOSITORIES
+================================================================
+
+Do not treat all repositories equally.
+
+Configuration may classify:
+
+trusted
+restricted
+untrusted
+
+Untrusted repositories should default to stricter network/tool/secret
+policy.
+
+================================================================
+73. FORK PR SECURITY
+================================================================
+
+Pull requests from forks are a major trust boundary.
+
+Never expose write credentials/secrets to untrusted fork code.
+
+Do not run privileged autonomous mutation workflow on fork-controlled
+code without explicit safeguards.
+
+================================================================
+74. ACTIONS SECURITY
+================================================================
+
+Audit generated/modified GitHub Actions workflows carefully.
+
+Prevent agents from introducing workflow changes that exfiltrate
+secrets.
+
+Treat modifications under:
+
+.github/workflows/
+
+as high-risk.
+
+Require additional approval or security validation.
+
+================================================================
+75. CODEOWNERS / SENSITIVE PATHS
+================================================================
+
+Optionally define sensitive paths:
+
+.github/workflows/**
+security/**
+infra/**
+terraform/**
+deployment/**
+authentication/**
+
+Changes to sensitive paths may require:
+
+human review
+special reviewer
+stronger validator
+no auto-merge
+
+================================================================
+76. SECRET DETECTION
+================================================================
+
+Scan diff before:
+
+commit
+push
+PR
+
+Block probable credentials.
+
+False positives should produce actionable approval/error flow.
+
+Never upload suspected secret contents into model prompts to explain
+them.
+
+================================================================
+77. DEPENDENCY CHANGES
+================================================================
+
+Detect dependency manifest/lock changes.
+
+Require appropriate:
+
+tests
+security checks
+lock consistency
+
+Avoid automatic dependency upgrade unrelated to task.
+
+================================================================
+78. BINARY FILE POLICY
+================================================================
+
+Autonomous jobs should not unexpectedly add large binaries.
+
+Set configurable thresholds.
+
+Require approval when exceeded.
+
+================================================================
+79. COST BUDGET ACROSS REPAIR LOOPS
+================================================================
+
+One GitHub engineering task may involve several agent runs.
+
+Budget should apply to whole job, not reset silently on each CI repair.
+
+Track:
+
+initial implementation
+review
+CI repairs
+human-feedback repairs
+
+================================================================
+80. RUNTIME SELECTION FOR REPAIR
+================================================================
+
+The runtime used for initial implementation does not have to be the
+runtime used for a small repair.
+
+However, runtime switching must be explicit/auditable.
+
+Record:
+
+runtime_per_attempt
+
+================================================================
+81. MULTIAGENT ENGINEERING STRATEGY
+================================================================
+
+Optional workflow:
+
+planner
+implementer
+tester
+reviewer
+
+Use parallelism only for independent work.
+
+Do not let two agents modify overlapping files concurrently without
+merge/conflict strategy.
+
+================================================================
+82. REPOSITORY INDEXING
+================================================================
+
+For larger repositories create lightweight repo metadata:
+
+languages
+test commands
+build commands
+package managers
+important paths
+
+Persist reusable metadata carefully.
+
+Invalidate when relevant files change.
+
+Do not create a giant vector system unless justified.
+
+================================================================
+83. PROJECT INSTRUCTIONS
+================================================================
+
+Respect:
+
+AGENTS.md
+CLAUDE.md where runtime legitimately uses it
+repository docs
+ZCoder project policy
+
+Security policy remains higher priority.
+
+================================================================
+84. VALIDATION DISCOVERY
+================================================================
+
+Do not blindly execute every script in repository.
+
+Discover likely validators, then pass through tool policy.
+
+Prefer explicit repository configuration.
+
+================================================================
+85. GITHUB ACTIONS CONCURRENCY
+================================================================
+
+When ZCoder adds or modifies Actions workflows, understand GitHub
+concurrency semantics.
+
+Use concurrency groups where duplicate workflow execution would be
+harmful.
+
+Do not cancel active deployment-like workflows merely because a newer
+PR update exists unless policy explicitly calls for it.
+
+================================================================
+86. MERGE_GROUP EVENT
+================================================================
+
+When repository uses merge queue, verify required Actions workflows
+include appropriate:
+
+on:
+  pull_request:
+  merge_group:
+
+or repository-appropriate equivalent.
+
+Do not automatically patch workflows unless task/policy permits it.
+
+Report misconfiguration clearly.
+
+================================================================
+87. CHECK CONCLUSION SEMANTICS
+================================================================
+
+Do not treat all non-failure conclusions as SUCCESS.
+
+Handle:
+
+success
+failure
+cancelled
+timed_out
+action_required
+neutral
+skipped
+stale
+
+according to repository rules and GitHub semantics.
+
+================================================================
+88. MERGE READINESS EXPLAINER
+================================================================
+
+Add:
+
+zcoder github merge-status JOB
+
+Example:
+
+NOT_READY
+
+- CI: PASS
+- ZCoder validation: PASS
+- Reviews: 0/1
+- Merge queue: required
+- Security approval: pending
+
+Operator should understand exactly what blocks merge.
+
+================================================================
+89. MACHINE-READABLE OUTPUT
+================================================================
+
+Support --json for:
+
+jobs
+workers
+GitHub PR state
+CI state
+merge readiness
+queue status
+
+Stable schemas.
+
+================================================================
+90. API SERVER
+================================================================
+
+If existing web API supports jobs, add shared-service endpoints as
+appropriate:
+
+GET /api/workers
+GET /api/jobs/{id}/github
+POST /api/jobs/{id}/retry-ci
+GET /api/jobs/{id}/merge-readiness
+
+Do not let web routes directly call GitHub clients bypassing services.
+
+================================================================
+91. TUI / WEB CONSOLE
+================================================================
+
+Only after core domain works.
+
+Useful views:
+
+Jobs
+Workers
+Repository
+PR
+CI
+Reviews
+Merge readiness
+Approvals
+Artifacts
+Cost
+
+No business logic in presentation layer.
+
+================================================================
+92. OBSERVABILITY
+================================================================
+
+Metrics:
+
+jobs_queued
+jobs_running
+worker_utilization
+job_wait_time
+github_api_requests
+github_rate_limit
+pr_created
+ci_failures
+repair_attempts
+merge_wait_time
+merge_success
+merge_failure
+
+Avoid repo/job IDs as metric labels.
+
+================================================================
+93. GITHUB RATE LIMITING
+================================================================
+
+Observe current GitHub API rate-limit responses.
+
+Use backoff/caching.
+
+Avoid polling every job independently when data can be coalesced.
+
+================================================================
+94. ERROR TAXONOMY
+================================================================
+
+Add clear errors such as:
+
+GitHubAuthenticationError
+GitHubPermissionError
+GitHubRateLimitError
+GitHubRepositoryNotFound
+GitHubBranchProtectionError
+GitHubMergeBlocked
+GitHubMergeQueueRequired
+GitHubCIError
+GitHubConflictError
+
+Do not collapse all failures into RuntimeError.
+
+================================================================
+95. TEST SUITE REQUIREMENTS
+================================================================
+
+Upgrade-07 needs substantially more than six new scenarios.
+
+Add tests for at least:
+
+runtime adapter contract
+job claiming
+lease expiry
+worker heartbeats
+scheduler
+concurrent claim
+outbox recovery
+Git worktree isolation
+dirty tree
+branch creation
+commit verification
+push policy
+PR idempotency
+CI normalization
+CI repair loop
+failure fingerprinting
+review feedback
+merge readiness
+merge queue
+webhook verification
+webhook deduplication
+crash recovery
+GitHub reconciliation
+Managed Agent reconciliation
+secret scanning
+fork security
+workflow sensitive paths
+
+No network required for default tests.
+
+================================================================
+96. FAKE GITHUB PROVIDER
+================================================================
+
+Create deterministic FakeGitHubProvider.
+
+Simulate:
+
+PR created
+checks pending
+checks pass
+checks fail
+review approved
+changes requested
+merge queue
+merge complete
+rate limit
+auth failure
+conflict
+
+This enables end-to-end offline testing.
+
+================================================================
+97. GITHUB CONTRACT TESTS
+================================================================
+
+Separately test actual GitHub adapter wire semantics.
+
+Assert:
+
+method
+endpoint
+query
+payload
+headers
+pagination
+errors
+
+Expected URLs/payloads must not come from the same implementation
+constant being tested.
+
+================================================================
+98. END-TO-END OFFLINE SCENARIO
+================================================================
+
+Required scenario:
+
+temporary Git repo
+ -> failing test
+ -> job submitted
+ -> FakeRuntime fixes test
+ -> validation passes
+ -> commit
+ -> FakeGitHubProvider creates PR
+ -> CI first fails
+ -> repair attempt
+ -> push
+ -> CI passes
+ -> fake review approves
+ -> merge readiness PASS
+ -> merge requested
+ -> merged state persisted
+
+Verify:
+
+events
+artifacts
+cost
+attempt history
+PR state
+commit SHAs
+audit trail
+
+================================================================
+99. CRASHED PR WORKFLOW TEST
+================================================================
+
+Simulate crash:
+
+after branch push
+before PR DB update
+
+and:
+
+after PR creation
+before local persistence
+
+Reconcile without creating duplicate PR.
+
+This is mandatory.
+
+================================================================
+100. CRASHED MERGE TEST
+================================================================
+
+Simulate:
+
+merge request succeeds remotely
+process dies before local confirmation
+
+On restart:
+
+query GitHub
+recognize already merged
+persist correct terminal state
+
+Never submit merge twice blindly.
+
+================================================================
+101. LIVE GITHUB TESTS
+================================================================
+
+Optional only.
+
+Marker:
+
+pytest -m github_live
+
+Use a dedicated test repository.
+
+Never use production repositories.
+
+Never auto-merge protected production branches.
+
+================================================================
+102. CI FOR ZCODER ITSELF
+================================================================
+
+Ensure ZCoder's own GitHub Actions cover:
+
+minimal dependencies
+full dependencies
+runtime tests
+GitHub adapter tests
+package build
+clean wheel install
+security
+conformance
+release gate
+
+If merge queue is enabled for ZCoder itself, required workflows must
+support merge_group.
+
+================================================================
+103. GITHUB APP RECOMMENDED DEPLOYMENT
+================================================================
+
+Document recommended production architecture:
+
+GitHub App
+   │
+   ├── repository webhook
+   └── installation token
+          │
+          ▼
+ZCoder service
+   │
+   ├── scheduler
+   ├── workers
+   ├── runtimes
+   └── persistent DB
+
+Do not make GitHub App mandatory for local CLI use.
+
+================================================================
+104. DATABASE BACKEND DECISION
+================================================================
+
+SQLite remains acceptable for:
+
+single-host
+multi-process
+local/team-small deployment
+
+Do not claim SQLite is a distributed multi-host coordination database.
+
+Define storage backend capabilities.
+
+If implementation stays SQLite-only:
+
+document:
+
+multi-host scheduling = NOT SUPPORTED
+
+Do not pretend otherwise.
+
+Optionally prepare interface for PostgreSQL Upgrade-08.
+
+================================================================
+105. VERSIONING
+================================================================
+
+Upgrade-07 is substantial new functionality.
+
+Unless repository history dictates otherwise, it should normally become
+a new MINOR release rather than silently expanding v1.40.0.
+
+Inspect actual tags/releases first.
+
+Potential direction:
+
+v1.41.0 — Agent Runtime
+v1.42.0 — GitHub Engineering Orchestrator
+
+or combine if neither release has been published.
+
+Use evidence and SemVer.
+
+Do not fabricate release history.
+
+================================================================
+106. SECURITY GATE
+================================================================
+
+Before final PASS, explicitly audit:
+
+command approval
+workflow file changes
+fork PR behavior
+credentials
+GitHub App scopes
+webhook signatures
+branch protection
+merge controls
+secret scanning
+event/log redaction
+path traversal
+Git ref injection
+duplicate webhook attacks
+
+Any P0 issue:
+
+FINAL = FAIL
+
+================================================================
+107. DOCUMENTATION
+================================================================
+
+Update as needed:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+
+Add substantive documentation:
+
+docs/UPGRADE-07.md
+docs/SCHEDULER.md
+docs/WORKERS.md
+docs/GITHUB-INTEGRATION.md
+docs/CI-REPAIR-LOOP.md
+docs/MERGE-POLICY.md
+docs/WEBHOOKS.md
+docs/GITHUB-APP.md
+
+No placeholder docs.
+
+================================================================
+108. RELEASE GATE EXPANSION
+================================================================
+
+Extend release check with:
+
+RUNTIME_CONTRACTS
+STATE_MACHINE
+CRASH_RECOVERY
+WORKER_SCHEDULER
+JOB_CLAIMING
+GIT_SAFETY
+GITHUB_ADAPTER
+PR_IDEMPOTENCY
+CI_LOOP
+WEBHOOK_SECURITY
+MERGE_POLICY
+
+Example:
+
+SOURCE_TRUTH: PASS
+TESTS: PASS
+BUILD: PASS
+INSTALL: PASS
+
+RUNTIME_CONTRACTS: PASS
+STATE_MACHINE: PASS
+CRASH_RECOVERY: PASS
+WORKER_SCHEDULER: PASS
+JOB_CLAIMING: PASS
+
+GIT_SAFETY: PASS
+GITHUB_ADAPTER: PASS
+PR_IDEMPOTENCY: PASS
+CI_LOOP: PASS
+WEBHOOK_SECURITY: PASS
+MERGE_POLICY: PASS
+
+SECURITY: PASS
+DOCS: PASS
+
+FINAL: PASS
+
+================================================================
+109. REQUIRED FINAL COMMANDS
+================================================================
+
+Run actual project-equivalent commands.
+
+At minimum:
+
+python -m pytest -q
+python main.py --help
+python main.py --version
+python -m build
+git diff --check
+git status --short
+
+Run:
+
+zcoder release check
+
+or equivalent.
+
+Run full optional dependency suite.
+
+No ignored tests.
+
+Optional live tests must be reported separately.
+
+================================================================
+110. DEFINITION OF DONE
+================================================================
+
+Upgrade-07 is complete only if:
+
+[ ] Upgrade-06 runtime adapters have adversarial contract tests
+[ ] fake/stub-only adapters are not misreported as implemented
+[ ] job claiming is atomic
+[ ] worker leases exist
+[ ] crash recovery works
+[ ] scheduler is bounded
+[ ] per-repository concurrency is safe
+[ ] Git worktrees remain isolated
+[ ] GitHub integration has one clean adapter boundary
+[ ] GitHub credentials never enter event/job storage
+[ ] PR creation is idempotent
+[ ] CI state is normalized
+[ ] CI repair loops are bounded
+[ ] repeated failure detection works
+[ ] human reviews are preserved
+[ ] protected branches are respected
+[ ] merge queue semantics are handled correctly
+[ ] merge_group workflow requirement is audited
+[ ] webhook signatures are verified
+[ ] webhook deliveries are deduplicated
+[ ] external mutations survive process crash safely
+[ ] fork PR security is enforced
+[ ] sensitive workflow changes receive stronger policy
+[ ] full offline end-to-end PR workflow passes
+[ ] crashed PR creation reconciliation passes
+[ ] crashed merge reconciliation passes
+[ ] default CI needs no Anthropic/GitHub live credentials
+[ ] release gate covers all new subsystems
+[ ] documentation matches implementation
+[ ] no P0/P1 security/correctness issue remains
+
+================================================================
+111. FINAL REPORT FORMAT
+================================================================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-06 Claims Re-Verified
+
+Table:
+
+Capability | Previous Claim | Actual Evidence | Tests | Verdict
+
+## 3. Runtime Defects Found
+
+## 4. Runtime Contract Hardening
+
+## 5. Distributed Worker Architecture
+
+## 6. Scheduler & Job Leasing
+
+## 7. Git Workspace / Branch Safety
+
+## 8. GitHub Integration
+
+## 9. PR Automation
+
+## 10. CI Observation & Repair Loop
+
+## 11. Human Review Integration
+
+## 12. Merge Policy / Merge Queue
+
+## 13. Webhooks & Reconciliation
+
+## 14. Security Review
+
+## 15. Persistence / Crash Recovery
+
+## 16. CLI / API / TUI / Web
+
+## 17. Tests Added
+
+Report exact:
+
+passed
+failed
+skipped
+xfailed
+deselected
+
+## 18. Packaging / Install
+
+## 19. Release Gate
+
+SOURCE_TRUTH:
+TESTS:
+BUILD:
+INSTALL:
+
+RUNTIME_CONTRACTS:
+STATE_MACHINE:
+CRASH_RECOVERY:
+WORKER_SCHEDULER:
+JOB_CLAIMING:
+
+GIT_SAFETY:
+GITHUB_ADAPTER:
+PR_IDEMPOTENCY:
+CI_LOOP:
+WEBHOOK_SECURITY:
+MERGE_POLICY:
+
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 20. Version Decision
+
+## 21. Files Changed
+
+## 22. Remaining Gaps
+
+Be explicit about:
+
+single-host-only scheduling
+mock-only integrations
+optional live verification
+private/enterprise-only capabilities
+
+## 23. Final Verdict
+
+Do not say:
+
+"production ready"
+"fully autonomous"
+"distributed"
+"all integrations verified"
+
+unless the evidence genuinely supports those exact claims.

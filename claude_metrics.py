@@ -28,10 +28,11 @@ LOG_PATH = Path(os.path.expanduser("~/.ai-coder/metrics.jsonl"))
 # as of 2026-07-02. Sonnet 5 has $2/$10 intro pricing through 2026-08-31 —
 # not modeled here; this table uses the standing post-intro rate.
 PRICE_TABLE = {
+    "claude-opus-5":                (5.0, 25.0),
     "claude-fable-5":               (10.0, 50.0),
     "claude-mythos-5":              (10.0, 50.0),
     "claude-opus-4-8":               (5.0, 25.0),
-    "claude-sonnet-5":                (3.0, 15.0),
+    "claude-sonnet-5":                (2.0, 10.0),
     "claude-haiku-4-5-20251001":      (1.0,  5.0),
     # Legacy — still callable
     "claude-opus-4-7":               (5.0, 25.0),

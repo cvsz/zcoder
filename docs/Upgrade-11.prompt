@@ -1,0 +1,2338 @@
+# UPGRADE-11
+
+# Real PostgreSQL Tenant-Isolation Proof,
+
+# Release Integrity, Multi-Region Reliability,
+
+# Data-Residency Enforcement, Encryption Boundary,
+
+# Retention / Legal-Hold Architecture,
+
+# and Enterprise Compliance Evidence
+
+You are operating directly inside the current ZCoder repository after
+Upgrade-10.
+
+DO NOT begin by adding new features.
+
+Upgrade-10 contains evidence contradictions that must be corrected first.
+
+The mission has four ordered stages:
+
+1. eliminate false or ambiguous verification claims;
+2. prove enterprise tenant isolation against real PostgreSQL;
+3. establish a truthful multi-region / HA / data-residency architecture;
+4. build auditable enterprise control evidence without falsely claiming certification.
+
+================================================================
+P0 — UPGRADE-10 EVIDENCE CORRECTION
+===================================
+
+The previous report contains contradictory evidence.
+
+Reported summary:
+
+703 tests passed
+2 optional skips
+
+Later execution output shows multiple PostgreSQL tests skipped because:
+
+PostgreSQL test container not reachable
+
+The CLI also reportedly prints:
+
+AI Model Coder CLI v1.39.0
+
+while release documentation reports:
+
+1.40.0
+
+Treat these as P0 release-integrity defects.
+
+Before modifying functionality, run:
+
+git status --short
+git log -30 --oneline
+git tag --sort=-version:refname | head -30
+
+python -m pytest -q -ra
+python main.py --version
+python main.py --help
+
+python -m build
+git diff --check
+
+Record exact:
+
+PASSED
+FAILED
+SKIPPED
+XFAILED
+XPASSED
+DESELECTED
+
+Never summarize skipped PostgreSQL tests as optional unless they actually
+belong to an explicitly optional test class.
+
+================================================================
+
+1. TEST CLASSIFICATION
+   ================================================================
+
+Classify tests into:
+
+UNIT
+INTEGRATION
+POSTGRES_REQUIRED
+SYSTEM
+OPTIONAL_UI
+LIVE_EXTERNAL
+
+Release-critical PostgreSQL tenant security tests must NOT silently skip
+because PostgreSQL is unavailable.
+
+For a production/enterprise release gate:
+
+PostgreSQL missing
+→ POSTGRES_REQUIRED = UNKNOWN/FAIL
+
+not:
+
+PASS
+
+Default lightweight developer tests may skip appropriately.
+
+Release CI must provision PostgreSQL automatically.
+
+================================================================
+2. FIX TEST COUNT TRUTH
+=======================
+
+The release report must derive totals from actual pytest output.
+
+Do not manually hardcode:
+
+703 passed
+2 skipped
+
+Generate machine-readable test evidence where practical.
+
+Release gate should distinguish:
+
+required_skips
+optional_skips
+live_external_skips
+
+Any required skip:
+
+FINAL cannot be unconditional PASS.
+
+================================================================
+3. VERSION SINGLE SOURCE OF TRUTH
+=================================
+
+Find every version source:
+
+pyproject.toml
+main.py
+**version**
+package metadata
+CLI
+Helm
+Docker labels
+docs
+CHANGELOG
+release gate
+
+Choose ONE canonical version source.
+
+All other consumers derive from it.
+
+Add regression test:
+
+# package_version
+
+# CLI_version
+
+release_gate_version
+
+Build wheel and execute the installed artifact from outside the repo.
+
+Verify:
+
+zcoder --version
+
+Do not test only:
+
+python main.py --version
+
+================================================================
+4. RELEASE HISTORY
+==================
+
+Inspect actual:
+
+Git tags
+GitHub releases if available locally/configured
+package releases where evidence exists
+
+Do not fabricate history.
+
+If 1.40.0 was never published:
+
+choose an appropriate release candidate.
+
+If 1.40.0 already exists publicly:
+
+do not rewrite it.
+
+Use SemVer based on actual compatibility.
+
+================================================================
+5. EVIDENCE STATUS MODEL
+========================
+
+Standardize:
+
+PASS
+PASS_WITH_LIMITATIONS
+FAIL
+UNKNOWN
+NOT_APPLICABLE
+
+Evidence levels:
+
+E0 — code exists
+E1 — unit tested
+E2 — integration tested
+E3 — system/multi-process tested
+E4 — real external system tested
+E5 — production observed
+
+A capability may be:
+
+PASS at E2
+
+without being:
+
+production proven.
+
+Keep status and evidence tier separate.
+
+================================================================
+6. EVIDENCE ARTIFACTS
+=====================
+
+Every important release gate should record:
+
+gate
+status
+evidence_level
+command
+test
+environment
+timestamp
+artifact/result
+limitations
+
+Example:
+
+RLS:
+status: PASS
+evidence: E3
+command: pytest tests/integration/test_rls.py
+database: PostgreSQL 16
+limitations: []
+
+No naked booleans.
+
+================================================================
+P0 — REAL POSTGRESQL MULTI-TENANCY PROOF
+========================================
+
+Upgrade-10 must not claim hard tenant isolation from SQLite or mocked DB
+behavior.
+
+Provision a real disposable PostgreSQL instance.
+
+Use:
+
+CI service container
+Docker Compose
+Testcontainers
+or equivalent.
+
+================================================================
+7. VERIFY ACTUAL RLS EXISTENCE
+==============================
+
+Inspect enterprise_postgres_store.py and migrations.
+
+Confirm the database actually contains:
+
+ENABLE ROW LEVEL SECURITY
+
+and, where intended:
+
+FORCE ROW LEVEL SECURITY
+
+plus actual policies.
+
+Do not infer RLS merely from:
+
+SET LOCAL app.current_org
+
+The session variable alone is not RLS.
+
+================================================================
+8. DATABASE ROLE MATRIX
+=======================
+
+Create explicit roles:
+
+migration/admin role
+application role
+backup role
+read-only operations role where justified
+
+Verify normal application role:
+
+is not superuser
+does not have BYPASSRLS
+does not own tenant tables in a way that unintentionally bypasses RLS
+
+Test this using PostgreSQL catalog queries.
+
+================================================================
+9. RLS OWNER-BYPASS TEST
+========================
+
+Mandatory negative test:
+
+normal application connection
+
+attempts cross-tenant SELECT
+UPDATE
+DELETE
+INSERT
+
+while using the actual production DB role.
+
+Prove failure/isolation.
+
+Also test the expected behavior of the table owner and migration role.
+
+Do not hide privileged behavior.
+
+================================================================
+10. TENANT CONNECTION CONTEXT
+=============================
+
+If using:
+
+SET LOCAL app.current_org = ...
+
+verify it always occurs inside an explicit transaction.
+
+Test:
+
+transaction commit
+rollback
+exception
+pool return
+pool reacquire
+
+The next tenant must receive clean context.
+
+================================================================
+11. POOL CONTAMINATION TEST
+===========================
+
+Use a real connection pool.
+
+Force reuse of the same physical PostgreSQL connection.
+
+Sequence:
+
+Org A transaction
+→ return connection
+
+Org B
+→ acquire same physical connection
+
+Prove:
+
+Org B cannot observe Org A scope.
+
+Also test after:
+
+exception
+cancelled transaction
+statement timeout
+
+================================================================
+12. MISSING TENANT CONTEXT
+==========================
+
+Fail closed.
+
+A request with no valid organization context must never translate to:
+
+all organizations.
+
+Test:
+
+unset variable
+empty variable
+malformed ID
+unknown organization
+
+================================================================
+13. CROSS-TENANT TABLE MATRIX
+=============================
+
+Test real PostgreSQL isolation for every tenant-owned table.
+
+At minimum:
+
+organizations
+projects
+memberships
+repositories
+jobs
+events
+approvals
+artifacts
+usage ledger
+quota reservations
+audit records
+API keys/service accounts
+GitHub mappings
+SCIM resources
+policy assignments
+outbox where tenant-scoped
+
+For each resource perform:
+
+read
+insert
+update
+delete
+
+from wrong tenant.
+
+================================================================
+14. BACKGROUND WORKER TENANT ISOLATION
+======================================
+
+HTTP request isolation is insufficient.
+
+Test workers processing:
+
+job
+outbox
+GitHub webhook
+usage event
+audit export
+SCIM action
+
+Ensure trusted tenant scope comes from authoritative stored mapping.
+
+Never trust a tenant ID supplied inside untrusted task payload.
+
+================================================================
+15. REALTIME TENANT ISOLATION
+=============================
+
+Test SSE/WebSocket/event subscriptions.
+
+Org A must not subscribe to:
+
+Org B job
+Org B events
+Org B approvals
+Org B usage
+
+including reconnect scenarios.
+
+================================================================
+16. ARTIFACT ISOLATION
+======================
+
+Test:
+
+guessing artifact ID
+replaying signed URL
+cross-project path
+cross-org artifact download
+
+Possession of ID is never authorization.
+
+================================================================
+17. CACHE ISOLATION
+===================
+
+Enumerate caches.
+
+Tenant-specific cache keys require tenant scope.
+
+Create poisoning test:
+
+Org A caches resource X.
+
+Org B requests same logical identifier.
+
+Prove no cross-tenant hit.
+
+================================================================
+18. API KEY ISOLATION
+=====================
+
+Use real auth/service path.
+
+Test:
+
+Org A key -> Org B
+Project A key -> Project B
+revoked key
+expired key
+scope missing
+
+Never rely solely on API handler-level tests if store layer can bypass.
+
+================================================================
+19. SCIM ISOLATION
+==================
+
+Use Organization A SCIM credential.
+
+Attempt:
+
+create user in B
+modify B group
+deactivate B principal
+
+Must fail.
+
+Test repeated provisioning/idempotency.
+
+================================================================
+20. QUOTA RACE WITH REAL POSTGRESQL
+===================================
+
+Run multiple processes concurrently against a hard quota.
+
+Prove atomic reservation.
+
+Report:
+
+limit
+concurrent requests
+accepted
+rejected
+settled usage
+overshoot
+
+Do not claim race safety from single-process locks.
+
+================================================================
+21. USAGE LEDGER DEDUPLICATION
+==============================
+
+Replay:
+
+same provider usage
+same runtime event
+same webhook
+reconnect sequence
+
+Usage must count once.
+
+Use DB unique/deduplication constraints where appropriate.
+
+================================================================
+22. AUDIT ISOLATION
+===================
+
+SecurityAuditor for A:
+
+cannot query B.
+
+Platform global administrator behavior must be explicit and audited.
+
+================================================================
+23. RLS MIGRATION TEST
+======================
+
+Start from previous schema.
+
+Apply migrations.
+
+Verify:
+
+policies
+roles
+ownership
+constraints
+indexes
+
+Then execute cross-tenant negative tests.
+
+================================================================
+24. BACKUP / RESTORE TENANT TEST
+================================
+
+Create at least:
+
+Organization A
+Organization B
+
+with:
+
+projects
+members
+jobs
+usage
+audit
+policies
+
+Backup.
+
+Restore into fresh PostgreSQL.
+
+Re-run cross-tenant tests.
+
+A restored database missing RLS policies is a release blocker.
+
+================================================================
+P1 — MULTI-REGION ARCHITECTURE
+==============================
+
+Do NOT jump directly to active-active.
+
+First define region semantics precisely.
+
+================================================================
+25. REGION DOMAIN MODEL
+=======================
+
+Do not use one ambiguous `region`.
+
+Distinguish:
+
+control_plane_region
+database_region
+worker_region
+artifact_region
+backup_region
+provider_inference_region
+GitHub external region/not-controlled
+tenant_allowed_regions
+
+================================================================
+26. ORGANIZATION RESIDENCY POLICY
+=================================
+
+Create an explicit policy model.
+
+Example:
+
+OrganizationResidencyPolicy:
+home_region
+allowed_worker_regions
+allowed_artifact_regions
+allowed_backup_regions
+allowed_provider_inference_regions
+cross_region_transfer_allowed
+
+Do not claim compliance merely from inference_geo.
+
+================================================================
+27. RESIDENCY POLICY ENFORCEMENT
+================================
+
+Before scheduling:
+
+job requirements
++
+organization residency policy
++
+worker region
++
+runtime capabilities
+
+→ ALLOW/DENY
+
+Record decision.
+
+Do not schedule first and detect residency conflict later.
+
+================================================================
+28. WORKER REGION ATTESTATION BOUNDARY
+======================================
+
+Do not blindly trust:
+
+worker_region="eu"
+
+from a worker process.
+
+Production architecture needs authoritative worker configuration or
+attestation boundary.
+
+For this upgrade, define and enforce trusted deployment metadata.
+
+Do not claim cryptographic attestation unless implemented.
+
+================================================================
+29. ARTIFACT REGION
+===================
+
+Artifact storage must respect allowed region.
+
+Record:
+
+storage region
+object location
+organization
+retention policy
+
+Never silently copy restricted artifacts cross-region.
+
+================================================================
+30. BACKUP REGION
+=================
+
+Backup replication is data movement.
+
+Residency policy must include backup locations.
+
+Do not assume DR backup exception automatically satisfies customer
+policy.
+
+================================================================
+31. PROVIDER INFERENCE REGION
+=============================
+
+Keep provider inference geography separate from ZCoder infrastructure
+region.
+
+Example:
+
+worker = eu-west
+database = eu-central
+Anthropic inference_geo = us
+
+This may violate policy even though ZCoder infrastructure itself is EU.
+
+Policy must evaluate the full path.
+
+================================================================
+32. DATA FLOW MAP
+=================
+
+Create:
+
+docs/DATA-FLOW.md
+
+For every major path document:
+
+source
+destination
+data type
+tenant scope
+region
+encryption
+retention
+
+Paths include:
+
+GitHub -> ZCoder
+ZCoder -> Anthropic
+worker -> PostgreSQL
+worker -> artifact storage
+telemetry
+backup
+SCIM
+audit export
+
+================================================================
+33. SINGLE-REGION AUTHORITY
+===========================
+
+Define current authoritative region.
+
+If PostgreSQL has one writable primary:
+
+state clearly:
+
+CONTROL PLANE = SINGLE-WRITER
+
+Do not market this as active-active.
+
+================================================================
+34. REGIONAL WORKERS
+====================
+
+Allow multiple worker regions if supported.
+
+Scheduler must consider:
+
+latency
+residency
+runtime
+trust
+capacity
+
+A remote worker must still coordinate through authoritative control-plane
+state safely.
+
+================================================================
+35. CROSS-REGION LATENCY
+========================
+
+Test or simulate realistic database latency.
+
+Observe:
+
+lease renewal
+claims
+scheduler latency
+outbox
+worker heartbeat
+
+Do not configure lease timings that only work on localhost.
+
+================================================================
+36. CLOCK SKEW
+==============
+
+Continue using database/server time for lease authority where possible.
+
+Test workers with intentionally skewed local clocks.
+
+Local wall clock must not override DB lease authority.
+
+================================================================
+37. REGION FAILURE MODEL
+========================
+
+Document expected behavior if:
+
+worker region lost
+API region lost
+database region lost
+artifact region unavailable
+Anthropic geography unavailable
+
+Do not claim automatic recovery where not implemented.
+
+================================================================
+38. CONTROL PLANE FAILOVER BOUNDARY
+===================================
+
+If PostgreSQL HA is external:
+
+explicitly say:
+
+database failover is infrastructure responsibility.
+
+ZCoder should still:
+
+reconnect
+reconcile
+avoid duplicate side effects
+
+after endpoint recovery.
+
+================================================================
+39. DATABASE FAILOVER TEST
+==========================
+
+If practical, test using:
+
+primary endpoint interruption
+or controlled PostgreSQL failover simulation.
+
+Verify:
+
+connection pool refresh
+transactions rollback
+leases reconcile
+outbox remains idempotent
+
+Do not call it HA failover if only the process restarted on the same DB.
+
+================================================================
+40. NETWORK PARTITION MODEL
+===========================
+
+Document behavior:
+
+worker can reach Anthropic but not PostgreSQL
+worker can reach PostgreSQL but not GitHub
+API cannot reach DB
+regional network partially fails
+
+Fencing means a disconnected worker must not continue mutating external
+systems indefinitely after losing authoritative lease renewal.
+
+================================================================
+41. LEASE LOSS BEHAVIOR
+=======================
+
+Define:
+
+lease renewal failure threshold
+
+After losing authoritative ownership:
+
+stop/pause new external mutations.
+
+Do not continue for an unbounded grace period.
+
+================================================================
+42. MULTI-REGION JOB RECOVERY
+=============================
+
+For a lost regional worker:
+
+reconstructible Git workspace?
+Managed Agent remote session?
+local process state?
+
+Define per runtime.
+
+Do not claim universal transparent failover.
+
+================================================================
+P1 — ENCRYPTION BOUNDARY
+========================
+
+Build a clean encryption architecture without pretending to implement
+full BYOK unless actually done.
+
+================================================================
+43. ENCRYPTION CLASSIFICATION
+=============================
+
+Classify data:
+
+PUBLIC
+INTERNAL
+CONFIDENTIAL
+SECRET
+
+Examples:
+
+API key hash != plaintext secret
+artifact source code = potentially confidential
+audit metadata = internal/confidential
+private key = secret
+
+================================================================
+44. SECRET ENCRYPTION
+=====================
+
+Secrets must remain outside ordinary tenant tables where possible.
+
+Use SecretRef.
+
+If encrypted secret storage is introduced:
+
+envelope encryption architecture is preferred.
+
+================================================================
+45. ENVELOPE ENCRYPTION MODEL
+=============================
+
+Concept:
+
+plaintext data
+→ data encryption key
+→ ciphertext
+
+DEK
+→ wrapped by KEK/KMS
+
+Store:
+
+ciphertext
+wrapped DEK
+key identifier
+algorithm/version
+
+Never store plaintext KEK beside ciphertext.
+
+================================================================
+46. KEY PROVIDER INTERFACE
+==========================
+
+Create provider-neutral boundary:
+
+KeyProvider:
+encrypt/wrap
+decrypt/unwrap
+rotate
+
+Potential implementations later:
+
+AWS KMS
+GCP KMS
+Azure Key Vault
+Vault/HSM
+
+Do not require a cloud vendor for local mode.
+
+================================================================
+47. TENANT KEY BOUNDARY
+=======================
+
+Prepare for:
+
+platform key
+organization key
+resource data key
+
+Do not claim per-tenant customer-managed encryption keys unless
+organization-specific key control genuinely exists.
+
+================================================================
+48. KEY ROTATION
+================
+
+Design:
+
+new writes use new key version
+old data remains readable
+background rewrap/re-encryption possible
+audit rotation
+
+No destructive big-bang rotation.
+
+================================================================
+49. CRYPTO METADATA
+===================
+
+Persist:
+
+algorithm
+key ID
+version
+created_at
+
+Do not invent custom cryptography.
+
+Use maintained libraries and established AEAD algorithms.
+
+================================================================
+50. KEY DELETION CONSEQUENCES
+=============================
+
+Treat key destruction as destructive.
+
+Require elevated policy/approval.
+
+Document irrecoverability.
+
+================================================================
+51. BACKUP ENCRYPTION RELATIONSHIP
+==================================
+
+Database/storage encryption and backup encryption are separate concerns.
+
+Document both.
+
+Do not claim tenant key isolation if backups bypass that boundary.
+
+================================================================
+P1 — RETENTION AND LEGAL-HOLD ARCHITECTURE
+==========================================
+
+================================================================
+52. RETENTION POLICY MODEL
+==========================
+
+Define independent retention categories:
+
+jobs
+events
+artifacts
+agent transcripts
+audit
+usage
+identity provisioning history
+security events
+
+One global retention duration is insufficient.
+
+================================================================
+53. RETENTION RESOLUTION
+========================
+
+Policy precedence may be:
+
+platform minimum
+organization setting
+project setting
+resource classification
+
+Lower-level policy must not violate immutable platform/security minimums.
+
+================================================================
+54. RETENTION EXECUTOR
+======================
+
+Deletion must be:
+
+batched
+tenant-scoped
+audited
+idempotent
+
+Never run unbounded DELETE across all tenants.
+
+================================================================
+55. LEGAL HOLD BOUNDARY
+=======================
+
+Introduce architectural state such as:
+
+NORMAL
+LEGAL_HOLD
+
+only if useful.
+
+Do not claim legal-hold compliance merely because a boolean exists.
+
+At minimum demonstrate:
+
+retention executor refuses protected resource deletion.
+
+================================================================
+56. TENANT DELETION
+===================
+
+Implement lifecycle:
+
+REQUESTED
+SUSPENDED
+RETENTION_WAIT
+DELETING
+VERIFYING
+DELETED
+
+Do not hard-delete synchronously from an API request.
+
+================================================================
+57. DELETE VERIFICATION
+=======================
+
+Verify removal across:
+
+primary DB
+artifacts
+caches
+search/index if any
+background queue
+
+Backups may follow separate retention lifecycle.
+
+Document this honestly.
+
+================================================================
+P1 — COMPLIANCE EVIDENCE PLATFORM
+=================================
+
+This is NOT certification.
+
+Do not claim:
+
+SOC 2 compliant
+ISO 27001 certified
+HIPAA compliant
+PCI compliant
+
+unless an external/qualified compliance process exists.
+
+================================================================
+58. CONTROL CATALOG
+===================
+
+Create an internal control catalog.
+
+Concept:
+
+Control:
+id
+title
+objective
+owner
+implementation
+evidence
+frequency
+status
+
+Example control families:
+
+Access Control
+Identity
+Tenant Isolation
+Change Management
+Logging
+Monitoring
+Backup
+Recovery
+Secrets
+Encryption
+Vulnerability Management
+Incident Response
+
+================================================================
+59. FRAMEWORK MAPPING
+=====================
+
+Allow controls to map to external frameworks.
+
+Possible mappings may include:
+
+SOC 2 criteria
+ISO 27001 controls
+NIST controls
+
+But treat mapping as:
+
+engineering/control mapping
+
+not:
+
+certification.
+
+Verify current framework versions before documenting exact identifiers.
+
+================================================================
+60. EVIDENCE RECORD
+===================
+
+Create:
+
+EvidenceRecord:
+control_id
+collected_at
+source
+artifact_hash
+environment
+status
+expires_at
+metadata
+
+Do not store sensitive full artifacts unnecessarily.
+
+================================================================
+61. AUTOMATED EVIDENCE COLLECTION
+=================================
+
+Collect evidence from actual system state where useful:
+
+release gate
+CI
+test results
+container scan
+SBOM
+backup freshness
+restore drill
+role configuration
+RLS tests
+audit export
+GitHub branch protections where accessible
+
+Do not fabricate PASS evidence.
+
+================================================================
+62. EVIDENCE EXPIRATION
+=======================
+
+Evidence becomes stale.
+
+Examples:
+
+backup restore drill
+vulnerability scan
+access review
+
+Track freshness.
+
+Expired evidence:
+
+STALE
+
+not:
+
+PASS.
+
+================================================================
+63. CONTROL STATUS
+==================
+
+Use:
+
+EFFECTIVE
+PARTIAL
+INEFFECTIVE
+NOT_TESTED
+NOT_APPLICABLE
+
+Evidence level remains separate.
+
+================================================================
+64. CONTROL EXCEPTIONS
+======================
+
+Support exceptions:
+
+control
+scope
+reason
+owner
+expiry
+approval
+
+No permanent undocumented override.
+
+================================================================
+65. ACCESS REVIEW EVIDENCE
+==========================
+
+Generate reviewable reports for:
+
+organization admins
+platform admins
+service accounts
+API keys
+GitHub installations
+
+Do not automatically revoke based solely on report generation.
+
+================================================================
+66. SECRET ROTATION EVIDENCE
+============================
+
+Track key/credential age where available.
+
+Alert stale credentials.
+
+Do not expose secret values.
+
+================================================================
+67. BACKUP EVIDENCE
+===================
+
+Distinguish:
+
+backup created
+backup integrity checked
+restore tested
+PITR tested
+
+These are four different evidence states.
+
+================================================================
+68. PITR CLOSURE
+================
+
+Upgrade-10 still reports PITR limitation.
+
+If this upgrade claims full PITR:
+
+provision real WAL archive target
+create base backup
+generate transactions
+select recovery point
+destroy/change data after point
+restore to fresh PostgreSQL
+recover to target
+verify expected dataset
+
+Anything less:
+
+PITR remains PASS_WITH_LIMITATIONS / NOT_PROVEN.
+
+================================================================
+69. RESTORE DRILL EVIDENCE
+==========================
+
+Persist:
+
+backup ID
+restore environment
+duration
+records verified
+result
+timestamp
+
+Do not record only:
+
+command exit 0.
+
+================================================================
+70. INCIDENT RESPONSE EVIDENCE
+==============================
+
+Create runbook/drill records for:
+
+tenant isolation incident
+stolen API key
+GitHub App key compromise
+database loss
+provider outage
+cross-region outage
+
+Do not claim successful incident readiness without drills.
+
+================================================================
+71. AUDIT EXPORT HARDENING
+==========================
+
+Audit exports should support:
+
+schema version
+time range
+organization
+integrity hash
+
+Optional signed manifests if properly implemented.
+
+Do not call unsigned JSONL immutable.
+
+================================================================
+72. SIEM DELIVERY
+=================
+
+Maintain provider-neutral adapter.
+
+Test:
+
+retry
+duplicate prevention
+dead letter
+tenant scoping
+secret redaction
+
+================================================================
+P1 — SECURITY HARDENING
+=======================
+
+================================================================
+73. CROSS-TENANT FUZZ / PROPERTY TESTS
+======================================
+
+Generate random:
+
+organizations
+projects
+jobs
+IDs
+
+Attempt cross-scope operations.
+
+Invariant:
+
+principal never obtains resource outside authorized scope.
+
+Property-based testing is welcome.
+
+================================================================
+74. IDOR TESTS
+==============
+
+Guess valid identifiers belonging to another tenant.
+
+Test:
+
+API
+CLI service layer
+artifact download
+realtime streams
+audit
+usage
+
+No insecure direct-object-reference leak.
+
+================================================================
+75. SSRF HARDENING
+==================
+
+Enterprise-controlled URLs include possible:
+
+OIDC discovery
+SIEM endpoint
+webhook
+MCP
+artifact callback
+
+Protect:
+
+localhost
+link-local
+metadata endpoints
+private networks according to policy
+redirect chains
+DNS rebinding where relevant
+
+Do not rely solely on string blacklist.
+
+================================================================
+76. SCIM SECURITY REVIEW
+========================
+
+Verify:
+
+auth
+tenant scope
+pagination
+filter bounds
+payload size
+deactivation
+group mapping
+rate limits
+
+Do not claim full SCIM conformance without explicit conformance tests.
+
+================================================================
+77. API KEY HASHING
+===================
+
+Audit API key storage.
+
+Never store plaintext.
+
+Use suitable cryptographic hashing/MAC scheme for high-entropy API keys.
+
+Test database dump does not reveal usable credentials.
+
+================================================================
+78. SESSION SECURITY
+====================
+
+Review:
+
+browser cookies
+CSRF
+session expiry
+role changes
+membership removal
+
+A user whose membership is removed must lose access within documented
+cache/session bounds.
+
+================================================================
+79. AUTHORIZATION CACHE
+=======================
+
+If authorization decisions are cached:
+
+tenant scope
+policy version
+principal
+resource/action
+
+must be represented correctly.
+
+Policy/member changes require bounded invalidation.
+
+================================================================
+80. PLATFORM ADMIN ABUSE BOUNDARY
+=================================
+
+Platform admins are high privilege.
+
+Audit all cross-tenant access.
+
+Consider reason/ticket requirement for support access.
+
+Do not pretend operational administrators cannot bypass controls if they
+actually can.
+
+================================================================
+P1 — MULTI-REGION OPERATIONS
+============================
+
+================================================================
+81. REGION HEALTH
+=================
+
+Expose:
+
+AVAILABLE
+DEGRADED
+UNAVAILABLE
+
+for:
+
+workers
+artifact storage
+provider
+control plane dependencies
+
+================================================================
+82. REGIONAL CIRCUIT BREAKER
+============================
+
+When a region becomes unhealthy:
+
+stop scheduling new work there.
+
+Do not immediately migrate stateful jobs without recovery analysis.
+
+================================================================
+83. RESIDENCY-AWARE FAILOVER
+============================
+
+Failover target must satisfy organization residency policy.
+
+If no allowed target exists:
+
+PAUSE / WAITING_CAPACITY
+
+not:
+
+violate residency.
+
+================================================================
+84. REGIONAL CAPACITY
+=====================
+
+Scheduler should understand:
+
+capacity by region
+runtime by region
+queue depth
+tenant restrictions
+
+================================================================
+85. COST AWARE ROUTING
+======================
+
+Optional routing may consider cost.
+
+Security/residency constraints always override cheapest-region logic.
+
+================================================================
+86. LATENCY TEST
+================
+
+Inject network latency between worker and PostgreSQL.
+
+Measure:
+
+claim latency
+lease renewal
+heartbeat
+outbox
+
+Report environment and results.
+
+================================================================
+87. NETWORK PARTITION TEST
+==========================
+
+Use deterministic failure injection.
+
+Worker loses DB connectivity while running.
+
+Verify:
+
+no new external mutation after lease authority is lost according to
+configured safety window.
+
+================================================================
+88. STALE-WORKER EXTERNAL SIDE EFFECT TEST
+==========================================
+
+Fencing protects DB writes but cannot magically stop GitHub API calls.
+
+Ensure external mutation path validates current ownership immediately
+before high-risk side effects where practical.
+
+This is critical.
+
+================================================================
+89. OUTBOX OWNERSHIP
+====================
+
+External side effects should preferably originate from durable outbox
+processing under current authoritative state.
+
+Avoid arbitrary worker direct external mutations where transactional
+reconciliation is needed.
+
+================================================================
+90. DUPLICATE PR/MERGE UNDER PARTITION
+======================================
+
+Simulate timeout after GitHub accepted:
+
+create PR
+merge
+
+Reconcile before retry.
+
+No duplicate PR / double merge request.
+
+================================================================
+P2 — HA ARCHITECTURE PROOF
+==========================
+
+================================================================
+91. POSTGRESQL HA BOUNDARY
+==========================
+
+If ZCoder relies on external managed PostgreSQL HA:
+
+document contract:
+
+endpoint behavior
+failover expectations
+connection retry
+RPO/RTO assumptions
+
+Do not implement a half-baked DB clustering system inside ZCoder.
+
+================================================================
+92. FAILOVER HARNESS
+====================
+
+Create an integration interface to test endpoint interruption/failover.
+
+Use a reproducible local setup if practical.
+
+Do not claim managed-cloud HA without actual cloud test.
+
+================================================================
+93. API HORIZONTAL SCALE
+========================
+
+Run multiple API processes against one PostgreSQL.
+
+Test:
+
+auth
+job submission
+idempotency
+realtime
+webhook ingestion
+
+No sticky in-memory security state.
+
+================================================================
+94. RECONCILER MULTI-INSTANCE
+=============================
+
+Run more than one reconciler instance.
+
+Ensure leader election/idempotency prevents duplicate effects.
+
+================================================================
+95. SCHEDULER MULTI-INSTANCE
+============================
+
+Prove multi-scheduler safety.
+
+Do not depend on singleton deployment unless architecture explicitly
+requires it and readiness enforces that assumption.
+
+================================================================
+96. REGIONAL CONTROL-PLANE LIMIT
+================================
+
+If control plane remains one region:
+
+say:
+
+multi-region workers supported
+multi-region control plane NOT implemented
+
+Do not blur the distinction.
+
+================================================================
+P2 — ENTERPRISE OPERATIONS
+==========================
+
+================================================================
+97. TENANT SECURITY DASHBOARD
+=============================
+
+Expose useful organization-level status:
+
+SSO
+SCIM
+API keys
+policy
+usage
+quota
+audit
+residency
+retention
+
+No direct DB queries from UI.
+
+================================================================
+98. CONTROL EVIDENCE DASHBOARD
+==============================
+
+Show:
+
+control
+status
+last evidence
+evidence level
+age
+exception
+
+Do not display a fake compliance percentage.
+
+================================================================
+99. SECURITY EXPORT
+===================
+
+Generate organization security posture export.
+
+Clearly label:
+
+configuration/evidence report
+
+not:
+
+certification report.
+
+================================================================
+100. REGION / RESIDENCY CLI
+===========================
+
+Potential commands:
+
+zcoder regions list
+
+zcoder orgs residency show ORG
+zcoder orgs residency set ...
+
+zcoder jobs placement JOB
+
+zcoder evidence controls list
+zcoder evidence collect
+zcoder evidence report
+
+Follow current CLI architecture.
+
+================================================================
+101. DOCTOR
+===========
+
+Expand:
+
+zcoder doctor
+
+Check:
+
+version consistency
+PostgreSQL
+RLS
+migration
+tenant context
+worker regions
+residency
+PITR evidence
+compliance evidence freshness
+
+================================================================
+102. RELEASE GATE
+=================
+
+Add mandatory evidence-based gates.
+
+Example:
+
+VERSION_INTEGRITY
+TEST_ACCOUNTING
+
+POSTGRES_REQUIRED
+RLS
+RLS_APP_ROLE
+POOL_ISOLATION
+CROSS_TENANT
+BACKGROUND_TENANT_SCOPE
+REALTIME_TENANT_SCOPE
+QUOTA_RACE
+
+REGION_MODEL
+RESIDENCY_POLICY
+REGIONAL_SCHEDULING
+
+ENCRYPTION_BOUNDARY
+RETENTION
+
+CONTROL_CATALOG
+EVIDENCE_COLLECTION
+
+PITR
+
+SECURITY
+DOCS
+
+================================================================
+103. RELEASE GATE STATUS
+========================
+
+Example:
+
+SOURCE_TRUTH: PASS
+VERSION_INTEGRITY: PASS
+TEST_ACCOUNTING: PASS
+
+POSTGRES_REQUIRED: PASS
+RLS: PASS
+RLS_APP_ROLE: PASS
+POOL_ISOLATION: PASS
+CROSS_TENANT: PASS
+BACKGROUND_TENANT_SCOPE: PASS
+REALTIME_TENANT_SCOPE: PASS
+QUOTA_RACE: PASS
+
+REGION_MODEL: PASS
+RESIDENCY_POLICY: PASS
+REGIONAL_SCHEDULING: PASS
+
+ENCRYPTION_BOUNDARY: PASS
+RETENTION: PASS
+
+CONTROL_CATALOG: PASS
+EVIDENCE_COLLECTION: PASS
+
+PITR: PASS_WITH_LIMITATIONS
+
+SECURITY: PASS
+DOCS: PASS
+
+FINAL: PASS_WITH_LIMITATIONS
+
+Never convert PASS_WITH_LIMITATIONS into PASS in summary text.
+
+================================================================
+104. RELEASE GATE REQUIRED-SKIP RULE
+====================================
+
+If any release-critical PostgreSQL/security test is skipped:
+
+POSTGRES_REQUIRED = UNKNOWN/FAIL
+
+FINAL cannot be PASS.
+
+Optional TUI/Web tests may remain classified independently.
+
+================================================================
+105. CI
+=======
+
+Required CI jobs:
+
+unit
+full-dependencies
+
+postgres-required
+rls
+cross-tenant
+quota-concurrency
+
+multi-process
+
+region-policy
+security
+
+package-build
+clean-install
+
+container
+
+release-gate
+
+Provision required PostgreSQL automatically.
+
+================================================================
+106. NIGHTLY SYSTEM TESTS
+=========================
+
+Run heavier:
+
+network latency
+worker partition
+DB restart
+restore drill
+PITR when configured
+multi-API
+multi-scheduler
+
+Never test destructive failure against production.
+
+================================================================
+107. RELEASE ARTIFACT EVIDENCE
+==============================
+
+Attach machine-readable:
+
+test report
+release gate
+SBOM
+scan result
+migration version
+container digest
+control evidence summary
+
+where release tooling supports it.
+
+================================================================
+108. DOCUMENTATION
+==================
+
+Update:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+CHANGELOG.md
+SECURITY.md
+CONTRIBUTING.md
+
+Add:
+
+docs/UPGRADE-11.md
+docs/EVIDENCE-MODEL.md
+docs/REGIONS.md
+docs/DATA-RESIDENCY.md
+docs/DATA-FLOW.md
+docs/ENCRYPTION.md
+docs/KEY-MANAGEMENT.md
+docs/RETENTION.md
+docs/COMPLIANCE-EVIDENCE.md
+docs/CONTROL-CATALOG.md
+docs/HA-BOUNDARIES.md
+
+Update:
+
+docs/DISASTER-RECOVERY.md
+docs/THREAT-MODEL.md
+
+No marketing overclaims.
+
+================================================================
+109. REQUIRED TESTS
+===================
+
+At minimum add/expand:
+
+test_version_single_source
+
+test_required_postgres_tests_do_not_false_pass
+
+test_application_role_cannot_bypass_rls
+
+test_table_owner_rls_behavior
+
+test_missing_tenant_fails_closed
+
+test_connection_pool_same_connection_no_leak
+
+test_connection_pool_after_exception_no_leak
+
+test_cross_tenant_full_resource_matrix
+
+test_background_worker_tenant_scope
+
+test_realtime_cross_tenant_denied
+
+test_artifact_cross_tenant_denied
+
+test_cache_cross_tenant_isolation
+
+test_scim_cross_tenant
+
+test_api_key_cross_tenant
+
+test_quota_real_postgres_concurrency
+
+test_usage_replay_deduplication
+
+test_backup_restore_preserves_rls
+
+test_residency_scheduler_denies_invalid_region
+
+test_residency_failover_never_violates_policy
+
+test_worker_loses_lease_stops_external_mutations
+
+test_compliance_evidence_expiration
+
+test_control_exception_expiry
+
+Do not satisfy these only with mocks when PostgreSQL semantics matter.
+
+================================================================
+110. FINAL VERIFICATION
+=======================
+
+Run:
+
+python -m pytest -q -ra
+
+python main.py --version
+python main.py --help
+
+python -m build
+
+install built wheel in a fresh venv
+
+zcoder --version
+
+git diff --check
+git status --short
+
+Separately run and report:
+
+real PostgreSQL
+RLS
+cross-tenant
+quota concurrency
+multi-process
+backup/restore
+regional policy
+network failure
+release gate
+
+Do not hide skipped required tests.
+
+================================================================
+111. VERSION DECISION
+=====================
+
+Resolve the current mismatch.
+
+Report:
+
+canonical source
+old CLI version
+old package version
+new chosen version
+Git tag state
+published release state
+
+Explain SemVer reasoning.
+
+The version mismatch itself must be impossible after this upgrade.
+
+================================================================
+112. DEFINITION OF DONE
+=======================
+
+Upgrade-11 is complete only when:
+
+[ ] test totals come from actual execution
+[ ] required PostgreSQL tests cannot silently skip in release CI
+[ ] CLI/package/release version is identical
+[ ] real PostgreSQL tenant tests execute
+[ ] actual RLS policies are verified
+[ ] app role cannot bypass RLS
+[ ] pool contamination test passes
+[ ] full cross-tenant matrix passes
+[ ] background processing is tenant-safe
+[ ] realtime is tenant-safe
+[ ] artifacts/caches are tenant-safe
+[ ] quota race is tested with PostgreSQL concurrency
+[ ] backup restore preserves RLS/isolation
+[ ] region concepts are separated correctly
+[ ] tenant residency policy exists
+[ ] scheduler enforces allowed regions
+[ ] failover cannot violate residency
+[ ] encryption architecture is explicit
+[ ] no custom cryptography is introduced
+[ ] retention executor is tenant-safe
+[ ] legal-hold boundary does not falsely claim compliance
+[ ] control catalog exists
+[ ] evidence records are freshness-aware
+[ ] evidence status cannot be fabricated by booleans
+[ ] PITR claim accurately reflects actual executed proof
+[ ] final verdict preserves limitations
+[ ] no P0/P1 tenant-security defect remains
+
+================================================================
+113. FINAL REPORT FORMAT
+========================
+
+Return exactly:
+
+## 1. Baseline
+
+## 2. Upgrade-10 Contradictions Found
+
+Table:
+
+Claim
+Previous Result
+Actual Evidence
+Correction
+
+## 3. Test Accounting
+
+Report:
+
+passed
+failed
+skipped required
+skipped optional
+xfailed
+deselected
+
+## 4. Version Integrity
+
+Canonical version:
+CLI:
+wheel:
+container:
+Helm:
+docs:
+
+## 5. PostgreSQL Tenant Proof
+
+Include actual PostgreSQL version.
+
+## 6. RLS Proof
+
+Tables:
+Policies:
+Application role:
+FORCE RLS:
+Negative results:
+
+## 7. Connection Pool Isolation
+
+## 8. Cross-Tenant Negative Matrix
+
+## 9. Background / Realtime / Artifact Isolation
+
+## 10. Quota & Usage Concurrency
+
+## 11. Backup / Restore Tenant Proof
+
+## 12. Region Model
+
+## 13. Data Residency
+
+## 14. Regional Scheduling & Failover
+
+## 15. Encryption / Key Boundary
+
+## 16. Retention / Deletion / Legal-Hold Boundary
+
+## 17. Compliance Control Catalog
+
+## 18. Evidence Collection
+
+## 19. PITR
+
+State precisely:
+
+NOT_PROVEN
+PROVEN_WITH_LIMITATION
+PROVEN
+
+## 20. Security Review
+
+## 21. Tests
+
+Separate:
+
+unit
+PostgreSQL
+RLS
+cross-tenant
+multi-process
+regional
+DR
+
+## 22. Evidence Tiers
+
+Capability | Status | E0-E5 | Evidence | Limitation
+
+## 23. Release Gate
+
+SOURCE_TRUTH:
+VERSION_INTEGRITY:
+TEST_ACCOUNTING:
+
+POSTGRES_REQUIRED:
+RLS:
+RLS_APP_ROLE:
+POOL_ISOLATION:
+CROSS_TENANT:
+BACKGROUND_TENANT_SCOPE:
+REALTIME_TENANT_SCOPE:
+QUOTA_RACE:
+
+REGION_MODEL:
+RESIDENCY_POLICY:
+REGIONAL_SCHEDULING:
+
+ENCRYPTION_BOUNDARY:
+RETENTION:
+
+CONTROL_CATALOG:
+EVIDENCE_COLLECTION:
+
+PITR:
+
+SECURITY:
+DOCS:
+
+FINAL:
+
+## 24. Version Decision
+
+## 25. Files Changed
+
+## 26. Remaining Limitations
+
+Explicitly state:
+
+real PostgreSQL tests executed?
+physical hardware multi-host?
+network partition tolerance?
+automatic PostgreSQL failover?
+PITR end-to-end?
+multi-region workers?
+multi-region control plane?
+active-active?
+cross-region database replication?
+per-tenant encryption?
+customer-managed keys?
+legal hold fully implemented?
+external compliance certification?
+
+## 27. Final Verdict
+
+Do NOT say:
+
+FULLY VERIFIED
+MULTI-REGION READY
+HA
+ACTIVE-ACTIVE
+COMPLIANT
+SOC 2 COMPLIANT
+ISO 27001 CERTIFIED
+PITR VERIFIED
+TENANT ISOLATION PROVEN
+
+unless the exact property has the exact executed evidence required for
+that claim.
+
+The highest priority of Upgrade-11 is not feature count.
+
+It is making every security, reliability, tenancy, region, version and
+compliance statement traceable to reproducible evidence.

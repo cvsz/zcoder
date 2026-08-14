@@ -1,0 +1,88 @@
+# Default values for zcoder Helm chart.
+
+image:
+  repository: ghcr.io/cvsz/zcoder
+  pullPolicy: IfNotPresent
+  tag: "1.40.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+api:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  livenessProbe:
+    httpGet:
+      path: /health/live
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health/ready
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+workers:
+  standard:
+    replicaCount: 3
+    concurrency: 2
+    poolType: standard
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+    terminationGracePeriodSeconds: 120
+
+database:
+  mode: postgres
+  existingSecret: "zcoder-db-credentials"
+  secretKey: "DATABASE_URL"
+
+auth:
+  enabled: true
+  oidcIssuer: "https://auth.example.com"
+  oidcAudience: "zcoder-prod"
+  existingSecret: "zcoder-auth-secrets"
+
+telemetry:
+  enabled: true
+  endpoint: "otel-collector.monitoring.svc.cluster.local:4317"
