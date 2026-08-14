@@ -1,0 +1,83 @@
+name: Upgrade-35 Compose Once
+
+on:
+  push:
+    branches:
+      - upgrade-35-maintenance-observability
+
+permissions:
+  contents: write
+
+jobs:
+  compose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: upgrade-35-maintenance-observability
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compose campaign lifecycle events and metrics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          otel = Path('src/zcoder/infrastructure/observability/otel.py')
+          text = otel.read_text(encoding='utf-8')
+          needle = '''        # Cost metrics\n        self.cost_usd_total = _Counter()\n'''
+          replacement = '''        # Cost metrics\n        self.cost_usd_total = _Counter()\n\n        # Maintenance campaign metrics (bounded cardinality; no campaign IDs as labels)\n        self.maintenance_campaigns_total = _Counter()\n        self.maintenance_campaigns_noncompleted_total = _Counter()\n        self.maintenance_recommendations_total = _Counter()\n        self.maintenance_work_seeded_total = _Counter()\n        self.maintenance_completed_items_total = _Counter()\n        self.maintenance_blocked_items_total = _Counter()\n        self.maintenance_pending_items_total = _Counter()\n        self.maintenance_observer_errors_total = _Counter()\n        self.maintenance_campaign_duration_seconds = _Histogram()\n'''
+          if needle not in text:
+              raise SystemExit('OTel metric insertion point not found')
+          text = text.replace(needle, replacement, 1)
+          needle = '''        c("zcoder_cost_usd", "Total cost in USD", self.cost_usd_total)\n\n        return "\\n".join(lines) + "\\n"\n'''
+          replacement = '''        c("zcoder_cost_usd", "Total cost in USD", self.cost_usd_total)\n        c("zcoder_maintenance_campaigns", "Maintenance campaigns started", self.maintenance_campaigns_total)\n        c(\n            "zcoder_maintenance_campaigns_noncompleted",\n            "Maintenance campaigns that ended non-completed",\n            self.maintenance_campaigns_noncompleted_total,\n        )\n        c(\n            "zcoder_maintenance_recommendations",\n            "Maintenance recommendations discovered",\n            self.maintenance_recommendations_total,\n        )\n        c("zcoder_maintenance_work_seeded", "Unique maintenance work seeded", self.maintenance_work_seeded_total)\n        c(\n            "zcoder_maintenance_completed_items",\n            "Maintenance work items completed",\n            self.maintenance_completed_items_total,\n        )\n        c(\n            "zcoder_maintenance_blocked_items",\n            "Maintenance work items blocked",\n            self.maintenance_blocked_items_total,\n        )\n        c(\n            "zcoder_maintenance_pending_items",\n            "Maintenance work items pending",\n            self.maintenance_pending_items_total,\n        )\n        c(\n            "zcoder_maintenance_observer_errors",\n            "Maintenance campaign observer delivery errors",\n            self.maintenance_observer_errors_total,\n        )\n        h(\n            "zcoder_maintenance_campaign_duration_seconds",\n            "Maintenance campaign execution duration",\n            self.maintenance_campaign_duration_seconds,\n        )\n\n        return "\\n".join(lines) + "\\n"\n'''
+          if needle not in text:
+              raise SystemExit('OTel exposition insertion point not found')
+          otel.write_text(text.replace(needle, replacement, 1), encoding='utf-8')
+
+          campaign = Path('src/zcoder/services/maintenance_campaign.py')
+          text = campaign.read_text(encoding='utf-8')
+          text = text.replace('''import json\nimport os\nimport time\nimport uuid\n''', '''import json\nimport logging\nimport os\nimport time\nimport uuid\n''', 1)
+          text = text.replace('''from dataclasses import asdict, dataclass\n''', '''from dataclasses import asdict, dataclass, replace\n''', 1)
+          import_needle = '''from zcoder.services.maintenance_intelligence import MaintenanceIntelligenceService\n'''
+          import_replacement = '''from zcoder.services.maintenance_intelligence import MaintenanceIntelligenceService\nfrom zcoder.services.maintenance_observability import (\n    MaintenanceCampaignEvent,\n    MaintenanceCampaignEventSink,\n    MaintenanceCampaignEventType,\n    OtelMaintenanceCampaignEventSink,\n)\n'''
+          if import_needle not in text:
+              raise SystemExit('maintenance import insertion point not found')
+          text = text.replace(import_needle, import_replacement, 1)
+          text = text.replace('''    terminal_ledger_counts: dict[str, int]\n    started_at: float\n''', '''    terminal_ledger_counts: dict[str, int]\n    observer_error_count: int\n    started_at: float\n''', 1)
+          service_start = text.index('class MaintenanceCampaignService:')
+          service_end = text.index('\ndef load_signals_file', service_start)
+          service = '''class MaintenanceCampaignService:\n    """Run Upgrade-23 recommendations through one bounded pipeline invocation."""\n\n    def __init__(\n        self,\n        pipeline: ContinuousEngineeringPipeline,\n        intelligence: Any,\n        event_sink: MaintenanceCampaignEventSink | None = None,\n    ) -> None:\n        self.pipeline = pipeline\n        self.intelligence = intelligence\n        self.event_sink = event_sink\n        self._observer_error_count = 0\n\n    def _emit(self, event: MaintenanceCampaignEvent) -> None:\n        if self.event_sink is None:\n            return\n        try:\n            self.event_sink.emit(event)\n        except Exception as exc:\n            self._observer_error_count += 1\n            logging.getLogger(__name__).warning(\n                "maintenance campaign observer failed for %s: %s",\n                event.event_type.value,\n                type(exc).__name__,\n            )\n\n    def run(self) -> MaintenanceCampaignReport:\n        started_at = time.time()\n        campaign_id = f"maintenance-{uuid.uuid4().hex}"\n        self._emit(\n            MaintenanceCampaignEvent(\n                event_type=MaintenanceCampaignEventType.STARTED,\n                campaign_id=campaign_id,\n                timestamp=started_at,\n            )\n        )\n\n        recommendations = list(self.intelligence.generate_recommendations())\n        work_by_fingerprint: dict[str, UpgradeWorkItem] = {}\n        for recommendation in recommendations:\n            item = maintenance_campaign_work(recommendation)\n            work_by_fingerprint.setdefault(item.fingerprint, item)\n\n        self._emit(\n            MaintenanceCampaignEvent(\n                event_type=MaintenanceCampaignEventType.RECOMMENDATIONS_DISCOVERED,\n                campaign_id=campaign_id,\n                timestamp=time.time(),\n                recommendations_discovered=len(recommendations),\n                work_seeded=len(work_by_fingerprint),\n                observer_error_count=self._observer_error_count,\n            )\n        )\n\n        report = self.pipeline.run(work_by_fingerprint.values())\n        finished_at = time.time()\n        campaign = MaintenanceCampaignReport(\n            campaign_id=campaign_id,\n            state=report.state.value,\n            recommendations_discovered=len(recommendations),\n            work_seeded=len(work_by_fingerprint),\n            iterations=report.iterations,\n            completed_count=len(report.completed_item_ids),\n            blocked_count=len(report.blocked_item_ids),\n            pending_count=len(report.pending_item_ids),\n            halt_reason=report.halt_reason,\n            terminal_ledger_counts=self.pipeline.ledger.terminal_counts(),\n            observer_error_count=self._observer_error_count,\n            started_at=started_at,\n            finished_at=finished_at,\n        )\n        final_type = (\n            MaintenanceCampaignEventType.COMPLETED\n            if report.state == LoopState.COMPLETED\n            else MaintenanceCampaignEventType.HALTED\n        )\n        self._emit(\n            MaintenanceCampaignEvent(\n                event_type=final_type,\n                campaign_id=campaign_id,\n                timestamp=finished_at,\n                state=campaign.state,\n                recommendations_discovered=campaign.recommendations_discovered,\n                work_seeded=campaign.work_seeded,\n                iterations=campaign.iterations,\n                completed_count=campaign.completed_count,\n                blocked_count=campaign.blocked_count,\n                pending_count=campaign.pending_count,\n                halt_reason=campaign.halt_reason,\n                duration_seconds=campaign.duration_seconds,\n                observer_error_count=self._observer_error_count,\n            )\n        )\n        if campaign.observer_error_count != self._observer_error_count:\n            campaign = replace(campaign, observer_error_count=self._observer_error_count)\n        return campaign\n\n\n@dataclass(frozen=True)\nclass MaintenanceCampaignRunResult:\n    """Scheduler-friendly result contract independent of CLI/stdout."""\n\n    report: MaintenanceCampaignReport\n    exit_code: int\n\n\ndef run_maintenance_campaign_once(\n    pipeline: ContinuousEngineeringPipeline,\n    intelligence: Any,\n    event_sink: MaintenanceCampaignEventSink | None = None,\n) -> MaintenanceCampaignRunResult:\n    """Run exactly one campaign and return its structured report plus exit code."""\n\n    report = MaintenanceCampaignService(pipeline, intelligence, event_sink=event_sink).run()\n    return MaintenanceCampaignRunResult(\n        report=report,\n        exit_code=0 if report.state == LoopState.COMPLETED.value else 2,\n    )\n\n'''
+          text = text[:service_start] + service + text[service_end + 1:]
+          main_old = '''    pipeline = _build_pipeline(args, repository_root)\n    try:\n        campaign = MaintenanceCampaignService(pipeline, intelligence).run()\n        output = json.dumps(campaign.to_dict(), indent=2, sort_keys=True)\n    finally:\n        close = getattr(pipeline, "close", None)\n        if callable(close):\n            close()\n    print(output)\n    return 0 if campaign.state == LoopState.COMPLETED.value else 2\n'''
+          main_new = '''    pipeline = _build_pipeline(args, repository_root)\n    try:\n        result = run_maintenance_campaign_once(\n            pipeline,\n            intelligence,\n            event_sink=OtelMaintenanceCampaignEventSink(),\n        )\n        output = json.dumps(result.report.to_dict(), indent=2, sort_keys=True)\n    finally:\n        close = getattr(pipeline, "close", None)\n        if callable(close):\n            close()\n    print(output)\n    return result.exit_code\n'''
+          if main_old not in text:
+              raise SystemExit('maintenance main block not found')
+          campaign.write_text(text.replace(main_old, main_new, 1), encoding='utf-8')
+          PY
+      - name: Canonical lint and formatting
+        run: |
+          python -m pip install --disable-pip-version-check ruff==0.16.3 black==26.5.1
+          ruff check --fix \
+            src/zcoder/infrastructure/observability/otel.py \
+            src/zcoder/services/maintenance_campaign.py \
+            src/zcoder/services/maintenance_observability.py \
+            tests/unit/test_maintenance_observability.py
+          black --line-length 110 \
+            src/zcoder/infrastructure/observability/otel.py \
+            src/zcoder/services/maintenance_campaign.py \
+            src/zcoder/services/maintenance_observability.py \
+            tests/unit/test_maintenance_observability.py
+          rm .github/workflows/upgrade35-compose-once.yml
+      - name: Commit Upgrade-35 composition
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/zcoder/infrastructure/observability/otel.py src/zcoder/services/maintenance_campaign.py src/zcoder/services/maintenance_observability.py tests/unit/test_maintenance_observability.py .github/workflows/upgrade35-compose-once.yml
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'feat: add Upgrade-35 maintenance campaign observability'
+          git push origin HEAD:upgrade-35-maintenance-observability
