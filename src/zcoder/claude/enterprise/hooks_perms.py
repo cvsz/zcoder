@@ -18,6 +18,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from resilience import shell_command_argv
+
 HOOKS_FILE = Path.home() / ".ai-coder" / "hooks.json"
 PERMS_FILE = Path.home() / ".ai-coder" / "permissions.json"
 
@@ -100,7 +102,9 @@ class HookManager:
             if h.tool_match and tool_name and h.tool_match not in tool_name:
                 continue
             try:
-                p = subprocess.run(h.command, shell=True, capture_output=True, text=True, timeout=30, env=env)
+                p = subprocess.run(
+                    shell_command_argv(h.command), capture_output=True, text=True, timeout=30, env=env
+                )
                 blocked = event == HookEvent.PRE_TOOL_USE and p.returncode != 0
                 results.append(
                     HookResult(

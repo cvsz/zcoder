@@ -13,10 +13,9 @@ class PortfolioScheduler:
         self.portfolio_store = portfolio_store
         self.eng_store = eng_store
 
-    def plan_campaign(self, campaign: EngineeringCampaign) -> List[str]:
+    def plan_campaign(self, campaign: EngineeringCampaign) -> list[str]:
         task_ids = []
         for repo_id in campaign.repositories:
-            # Create a task for each repo
             task = EngineeringTask(task_description=f"Campaign {campaign.name} on repo {repo_id}")
             self.eng_store.save_task(task)
             task_ids.append(task.id)

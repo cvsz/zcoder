@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError, TransientAPIError
-from resilience import retry
+from resilience import retry, safe_urlopen
 
 PLUGINS_ROOT = Path(os.path.expanduser("~/.claude/plugins"))
 MARKETPLACES_DIR = PLUGINS_ROOT / "marketplaces"
@@ -111,7 +111,7 @@ def read_manifest(plugin_dir: Path) -> dict:
         try:
             data = json.loads(manifest_path.read_text())
         except Exception as e:
-            raise ValueError(f"invalid plugin.json: {e}")
+            raise ValueError(f"invalid plugin.json: {e}") from e
         merged = {**DEFAULT_MANIFEST_FIELDS, **data}
         if not merged["name"]:
             raise ValueError("plugin.json must include a 'name' field")
@@ -196,7 +196,7 @@ def _is_url(s: str) -> bool:
 @retry(max_attempts=2, base_delay=1.0, max_delay=5.0)
 def _fetch_marketplace_source(url: str) -> bytes:
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
+        with safe_urlopen(url, timeout=30) as resp:
             return resp.read()
     except urllib.error.URLError as e:
         raise TransientAPIError(f"could not fetch {url}: {e}") from e

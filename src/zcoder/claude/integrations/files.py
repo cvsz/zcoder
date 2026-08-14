@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError
-from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
+from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
 FILES_BASE = "https://api.anthropic.com/v1/files"
 MESSAGES_BASE = "https://api.anthropic.com/v1/messages"
@@ -72,7 +72,7 @@ class FilesAPI:
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call_bytes(self, req: "urllib.request.Request", timeout: float) -> bytes:
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with safe_urlopen(req, timeout=timeout) as r:
                 return r.read()
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
@@ -80,7 +80,7 @@ class FilesAPI:
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call_nobody(self, req: "urllib.request.Request", timeout: float) -> None:
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with safe_urlopen(req, timeout=timeout) as r:
                 r.read()
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)

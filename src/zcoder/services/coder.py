@@ -11,7 +11,7 @@ import urllib.request
 from config import Config
 from exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
 from logging_config import get_logger
-from resilience import CircuitBreaker, retry
+from resilience import CircuitBreaker, retry, safe_urlopen
 from utils import sampling_kwargs
 
 logger = get_logger("coder")
@@ -127,12 +127,12 @@ class Coder:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=120) as resp:
+                with safe_urlopen(req, timeout=120) as resp:
                     return json.loads(resp.read().decode())
             except urllib.error.HTTPError as e:
                 body = e.read().decode()
                 if e.code == 401:
-                    raise AuthenticationError("API key rejected (401)", details={"body": body[:300]})
+                    raise AuthenticationError("API key rejected (401)", details={"body": body[:300]}) from e
                 if e.code == 429:
                     retry_after = None
                     try:
@@ -141,17 +141,17 @@ class Coder:
                         pass
                     raise RateLimitError(
                         "Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}
-                    )
+                    ) from e
                 if e.code >= 500:
-                    raise TransientAPIError(f"Server error ({e.code})", details={"body": body[:300]})
+                    raise TransientAPIError(f"Server error ({e.code})", details={"body": body[:300]}) from e
                 raise APIError(
                     f"Request rejected ({e.code})", status_code=e.code, details={"body": body[:300]}
-                )
+                ) from e
             except (TimeoutError, ConnectionError, OSError) as e:
                 # Covers socket timeouts and connection resets from urllib,
                 # which surface as plain OSError/ConnectionError subclasses,
                 # not HTTPError. These are transient/retryable by nature.
-                raise TransientAPIError(f"Network error: {e}")
+                raise TransientAPIError(f"Network error: {e}") from e
 
         try:
             data = _call()

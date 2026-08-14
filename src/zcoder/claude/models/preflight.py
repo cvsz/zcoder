@@ -6,6 +6,7 @@ import json
 import urllib.request
 
 from claude_models import MODEL_CATALOG
+from resilience import safe_urlopen
 
 
 class ModelUnavailableError(ValueError):
@@ -28,7 +29,7 @@ class ModelCapabilityResolver:
             headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=10) as response:
+            with safe_urlopen(request, timeout=10) as response:
                 metadata = json.loads(response.read().decode())
         except Exception as exc:
             # Offline fallback is deliberately conservative: it verifies only
