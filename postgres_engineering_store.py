@@ -17,7 +17,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
     """PostgreSQL-backed persistent store for engineering tasks."""
 
     def init_schema(self) -> None:
-        """Create schema if not exists."""
+        """Create schema if not exists and enable RLS."""
         # Add engineering-specific tables
         schema = """
         CREATE TABLE IF NOT EXISTS engineering_tasks (
@@ -28,6 +28,9 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
             updated_at DOUBLE PRECISION NOT NULL,
             metadata JSONB NOT NULL DEFAULT '{}'
         );
+        -- Enable RLS
+        ALTER TABLE engineering_tasks ENABLE ROW LEVEL SECURITY;
+        
         CREATE TABLE IF NOT EXISTS engineering_attempts (
             id TEXT PRIMARY KEY,
             task_id TEXT NOT NULL REFERENCES engineering_tasks(id),
@@ -45,10 +48,54 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
             state_snapshot JSONB NOT NULL DEFAULT '{}',
             timestamp DOUBLE PRECISION NOT NULL
         );
+        -- Portfolio/Campaign Tables
+        CREATE TABLE IF NOT EXISTS managed_repositories (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            local_path TEXT NOT NULL,
+            status TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS engineering_campaigns (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            repositories JSONB NOT NULL DEFAULT '[]'
+        );
         """
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(schema)
+
+    def claim_task(self) -> Optional[EngineeringTask]:
+        """Atomically claim a CREATED task for processing."""
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT * FROM engineering_tasks
+                    WHERE status = 'CREATED'
+                    ORDER BY created_at ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+                if not row:
+                    return None
+                
+                # Mark as RUNNING
+                cur.execute("""
+                    UPDATE engineering_tasks
+                    SET status = 'RUNNING', updated_at = %s
+                    WHERE id = %s
+                """, (time.time(), row[0]))
+                
+                metadata = row[5]
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+
+                return EngineeringTask(
+                    id=row[0], task_description=row[1], status=TaskStatus.RUNNING,
+                    created_at=row[3], updated_at=row[4], metadata=metadata
+                )
 
     def save_task(self, task: EngineeringTask) -> None:
         task.updated_at = time.time()
@@ -74,9 +121,14 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                 row = cur.fetchone()
                 if not row:
                     return None
+                
+                metadata = row[5]
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+
                 return EngineeringTask(
                     id=row[0], task_description=row[1], status=TaskStatus(row[2]),
-                    created_at=row[3], updated_at=row[4], metadata=row[5]
+                    created_at=row[3], updated_at=row[4], metadata=metadata
                 )
 
     def create_attempt(self, attempt: Attempt) -> None:
