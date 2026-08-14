@@ -1,9 +1,9 @@
-import unittest
 import os
-import time
-from pathlib import Path
-from engineering_models import EngineeringTask, TaskStatus
+import unittest
+
+from engineering_models import EngineeringTask
 from postgres_engineering_store import PostgresEngineeringStore
+
 
 class TestPostgresEngineeringStore(unittest.TestCase):
     def setUp(self):
@@ -18,5 +18,6 @@ class TestPostgresEngineeringStore(unittest.TestCase):
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.task_description, "Postgres task")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

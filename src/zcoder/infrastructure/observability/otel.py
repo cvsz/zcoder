@@ -7,28 +7,30 @@ Provides:
   • Graceful no-op degradation when opentelemetry is not installed
   • Bounded-cardinality labels (never job_id/trace_id in Prometheus labels)
 """
+
 from __future__ import annotations
 
 import logging
-import os
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Generator, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 # ─── Runtime import guard ────────────────────────────────────────────────────
 
 try:
-    from opentelemetry import trace, metrics
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
     from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
     _OTEL_AVAILABLE = True
 except ImportError:
     _OTEL_AVAILABLE = False
@@ -36,9 +38,11 @@ except ImportError:
 
 # ─── Metric Definitions ──────────────────────────────────────────────────────
 
+
 @dataclass
 class _Counter:
     """Lightweight thread-safe counter (no-op backend)."""
+
     _value: float = 0.0
 
     def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
@@ -98,6 +102,7 @@ class _Histogram:
 
 
 # ─── Application Metric Registry ─────────────────────────────────────────────
+
 
 class ZCoderMetrics:
     """Central registry of bounded-cardinality Prometheus-compatible metrics.
@@ -192,17 +197,33 @@ class ZCoderMetrics:
         h("zcoder_job_wait_seconds", "Time spent in queue before claim", self.job_wait_seconds)
         h("zcoder_job_duration_seconds", "Job execution duration", self.job_duration_seconds)
         g("zcoder_worker_active", "Number of active worker processes", self.worker_active)
-        g("zcoder_worker_lease_expirations", "Total worker lease expirations", self.worker_lease_expirations_total)
+        g(
+            "zcoder_worker_lease_expirations",
+            "Total worker lease expirations",
+            self.worker_lease_expirations_total,
+        )
         g("zcoder_outbox_pending", "Number of undelivered outbox messages", self.outbox_pending)
         c("zcoder_outbox_failures", "Outbox delivery failures", self.outbox_failures_total)
         c("zcoder_webhooks", "Webhooks received", self.webhooks_total)
         c("zcoder_github_api_errors", "GitHub API errors", self.github_api_errors_total)
-        g("zcoder_github_rate_limit_remaining", "GitHub API rate limit remaining", self.github_rate_limit_remaining)
+        g(
+            "zcoder_github_rate_limit_remaining",
+            "GitHub API rate limit remaining",
+            self.github_rate_limit_remaining,
+        )
         c("zcoder_anthropic_errors", "Anthropic API errors", self.anthropic_errors_total)
         g("zcoder_db_pool_in_use", "Database pool connections in use", self.db_pool_in_use)
         g("zcoder_approvals_pending", "Approval requests pending", self.approvals_pending)
-        g("zcoder_backup_last_success_timestamp", "Unix timestamp of last successful backup", self.backup_last_success_timestamp)
-        g("zcoder_backup_last_restore_drill_timestamp", "Unix timestamp of last successful restore drill", self.backup_last_restore_drill_timestamp)
+        g(
+            "zcoder_backup_last_success_timestamp",
+            "Unix timestamp of last successful backup",
+            self.backup_last_success_timestamp,
+        )
+        g(
+            "zcoder_backup_last_restore_drill_timestamp",
+            "Unix timestamp of last successful restore drill",
+            self.backup_last_restore_drill_timestamp,
+        )
         c("zcoder_api_requests", "API requests total", self.api_requests_total)
         c("zcoder_api_errors", "API errors total", self.api_errors_total)
         h("zcoder_api_duration_seconds", "API request duration", self.api_duration_seconds)
@@ -232,6 +253,7 @@ def get_tracer(name: str = "zcoder") -> Any:
     global _tracer
     if _OTEL_AVAILABLE and _tracer is not None:
         import opentelemetry.trace as trace_mod
+
         return trace_mod.get_tracer(name)
     return _NoOpTracer()
 
@@ -261,6 +283,7 @@ class _NoOpTracer:
 
 # ─── Initialization ──────────────────────────────────────────────────────────
 
+
 def init_telemetry(
     service_name: str = "zcoder",
     service_version: str = "unknown",
@@ -283,13 +306,15 @@ def init_telemetry(
         return
 
     try:
-        import opentelemetry.trace as trace_mod
         import opentelemetry.metrics as metrics_mod
+        import opentelemetry.trace as trace_mod
 
-        resource = Resource.create({
-            "service.name": service_name,
-            "service.version": service_version,
-        })
+        resource = Resource.create(
+            {
+                "service.name": service_name,
+                "service.version": service_version,
+            }
+        )
 
         # Traces
         if otel_endpoint:
@@ -313,6 +338,7 @@ def init_telemetry(
 
 
 # ─── Convenience context managers ───────────────────────────────────────────
+
 
 @contextmanager
 def trace_job_span(job_id: str, worker_id: str, operation: str = "job.execute") -> Generator[Any, None, None]:

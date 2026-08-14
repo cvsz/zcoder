@@ -6,6 +6,7 @@ installed, matching how tests for other optional-dependency modules
 (claude_excel.py/claude_powerpoint.py) handle the same situation — see
 tests/test_config.py's pattern for the equivalent skip-if-missing idiom.
 """
+
 import pytest
 
 textual = pytest.importorskip("textual", reason="optional dependency for --tui, see requirements.txt")
@@ -145,6 +146,7 @@ def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
     # textual -- checks tui.py's own guard message stays informative.
     import importlib
     import sys as _sys
+
     real_textual = _sys.modules.get("textual")
     _sys.modules["textual"] = None  # forces an ImportError on next import
     for mod in list(_sys.modules):

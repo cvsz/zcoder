@@ -24,54 +24,53 @@ Categories (as required by §186-197):
  19.  Full engineering loop E2E (offline, zero-paid, local-only)
  20.  Security E2E: malicious diff blocked by hard gate
 """
+
 import pytest
 
 from local_ai_stack import (
-    # Task lifecycle
-    EngineeringTask,
-    TaskStatus,
-    TaskSource,
-    TaskRisk,
-    ExecutionAttempt,
-    # Plan
-    EngineeringPlan,
-    PlanStep,
-    # Validation
-    ValidationState,
-    ValidationCommand,
-    ValidationProfile,
-    ValidationFailure,
-    TestDelta,
-    # Worktree
-    WorktreeContext,
-    WorktreeManager,
-    # Context
-    EngineeringContextBuilder,
-    # No-progress
-    NoProgressDetector,
-    # Review / Security
-    ReviewCategory,
-    ReviewSeverity,
-    StaticReviewFinding,
-    StaticReviewer,
-    SecurityGate,
-    SecurityGateResult,
-    SecurityGateReport,
-    # Commit
-    CommitPreconditions,
+    # Loop
+    AutonomousEngineeringLoop,
     # Checkpoint
     Checkpoint,
     CheckpointStore,
+    # Commit
+    CommitPreconditions,
+    # Context
+    EngineeringContextBuilder,
+    # Plan
+    EngineeringPlan,
+    # Task lifecycle
+    EngineeringTask,
+    ExecutionAttempt,
+    # No-progress
+    NoProgressDetector,
+    PlanStep,
     # Push policy
     PushPolicy,
-    # Loop
-    AutonomousEngineeringLoop,
+    # Review / Security
+    ReviewCategory,
+    ReviewSeverity,
+    SecurityGate,
+    SecurityGateResult,
+    StaticReviewer,
+    TaskRisk,
+    TaskSource,
+    TaskStatus,
+    TestDelta,
+    ValidationCommand,
+    ValidationFailure,
+    ValidationProfile,
+    # Validation
+    ValidationState,
+    # Worktree
+    WorktreeContext,
+    WorktreeManager,
 )
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. Task Lifecycle States
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestTaskLifecycle:
     def test_task_starts_in_created_state(self):
@@ -94,10 +93,24 @@ class TestTaskLifecycle:
 
     def test_all_18_states_exist(self):
         required = {
-            "CREATED", "ANALYZING", "PLANNING", "READY", "RUNNING",
-            "VALIDATING", "REPAIRING", "REVIEWING", "WAITING_APPROVAL",
-            "COMMITTING", "PUSHING", "PR_CREATING", "CI_WAITING",
-            "CI_REPAIRING", "SUCCEEDED", "FAILED", "CANCELLED", "PAUSED",
+            "CREATED",
+            "ANALYZING",
+            "PLANNING",
+            "READY",
+            "RUNNING",
+            "VALIDATING",
+            "REPAIRING",
+            "REVIEWING",
+            "WAITING_APPROVAL",
+            "COMMITTING",
+            "PUSHING",
+            "PR_CREATING",
+            "CI_WAITING",
+            "CI_REPAIRING",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "PAUSED",
         }
         actual = {s.value for s in TaskStatus}
         assert required.issubset(actual), f"Missing states: {required - actual}"
@@ -111,11 +124,10 @@ class TestTaskLifecycle:
 # 2. ExecutionAttempt: retry preserves history
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestExecutionAttempt:
     def test_attempt_is_separate_from_task(self):
-        attempt = ExecutionAttempt(
-            attempt_id="a1", task_id="t1", base_commit="abc123"
-        )
+        attempt = ExecutionAttempt(attempt_id="a1", task_id="t1", base_commit="abc123")
         assert attempt.result == "IN_PROGRESS"
         assert attempt.task_id == "t1"
         assert attempt.attempt_id == "a1"
@@ -132,6 +144,7 @@ class TestExecutionAttempt:
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. WorktreeManager
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestWorktreeManager:
     def test_create_worktree_basic(self):
@@ -191,6 +204,7 @@ class TestWorktreeManager:
 # 4. Baseline capture
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestBaseline:
     def test_baseline_checkpoint_saved_before_edit(self):
         store = CheckpointStore()
@@ -220,6 +234,7 @@ class TestBaseline:
 # 5. ValidationState semantics
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestValidationState:
     def test_discovered_is_not_executed_pass(self):
         assert ValidationState.DISCOVERED != ValidationState.EXECUTED_PASS
@@ -242,13 +257,12 @@ class TestValidationState:
 # 6. ValidationProfile and ValidationFailure
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestValidationProfileAndFailure:
     def test_validation_profile_fields(self):
         profile = ValidationProfile(
             project_id="proj",
-            required_validators=[
-                ValidationCommand("pytest -q", "pyproject.toml", "HIGH")
-            ],
+            required_validators=[ValidationCommand("pytest -q", "pyproject.toml", "HIGH")],
             optional_validators=[],
         )
         assert profile.required_validators[0].command == "pytest -q"
@@ -270,6 +284,7 @@ class TestValidationProfileAndFailure:
 # ──────────────────────────────────────────────────────────────────────────────
 # 7. TestDelta
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestTestDeltaCalculation:
     def test_fixed_is_in_baseline_not_post(self):
@@ -303,6 +318,7 @@ class TestTestDeltaCalculation:
 # 8. EngineeringPlan versioning
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestEngineeringPlan:
     def test_plan_has_revision(self):
         plan = EngineeringPlan(
@@ -331,9 +347,7 @@ class TestEngineeringPlan:
         loop = AutonomousEngineeringLoop()
         task = loop.create_task("t-highrisk", "proj", "delete everything", risk=TaskRisk.HIGH)
         # HIGH-risk tasks require approval — preconditions won't be satisfied without it
-        result = loop.run_engineering_loop(
-            "t-highrisk", "proj", "delete everything", {"a.py": "pass"}
-        )
+        result = loop.run_engineering_loop("t-highrisk", "proj", "delete everything", {"a.py": "pass"})
         # Either FAILED (approval_required=True and not satisfied) or implementation handles it
         # The plan should mark approval_required=True
         plans = loop.get_task_plans("t-highrisk")
@@ -343,6 +357,7 @@ class TestEngineeringPlan:
 # ──────────────────────────────────────────────────────────────────────────────
 # 9. EngineeringContextBuilder
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEngineeringContextBuilder:
     def _make_task(self) -> EngineeringTask:
@@ -376,6 +391,7 @@ class TestEngineeringContextBuilder:
 # 10. NoProgressDetector
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestNoProgressDetector:
     def test_not_stuck_on_first_failure(self):
         det = NoProgressDetector()
@@ -407,6 +423,7 @@ class TestNoProgressDetector:
 # ──────────────────────────────────────────────────────────────────────────────
 # 11. Static Review
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestStaticReviewer:
     def _task(self) -> EngineeringTask:
@@ -446,6 +463,7 @@ class TestStaticReviewer:
 # ──────────────────────────────────────────────────────────────────────────────
 # 12. SecurityGate — hard failure, PASSED
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestSecurityGate:
     def _task(self) -> EngineeringTask:
@@ -489,6 +507,7 @@ class TestSecurityGate:
 # 13. CommitPreconditions
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestCommitPreconditions:
     def test_all_satisfied(self):
         pre = CommitPreconditions(
@@ -522,6 +541,7 @@ class TestCommitPreconditions:
 # 14 & 15. CheckpointStore — save / load / latest / crash-recovery resume
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestCheckpointStore:
     def test_save_and_load(self):
         store = CheckpointStore()
@@ -537,6 +557,7 @@ class TestCheckpointStore:
 
     def test_latest_for_task_returns_most_recent(self):
         import time as _time
+
         store = CheckpointStore()
         store.save(Checkpoint("ck-old", "t1", "a1", "BASELINE", {}, created_at=_time.time() - 10))
         store.save(Checkpoint("ck-new", "t1", "a1", "PLAN", {}, created_at=_time.time()))
@@ -563,6 +584,7 @@ class TestCheckpointStore:
 # 16. Push Policy
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestPushPolicy:
     def test_default_policy_is_local_only(self):
         loop = AutonomousEngineeringLoop()
@@ -586,6 +608,7 @@ class TestPushPolicy:
 # ──────────────────────────────────────────────────────────────────────────────
 # 17. Concurrency: two tasks use separate worktrees
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestConcurrency:
     def test_two_tasks_get_separate_worktrees(self):
@@ -611,6 +634,7 @@ class TestConcurrency:
 # 18. Cancellation
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestCancellation:
     def test_cancel_sets_cancelled_status(self):
         loop = AutonomousEngineeringLoop()
@@ -635,6 +659,7 @@ class TestCancellation:
 # ──────────────────────────────────────────────────────────────────────────────
 # 19. Full Engineering Loop E2E (offline, zero-paid, local-only)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEngineeringLoopE2E:
     def test_full_loop_succeeds(self):
@@ -685,6 +710,7 @@ class TestEngineeringLoopE2E:
 # ──────────────────────────────────────────────────────────────────────────────
 # 20. Security E2E: malicious diff blocked
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestSecurityE2E:
     def test_malicious_secret_diff_blocks_commit(self):

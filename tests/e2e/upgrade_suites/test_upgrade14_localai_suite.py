@@ -7,19 +7,15 @@ Verifies:
   4. Local MCP Tool Registry (MCP 2026-07-28 schema, call execution, error wrapping)
   5. Autonomous Local Coding Pipeline (Inspect -> Plan -> Edit with ZERO paid calls proof)
 """
-import pytest
 
 from local_ai_stack import (
     AutonomousLocalCodingPipeline,
-    HardwareProfile,
     HardwareProfiler,
     LocalMCPServer,
-    LocalModelMetadata,
     LocalRepositoryIndexer,
     MCPToolDefinition,
     ModelFit,
     OllamaAdapter,
-    TransportCallMonitor,
 )
 
 

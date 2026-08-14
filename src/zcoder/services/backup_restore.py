@@ -11,17 +11,16 @@ Provides:
 This module operates as a standalone backup agent — it should be invoked
 by a cron job or Kubernetes CronJob, not by the API serving process.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
 import os
-import shutil
 import subprocess
-import tempfile
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ─── Backup record ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class BackupRecord:
@@ -64,6 +64,7 @@ class RestoreDrillResult:
 
 
 # ─── Backup manager ───────────────────────────────────────────────────────────
+
 
 class BackupManager:
     """Manages PostgreSQL backup lifecycle for ZCoder.
@@ -214,10 +215,7 @@ class BackupManager:
 
         restore_url = target_database_url or os.environ.get("RESTORE_DRILL_DATABASE_URL", "")
         if not restore_url:
-            result.error = (
-                "RESTORE_DRILL_DATABASE_URL not set — "
-                "never restore over production database"
-            )
+            result.error = "RESTORE_DRILL_DATABASE_URL not set — " "never restore over production database"
             result.completed_at = time.time()
             logger.error(result.error)
             return result
@@ -282,6 +280,7 @@ class BackupManager:
         """Verify that expected records exist in the restored database."""
         try:
             import psycopg2  # type: ignore[import]
+
             conn = psycopg2.connect(database_url)
             try:
                 cur = conn.cursor()

@@ -1,5 +1,9 @@
 """utils.py — Terminal utilities & formatters"""
-import sys, os, textwrap
+
+import os
+import sys
+import textwrap
+
 
 def print_header(title):
     width = min(os.get_terminal_size().columns if sys.stdout.isatty() else 80, 80)
@@ -7,23 +11,30 @@ def print_header(title):
     print(f"  {title}")
     print("═" * width)
 
+
 def print_success(msg):
     print(f"\033[92m✓ {msg}\033[0m")
+
 
 def print_error(msg):
     print(f"\033[91m✗ {msg}\033[0m", file=sys.stderr)
 
+
 def print_info(msg):
     print(f"\033[94mℹ {msg}\033[0m")
+
 
 def print_warn(msg):
     print(f"\033[93m⚠ {msg}\033[0m")
 
+
 def format_code_block(code, lang=""):
     return f"```{lang}\n{code}\n```"
 
+
 def wrap_text(text, width=80):
     return textwrap.fill(text, width=width)
+
 
 def confirm(prompt):
     try:
@@ -51,7 +62,10 @@ def sampling_kwargs(model, temperature=None, top_p=None, top_k=None):
     if model and str(model).startswith(NO_SAMPLING_PARAMS_MODEL_PREFIXES):
         return {}
     out = {}
-    if temperature is not None: out["temperature"] = temperature
-    if top_p is not None: out["top_p"] = top_p
-    if top_k is not None: out["top_k"] = top_k
+    if temperature is not None:
+        out["temperature"] = temperature
+    if top_p is not None:
+        out["top_p"] = top_p
+    if top_k is not None:
+        out["top_k"] = top_k
     return out

@@ -34,8 +34,21 @@ from pathlib import Path
 from typing import Optional
 
 NETWORK_BINARIES = {
-    "curl", "wget", "nc", "ncat", "netcat", "ssh", "scp", "sftp", "rsync",
-    "telnet", "ftp", "http", "https", "wormhole", "ngrok",
+    "curl",
+    "wget",
+    "nc",
+    "ncat",
+    "netcat",
+    "ssh",
+    "scp",
+    "sftp",
+    "rsync",
+    "telnet",
+    "ftp",
+    "http",
+    "https",
+    "wormhole",
+    "ngrok",
 }
 NETWORK_PIP_NPM_FLAGS = {
     "pip": {"install", "download"},
@@ -70,11 +83,11 @@ def check_network(command: str) -> Optional[str]:
             return f"network binary '{base}' is blocked inside the sandbox (run with --code-agent-sandbox-allow-net to permit)"
         if base in NETWORK_PIP_NPM_FLAGS:
             sub_flags = NETWORK_PIP_NPM_FLAGS[base]
-            rest = set(tokens[i + 1:i + 2])
+            rest = set(tokens[i + 1 : i + 2])
             if not sub_flags or rest & sub_flags:
                 return f"'{base}' network operation is blocked inside the sandbox"
         if base == "python" or base == "python3":
-            joined = " ".join(tokens[i:i + 3])
+            joined = " ".join(tokens[i : i + 3])
             if "http.server" in joined or "urllib" in joined:
                 return "python network access is blocked inside the sandbox"
 
@@ -114,8 +127,7 @@ def check_filesystem(command: str, allowed_roots: list) -> Optional[str]:
     return None
 
 
-def enforce(command: str, cwd: str, allow_net: bool = False,
-            extra_roots: Optional[list] = None) -> None:
+def enforce(command: str, cwd: str, allow_net: bool = False, extra_roots: Optional[list] = None) -> None:
     """Raise SandboxViolation if the command violates sandbox policy."""
     roots = [cwd] + (extra_roots or [])
 

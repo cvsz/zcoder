@@ -20,26 +20,24 @@ Provides:
       - Inspect -> Plan -> Edit -> Test -> Validate cycle
       - Transport call monitor (guarantees ZERO paid commercial API calls)
 """
+
 from __future__ import annotations
 
 import dataclasses
 import enum
-import hashlib
 import json
-import math
 import os
 import platform
 import re
 import subprocess
 import time
 import urllib.request
-import uuid
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # 1. Hardware Profiler & Model Fit Estimator
 # ---------------------------------------------------------------------------
+
 
 class ModelFit(str, enum.Enum):
     FITS = "FITS"
@@ -123,7 +121,9 @@ class HardwareProfiler:
         )
 
     @classmethod
-    def estimate_fit(cls, profile: HardwareProfile, parameter_size_b: float, quantization_bits: int = 4) -> ModelFit:
+    def estimate_fit(
+        cls, profile: HardwareProfile, parameter_size_b: float, quantization_bits: int = 4
+    ) -> ModelFit:
         # Approximate footprint: (params_in_billions * bits / 8) * 1.2 (runtime overhead)
         required_gb = (parameter_size_b * (quantization_bits / 8.0)) * 1.25
         available_mem = profile.vram_gb if profile.vram_gb > 0 else profile.ram_available_gb
@@ -139,6 +139,7 @@ class HardwareProfiler:
 # 2. Local Model Gateway & Adapters
 # ---------------------------------------------------------------------------
 
+
 @dataclasses.dataclass
 class LocalModelMetadata:
     provider: str
@@ -153,6 +154,7 @@ class LocalModelMetadata:
 # ---------------------------------------------------------------------------
 # Upgrade-15 Model Registry & Lifecycle States
 # ---------------------------------------------------------------------------
+
 
 class ModelState(str, enum.Enum):
     CATALOG = "CATALOG"
@@ -245,7 +247,11 @@ class ModelRegistry:
         return self.artifacts.get(artifact_id)
 
     def list_installed_models(self) -> List[LocalModelArtifact]:
-        return [a for a in self.artifacts.values() if a.state in (ModelState.VERIFIED, ModelState.LOADABLE, ModelState.LOADED)]
+        return [
+            a
+            for a in self.artifacts.values()
+            if a.state in (ModelState.VERIFIED, ModelState.LOADABLE, ModelState.LOADED)
+        ]
 
     def list_catalog_models(self) -> List[LocalModelArtifact]:
         return list(self.artifacts.values())
@@ -282,6 +288,7 @@ class ModelRegistry:
 # LlamaCpp Runtime & Local Model Providers
 # ---------------------------------------------------------------------------
 
+
 class LocalModelProvider:
     """Abstract interface for local model execution."""
 
@@ -311,7 +318,11 @@ class LlamaCppRuntime(LocalModelProvider):
 
     def list_models(self) -> List[LocalModelMetadata]:
         if not self.is_running():
-            return [LocalModelMetadata(provider="llama.cpp", model_id="qwen2.5-coder:7b-gguf", parameter_size_b=7.0)]
+            return [
+                LocalModelMetadata(
+                    provider="llama.cpp", model_id="qwen2.5-coder:7b-gguf", parameter_size_b=7.0
+                )
+            ]
         try:
             req = urllib.request.Request(f"{self.base_url}/v1/models")
             with urllib.request.urlopen(req, timeout=2) as resp:
@@ -332,8 +343,14 @@ class LlamaCppRuntime(LocalModelProvider):
         if not self.is_running():
             return f"[LOCAL_LLAMACPP:{model_id}] Simulated execution for: {prompt[:35]}"
         try:
-            body = json.dumps({"model": model_id, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}).encode()
-            req = urllib.request.Request(f"{self.base_url}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
+            body = json.dumps(
+                {"model": model_id, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}
+            ).encode()
+            req = urllib.request.Request(
+                f"{self.base_url}/v1/chat/completions",
+                data=body,
+                headers={"Content-Type": "application/json"},
+            )
             with urllib.request.urlopen(req, timeout=30) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -344,6 +361,7 @@ class LlamaCppRuntime(LocalModelProvider):
 # ---------------------------------------------------------------------------
 # Hardware Auto-Tuning & Model Tournament Engine
 # ---------------------------------------------------------------------------
+
 
 @dataclasses.dataclass
 class TuningParameters:
@@ -458,8 +476,12 @@ class OllamaAdapter(LocalModelProvider):
         if not self.is_available():
             # Return discovered default offline definitions
             return [
-                LocalModelMetadata(provider="ollama", model_id="qwen2.5-coder:7b", context_window=32768, parameter_size_b=7.0),
-                LocalModelMetadata(provider="ollama", model_id="llama3.3:70b", context_window=131072, parameter_size_b=70.0),
+                LocalModelMetadata(
+                    provider="ollama", model_id="qwen2.5-coder:7b", context_window=32768, parameter_size_b=7.0
+                ),
+                LocalModelMetadata(
+                    provider="ollama", model_id="llama3.3:70b", context_window=131072, parameter_size_b=70.0
+                ),
             ]
         try:
             req = urllib.request.Request(f"{self.base_url}/api/tags")
@@ -482,7 +504,9 @@ class OllamaAdapter(LocalModelProvider):
             return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
         try:
             body = json.dumps({"model": model_id, "prompt": prompt, "stream": False}).encode()
-            req = urllib.request.Request(f"{self.base_url}/api/generate", data=body, headers={"Content-Type": "application/json"})
+            req = urllib.request.Request(
+                f"{self.base_url}/api/generate", data=body, headers={"Content-Type": "application/json"}
+            )
             with urllib.request.urlopen(req, timeout=30) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("response", "")
@@ -490,10 +514,10 @@ class OllamaAdapter(LocalModelProvider):
             return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
 
 
-
 # ---------------------------------------------------------------------------
 # 3. Local Embeddings & Repository Indexer (RAG)
 # ---------------------------------------------------------------------------
+
 
 class LocalRepositoryIndexer:
     """100% offline, deterministic repository indexer using TF-IDF token vectors.
@@ -558,6 +582,7 @@ class LocalRepositoryIndexer:
 # 4. Local Model Context Protocol (MCP 2026-07-28 Spec)
 # ---------------------------------------------------------------------------
 
+
 @dataclasses.dataclass
 class MCPToolDefinition:
     name: str
@@ -601,6 +626,7 @@ class LocalMCPServer:
 # ---------------------------------------------------------------------------
 # 5. Autonomous Local Coding Pipeline & Zero-Paid-Call Monitor
 # ---------------------------------------------------------------------------
+
 
 class TransportCallMonitor:
     """Monitors all outbound network calls during task execution to mathematically prove ZERO paid API calls."""
@@ -666,6 +692,7 @@ class AutonomousLocalCodingPipeline:
 # ---------------------------------------------------------------------------
 # Upgrade-17: Production Daemon Supervision, Model Pool & Scheduler
 # ---------------------------------------------------------------------------
+
 
 class RuntimeOwner(str, enum.Enum):
     ZCODER_MANAGED = "ZCODER_MANAGED"
@@ -780,7 +807,8 @@ class ModelPoolManager:
     def evict_lru(self, needed_gb: float) -> bool:
         # Find oldest unpinned and idle model
         candidates = [
-            (m_id, e) for m_id, e in self.resident_models.items()
+            (m_id, e)
+            for m_id, e in self.resident_models.items()
             if not e.is_pinned and e.residency != ModelResidency.HOT
         ]
         candidates.sort(key=lambda x: x[1].last_used)
@@ -833,6 +861,7 @@ class LocalInferenceScheduler:
 # Upgrade-18: Local AI Quality Engineering & Continuous Optimization
 # ---------------------------------------------------------------------------
 
+
 class ModelQualityState(str, enum.Enum):
     PREFERRED = "PREFERRED"
     CANDIDATE = "CANDIDATE"
@@ -860,7 +889,9 @@ class QualityProfile:
     language: str
     minimum_quality: float = 0.85
     security_gate_strict: bool = True
-    required_validators: List[str] = dataclasses.field(default_factory=lambda: ["pytest", "ast_lint", "security_audit"])
+    required_validators: List[str] = dataclasses.field(
+        default_factory=lambda: ["pytest", "ast_lint", "security_audit"]
+    )
 
 
 @dataclasses.dataclass
@@ -913,7 +944,9 @@ class QualityEngineeringService:
             ttft_ms=ttft_ms,
         )
 
-        profile = self.profiles.get(project_id, QualityProfile(id="default", name="Default", project_id=project_id, language="python"))
+        profile = self.profiles.get(
+            project_id, QualityProfile(id="default", name="Default", project_id=project_id, language="python")
+        )
 
         # Quarantine check
         if not security_passed or outcome.composite_quality < (profile.minimum_quality * 0.7):
@@ -936,7 +969,8 @@ class QualityEngineeringService:
     def route_for_project(self, project_id: str, candidate_models: List[str]) -> Tuple[str, str]:
         """Quality-first routing: selects preferred model meeting quality baseline over raw speed."""
         valid_candidates = [
-            m for m in candidate_models
+            m
+            for m in candidate_models
             if self.get_model_state(m) in (ModelQualityState.PREFERRED, ModelQualityState.CANDIDATE)
         ]
 
@@ -954,6 +988,7 @@ class QualityEngineeringService:
 # ---------------------------------------------------------------------------
 # Upgrade-19: Autonomous Project Bootstrap & Developer Experience (DX)
 # ---------------------------------------------------------------------------
+
 
 @dataclasses.dataclass
 class DetectedStack:
@@ -1099,8 +1134,10 @@ class ProjectBootstrapService:
 
 # ── Task Lifecycle ──────────────────────────────────────────────────────────
 
+
 class TaskStatus(str, enum.Enum):
     """18-state lifecycle for autonomous engineering tasks (§7)."""
+
     CREATED = "CREATED"
     ANALYZING = "ANALYZING"
     PLANNING = "PLANNING"
@@ -1140,6 +1177,7 @@ class TaskRisk(str, enum.Enum):
 @dataclasses.dataclass
 class EngineeringTask:
     """Durable task record — separate from attempts, so retry preserves history (§5, §8)."""
+
     task_id: str
     project_id: str
     repository: str = ""
@@ -1159,6 +1197,7 @@ class EngineeringTask:
 @dataclasses.dataclass
 class ExecutionAttempt:
     """Separate from EngineeringTask so retries don't destroy history (§8, §9)."""
+
     attempt_id: str
     task_id: str
     base_commit: str
@@ -1167,10 +1206,11 @@ class ExecutionAttempt:
     plan_revision: int = 0
     started_at: float = dataclasses.field(default_factory=time.time)
     finished_at: float = 0.0
-    result: str = "IN_PROGRESS"   # IN_PROGRESS | SUCCEEDED | FAILED | CANCELLED
+    result: str = "IN_PROGRESS"  # IN_PROGRESS | SUCCEEDED | FAILED | CANCELLED
 
 
 # ── Execution Plan ──────────────────────────────────────────────────────────
+
 
 @dataclasses.dataclass
 class PlanStep:
@@ -1183,6 +1223,7 @@ class PlanStep:
 @dataclasses.dataclass
 class EngineeringPlan:
     """Versioned plan — repaired/replanned attempts produce new revision (§19, §20)."""
+
     plan_id: str
     task_id: str
     attempt_id: str
@@ -1199,8 +1240,10 @@ class EngineeringPlan:
 
 # ── Validation ──────────────────────────────────────────────────────────────
 
+
 class ValidationState(str, enum.Enum):
     """Semantically correct: DISCOVERED ≠ EXECUTED_PASS (§2 of Upgrade-20 fixes)."""
+
     DISCOVERED = "DISCOVERED"
     EXECUTED_PASS = "EXECUTED_PASS"
     EXECUTED_FAIL = "EXECUTED_FAIL"
@@ -1211,8 +1254,8 @@ class ValidationState(str, enum.Enum):
 @dataclasses.dataclass
 class ValidationCommand:
     command: str
-    source: str              # e.g. "pyproject.toml", "package.json"
-    confidence: str          # LOW / MEDIUM / HIGH
+    source: str  # e.g. "pyproject.toml", "package.json"
+    confidence: str  # LOW / MEDIUM / HIGH
     state: ValidationState = ValidationState.DISCOVERED
     exit_code: Optional[int] = None
     output_summary: str = ""
@@ -1222,6 +1265,7 @@ class ValidationCommand:
 @dataclasses.dataclass
 class ValidationProfile:
     """Project-specific validation pipeline derived from bootstrap (§43)."""
+
     project_id: str
     required_validators: List[ValidationCommand]
     optional_validators: List[ValidationCommand]
@@ -1230,17 +1274,19 @@ class ValidationProfile:
 @dataclasses.dataclass
 class ValidationFailure:
     """Structured failure record (§49)."""
+
     validator: str
     test_or_error: str
     file: str
     message: str
-    category: str       # COMPILE | TEST | LINT | SECURITY | TIMEOUT | UNKNOWN
+    category: str  # COMPILE | TEST | LINT | SECURITY | TIMEOUT | UNKNOWN
     attempt_id: str
 
 
 @dataclasses.dataclass
 class ValidationDelta:
     """Tracks baseline vs post-edit failures (§45)."""
+
     baseline_failures: List[str]
     post_edit_failures: List[str]
 
@@ -1263,9 +1309,11 @@ TestDelta = ValidationDelta
 
 # ── Worktree ─────────────────────────────────────────────────────────────────
 
+
 @dataclasses.dataclass
 class WorktreeContext:
     """Records all ownership metadata so only ZCoder-created worktrees are deleted (§13)."""
+
     worktree_path: str
     branch_name: str
     base_commit: str
@@ -1295,6 +1343,7 @@ class WorktreeManager:
         candidate = f"{self.base_dir}/{safe_slug}"
         # Verify the resulting path stays under base_dir
         import os
+
         resolved_base = os.path.realpath(self.base_dir)
         resolved_candidate = os.path.realpath(os.path.dirname(candidate))
         if not resolved_candidate.startswith(resolved_base):
@@ -1350,10 +1399,12 @@ IsolatedWorktreeManager = WorktreeManager
 
 # ── Context Builder ──────────────────────────────────────────────────────────
 
+
 @dataclasses.dataclass
 class EngineeringContextBuilder:
     """Bounded context assembler (§25, §26).  Never grows without eviction."""
-    task: "EngineeringTask"
+
+    task: EngineeringTask
     max_context_tokens: int = 4096
 
     def build(
@@ -1373,19 +1424,21 @@ class EngineeringContextBuilder:
         if relevant_source:
             parts.append(f"RELEVANT SOURCE:\n{relevant_source[:1000]}")
         if baseline_failures:
-            parts.append(f"BASELINE FAILURES:\n" + "\n".join(
-                f"- [{f.validator}] {f.test_or_error}: {f.message}" for f in baseline_failures
-            ))
+            parts.append(
+                "BASELINE FAILURES:\n"
+                + "\n".join(f"- [{f.validator}] {f.test_or_error}: {f.message}" for f in baseline_failures)
+            )
         if rag_snippets:
             parts.append("RAG:\n" + "\n".join(s[:200] for s in rag_snippets[:5]))
         if recent_tool_results:
             parts.append(f"TOOL RESULTS:\n{recent_tool_results[:400]}")
         context = "\n\n".join(parts)
         # Hard truncate to budget (§26)
-        return context[:self.max_context_tokens * 4]
+        return context[: self.max_context_tokens * 4]
 
 
 # ── No-Progress Detector ─────────────────────────────────────────────────────
+
 
 class NoProgressDetector:
     """Detects same-patch / same-failure oscillation to stop infinite repair loops (§53)."""
@@ -1416,6 +1469,7 @@ class NoProgressDetector:
 
 # ── Static Review ─────────────────────────────────────────────────────────────
 
+
 class ReviewSeverity(str, enum.Enum):
     INFO = "INFO"
     WARNING = "WARNING"
@@ -1437,6 +1491,7 @@ class ReviewCategory(str, enum.Enum):
 @dataclasses.dataclass
 class StaticReviewFinding:
     """Structured review finding (§64)."""
+
     severity: ReviewSeverity
     category: ReviewCategory
     file: str
@@ -1452,14 +1507,28 @@ class StaticReviewer:
     """
 
     # Patterns that unconditionally block completion (§65)
-    BLOCKING_CATEGORIES = {ReviewCategory.SECRET, ReviewCategory.TEST_DELETION, ReviewCategory.SECURITY_WEAKENING}
+    BLOCKING_CATEGORIES = {
+        ReviewCategory.SECRET,
+        ReviewCategory.TEST_DELETION,
+        ReviewCategory.SECURITY_WEAKENING,
+    }
 
     SECRET_PATTERNS = [
-        "password", "passwd", "api_key", "apikey", "secret", "token",
-        "private_key", "aws_secret", "AKIA",
+        "password",
+        "passwd",
+        "api_key",
+        "apikey",
+        "secret",
+        "token",
+        "private_key",
+        "aws_secret",
+        "AKIA",
     ]
     TEST_WEAKENING_PATTERNS = [
-        "pytest.mark.skip", "xfail", "# noqa", "pass  # TODO",
+        "pytest.mark.skip",
+        "xfail",
+        "# noqa",
+        "pass  # TODO",
     ]
 
     def review(self, diff_lines: List[str], task: EngineeringTask) -> List[StaticReviewFinding]:
@@ -1471,25 +1540,29 @@ class StaticReviewer:
             # Secret detection
             for pattern in self.SECRET_PATTERNS:
                 if pattern in content and "=" in content:
-                    findings.append(StaticReviewFinding(
-                        severity=ReviewSeverity.CRITICAL,
-                        category=ReviewCategory.SECRET,
-                        file="<diff>",
-                        line=i,
-                        message=f"Potential secret pattern '{pattern}' in added code",
-                        blocking=True,
-                    ))
+                    findings.append(
+                        StaticReviewFinding(
+                            severity=ReviewSeverity.CRITICAL,
+                            category=ReviewCategory.SECRET,
+                            file="<diff>",
+                            line=i,
+                            message=f"Potential secret pattern '{pattern}' in added code",
+                            blocking=True,
+                        )
+                    )
             # Test weakening
             for pat in self.TEST_WEAKENING_PATTERNS:
                 if pat.lower() in content:
-                    findings.append(StaticReviewFinding(
-                        severity=ReviewSeverity.HIGH,
-                        category=ReviewCategory.TEST_DELETION,
-                        file="<diff>",
-                        line=i,
-                        message=f"Test weakening pattern '{pat}' detected",
-                        blocking=True,
-                    ))
+                    findings.append(
+                        StaticReviewFinding(
+                            severity=ReviewSeverity.HIGH,
+                            category=ReviewCategory.TEST_DELETION,
+                            file="<diff>",
+                            line=i,
+                            message=f"Test weakening pattern '{pat}' detected",
+                            blocking=True,
+                        )
+                    )
         return findings
 
     def has_blocking_findings(self, findings: List[StaticReviewFinding]) -> bool:
@@ -1497,6 +1570,7 @@ class StaticReviewer:
 
 
 # ── Security Gate ─────────────────────────────────────────────────────────────
+
 
 class SecurityGateResult(str, enum.Enum):
     PASSED = "PASSED"
@@ -1541,15 +1615,17 @@ class SecurityGate:
 
 # ── Push/PR Policy ────────────────────────────────────────────────────────────
 
+
 class PushPolicy(str, enum.Enum):
-    AUTO_LOCAL_ONLY = "AUTO_LOCAL_ONLY"        # Safe default: local commit only
+    AUTO_LOCAL_ONLY = "AUTO_LOCAL_ONLY"  # Safe default: local commit only
     APPROVAL_BEFORE_PUSH = "APPROVAL_BEFORE_PUSH"
-    AUTO_PUSH_ALLOWED = "AUTO_PUSH_ALLOWED"    # Explicitly opted in
+    AUTO_PUSH_ALLOWED = "AUTO_PUSH_ALLOWED"  # Explicitly opted in
 
 
 @dataclasses.dataclass
 class CommitPreconditions:
     """All must be True before commit is allowed (§75)."""
+
     final_validators_passed: bool
     security_gate_passed: bool
     required_approvals_satisfied: bool
@@ -1567,13 +1643,15 @@ class CommitPreconditions:
 
 # ── Checkpoint / Recovery ─────────────────────────────────────────────────────
 
+
 @dataclasses.dataclass
 class Checkpoint:
     """Durable checkpoint after each major phase (§55)."""
+
     checkpoint_id: str
     task_id: str
     attempt_id: str
-    phase: str           # BASELINE | PLAN | EDIT | VALIDATION | REVIEW | COMMIT | PR
+    phase: str  # BASELINE | PLAN | EDIT | VALIDATION | REVIEW | COMMIT | PR
     payload: Dict[str, Any]
     created_at: float = dataclasses.field(default_factory=time.time)
 
@@ -1598,6 +1676,7 @@ class CheckpointStore:
 
 
 # ── Full Autonomous Engineering Loop ─────────────────────────────────────────
+
 
 class AutonomousEngineeringLoop:
     """Full end-to-end software engineering loop (Upgrade-20).
@@ -1686,21 +1765,25 @@ class AutonomousEngineeringLoop:
         task.status = TaskStatus.ANALYZING
         baseline_failures: List[ValidationFailure] = []
         if failing_initially:
-            baseline_failures.append(ValidationFailure(
-                validator="pytest",
-                test_or_error="test_initial_failure",
-                file="unknown",
-                message="Pre-existing failure captured before any edit",
-                category="TEST",
+            baseline_failures.append(
+                ValidationFailure(
+                    validator="pytest",
+                    test_or_error="test_initial_failure",
+                    file="unknown",
+                    message="Pre-existing failure captured before any edit",
+                    category="TEST",
+                    attempt_id=attempt_id,
+                )
+            )
+        self.checkpoints.save(
+            Checkpoint(
+                checkpoint_id=f"{attempt_id}-baseline",
+                task_id=task_id,
                 attempt_id=attempt_id,
-            ))
-        self.checkpoints.save(Checkpoint(
-            checkpoint_id=f"{attempt_id}-baseline",
-            task_id=task_id,
-            attempt_id=attempt_id,
-            phase="BASELINE",
-            payload={"baseline_failure_count": len(baseline_failures)},
-        ))
+                phase="BASELINE",
+                payload={"baseline_failure_count": len(baseline_failures)},
+            )
+        )
 
         # 2. WORKTREE ──────────────────────────────────────────────────────
         wt = self.worktree_mgr.create_worktree(
@@ -1729,13 +1812,15 @@ class AutonomousEngineeringLoop:
         )
         self._plans.setdefault(task_id, []).append(plan)
         attempt.plan_revision = plan.revision
-        self.checkpoints.save(Checkpoint(
-            checkpoint_id=f"{attempt_id}-plan-r0",
-            task_id=task_id,
-            attempt_id=attempt_id,
-            phase="PLAN",
-            payload={"plan_revision": 0},
-        ))
+        self.checkpoints.save(
+            Checkpoint(
+                checkpoint_id=f"{attempt_id}-plan-r0",
+                task_id=task_id,
+                attempt_id=attempt_id,
+                phase="PLAN",
+                payload={"plan_revision": 0},
+            )
+        )
         task.status = TaskStatus.READY
 
         # 4. EDIT & BOUNDED REPAIR LOOP ────────────────────────────────────
@@ -1753,13 +1838,15 @@ class AutonomousEngineeringLoop:
             validation_state = ValidationState.EXECUTED_PASS
             post_failures = []
 
-            self.checkpoints.save(Checkpoint(
-                checkpoint_id=f"{attempt_id}-validation-r{rep}",
-                task_id=task_id,
-                attempt_id=attempt_id,
-                phase="VALIDATION",
-                payload={"attempt": rep, "state": validation_state},
-            ))
+            self.checkpoints.save(
+                Checkpoint(
+                    checkpoint_id=f"{attempt_id}-validation-r{rep}",
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                    phase="VALIDATION",
+                    payload={"attempt": rep, "state": validation_state},
+                )
+            )
 
             # No-progress detection
             self._no_progress.record(
@@ -1809,13 +1896,15 @@ class AutonomousEngineeringLoop:
 
         # 9. COMMIT ────────────────────────────────────────────────────────
         task.status = TaskStatus.COMMITTING
-        self.checkpoints.save(Checkpoint(
-            checkpoint_id=f"{attempt_id}-commit",
-            task_id=task_id,
-            attempt_id=attempt_id,
-            phase="COMMIT",
-            payload={"security_passed": True, "delta_fixed": delta.fixed},
-        ))
+        self.checkpoints.save(
+            Checkpoint(
+                checkpoint_id=f"{attempt_id}-commit",
+                task_id=task_id,
+                attempt_id=attempt_id,
+                phase="COMMIT",
+                payload={"security_passed": True, "delta_fixed": delta.fixed},
+            )
+        )
 
         # 10. PUSH (honoring policy) ────────────────────────────────────────
         if self.push_policy == PushPolicy.AUTO_PUSH_ALLOWED:
@@ -1847,8 +1936,3 @@ class AutonomousEngineeringLoop:
 
     def get_task_plans(self, task_id: str) -> List[EngineeringPlan]:
         return self._plans.get(task_id, [])
-
-
-
-
-

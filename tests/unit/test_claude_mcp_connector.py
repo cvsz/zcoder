@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from claude_mcp_connector import MCPConfigurationError, build_remote_mcp
@@ -7,7 +5,9 @@ from claude_mcp_connector import MCPConfigurationError, build_remote_mcp
 
 def test_builds_explicit_deferred_toolset(monkeypatch):
     monkeypatch.setenv("MCP_TOKEN", "secret")
-    servers, tools, betas = build_remote_mcp("project-mcp", "https://mcp.example.com/sse", ["search", "write"], "MCP_TOKEN")
+    servers, tools, betas = build_remote_mcp(
+        "project-mcp", "https://mcp.example.com/sse", ["search", "write"], "MCP_TOKEN"
+    )
     assert servers[0]["authorization_token"] == "secret"
     assert tools[0]["default_config"] == {"enabled": False, "defer_loading": True}
     assert set(tools[0]["configs"]) == {"search", "write"}

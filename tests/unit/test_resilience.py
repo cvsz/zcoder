@@ -1,8 +1,9 @@
 """tests/test_resilience.py"""
+
 import pytest
 
-from resilience import retry, CircuitBreaker
-from exceptions import TransientAPIError, APIError, CircuitOpenError
+from exceptions import APIError, CircuitOpenError, TransientAPIError
+from resilience import CircuitBreaker, retry
 
 
 def test_retry_succeeds_after_transient_failures():
@@ -49,6 +50,7 @@ def test_retry_does_not_retry_non_retryable_errors():
 
 def test_retry_respects_explicit_retry_after():
     from exceptions import RateLimitError
+
     sleeps = []
     calls = {"n": 0}
 

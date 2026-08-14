@@ -7,16 +7,16 @@ Provides:
   • GitHub App Multi-Installation & Repository Fleet Registry
   • Operations API & Audit Store
 """
+
 from __future__ import annotations
 
-import enum
 import json
 import sqlite3
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from agent_runtime import Job, JobStatus
 
@@ -64,6 +64,7 @@ class FleetRepository:
 
 class ControlPlaneStore:
     """Unified Control Plane Persistence supporting SQLite and PostgreSQL protocols."""
+
     def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path or (Path.home() / ".zcoder" / "control_plane.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -132,17 +133,22 @@ class ControlPlaneStore:
                 )
             """)
 
-    def claim_job_with_fencing(self, worker_id: str, lease_duration: float = 60.0) -> Optional[Tuple[Job, int]]:
+    def claim_job_with_fencing(
+        self, worker_id: str, lease_duration: float = 60.0
+    ) -> Optional[Tuple[Job, int]]:
         """Atomic claim using transaction with monotonic fencing token."""
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, claim_generation, metadata
                 FROM jobs
                 WHERE status = 'READY' OR (status = 'RUNNING' AND lease_expires_at < ?)
                 ORDER BY created_at ASC
                 LIMIT 1
-            """, (time.time(),))
+            """,
+                (time.time(),),
+            )
             row = cur.fetchone()
             if not row:
                 return None
@@ -151,39 +157,67 @@ class ControlPlaneStore:
             new_gen = gen + 1
             expires_at = time.time() + lease_duration
 
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE jobs
                 SET status = 'RUNNING', claimed_by = ?, claim_generation = ?, lease_expires_at = ?, updated_at = ?
                 WHERE id = ? AND claim_generation = ?
-            """, (worker_id, new_gen, expires_at, time.time(), job_id, gen))
+            """,
+                (worker_id, new_gen, expires_at, time.time(), job_id, gen),
+            )
 
             if conn.total_changes == 0:
                 return None  # Lost claim race
 
             job = Job(
-                id=job_id, task=task, runtime=runtime, status=JobStatus.RUNNING,
-                workspace=workspace, created_at=c_at, updated_at=time.time(),
-                model=model, budget_usd=budget, cost_usd=cost, metadata=json.loads(meta)
+                id=job_id,
+                task=task,
+                runtime=runtime,
+                status=JobStatus.RUNNING,
+                workspace=workspace,
+                created_at=c_at,
+                updated_at=time.time(),
+                model=model,
+                budget_usd=budget,
+                cost_usd=cost,
+                metadata=json.loads(meta),
             )
             return job, new_gen
 
-    def mutate_with_fencing(self, job_id: str, worker_id: str, fencing_token: int, status: JobStatus, cost_usd: float) -> bool:
+    def mutate_with_fencing(
+        self, job_id: str, worker_id: str, fencing_token: int, status: JobStatus, cost_usd: float
+    ) -> bool:
         """Reject mutations from stale workers possessing an outdated fencing token."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE jobs
                 SET status = ?, cost_usd = ?, updated_at = ?
                 WHERE id = ? AND claimed_by = ? AND claim_generation = ?
-            """, (status.value, cost_usd, time.time(), job_id, worker_id, fencing_token))
+            """,
+                (status.value, cost_usd, time.time(), job_id, worker_id, fencing_token),
+            )
             return conn.total_changes > 0
 
     def enqueue_outbox(self, action: str, payload: Dict[str, Any]) -> OutboxMessage:
         msg = OutboxMessage(id=f"out_{uuid.uuid4().hex[:8]}", action=action, payload=payload)
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO outbox (id, action, payload, status, attempts, created_at, delivered_at, error)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (msg.id, msg.action, json.dumps(msg.payload), msg.status, msg.attempts, msg.created_at, msg.delivered_at, msg.error))
+            """,
+                (
+                    msg.id,
+                    msg.action,
+                    json.dumps(msg.payload),
+                    msg.status,
+                    msg.attempts,
+                    msg.created_at,
+                    msg.delivered_at,
+                    msg.error,
+                ),
+            )
         return msg
 
     def process_outbox(self, handler) -> int:
@@ -196,33 +230,61 @@ class ControlPlaneStore:
                 payload = json.loads(payload_str)
                 try:
                     handler(action, payload)
-                    conn.execute("UPDATE outbox SET status = 'DELIVERED', delivered_at = ? WHERE id = ?", (time.time(), r_id))
+                    conn.execute(
+                        "UPDATE outbox SET status = 'DELIVERED', delivered_at = ? WHERE id = ?",
+                        (time.time(), r_id),
+                    )
                     processed += 1
                 except Exception as e:
-                    conn.execute("UPDATE outbox SET attempts = attempts + 1, error = ? WHERE id = ?", (str(e), r_id))
+                    conn.execute(
+                        "UPDATE outbox SET attempts = attempts + 1, error = ? WHERE id = ?", (str(e), r_id)
+                    )
         return processed
 
     def record_webhook_delivery_atomic(self, delivery_id: str, event_type: str) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO webhook_inbox (delivery_id, event_type, received_at)
                     VALUES (?, ?, ?)
-                """, (delivery_id, event_type, time.time()))
+                """,
+                    (delivery_id, event_type, time.time()),
+                )
                 return True
         except sqlite3.IntegrityError:
             return False  # Duplicate delivery rejected
 
     def register_installation(self, inst: GitHubInstallation):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO installations (installation_id, account_login, account_type, suspended, created_at)
                 VALUES (?, ?, ?, ?, ?)
-            """, (inst.installation_id, inst.account_login, inst.account_type, int(inst.suspended), inst.created_at))
+            """,
+                (
+                    inst.installation_id,
+                    inst.account_login,
+                    inst.account_type,
+                    int(inst.suspended),
+                    inst.created_at,
+                ),
+            )
 
     def register_repository(self, repo: FleetRepository):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO repositories (id, installation_id, owner, name, default_branch, automation_enabled, trust_level)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (repo.id, repo.installation_id, repo.owner, repo.name, repo.default_branch, int(repo.automation_enabled), repo.trust_level))
+            """,
+                (
+                    repo.id,
+                    repo.installation_id,
+                    repo.owner,
+                    repo.name,
+                    repo.default_branch,
+                    int(repo.automation_enabled),
+                    repo.trust_level,
+                ),
+            )

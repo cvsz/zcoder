@@ -23,15 +23,13 @@ CLI flags:
                            OUTPUT_300K_MODELS)
 """
 
-import os
-import sys
 import json
+import os
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
-import anthropic
 
+import anthropic
 
 BATCH_STORE = Path(os.path.expanduser("~/.ai-coder/batches"))
 
@@ -43,8 +41,11 @@ BATCH_STORE = Path(os.path.expanduser("~/.ai-coder/batches"))
 OUTPUT_300K_BETA = "output-300k-2026-03-24"
 OUTPUT_300K_MODELS = {
     "claude-opus-5",
-    "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
-    "claude-sonnet-5", "claude-sonnet-4-6",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
 }
 OUTPUT_300K_MAX_TOKENS = 300_000
 
@@ -52,26 +53,26 @@ OUTPUT_300K_MAX_TOKENS = 300_000
 class BatchCoder:
     """Claude Batch API client."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 use_300k_output: bool = False):
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", use_300k_output: bool = False):
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model  = model
+        self.model = model
         # Opt-in per-instance rather than per-request: the beta header is
         # sent on the whole batches.create() call, so mixing 300k-output and
         # normal requests in one batch isn't meaningful — pick one per batch.
         self.use_300k_output = use_300k_output
         if use_300k_output and model not in OUTPUT_300K_MODELS:
-            print(f"\033[93m⚠ {model} isn't in OUTPUT_300K_MODELS — "
-                  f"output-300k-2026-03-24 may not apply; proceeding anyway "
-                  f"since the API is the source of truth.\033[0m")
+            print(
+                f"\033[93m⚠ {model} isn't in OUTPUT_300K_MODELS — "
+                f"output-300k-2026-03-24 may not apply; proceeding anyway "
+                f"since the API is the source of truth.\033[0m"
+            )
         BATCH_STORE.mkdir(parents=True, exist_ok=True)
 
     def _create_batch(self, requests: list):
         """Submit requests as a batch, adding the 300k-output beta header
         when opted in via use_300k_output."""
         if self.use_300k_output:
-            return self.client.beta.messages.batches.create(
-                requests=requests, betas=[OUTPUT_300K_BETA])
+            return self.client.beta.messages.batches.create(requests=requests, betas=[OUTPUT_300K_BETA])
         return self.client.messages.batches.create(requests=requests)
 
     # ── Submit ────────────────────────────────────────────────────────────
@@ -84,57 +85,62 @@ class BatchCoder:
                 line = line.strip()
                 if not line:
                     continue
-                obj   = json.loads(line)
-                rid   = obj.get("id") or str(uuid.uuid4())[:8]
+                obj = json.loads(line)
+                rid = obj.get("id") or str(uuid.uuid4())[:8]
                 prompt = obj.get("prompt") or obj.get("content") or str(obj)
-                msgs  = obj.get("messages") or [{"role": "user", "content": prompt}]
-                req   = {
+                msgs = obj.get("messages") or [{"role": "user", "content": prompt}]
+                req = {
                     "custom_id": rid,
                     "params": {
-                        "model":      self.model,
+                        "model": self.model,
                         "max_tokens": obj.get("max_tokens", 4096),
-                        "messages":   msgs,
-                    }
+                        "messages": msgs,
+                    },
                 }
                 if system or obj.get("system"):
                     req["params"]["system"] = system or obj["system"]
                 requests.append(req)
 
         batch = self._create_batch(requests)
-        self._save_batch_meta(batch.id, {
-            "id":          batch.id,
-            "source":      jsonl_path,
-            "model":       self.model,
-            "count":       len(requests),
-            "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        })
+        self._save_batch_meta(
+            batch.id,
+            {
+                "id": batch.id,
+                "source": jsonl_path,
+                "model": self.model,
+                "count": len(requests),
+                "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+        )
         return batch.id
 
-    def submit_prompts(self, prompts: list[str], system: str = None,
-                       max_tokens: int = 4096) -> str:
+    def submit_prompts(self, prompts: list[str], system: str = None, max_tokens: int = 4096) -> str:
         """Submit a list of prompt strings as a batch."""
         requests = []
         for i, prompt in enumerate(prompts):
             req = {
                 "custom_id": f"req-{i:04d}",
                 "params": {
-                    "model":      self.model,
+                    "model": self.model,
                     "max_tokens": max_tokens,
-                    "messages":   [{"role": "user", "content": prompt}],
-                }
+                    "messages": [{"role": "user", "content": prompt}],
+                },
             }
             if system:
                 req["params"]["system"] = system
             requests.append(req)
 
         batch = self._create_batch(requests)
-        self._save_batch_meta(batch.id, {
-            "id":          batch.id,
-            "source":      "inline",
-            "model":       self.model,
-            "count":       len(prompts),
-            "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        })
+        self._save_batch_meta(
+            batch.id,
+            {
+                "id": batch.id,
+                "source": "inline",
+                "model": self.model,
+                "count": len(prompts),
+                "submitted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+        )
         return batch.id
 
     # ── Status ────────────────────────────────────────────────────────────
@@ -142,13 +148,15 @@ class BatchCoder:
     def status(self, batch_id: str) -> dict:
         batch = self.client.messages.batches.retrieve(batch_id)
         return {
-            "id":           batch.id,
-            "status":       batch.processing_status,
-            "request_counts": batch.request_counts.model_dump()
-                              if hasattr(batch.request_counts, "model_dump")
-                              else vars(batch.request_counts),
-            "created_at":   str(batch.created_at),
-            "expires_at":   str(batch.expires_at),
+            "id": batch.id,
+            "status": batch.processing_status,
+            "request_counts": (
+                batch.request_counts.model_dump()
+                if hasattr(batch.request_counts, "model_dump")
+                else vars(batch.request_counts)
+            ),
+            "created_at": str(batch.created_at),
+            "expires_at": str(batch.expires_at),
         }
 
     # ── Results ───────────────────────────────────────────────────────────
@@ -159,13 +167,13 @@ class BatchCoder:
         for result in self.client.messages.batches.results(batch_id):
             entry = {
                 "custom_id": result.custom_id,
-                "type":      result.result.type,
+                "type": result.result.type,
             }
             if result.result.type == "succeeded":
-                msg    = result.result.message
+                msg = result.result.message
                 entry["text"] = msg.content[0].text if msg.content else ""
                 entry["usage"] = {
-                    "input":  msg.usage.input_tokens,
+                    "input": msg.usage.input_tokens,
                     "output": msg.usage.output_tokens,
                 }
             else:
@@ -173,9 +181,7 @@ class BatchCoder:
             items.append(entry)
 
         if save_to:
-            Path(save_to).write_text(
-                "\n".join(json.dumps(item) for item in items)
-            )
+            Path(save_to).write_text("\n".join(json.dumps(item) for item in items))
         return items
 
     # ── Cancel / List ─────────────────────────────────────────────────────
@@ -188,11 +194,13 @@ class BatchCoder:
         batches = self.client.messages.batches.list(limit=limit)
         return [
             {
-                "id":     b.id,
+                "id": b.id,
                 "status": b.processing_status,
-                "counts": b.request_counts.model_dump()
-                          if hasattr(b.request_counts, "model_dump")
-                          else vars(b.request_counts),
+                "counts": (
+                    b.request_counts.model_dump()
+                    if hasattr(b.request_counts, "model_dump")
+                    else vars(b.request_counts)
+                ),
                 "created": str(b.created_at)[:19],
             }
             for b in batches.data
@@ -200,16 +208,19 @@ class BatchCoder:
 
     # ── Wait for completion ───────────────────────────────────────────────
 
-    def wait(self, batch_id: str, poll_interval: int = 15,
-             max_wait: int = 3600) -> dict:
+    def wait(self, batch_id: str, poll_interval: int = 15, max_wait: int = 3600) -> dict:
         """Poll until batch is done or max_wait seconds elapsed."""
         waited = 0
         while waited < max_wait:
             s = self.status(batch_id)
             st = s.get("status", "")
-            print(f"\r\033[94mℹ [{batch_id}] {st}  "
-                  f"counts={s.get('request_counts',{})}  "
-                  f"(waited {waited}s)\033[0m", end="", flush=True)
+            print(
+                f"\r\033[94mℹ [{batch_id}] {st}  "
+                f"counts={s.get('request_counts',{})}  "
+                f"(waited {waited}s)\033[0m",
+                end="",
+                flush=True,
+            )
             if st in ("ended",):
                 print()
                 return s
@@ -226,8 +237,10 @@ class BatchCoder:
 
 # ── CLI helpers ────────────────────────────────────────────────────────────
 
-def cmd_batch_submit(jsonl_path: str, api_key: str, model: str, system: str = None,
-                     use_300k_output: bool = False):
+
+def cmd_batch_submit(
+    jsonl_path: str, api_key: str, model: str, system: str = None, use_300k_output: bool = False
+):
     bc = BatchCoder(api_key=api_key, model=model, use_300k_output=use_300k_output)
     print(f"\033[94mℹ Submitting batch from {jsonl_path}…\033[0m")
     bid = bc.submit_from_jsonl(jsonl_path, system=system)
@@ -239,7 +252,7 @@ def cmd_batch_submit(jsonl_path: str, api_key: str, model: str, system: str = No
 
 def cmd_batch_status(batch_id: str, api_key: str):
     bc = BatchCoder(api_key=api_key)
-    s  = bc.status(batch_id)
+    s = bc.status(batch_id)
     print(f"\n  ID:      {s['id']}")
     print(f"  Status:  {s['status']}")
     print(f"  Counts:  {s['request_counts']}")
@@ -248,9 +261,9 @@ def cmd_batch_status(batch_id: str, api_key: str):
 
 
 def cmd_batch_results(batch_id: str, api_key: str, save_to: str = None):
-    bc    = BatchCoder(api_key=api_key)
+    bc = BatchCoder(api_key=api_key)
     items = bc.results(batch_id, save_to=save_to)
-    ok    = sum(1 for i in items if i.get("type") == "succeeded")
+    ok = sum(1 for i in items if i.get("type") == "succeeded")
     print(f"\n\033[92m✓ {ok}/{len(items)} succeeded\033[0m\n")
     for item in items:
         status = "✓" if item.get("type") == "succeeded" else "✗"
@@ -265,10 +278,11 @@ def cmd_batch_results(batch_id: str, api_key: str, save_to: str = None):
 
 
 def cmd_batch_list(api_key: str):
-    bc      = BatchCoder(api_key=api_key)
+    bc = BatchCoder(api_key=api_key)
     batches = bc.list_batches()
     if not batches:
-        print("No batches found."); return
+        print("No batches found.")
+        return
     print(f"\n{'ID':<30}{'STATUS':<15}{'COUNTS':<25}{'CREATED'}")
     print("─" * 85)
     for b in batches:
@@ -282,11 +296,12 @@ def cmd_batch_cancel(batch_id: str, api_key: str):
     print(f"\033[92m✓ Batch {batch_id} cancelled.\033[0m")
 
 
-def cmd_batch_generate(prompt_template: str, n: int, api_key: str, model: str,
-                       system: str = None, wait: bool = False):
+def cmd_batch_generate(
+    prompt_template: str, n: int, api_key: str, model: str, system: str = None, wait: bool = False
+):
     """Generate N variants of a prompt and batch-submit them."""
     prompts = [f"{prompt_template} (variant {i+1} of {n})" for i in range(n)]
-    bc  = BatchCoder(api_key=api_key, model=model)
+    bc = BatchCoder(api_key=api_key, model=model)
     bid = bc.submit_prompts(prompts, system=system)
     print(f"\033[92m✓ Batch of {n} submitted: {bid}\033[0m")
     if wait:

@@ -1,15 +1,19 @@
 """intelligence_models.py — Signals and recommendations for autonomous maintenance."""
+
 from __future__ import annotations
+
 import enum
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 
 class SignalType(str, enum.Enum):
     CI_FAILURE = "CI_FAILURE"
     DEPENDENCY_OUTDATED = "DEPENDENCY_OUTDATED"
     SECURITY_FINDING = "SECURITY_FINDING"
+
 
 @dataclass
 class MaintenanceSignal:
@@ -20,6 +24,7 @@ class MaintenanceSignal:
     source: str = ""
     evidence: Dict[str, Any] = field(default_factory=dict)
     detected_at: float = field(default_factory=time.time)
+
 
 @dataclass
 class MaintenanceRecommendation:

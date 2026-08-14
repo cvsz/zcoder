@@ -1,4 +1,5 @@
 """tests/test_auth_oidc.py — Tests for OIDC authentication and RBAC."""
+
 import time
 
 import pytest
@@ -9,8 +10,6 @@ from auth_oidc import (
     PermissionDeniedError,
     RbacPolicy,
     SessionStore,
-    TokenExpiredError,
-    TokenInvalidError,
     ZCoderRole,
     _audit_log,
     role_has_privilege,
@@ -189,6 +188,7 @@ class TestBreakGlass:
     def test_break_glass_disabled_by_default(self):
         # Without env var set
         import os
+
         old = os.environ.pop("ZCODER_BREAK_GLASS_SECRET", None)
         try:
             assert BreakGlassAdmin.is_enabled() is False
@@ -222,7 +222,7 @@ class TestSecurityMiscellaneous:
 
     def test_oidc_invalid_token_raises_error(self):
         """Verify that malformed tokens are rejected."""
-        from auth_oidc import OidcValidator, TokenInvalidError
+        from auth_oidc import OidcValidator
 
         validator = OidcValidator(
             issuer="https://issuer.example.com",
@@ -245,7 +245,7 @@ class TestSecurityMiscellaneous:
         """Anonymous (no identity) must not be able to mutate state."""
         # Without an identity, RBAC should deny all mutation actions
         # This tests the invariant: you cannot call RbacPolicy.check with no identity
-        from auth_oidc import PermissionDeniedError, RbacPolicy, ZCoderRole, AuthenticatedIdentity
+        from auth_oidc import AuthenticatedIdentity, PermissionDeniedError, RbacPolicy, ZCoderRole
 
         # Simulate anonymous user with VIEWER role (most restrictive assigned role)
         anon = AuthenticatedIdentity(sub="anonymous", role=ZCoderRole.VIEWER)
@@ -257,6 +257,7 @@ class TestSecurityMiscellaneous:
     def test_untrusted_proxy_headers_policy(self):
         """Verify configuration has trusted proxy CIDR list."""
         from production_config import SecurityConfig
+
         cfg = SecurityConfig()
         # By default, trusted_proxy_cidrs should be empty — don't trust arbitrary proxies
         assert cfg.trusted_proxy_cidrs == []

@@ -31,6 +31,7 @@ Slash commands inside the session:
   /show N              Print the text content of slide N
   /undo                Revert to the state before the last applied change
 """
+
 import re
 import sys
 
@@ -82,18 +83,28 @@ _CODE_BLOCK = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
 # sandbox. Anything more sensitive should go through
 # --code-agent-sandbox instead.
 _DENYLIST = (
-    "import os", "import sys", "import subprocess", "import socket",
-    "__import__", "open(", "eval(", "exec(", "os.", "sys.", "subprocess.",
-    "socket.", "shutil.", ".system(", "pathlib",
+    "import os",
+    "import sys",
+    "import subprocess",
+    "import socket",
+    "__import__",
+    "open(",
+    "eval(",
+    "exec(",
+    "os.",
+    "sys.",
+    "subprocess.",
+    "socket.",
+    "shutil.",
+    ".system(",
+    "pathlib",
 )
 
 
 class PptxSession:
     def __init__(self, input_path=None):
         if Presentation is None:
-            raise ImportError(
-                "python-pptx is required for --pptx (pip install python-pptx)"
-            )
+            raise ImportError("python-pptx is required for --pptx (pip install python-pptx)")
         self.slides = []
         self._history_stack = []  # for /undo — list of deep-copied slide lists
         self._template_path = None  # if loaded from an existing deck, reuse its theme
@@ -117,10 +128,15 @@ class PptxSession:
                     title = text
                 elif text:
                     bullets.extend(line for line in text.split("\n") if line.strip())
-            self.slides.append({
-                "title": title, "bullets": bullets, "layout": "title_content",
-                "table": None, "chart": None,
-            })
+            self.slides.append(
+                {
+                    "title": title,
+                    "bullets": bullets,
+                    "layout": "title_content",
+                    "table": None,
+                    "chart": None,
+                }
+            )
 
     # ── context for the model ───────────────────────────────────────────
 
@@ -143,6 +159,7 @@ class PptxSession:
 
     def _snapshot(self):
         import copy
+
         self._history_stack.append(copy.deepcopy(self.slides))
         if len(self._history_stack) > 20:
             self._history_stack.pop(0)
@@ -163,10 +180,15 @@ class PptxSession:
         self._snapshot()
 
         def add_slide(title, bullets=None, layout="title_content", table=None, chart=None):
-            self.slides.append({
-                "title": title, "bullets": bullets or [], "layout": layout,
-                "table": table, "chart": chart,
-            })
+            self.slides.append(
+                {
+                    "title": title,
+                    "bullets": bullets or [],
+                    "layout": layout,
+                    "table": table,
+                    "chart": chart,
+                }
+            )
 
         def update_slide(index, title=None, bullets=None, table=None, chart=None):
             s = self.slides[index]
@@ -193,12 +215,30 @@ class PptxSession:
             "reorder_slides": reorder_slides,
         }
         try:
-            exec(compile(code, "<pptx-turn>", "exec"), {"__builtins__": {
-                "len": len, "range": range, "sum": sum, "min": min, "max": max,
-                "round": round, "sorted": sorted, "list": list, "dict": dict,
-                "str": str, "int": int, "float": float, "bool": bool,
-                "enumerate": enumerate, "zip": zip, "abs": abs,
-            }}, local_ns)
+            exec(
+                compile(code, "<pptx-turn>", "exec"),
+                {
+                    "__builtins__": {
+                        "len": len,
+                        "range": range,
+                        "sum": sum,
+                        "min": min,
+                        "max": max,
+                        "round": round,
+                        "sorted": sorted,
+                        "list": list,
+                        "dict": dict,
+                        "str": str,
+                        "int": int,
+                        "float": float,
+                        "bool": bool,
+                        "enumerate": enumerate,
+                        "zip": zip,
+                        "abs": abs,
+                    }
+                },
+                local_ns,
+            )
         except Exception as e:
             self.undo()
             return False, f"[ERROR] generated code failed: {e}"
@@ -218,7 +258,8 @@ class PptxSession:
 
         for s in self.slides:
             layout = {"title_only": title_only, "section_header": section_header}.get(
-                s.get("layout"), title_content)
+                s.get("layout"), title_content
+            )
             slide = prs.slides.add_slide(layout)
             if slide.shapes.title is not None:
                 slide.shapes.title.text = s["title"]
@@ -284,8 +325,9 @@ Commands:
 """
 
 
-def cmd_pptx_chat(api_key, model, input_path=None, output_path=None,
-                   temperature=0.3, max_tokens=4096, native=False):
+def cmd_pptx_chat(
+    api_key, model, input_path=None, output_path=None, temperature=0.3, max_tokens=4096, native=False
+):
     """native=True routes each turn through claude_skills_api.py's pptx
     Skill (Anthropic's own maintained implementation, server-side in a
     code-execution container) instead of the hand-rolled python-pptx path
@@ -293,12 +335,15 @@ def cmd_pptx_chat(api_key, model, input_path=None, output_path=None,
     hand-rolled path here remains the default and the fallback for
     accounts without it."""
     if native:
-        return _cmd_pptx_chat_native(api_key, model, input_path=input_path,
-                                     output_path=output_path, max_tokens=max_tokens)
+        return _cmd_pptx_chat_native(
+            api_key, model, input_path=input_path, output_path=output_path, max_tokens=max_tokens
+        )
 
     if Presentation is None:
-        print("[ERROR] python-pptx is required for --pptx. Install with: "
-              "pip install python-pptx", file=sys.stderr)
+        print(
+            "[ERROR] python-pptx is required for --pptx. Install with: " "pip install python-pptx",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     from coder import Coder
@@ -335,7 +380,8 @@ def cmd_pptx_chat(api_key, model, input_path=None, output_path=None,
             if cmd in ("/exit", "/quit"):
                 break
             if cmd == "/help":
-                print(HELP_TEXT); continue
+                print(HELP_TEXT)
+                continue
             if cmd == "/slides":
                 for i, s in enumerate(session.slides):
                     print(f"  {i}: {s['title']!r} ({len(s['bullets'])} bullets)")
@@ -364,8 +410,10 @@ def cmd_pptx_chat(api_key, model, input_path=None, output_path=None,
             ok, message = session.apply_code(match.group(1))
             if ok:
                 session.save(output_path)
-                print(f"\033[96mclaude›\033[0m Updated and saved to {output_path} "
-                     f"({len(session.slides)} slides)\n")
+                print(
+                    f"\033[96mclaude›\033[0m Updated and saved to {output_path} "
+                    f"({len(session.slides)} slides)\n"
+                )
             else:
                 print(f"\033[93mclaude›\033[0m {message}\n")
         else:
@@ -388,8 +436,8 @@ def _cmd_pptx_chat_native(api_key, model, input_path=None, output_path=None, max
     aren't available here — the pptx Skill owns the deck, this CLI has no
     local copy of it to inspect or revert.
     """
-    from claude_skills_api import SkillsApiClient, build_user_content, extract_output_file_ids
     from claude_files import FilesAPI
+    from claude_skills_api import SkillsApiClient, build_user_content, extract_output_file_ids
 
     files_api = FilesAPI(api_key=api_key, model=model)
     client = SkillsApiClient(api_key=api_key, model=model, max_tokens=max_tokens)
@@ -433,7 +481,10 @@ def _cmd_pptx_chat_native(api_key, model, input_path=None, output_path=None, max
         pending_file_ids = []  # only attach on the turn that actually introduces the file
 
         data = client.call_with_skills_turn(
-            messages, skills=["pptx"], container_id=container_id, has_file_uploads=has_uploads,
+            messages,
+            skills=["pptx"],
+            container_id=container_id,
+            has_file_uploads=has_uploads,
         )
         if "error" in data:
             print(f"\033[91m✗ {data['error']}\033[0m\n")

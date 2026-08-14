@@ -17,11 +17,12 @@ Provides:
       - cross_region_transfer_allowed
   • Residency-Aware Job Scheduler & Failover Validator (fails closed / WAITING_CAPACITY if residency violated)
 """
+
 from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 
 
 class RegionStatus(str, enum.Enum):
@@ -78,11 +79,17 @@ class ResidencyScheduler:
 
         # Check worker region
         if target_worker_region not in policy.allowed_worker_regions:
-            return False, f"Worker region '{target_worker_region}' not in allowed worker regions {policy.allowed_worker_regions}"
+            return (
+                False,
+                f"Worker region '{target_worker_region}' not in allowed worker regions {policy.allowed_worker_regions}",
+            )
 
         # Check provider inference geo
         if target_inference_geo not in policy.allowed_provider_inference_regions:
-            return False, f"Provider inference geo '{target_inference_geo}' not in allowed inference regions {policy.allowed_provider_inference_regions}"
+            return (
+                False,
+                f"Provider inference geo '{target_inference_geo}' not in allowed inference regions {policy.allowed_provider_inference_regions}",
+            )
 
         # Check region availability
         status = self.topology.worker_regions.get(target_worker_region, RegionStatus.UNAVAILABLE)
@@ -101,7 +108,11 @@ class ResidencyScheduler:
         allowed = policy.allowed_worker_regions if policy else set(self.topology.worker_regions.keys())
 
         for candidate_region, status in self.topology.worker_regions.items():
-            if candidate_region != failed_worker_region and candidate_region in allowed and status == RegionStatus.AVAILABLE:
+            if (
+                candidate_region != failed_worker_region
+                and candidate_region in allowed
+                and status == RegionStatus.AVAILABLE
+            ):
                 return candidate_region, f"Failover routed to compliant region '{candidate_region}'"
 
         # Never violate residency to satisfy failover

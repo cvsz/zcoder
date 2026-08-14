@@ -1,4 +1,5 @@
 """Unit tests for streaming render coalescing (no Textual dependency)."""
+
 import pytest
 
 from tui_streaming import StreamRenderGate
@@ -24,10 +25,13 @@ def test_large_accumulated_delta_flushes_before_interval():
     assert gate.should_render("def", now=0.02)
 
 
-@pytest.mark.parametrize("kwargs", [
-    {"interval_seconds": 0},
-    {"char_threshold": 0},
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"interval_seconds": 0},
+        {"char_threshold": 0},
+    ],
+)
 def test_invalid_limits_are_rejected(kwargs):
     with pytest.raises(ValueError):
         StreamRenderGate(**kwargs)

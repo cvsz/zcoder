@@ -1,4 +1,5 @@
 """tests/test_config.py"""
+
 import json
 
 from config import Config

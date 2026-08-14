@@ -7,27 +7,31 @@ Tests:
   4. Multi-Region Data Residency policy evaluation & failover guarantees
   5. Compliance Control Catalog with evidence TTL & expiration (STALE detection)
 """
+
 import os
 import time
-import pytest
+
 import psycopg2
+import pytest
 
 import main
+from compliance_evidence import ComplianceCatalog, ControlStatus
 from enterprise_postgres_store import EnterprisePostgresStore
-from residency_models import OrganizationResidencyPolicy, RegionStatus, RegionTopology, ResidencyScheduler
-from compliance_evidence import ComplianceCatalog, ComplianceControl, ControlStatus
-from agent_runtime import Job, JobStatus
-from tenant_models import CrossTenantViolationError, EnterpriseRole, Organization, Project, RequestContext
+from residency_models import OrganizationResidencyPolicy, ResidencyScheduler
+from tenant_models import CrossTenantViolationError, EnterpriseRole, RequestContext
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
+
 
 def test_version_single_source_of_truth():
     """Verify that main.py version matches pyproject.toml version exactly."""
     import tomllib
+
     with open("pyproject.toml", "rb") as f:
         pyproj = tomllib.load(f)
     toml_ver = pyproj["project"]["version"]
     assert main.VERSION == toml_ver == "1.40.0"
+
 
 def test_data_residency_policy_evaluation():
     scheduler = ResidencyScheduler()
@@ -53,6 +57,7 @@ def test_data_residency_policy_evaluation():
     assert not_ok_geo is False
     assert "not in allowed inference regions" in msg_geo
 
+
 def test_residency_safe_failover():
     scheduler = ResidencyScheduler()
     policy = OrganizationResidencyPolicy(
@@ -67,6 +72,7 @@ def test_residency_safe_failover():
     assert target_region is None
     assert "PAUSED" in reason
 
+
 def test_compliance_evidence_freshness_and_expiration():
     catalog = ComplianceCatalog()
     catalog.record_evidence("TI-01", is_effective=True, summary="Automated RLS cross-tenant tests passed")
@@ -78,6 +84,7 @@ def test_compliance_evidence_freshness_and_expiration():
     time.sleep(0.02)
     assert catalog.get_control_status("TI-01") == ControlStatus.STALE
 
+
 def test_missing_tenant_context_fails_closed():
     """Verify that attempting an operation with empty/mismatched tenant context fails closed."""
     ctx_empty = RequestContext(principal_id="attacker", organization_id="", role=EnterpriseRole.DEVELOPER)
@@ -87,6 +94,7 @@ def test_missing_tenant_context_fails_closed():
 
 # ─── Live PostgreSQL Tests ───────────────────────────────────────────────────
 
+
 def pg_is_live():
     try:
         conn = psycopg2.connect(PG_URL, connect_timeout=2)
@@ -94,6 +102,7 @@ def pg_is_live():
         return True
     except Exception:
         return False
+
 
 @pytest.mark.skipif(not pg_is_live(), reason="PostgreSQL test instance required")
 def test_real_postgres_connection_pool_isolation():

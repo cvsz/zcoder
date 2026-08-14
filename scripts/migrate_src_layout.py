@@ -4,6 +4,7 @@
 Dry-run is the default. ``--apply`` moves only sources whose destination does
 not already exist, making the script safe to re-run after a partial migration.
 """
+
 import argparse
 import shutil
 from pathlib import Path

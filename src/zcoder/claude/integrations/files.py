@@ -14,21 +14,20 @@ CLI flags:
   --file-download ID OUT    Download file content
 """
 
-import os
-import sys
 import json
 import mimetypes
-import urllib.request
+import os
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
 
-FILES_BASE    = "https://api.anthropic.com/v1/files"
+FILES_BASE = "https://api.anthropic.com/v1/files"
 MESSAGES_BASE = "https://api.anthropic.com/v1/messages"
-BETA_HEADER   = "files-api-2025-04-14"
+BETA_HEADER = "files-api-2025-04-14"
 
 # platform.claude.com/docs/en/build-with-claude/files — File storage and limits
 MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB per file
@@ -55,15 +54,15 @@ class FilesAPI:
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
         self.api_key = api_key
-        self.model   = model
+        self.model = model
         LOCAL_REGISTRY.parent.mkdir(parents=True, exist_ok=True)
 
     def _headers(self, content_type: str = "application/json") -> dict:
         return {
-            "x-api-key":         self.api_key,
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta":    BETA_HEADER,
-            "Content-Type":      content_type,
+            "anthropic-beta": BETA_HEADER,
+            "Content-Type": content_type,
         }
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
@@ -104,17 +103,21 @@ class FilesAPI:
             )
 
         data = p.read_bytes()
-        mt   = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
+        mt = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
 
         # Multipart/form-data encoding
         boundary = "---AICLIBoundary"
-        crlf     = b"\r\n"
+        crlf = b"\r\n"
 
         body = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="file"; filename="{p.name}"\r\n'
-            f"Content-Type: {mt}\r\n\r\n"
-        ).encode() + data + f"\r\n--{boundary}--\r\n".encode()
+            (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="file"; filename="{p.name}"\r\n'
+                f"Content-Type: {mt}\r\n\r\n"
+            ).encode()
+            + data
+            + f"\r\n--{boundary}--\r\n".encode()
+        )
 
         headers = self._headers(f"multipart/form-data; boundary={boundary}")
         headers.pop("Content-Type", None)  # let us set it with boundary
@@ -132,8 +135,9 @@ class FilesAPI:
 
     # ── List ──────────────────────────────────────────────────────────────
 
-    def list_files(self, limit: int = 20, before_id: Optional[str] = None,
-                   after_id: Optional[str] = None) -> dict:
+    def list_files(
+        self, limit: int = 20, before_id: Optional[str] = None, after_id: Optional[str] = None
+    ) -> dict:
         """List one page of files. Returns {"data": [...], "has_more": bool,
         "first_id": ..., "last_id": ...} per the paginated List Files endpoint."""
         params = {"limit": str(limit)}
@@ -225,10 +229,14 @@ class FilesAPI:
 
     # ── Use file in Messages API ──────────────────────────────────────────
 
-    def ask_about_file(self, file_id: str, prompt: str,
-                       media_type: str = "application/pdf",
-                       max_tokens: int = 4096,
-                       use_code_execution: bool = False) -> str:
+    def ask_about_file(
+        self,
+        file_id: str,
+        prompt: str,
+        media_type: str = "application/pdf",
+        max_tokens: int = 4096,
+        use_code_execution: bool = False,
+    ) -> str:
         """Reference an uploaded file in a Messages API call.
 
         Block type follows the File type -> Content block table in
@@ -247,25 +255,30 @@ class FilesAPI:
             block = {"type": "container_upload", "file_id": file_id}
             tools = [{"type": "code_execution_20250825", "name": "code_execution"}]
         else:
-            block = {"type": "document", "source": {"type": "file", "file_id": file_id},
-                     "citations": {"enabled": True}}
+            block = {
+                "type": "document",
+                "source": {"type": "file", "file_id": file_id},
+                "citations": {"enabled": True},
+            }
 
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": max_tokens,
-            "messages": [{
-                "role": "user",
-                "content": [block, {"type": "text", "text": prompt}],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [block, {"type": "text", "text": prompt}],
+                }
+            ],
         }
         if tools:
             payload["tools"] = tools
 
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta":    BETA_HEADER,
+            "anthropic-beta": BETA_HEADER,
         }
         req = urllib.request.Request(
             MESSAGES_BASE,
@@ -278,10 +291,7 @@ class FilesAPI:
         except AICoderError as e:
             return f"[API ERROR {getattr(e, 'status_code', '')}] {e.message}"
 
-        return "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
     # ── Local registry helpers ────────────────────────────────────────────
 
@@ -296,11 +306,11 @@ class FilesAPI:
     def _register(self, api_result: dict, local_path: str):
         reg = self._load_registry()
         reg[api_result["id"]] = {
-            "id":          api_result["id"],
-            "filename":    api_result.get("filename", ""),
-            "local_path":  local_path,
-            "created_at":  api_result.get("created_at", ""),
-            "size":        api_result.get("size", 0),
+            "id": api_result["id"],
+            "filename": api_result.get("filename", ""),
+            "local_path": local_path,
+            "created_at": api_result.get("created_at", ""),
+            "size": api_result.get("size", 0),
         }
         LOCAL_REGISTRY.write_text(json.dumps(reg, indent=2))
 
@@ -315,6 +325,7 @@ class FilesAPI:
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
+
 def cmd_file_upload(file_path: str, api_key: str, model: str):
     fa = FilesAPI(api_key=api_key, model=model)
     print(f"\033[94mℹ Uploading {file_path}…\033[0m")
@@ -328,7 +339,7 @@ def cmd_file_upload(file_path: str, api_key: str, model: str):
 
 
 def cmd_file_list(api_key: str, model: str, max_items: Optional[int] = None):
-    fa    = FilesAPI(api_key=api_key, model=model)
+    fa = FilesAPI(api_key=api_key, model=model)
     files = fa.list_files_all(max_items=max_items)
     local = fa.list_local()
     if not files:
@@ -337,11 +348,11 @@ def cmd_file_list(api_key: str, model: str, max_items: Optional[int] = None):
     print(f"\n{'ID':<28}{'FILENAME':<30}{'SIZE':>10}  CREATED")
     print("─" * 80)
     for f in files:
-        fid      = f["id"]
+        fid = f["id"]
         local_fn = local.get(fid, {}).get("local_path", "")
-        fname    = f.get("filename", local_fn)[:29]
-        size     = f"{f.get('size', 0):,}"
-        created  = str(f.get("created_at", ""))[:10]
+        fname = f.get("filename", local_fn)[:29]
+        size = f"{f.get('size', 0):,}"
+        created = str(f.get("created_at", ""))[:10]
         print(f"{fid:<28}{fname:<30}{size:>10}  {created}")
     print(f"\n{len(files)} file(s)")
 
@@ -352,16 +363,15 @@ def cmd_file_delete(file_id: str, api_key: str):
     print(f"\033[92m✓ File {file_id} deleted.\033[0m")
 
 
-def cmd_file_ask(file_id: str, prompt: str, api_key: str, model: str,
-                 media_type: str = "application/pdf"):
+def cmd_file_ask(file_id: str, prompt: str, api_key: str, model: str, media_type: str = "application/pdf"):
     print(f"\033[94mℹ Asking about file {file_id}…\033[0m\n")
-    fa     = FilesAPI(api_key=api_key, model=model)
+    fa = FilesAPI(api_key=api_key, model=model)
     result = fa.ask_about_file(file_id, prompt, media_type=media_type)
     print(result)
     return result
 
 
 def cmd_file_download(file_id: str, output_path: str, api_key: str):
-    fa   = FilesAPI(api_key=api_key)
+    fa = FilesAPI(api_key=api_key)
     path = fa.download(file_id, output_path)
     print(f"\033[92m✓ Downloaded to {path}\033[0m")

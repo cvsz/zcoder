@@ -1,19 +1,20 @@
 """tests/test_claude_haiku45.py"""
+
 import pytest
 
 from claude_haiku45 import (
+    HAIKU45_ALIAS,
+    HAIKU45_MODEL_ID,
+    MIN_THINKING_BUDGET,
     Haiku45Client,
     build_thinking_param,
     resolve_model_id,
     validate_fast_mode,
     validate_inference_geo,
-    HAIKU45_MODEL_ID,
-    HAIKU45_ALIAS,
-    MIN_THINKING_BUDGET,
 )
 
-
 # ── build_thinking_param: always the extended shape, never adaptive ────
+
 
 def test_no_budget_means_no_thinking_block():
     assert build_thinking_param(None) is None
@@ -37,6 +38,7 @@ def test_budget_at_floor_is_accepted():
 
 # ── alias resolution ─────────────────────────────────────────────────────
 
+
 def test_alias_resolves_to_dated_id():
     assert resolve_model_id(HAIKU45_ALIAS) == HAIKU45_MODEL_ID
 
@@ -46,6 +48,7 @@ def test_dated_id_passes_through_unchanged():
 
 
 # ── unsupported-feature guards (Opus-only fast mode, no data residency) ─
+
 
 def test_fast_mode_rejected_for_haiku45():
     err = validate_fast_mode(True)
@@ -63,6 +66,7 @@ def test_inference_geo_rejected_for_haiku45():
 
 
 # ── client wiring ────────────────────────────────────────────────────────
+
 
 def test_call_raises_before_posting_on_unsupported_fast_mode(monkeypatch):
     client = Haiku45Client(api_key="k")

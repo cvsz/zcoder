@@ -10,22 +10,21 @@ Implements Upgrade-13 No-Cost Core Architecture:
   7. Workflow Builder & Versioned Templates (Fix failing tests, PR review, Security review, CI repair)
   8. Agent Catalog & Safe Import (RBAC privilege ceilings on imported agent configurations)
 """
+
 from __future__ import annotations
 
 import dataclasses
 import enum
 import hashlib
-import json
-import os
 import pathlib
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-
 # ---------------------------------------------------------------------------
 # 1. Cost Classification & Policy
 # ---------------------------------------------------------------------------
+
 
 class CostClass(str, enum.Enum):
     FREE_LOCAL = "FREE_LOCAL"
@@ -134,6 +133,7 @@ class CostOptimizer:
 # 2. Local Object Storage (Zero-Cost Filesystem Abstraction)
 # ---------------------------------------------------------------------------
 
+
 class LocalObjectStorage:
     """Filesystem-based object store with strict path traversal defense and tenant isolation."""
 
@@ -175,6 +175,7 @@ class LocalObjectStorage:
 # ---------------------------------------------------------------------------
 # 3. In-App Notification System & Preferences
 # ---------------------------------------------------------------------------
+
 
 class NotificationSeverity(str, enum.Enum):
     INFO = "INFO"
@@ -245,19 +246,24 @@ class NotificationCenter:
 # 4. Privacy-First Local Analytics Engine
 # ---------------------------------------------------------------------------
 
+
 class LocalAnalyticsEngine:
     """In-memory, 100% offline product metrics aggregator requiring zero external services."""
 
     def __init__(self):
         self.events: List[Dict[str, Any]] = []
 
-    def track(self, event_name: str, organization_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
-        self.events.append({
-            "event": event_name,
-            "organization_id": organization_id,
-            "properties": properties or {},
-            "timestamp": time.time(),
-        })
+    def track(
+        self, event_name: str, organization_id: str, properties: Optional[Dict[str, Any]] = None
+    ) -> None:
+        self.events.append(
+            {
+                "event": event_name,
+                "organization_id": organization_id,
+                "properties": properties or {},
+                "timestamp": time.time(),
+            }
+        )
 
     def get_aggregate_stats(self, organization_id: str) -> Dict[str, Any]:
         org_events = [e for e in self.events if e["organization_id"] == organization_id]
@@ -274,6 +280,7 @@ class LocalAnalyticsEngine:
 # ---------------------------------------------------------------------------
 # 5. Workflow Builder & Versioned Templates
 # ---------------------------------------------------------------------------
+
 
 @dataclasses.dataclass
 class WorkflowStep:
@@ -303,9 +310,15 @@ WORKFLOW_TEMPLATES: Dict[str, WorkflowDefinition] = {
         version="1.0",
         trigger="git.pr",
         steps=[
-            WorkflowStep(id="s1", name="Run Pytest", action_type="command", parameters={"command": "pytest -q"}),
-            WorkflowStep(id="s2", name="Agent Fixer", action_type="agent", parameters={"task": "Resolve test failures"}),
-            WorkflowStep(id="s3", name="Re-validate", action_type="validation", parameters={"command": "pytest -q"}),
+            WorkflowStep(
+                id="s1", name="Run Pytest", action_type="command", parameters={"command": "pytest -q"}
+            ),
+            WorkflowStep(
+                id="s2", name="Agent Fixer", action_type="agent", parameters={"task": "Resolve test failures"}
+            ),
+            WorkflowStep(
+                id="s3", name="Re-validate", action_type="validation", parameters={"command": "pytest -q"}
+            ),
         ],
         max_budget_usd=0.0,
     ),
@@ -316,8 +329,15 @@ WORKFLOW_TEMPLATES: Dict[str, WorkflowDefinition] = {
         version="1.0",
         trigger="git.pr",
         steps=[
-            WorkflowStep(id="s1", name="Bandit Scan", action_type="command", parameters={"command": "bandit -r ."}),
-            WorkflowStep(id="s2", name="Security Auditor Agent", action_type="agent", parameters={"task": "Audit AST for vulnerabilities"}),
+            WorkflowStep(
+                id="s1", name="Bandit Scan", action_type="command", parameters={"command": "bandit -r ."}
+            ),
+            WorkflowStep(
+                id="s2",
+                name="Security Auditor Agent",
+                action_type="agent",
+                parameters={"task": "Audit AST for vulnerabilities"},
+            ),
         ],
         max_budget_usd=0.0,
     ),
@@ -337,7 +357,6 @@ class WorkflowEngine:
 
     def register_workflow(self, workflow: WorkflowDefinition) -> None:
         self.workflows[workflow.id] = workflow
-
 
     def execute_workflow_dry_run(self, workflow_id: str) -> List[str]:
         wf = self.workflows.get(workflow_id)

@@ -1,19 +1,20 @@
 """tests/test_github_orchestrator.py — Tests for GitHub PR Automation, CI Loop, Merge Policy & Webhooks"""
+
 import tempfile
 import time
 from pathlib import Path
+
 import pytest
 
-from legacy_job_models import Job, JobStatus, JobStore
 from github_orchestrator import (
     CheckConclusion,
     CheckRun,
     DistributedScheduler,
     FakeGitHubProvider,
     GitHubOrchestrator,
-    PullRequest,
     ReviewState,
 )
+from legacy_job_models import Job, JobStatus, JobStore
 
 
 @pytest.fixture
@@ -53,9 +54,10 @@ def test_merge_readiness_evaluation(test_setup):
     assert ready is False
 
     # 2. Add passing check
-    gh_provider.set_checks(pr.head_sha, [
-        CheckRun("chk1", "ci/tests", "completed", CheckConclusion.SUCCESS, "url", time.time(), time.time())
-    ])
+    gh_provider.set_checks(
+        pr.head_sha,
+        [CheckRun("chk1", "ci/tests", "completed", CheckConclusion.SUCCESS, "url", time.time(), time.time())],
+    )
     ready, reason = orch.evaluate_merge_readiness("owner/repo", pr.number, required_checks=["ci/tests"])
     assert ready is False
     assert "Pending human review" in reason
@@ -74,9 +76,14 @@ def test_ci_repair_loop(test_setup):
     pr = orch.create_pull_request_for_job("job_gh_03", "owner/repo", "CI Fix", "Body", "zcoder/job-03")
 
     # Initial check is failing
-    gh_provider.set_checks(pr.head_sha, [
-        CheckRun("chk1", "test-suite", "completed", CheckConclusion.FAILURE, "url", time.time(), time.time())
-    ])
+    gh_provider.set_checks(
+        pr.head_sha,
+        [
+            CheckRun(
+                "chk1", "test-suite", "completed", CheckConclusion.FAILURE, "url", time.time(), time.time()
+            )
+        ],
+    )
 
     repaired = orch.execute_ci_repair_loop(job.id, "owner/repo", pr.number, max_repairs=3)
     assert repaired is True
@@ -95,6 +102,7 @@ def test_webhook_verification_and_deduplication(test_setup):
     # Compute valid signature
     import hashlib
     import hmac
+
     sig = "sha256=" + hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
     assert orch.verify_webhook(payload, sig, secret) is True

@@ -32,19 +32,17 @@ CLI flags:
                            code_execution_20260521 — GA, no beta header)
 """
 
-import os
-import sys
-import json
 import base64
-import urllib.request
+import json
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
-ENDPOINT    = "https://api.anthropic.com/v1/messages"
+ENDPOINT = "https://api.anthropic.com/v1/messages"
 # Only sent for the old, pre-GA code_execution_20250522 tool version —
 # every code_execution_2026xxxx version needs no beta header per the
 # platform release notes ("no beta header is required" to adopt it).
@@ -62,19 +60,23 @@ CODE_EXEC_TOOL = {
 class CodeExecutionCoder:
     """Claude client with server-side code execution."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 8192,
-                 code_exec_version: str = DEFAULT_CODE_EXEC_VERSION):
-        self.api_key           = api_key
-        self.model             = model
-        self.max_tokens        = max_tokens
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-5",
+        max_tokens: int = 8192,
+        code_exec_version: str = DEFAULT_CODE_EXEC_VERSION,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.max_tokens = max_tokens
         self.code_exec_version = code_exec_version
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         if self.code_exec_version == LEGACY_CODE_EXEC_VERSION:
@@ -117,30 +119,32 @@ class CodeExecutionCoder:
         # filesystem, so code that fed a CSV in via `document` here relied on
         # Claude re-deriving the content from the model's own reading of it
         # rather than actually giving the sandbox's Python a file to open.
-        for fid in (file_ids or []):
-            content.append({
-                "type":    "container_upload",
-                "file_id": fid,
-            })
+        for fid in file_ids or []:
+            content.append(
+                {
+                    "type": "container_upload",
+                    "file_id": fid,
+                }
+            )
 
         messages = [{"role": "user", "content": content}]
         code_exec_tool = {"type": self.code_exec_version, "name": "code_execution"}
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "tools":      [code_exec_tool],
-            "messages":   messages,
+            "tools": [code_exec_tool],
+            "messages": messages,
         }
         if system:
             payload["system"] = system
 
-        data  = self._post(payload)
+        data = self._post(payload)
         if "error" in data:
             return {"text": f"[ERROR] {data['error']}", "outputs": [], "files": []}
 
-        text    = ""
+        text = ""
         outputs = []
-        files   = []
+        files = []
 
         for block in data.get("content", []):
             btype = block.get("type", "")
@@ -149,10 +153,12 @@ class CodeExecutionCoder:
                 text += block.get("text", "")
 
             elif btype == "tool_use" and block.get("name") == "code_execution":
-                outputs.append({
-                    "type":  "code",
-                    "input": block.get("input", {}).get("code", ""),
-                })
+                outputs.append(
+                    {
+                        "type": "code",
+                        "input": block.get("input", {}).get("code", ""),
+                    }
+                )
 
             elif btype == "tool_result":
                 for sub in block.get("content", []):
@@ -178,17 +184,16 @@ class CodeExecutionCoder:
                         outputs.append({"type": "stdout", "text": sub.get("text", "")})
                     elif st == "image":
                         img_data = sub.get("source", {}).get("data", "")
-                        img_mt   = sub.get("source", {}).get("media_type", "image/png")
+                        img_mt = sub.get("source", {}).get("media_type", "image/png")
                         files.append({"type": "image", "data": img_data, "media_type": img_mt})
                         if output_dir:
                             ext = img_mt.split("/")[-1]
-                            p   = Path(output_dir) / f"output_{len(files)}.{ext}"
+                            p = Path(output_dir) / f"output_{len(files)}.{ext}"
                             p.parent.mkdir(parents=True, exist_ok=True)
                             p.write_bytes(base64.b64decode(img_data))
                             print(f"  \033[92m✓ Image saved: {p}\033[0m")
 
-        return {"text": text, "outputs": outputs, "files": files,
-                "usage": data.get("usage", {})}
+        return {"text": text, "outputs": outputs, "files": files, "usage": data.get("usage", {})}
 
     def debug_code(self, code: str, language: str = "python") -> dict:
         """Ask Claude to debug and fix code by running it."""
@@ -211,17 +216,23 @@ class CodeExecutionCoder:
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_code_exec(prompt: str, api_key: str, model: str,
-                  file_ids: list[str] = None, output_dir: str = None,
-                  code_exec_version: str = DEFAULT_CODE_EXEC_VERSION):
-    print(f"\033[94mℹ Code Execution Tool (Anthropic sandbox)\033[0m\n")
-    cec    = CodeExecutionCoder(api_key=api_key, model=model, code_exec_version=code_exec_version)
+
+def cmd_code_exec(
+    prompt: str,
+    api_key: str,
+    model: str,
+    file_ids: list[str] = None,
+    output_dir: str = None,
+    code_exec_version: str = DEFAULT_CODE_EXEC_VERSION,
+):
+    print("\033[94mℹ Code Execution Tool (Anthropic sandbox)\033[0m\n")
+    cec = CodeExecutionCoder(api_key=api_key, model=model, code_exec_version=code_exec_version)
     result = cec.execute(prompt, file_ids=file_ids, output_dir=output_dir)
 
     print(result["text"])
 
     if result["outputs"]:
-        print(f"\n\033[90m── Execution Trace ─────────────────────\033[0m")
+        print("\n\033[90m── Execution Trace ─────────────────────\033[0m")
         for out in result["outputs"]:
             ot = out.get("type", "")
             if ot in ("code", "executed_code"):
@@ -238,12 +249,13 @@ def cmd_code_exec(prompt: str, api_key: str, model: str,
     return result
 
 
-def cmd_code_debug(file_path: str, api_key: str, model: str,
-                   code_exec_version: str = DEFAULT_CODE_EXEC_VERSION):
+def cmd_code_debug(
+    file_path: str, api_key: str, model: str, code_exec_version: str = DEFAULT_CODE_EXEC_VERSION
+):
     code = Path(file_path).read_text()
     lang = Path(file_path).suffix.lstrip(".") or "python"
     print(f"\033[94mℹ Debugging {file_path} with live execution…\033[0m\n")
-    cec    = CodeExecutionCoder(api_key=api_key, model=model, code_exec_version=code_exec_version)
+    cec = CodeExecutionCoder(api_key=api_key, model=model, code_exec_version=code_exec_version)
     result = cec.debug_code(code, lang)
     print(result["text"])
     return result

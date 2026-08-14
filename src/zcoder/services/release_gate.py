@@ -5,12 +5,15 @@ control/evidence definitions remain reviewable.  This facade normalizes paths
 after the src-layout migration and refuses to report a fully validated release
 until the post-migration validation suite has actually run.
 """
+
 from __future__ import annotations
 
 from ._release_gate_legacy import (  # re-export stable public types
     EvidenceLevel,
     GateResult,
     GateVerdict,
+)
+from ._release_gate_legacy import (
     ProductionReleaseGate as _LegacyProductionReleaseGate,
 )
 

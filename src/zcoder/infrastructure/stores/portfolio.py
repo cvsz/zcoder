@@ -1,12 +1,14 @@
 """portfolio_store.py — Persistent storage for managed repositories and campaigns."""
+
 from __future__ import annotations
 
 import json
 import sqlite3
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from portfolio_models import EngineeringCampaign, ManagedRepository
+
 
 class PortfolioStore:
     def __init__(self, db_path: Optional[Path] = None):
@@ -35,10 +37,14 @@ class PortfolioStore:
 
     def add_repository(self, repo: ManagedRepository) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("INSERT INTO managed_repositories VALUES (?, ?, ?, ?)",
-                         (repo.id, repo.name, repo.local_path, repo.status.value))
+            conn.execute(
+                "INSERT INTO managed_repositories VALUES (?, ?, ?, ?)",
+                (repo.id, repo.name, repo.local_path, repo.status.value),
+            )
 
     def create_campaign(self, campaign: EngineeringCampaign) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("INSERT INTO engineering_campaigns VALUES (?, ?, ?, ?)",
-                         (campaign.id, campaign.name, campaign.status.value, json.dumps(campaign.repositories)))
+            conn.execute(
+                "INSERT INTO engineering_campaigns VALUES (?, ?, ?, ?)",
+                (campaign.id, campaign.name, campaign.status.value, json.dumps(campaign.repositories)),
+            )

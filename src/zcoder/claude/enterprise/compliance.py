@@ -100,11 +100,12 @@ CLI flags:
 
 import json
 import time
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional, Iterator, Iterable
+from typing import Optional
 
 COMPLIANCE_BASE = "https://api.anthropic.com/v1/compliance"
 
@@ -133,8 +134,14 @@ class ComplianceApiError(Exception):
     log or alert differently on exhausted-retry vs. non-retryable).
     """
 
-    def __init__(self, status: int, error_type: str, message: str,
-                 request_id: Optional[str] = None, retryable: bool = False):
+    def __init__(
+        self,
+        status: int,
+        error_type: str,
+        message: str,
+        request_id: Optional[str] = None,
+        retryable: bool = False,
+    ):
         self.status = status
         self.error_type = error_type
         self.message = message
@@ -153,7 +160,9 @@ class ComplianceApiError(Exception):
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
         return cls(
-            status=status, error_type=error_type, message=message,
+            status=status,
+            error_type=error_type,
+            message=message,
             request_id=headers.get("request-id") or headers.get("Request-Id"),
             retryable=_is_retryable(status, headers),
         )
@@ -203,9 +212,14 @@ class ComplianceApiClient:
     correct, retry with it unchanged").
     """
 
-    def __init__(self, api_key: str, max_retries: int = 5,
-                 backoff_cap: float = 60.0, timeout: int = 60,
-                 sleep_fn=time.sleep):
+    def __init__(
+        self,
+        api_key: str,
+        max_retries: int = 5,
+        backoff_cap: float = 60.0,
+        timeout: int = 60,
+        sleep_fn=time.sleep,
+    ):
         self.api_key = api_key
         self.max_retries = max_retries
         self.backoff_cap = backoff_cap
@@ -217,8 +231,7 @@ class ComplianceApiClient:
     def _headers(self) -> dict:
         return {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
 
-    def _request(self, method: str, path: str, params: Optional[dict] = None,
-                 raw: bool = False):
+    def _request(self, method: str, path: str, params: Optional[dict] = None, raw: bool = False):
         url = f"{COMPLIANCE_BASE}{path}"
         if params:
             # doseq=True so list-valued params (activity_types[], etc.)
@@ -242,7 +255,7 @@ class ComplianceApiClient:
                 body = e.read()
                 headers = dict(e.headers or {})
                 if _is_retryable(e.code, headers) and attempt < self.max_retries:
-                    sleep_for = min(self.backoff_cap, 2 ** attempt)
+                    sleep_for = min(self.backoff_cap, 2**attempt)
                     self._sleep(sleep_for)
                     attempt += 1
                     continue
@@ -266,36 +279,48 @@ class ComplianceApiClient:
 
     # ── Activity Feed ────────────────────────────────────────────────
 
-    def list_activities(self, limit: int = 100, after_id: Optional[str] = None,
-                        before_id: Optional[str] = None,
-                        activity_types: Optional[list] = None,
-                        actor_ids: Optional[list] = None,
-                        organization_ids: Optional[list] = None,
-                        created_at_gte: Optional[str] = None,
-                        created_at_gt: Optional[str] = None,
-                        created_at_lte: Optional[str] = None,
-                        created_at_lt: Optional[str] = None) -> dict:
+    def list_activities(
+        self,
+        limit: int = 100,
+        after_id: Optional[str] = None,
+        before_id: Optional[str] = None,
+        activity_types: Optional[list] = None,
+        actor_ids: Optional[list] = None,
+        organization_ids: Optional[list] = None,
+        created_at_gte: Optional[str] = None,
+        created_at_gt: Optional[str] = None,
+        created_at_lte: Optional[str] = None,
+        created_at_lt: Optional[str] = None,
+    ) -> dict:
         """GET /v1/compliance/activities — one page, newest first.
         Requires read:compliance_activities (Compliance Access Key or
         Admin API key, either works here)."""
         params = {
-            "limit": limit, "after_id": after_id, "before_id": before_id,
-            "activity_types[]": activity_types, "actor_ids[]": actor_ids,
+            "limit": limit,
+            "after_id": after_id,
+            "before_id": before_id,
+            "activity_types[]": activity_types,
+            "actor_ids[]": actor_ids,
             "organization_ids[]": organization_ids,
-            "created_at.gte": created_at_gte, "created_at.gt": created_at_gt,
-            "created_at.lte": created_at_lte, "created_at.lt": created_at_lt,
+            "created_at.gte": created_at_gte,
+            "created_at.gt": created_at_gt,
+            "created_at.lte": created_at_lte,
+            "created_at.lt": created_at_lt,
         }
         return self._get("/activities", params=params)
 
-    def iterate_activities(self, activity_types: Optional[list] = None,
-                           actor_ids: Optional[list] = None,
-                           organization_ids: Optional[list] = None,
-                           created_at_gte: Optional[str] = None,
-                           created_at_gt: Optional[str] = None,
-                           created_at_lte: Optional[str] = None,
-                           created_at_lt: Optional[str] = None,
-                           after_id: Optional[str] = None,
-                           page_size: int = 100) -> Iterator[dict]:
+    def iterate_activities(
+        self,
+        activity_types: Optional[list] = None,
+        actor_ids: Optional[list] = None,
+        organization_ids: Optional[list] = None,
+        created_at_gte: Optional[str] = None,
+        created_at_gt: Optional[str] = None,
+        created_at_lte: Optional[str] = None,
+        created_at_lt: Optional[str] = None,
+        after_id: Optional[str] = None,
+        page_size: int = 100,
+    ) -> Iterator[dict]:
         """Generator that pages through the *entire* matching Activity
         Feed (newest first), yielding one Activity dict at a time.
 
@@ -309,11 +334,15 @@ class ComplianceApiClient:
         cursor = after_id
         while True:
             page = self.list_activities(
-                limit=page_size, after_id=cursor,
-                activity_types=activity_types, actor_ids=actor_ids,
+                limit=page_size,
+                after_id=cursor,
+                activity_types=activity_types,
+                actor_ids=actor_ids,
                 organization_ids=organization_ids,
-                created_at_gte=created_at_gte, created_at_gt=created_at_gt,
-                created_at_lte=created_at_lte, created_at_lt=created_at_lt,
+                created_at_gte=created_at_gte,
+                created_at_gt=created_at_gt,
+                created_at_lte=created_at_lte,
+                created_at_lt=created_at_lt,
             )
             for item in page.get("data", []):
                 yield item
@@ -323,13 +352,19 @@ class ComplianceApiClient:
 
     # ── Chats / messages (Compliance Access Key only) ───────────────
 
-    def list_chats(self, user_ids: list, organization_ids: Optional[list] = None,
-                   project_ids: Optional[list] = None, limit: int = 100,
-                   after_id: Optional[str] = None, before_id: Optional[str] = None,
-                   created_at_gte: Optional[str] = None,
-                   created_at_lte: Optional[str] = None,
-                   updated_at_gte: Optional[str] = None,
-                   updated_at_lte: Optional[str] = None) -> dict:
+    def list_chats(
+        self,
+        user_ids: list,
+        organization_ids: Optional[list] = None,
+        project_ids: Optional[list] = None,
+        limit: int = 100,
+        after_id: Optional[str] = None,
+        before_id: Optional[str] = None,
+        created_at_gte: Optional[str] = None,
+        created_at_lte: Optional[str] = None,
+        updated_at_gte: Optional[str] = None,
+        updated_at_lte: Optional[str] = None,
+    ) -> dict:
         """GET /v1/compliance/apps/chats. `user_ids` is required (up to
         10 per call) — this is a documented constraint of the endpoint,
         not an arbitrary client-side restriction, so it's enforced here
@@ -344,11 +379,16 @@ class ComplianceApiClient:
         if len(user_ids) > 10:
             raise ValueError(f"list_chats accepts at most 10 user_ids per call; got {len(user_ids)}.")
         params = {
-            "user_ids[]": user_ids, "organization_ids[]": organization_ids,
-            "project_ids[]": project_ids, "limit": limit,
-            "after_id": after_id, "before_id": before_id,
-            "created_at.gte": created_at_gte, "created_at.lte": created_at_lte,
-            "updated_at.gte": updated_at_gte, "updated_at.lte": updated_at_lte,
+            "user_ids[]": user_ids,
+            "organization_ids[]": organization_ids,
+            "project_ids[]": project_ids,
+            "limit": limit,
+            "after_id": after_id,
+            "before_id": before_id,
+            "created_at.gte": created_at_gte,
+            "created_at.lte": created_at_lte,
+            "updated_at.gte": updated_at_gte,
+            "updated_at.lte": updated_at_lte,
         }
         return self._get("/apps/chats", params=params)
 
@@ -366,9 +406,13 @@ class ComplianceApiClient:
                 return
             cursor = page.get("last_id")
 
-    def get_chat_messages(self, chat_id: str, limit: Optional[int] = None,
-                          after_id: Optional[str] = None,
-                          before_id: Optional[str] = None) -> dict:
+    def get_chat_messages(
+        self,
+        chat_id: str,
+        limit: Optional[int] = None,
+        after_id: Optional[str] = None,
+        before_id: Optional[str] = None,
+    ) -> dict:
         """GET /v1/compliance/apps/chats/{id}/messages. Omitting `limit`
         returns the whole chat in one response (per the docs); pass it
         to page through very long chats. Requires read:compliance_user_data."""
@@ -384,8 +428,9 @@ class ComplianceApiClient:
 
     # ── Local sessions (Cowork / Claude Code, Compliance Access Key) ─
 
-    def list_local_sessions(self, user_ids: Optional[list] = None,
-                            limit: int = 100, page: Optional[str] = None) -> dict:
+    def list_local_sessions(
+        self, user_ids: Optional[list] = None, limit: int = 100, page: Optional[str] = None
+    ) -> dict:
         """GET /v1/compliance/apps/sessions/local — lists local Cowork and
         Claude Code sessions across the organization. Requires
         read:compliance_user_data."""
@@ -402,8 +447,9 @@ class ComplianceApiClient:
         read:compliance_user_data."""
         return self._get(f"/apps/sessions/local/{session_id}")
 
-    def get_local_session_messages(self, session_id: str, limit: Optional[int] = None,
-                                   page: Optional[str] = None) -> dict:
+    def get_local_session_messages(
+        self, session_id: str, limit: Optional[int] = None, page: Optional[str] = None
+    ) -> dict:
         """GET /v1/compliance/apps/sessions/local/{id}/messages — returns
         the full transcript (prompts, tool calls, responses) for a local
         session. Requires read:compliance_user_data."""
@@ -426,15 +472,21 @@ class ComplianceApiClient:
         mime_type); filename comes from the RFC 5987
         Content-Disposition header (the original upload's filename)."""
         body, headers = self._get_raw(f"/apps/chats/files/{file_id}/content")
-        return body, _parse_content_disposition_filename(headers.get("Content-Disposition", "")), \
-            headers.get("Content-Type")
+        return (
+            body,
+            _parse_content_disposition_filename(headers.get("Content-Disposition", "")),
+            headers.get("Content-Type"),
+        )
 
     def download_generated_file_content(self, gen_file_id: str) -> tuple:
         """Same shape as download_file_content(), for tool-generated
         files (claude_gen_file_* IDs from an assistant message)."""
         body, headers = self._get_raw(f"/apps/chats/generated_files/{gen_file_id}/content")
-        return body, _parse_content_disposition_filename(headers.get("Content-Disposition", "")), \
-            headers.get("Content-Type")
+        return (
+            body,
+            _parse_content_disposition_filename(headers.get("Content-Disposition", "")),
+            headers.get("Content-Type"),
+        )
 
     def download_artifact_content(self, artifact_version_id: str) -> str:
         """One artifact *version's* text body — pass version_id, not
@@ -455,14 +507,12 @@ class ComplianceApiClient:
     def get_project(self, project_id: str) -> dict:
         return self._get(f"/apps/projects/{project_id}")
 
-    def list_project_attachments(self, project_id: str, limit: int = 100,
-                                 page: Optional[str] = None) -> dict:
+    def list_project_attachments(self, project_id: str, limit: int = 100, page: Optional[str] = None) -> dict:
         """Each entry is a project_file (claude_file_* — download via
         download_file_content) or a project_doc (claude_proj_doc_* —
         fetch via get_project_document_content), discriminated by the
         `type` field on the entry."""
-        return self._get(f"/apps/projects/{project_id}/attachments",
-                         params={"limit": limit, "page": page})
+        return self._get(f"/apps/projects/{project_id}/attachments", params={"limit": limit, "page": page})
 
     def get_project_document_content(self, doc_id: str) -> str:
         body, _headers = self._get_raw(f"/apps/projects/documents/{doc_id}/content")
@@ -484,8 +534,7 @@ class ComplianceApiClient:
         every linked organization (up to 1,000) in one response."""
         return self._get("/organizations")
 
-    def list_organization_users(self, org_uuid: str, limit: int = 500,
-                                page: Optional[str] = None) -> dict:
+    def list_organization_users(self, org_uuid: str, limit: int = 500, page: Optional[str] = None) -> dict:
         return self._get(f"/organizations/{org_uuid}/users", params={"limit": limit, "page": page})
 
     def list_roles(self, org_uuid: str) -> dict:
@@ -508,50 +557,73 @@ class ComplianceApiClient:
 # CLI ENTRY POINTS
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def _print_error(prefix: str, e: ComplianceApiError):
     print(f"\033[91m✗ {prefix}: [{e.status}] {e.error_type}: {e.message}\033[0m")
     if e.status == 403:
-        print("\033[93m  Compliance Access Keys (sk-ant-api01-...) carry different scopes "
-             "than Admin API keys (sk-ant-admin01-...); an Admin API key can only call "
-             "the Activity Feed. See the message above for the scopes this call needed "
-             "vs. what your key carries.\033[0m")
+        print(
+            "\033[93m  Compliance Access Keys (sk-ant-api01-...) carry different scopes "
+            "than Admin API keys (sk-ant-admin01-...); an Admin API key can only call "
+            "the Activity Feed. See the message above for the scopes this call needed "
+            "vs. what your key carries.\033[0m"
+        )
     elif e.status == 401:
-        print("\033[93m  Confirm the key value and that it hasn't been revoked in "
-             "claude.ai (Compliance Access Keys) or Claude Console (Admin API keys).\033[0m")
+        print(
+            "\033[93m  Confirm the key value and that it hasn't been revoked in "
+            "claude.ai (Compliance Access Keys) or Claude Console (Admin API keys).\033[0m"
+        )
     elif e.status == 429:
-        print("\033[93m  Rate limited even after automatic backoff — this org is doing "
-             "600+ requests/min against the Compliance API. Slow down the polling "
-             "interval.\033[0m")
+        print(
+            "\033[93m  Rate limited even after automatic backoff — this org is doing "
+            "600+ requests/min against the Compliance API. Slow down the polling "
+            "interval.\033[0m"
+        )
     if e.request_id:
-        print(f"\033[90m  request-id: {e.request_id} (include this if escalating to Anthropic support)\033[0m")
+        print(
+            f"\033[90m  request-id: {e.request_id} (include this if escalating to Anthropic support)\033[0m"
+        )
 
 
-def cmd_compliance_activities(api_key: str, since: Optional[str] = None,
-                              until: Optional[str] = None,
-                              activity_types: Optional[list] = None,
-                              limit: int = 100, all_pages: bool = False):
+def cmd_compliance_activities(
+    api_key: str,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    activity_types: Optional[list] = None,
+    limit: int = 100,
+    all_pages: bool = False,
+):
     client = ComplianceApiClient(api_key)
-    print(f"\n\033[94mActivity Feed\033[0m" + (" (all matching pages)" if all_pages else f" (up to {limit})") + "\n")
+    print(
+        "\n\033[94mActivity Feed\033[0m"
+        + (" (all matching pages)" if all_pages else f" (up to {limit})")
+        + "\n"
+    )
     try:
         count = 0
         if all_pages:
             for activity in client.iterate_activities(
-                activity_types=activity_types, created_at_gte=since, created_at_lte=until,
+                activity_types=activity_types,
+                created_at_gte=since,
+                created_at_lte=until,
                 page_size=min(limit, 5000) or 100,
             ):
                 _print_activity(activity)
                 count += 1
         else:
             page = client.list_activities(
-                limit=limit, activity_types=activity_types,
-                created_at_gte=since, created_at_lte=until,
+                limit=limit,
+                activity_types=activity_types,
+                created_at_gte=since,
+                created_at_lte=until,
             )
             for activity in page.get("data", []):
                 _print_activity(activity)
                 count += 1
             if page.get("has_more"):
-                print(f"\033[90m  ... more available (pass --compliance-activities-all "
-                     f"to page through everything, last_id={page.get('last_id')})\033[0m")
+                print(
+                    f"\033[90m  ... more available (pass --compliance-activities-all "
+                    f"to page through everything, last_id={page.get('last_id')})\033[0m"
+                )
     except ComplianceApiError as e:
         _print_error("Activity Feed request failed", e)
         return None
@@ -561,8 +633,13 @@ def cmd_compliance_activities(api_key: str, since: Optional[str] = None,
 
 def _print_activity(a: dict):
     actor = a.get("actor", {})
-    who = actor.get("email_address") or actor.get("api_key_id") or actor.get("admin_api_key_id") \
-        or actor.get("unauthenticated_email_address") or actor.get("type", "?")
+    who = (
+        actor.get("email_address")
+        or actor.get("api_key_id")
+        or actor.get("admin_api_key_id")
+        or actor.get("unauthenticated_email_address")
+        or actor.get("type", "?")
+    )
     print(f"  {a.get('created_at', '?'):<25} {a.get('type', '?'):<30} {who}")
 
 
@@ -597,11 +674,11 @@ def cmd_compliance_chat_messages(api_key: str, chat_id: str):
     for msg in data.get("chat_messages", []) or []:
         text = "".join(b.get("text", "") for b in msg.get("content", []) if b.get("type") == "text")
         print(f"  [{msg.get('role', '?'):<9}] {text[:200]}")
-        for f in (msg.get("files") or []):
+        for f in msg.get("files") or []:
             print(f"      \033[90m📎 {f.get('filename')} ({f.get('id')})\033[0m")
-        for f in (msg.get("generated_files") or []):
+        for f in msg.get("generated_files") or []:
             print(f"      \033[90m📄 generated: {f.get('filename')} ({f.get('id')})\033[0m")
-        for a in (msg.get("artifacts") or []):
+        for a in msg.get("artifacts") or []:
             print(f"      \033[90m🧩 artifact: {a.get('title')} ({a.get('version_id')})\033[0m")
     print()
     return data
@@ -609,9 +686,11 @@ def cmd_compliance_chat_messages(api_key: str, chat_id: str):
 
 def cmd_compliance_chat_delete(api_key: str, chat_id: str, yes: bool = False):
     if not yes:
-        print(f"\033[93m⚠ DRY RUN: would permanently delete chat {chat_id} and all its "
-             f"messages/attached files. This cannot be undone. Re-run with "
-             f"--compliance-yes to actually delete.\033[0m")
+        print(
+            f"\033[93m⚠ DRY RUN: would permanently delete chat {chat_id} and all its "
+            f"messages/attached files. This cannot be undone. Re-run with "
+            f"--compliance-yes to actually delete.\033[0m"
+        )
         return None
     client = ComplianceApiClient(api_key)
     try:
@@ -638,8 +717,10 @@ def cmd_compliance_file_download(api_key: str, file_id: str, output_path: Option
 
 def cmd_compliance_file_delete(api_key: str, file_id: str, yes: bool = False):
     if not yes:
-        print(f"\033[93m⚠ DRY RUN: would permanently delete file {file_id}. This cannot be "
-             f"undone. Re-run with --compliance-yes to actually delete.\033[0m")
+        print(
+            f"\033[93m⚠ DRY RUN: would permanently delete file {file_id}. This cannot be "
+            f"undone. Re-run with --compliance-yes to actually delete.\033[0m"
+        )
         return None
     client = ComplianceApiClient(api_key)
     try:
@@ -701,9 +782,11 @@ def cmd_compliance_project_attachments(api_key: str, project_id: str):
 
 def cmd_compliance_project_delete(api_key: str, project_id: str, yes: bool = False):
     if not yes:
-        print(f"\033[93m⚠ DRY RUN: would permanently delete project {project_id}. Fails if "
-             f"chats are still attached (detach/delete them first). Re-run with "
-             f"--compliance-yes to actually delete.\033[0m")
+        print(
+            f"\033[93m⚠ DRY RUN: would permanently delete project {project_id}. Fails if "
+            f"chats are still attached (detach/delete them first). Re-run with "
+            f"--compliance-yes to actually delete.\033[0m"
+        )
         return None
     client = ComplianceApiClient(api_key)
     try:
@@ -711,9 +794,11 @@ def cmd_compliance_project_delete(api_key: str, project_id: str, yes: bool = Fal
     except ComplianceApiError as e:
         _print_error(f"Failed to delete project {project_id}", e)
         if e.status == 409:
-            print("\033[93m  This project still has chats attached. List them with "
-                 "list_chats(user_ids=[...], project_ids=[project_id]) and delete or "
-                 "detach each one first, then retry.\033[0m")
+            print(
+                "\033[93m  This project still has chats attached. List them with "
+                "list_chats(user_ids=[...], project_ids=[project_id]) and delete or "
+                "detach each one first, then retry.\033[0m"
+            )
         return None
     print(f"\033[92m✓ Deleted project {project_id}\033[0m")
     return result
@@ -805,8 +890,7 @@ def cmd_compliance_group_members(api_key: str, group_id: str):
     return data
 
 
-def cmd_compliance_local_sessions_list(api_key: str, user_ids: Optional[list] = None,
-                                       limit: int = 100):
+def cmd_compliance_local_sessions_list(api_key: str, user_ids: Optional[list] = None, limit: int = 100):
     client = ComplianceApiClient(api_key)
     try:
         page = client.list_local_sessions(user_ids=user_ids, limit=limit)
@@ -862,7 +946,9 @@ def cmd_compliance_local_session_messages(api_key: str, session_id: str):
                 if btype == "text":
                     print(f"  {block.get('text', '')}")
                 elif btype == "tool_use":
-                    print(f"  \033[93m[TOOL USE: {block.get('name')}]\033[0m {json.dumps(block.get('input', {}))}")
+                    print(
+                        f"  \033[93m[TOOL USE: {block.get('name')}]\033[0m {json.dumps(block.get('input', {}))}"
+                    )
                 elif btype == "tool_result":
                     print(f"  \033[90m[TOOL RESULT]\033[0m {str(block.get('content', ''))[:100]}")
                 else:

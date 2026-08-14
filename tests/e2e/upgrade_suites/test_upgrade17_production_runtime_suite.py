@@ -7,7 +7,6 @@ Verifies:
   4. Local Inference Scheduler (Priority queues, backpressure, cancellation)
   5. Zero-Paid-Calls Proof during continuous local operation
 """
-import pytest
 
 from local_ai_stack import (
     LocalInferenceScheduler,
@@ -15,7 +14,6 @@ from local_ai_stack import (
     MemoryAdmissionController,
     ModelPoolManager,
     ModelResidency,
-    ResidentModelEntry,
     RuntimeInstance,
     RuntimeOwner,
     RuntimeState,

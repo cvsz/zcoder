@@ -6,14 +6,13 @@ Provides:
   • Logical Backup and Point-In-Time Restoration Simulation
   • Failure Drills & Disaster Recovery Verification (Worker loss, DB loss, Crash recovery)
 """
+
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from control_plane import ControlPlaneStore
 
@@ -62,7 +61,7 @@ class DeploymentEngine:
             readiness=readiness,
             db_connected=db_ok,
             active_workers=2,
-            queue_depth=queue_depth
+            queue_depth=queue_depth,
         )
 
     def create_logical_backup(self) -> BackupArchive:
@@ -79,10 +78,7 @@ class DeploymentEngine:
 
         archive_id = f"bck_{int(time.time())}"
         return BackupArchive(
-            archive_id=archive_id,
-            created_at=time.time(),
-            record_counts=records,
-            data_dump=data_dump
+            archive_id=archive_id, created_at=time.time(), record_counts=records, data_dump=data_dump
         )
 
     def restore_backup(self, archive: BackupArchive, target_store: ControlPlaneStore) -> bool:

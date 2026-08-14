@@ -6,15 +6,14 @@ Provides:
   • Non-mutating policy explanation and dry-run evaluation
   • Unit-tested policy evaluator with fail-closed security guarantees
 """
+
 from __future__ import annotations
 
 import dataclasses
 import hashlib
-import json
-import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List
 
-from tenant_models import EnterpriseRole, RequestContext
+from tenant_models import RequestContext
 
 
 @dataclasses.dataclass
@@ -36,8 +35,8 @@ class PolicyDecision:
 class PolicyRule:
     id: str
     action_pattern: str  # e.g. "job.*", "repo.manage"
-    condition: str       # pythonic boolean expr or rule type
-    effect: str          # ALLOW | DENY
+    condition: str  # pythonic boolean expr or rule type
+    effect: str  # ALLOW | DENY
     obligations: List[PolicyObligation] = dataclasses.field(default_factory=list)
 
 

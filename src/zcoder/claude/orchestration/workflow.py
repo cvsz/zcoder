@@ -24,14 +24,16 @@ Example YAML:
 import json
 import re
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import anthropic
 
 try:
     import yaml as _yaml
+
     _HAS_YAML = True
 except ImportError:
     _HAS_YAML = False
@@ -39,36 +41,36 @@ except ImportError:
 
 @dataclass
 class WorkflowStep:
-    step_id:    str
+    step_id: str
     instruction: str
     depends_on: List[str] = field(default_factory=list)
-    model:      Optional[str] = None
+    model: Optional[str] = None
     max_tokens: int = 2048
 
 
 @dataclass
 class Workflow:
-    name:  str
+    name: str
     steps: List[WorkflowStep]
     model: str = "claude-sonnet-5"
 
 
 @dataclass
 class StepResult:
-    step_id:    str
-    output:     str
+    step_id: str
+    output: str
     latency_ms: int
-    status:     str = "ok"   # "ok" | "error"
-    error:      Optional[str] = None
+    status: str = "ok"  # "ok" | "error"
+    error: Optional[str] = None
 
 
 @dataclass
 class WorkflowRun:
-    workflow:  str
-    results:   List[StepResult]
+    workflow: str
+    results: List[StepResult]
     variables: Dict[str, str]
     elapsed_s: float
-    ts:        str = field(default_factory=lambda: datetime.now().isoformat())
+    ts: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_markdown(self) -> str:
         lines = [f"# Workflow Run: {self.workflow}", f"_Completed: {self.ts}_\n"]
@@ -88,27 +90,31 @@ def _load(path: str) -> dict:
 
 
 def _parse(d: dict) -> Workflow:
-    steps = [WorkflowStep(
-        step_id    = s["id"],
-        instruction= s["instruction"],
-        depends_on = s.get("depends_on", []),
-        model      = s.get("model"),
-        max_tokens = s.get("max_tokens", 2048),
-    ) for s in d.get("steps", [])]
-    return Workflow(name=d.get("name","Untitled"), steps=steps,
-                   model=d.get("model","claude-sonnet-5"))
+    steps = [
+        WorkflowStep(
+            step_id=s["id"],
+            instruction=s["instruction"],
+            depends_on=s.get("depends_on", []),
+            model=s.get("model"),
+            max_tokens=s.get("max_tokens", 2048),
+        )
+        for s in d.get("steps", [])
+    ]
+    return Workflow(name=d.get("name", "Untitled"), steps=steps, model=d.get("model", "claude-sonnet-5"))
 
 
 def _fill(template: str, variables: Dict[str, str]) -> str:
     def replace(m):
         key = m.group(1).strip()
         return variables.get(key, f"{{{{ {key} }}}}")
+
     return re.sub(r"\{\{\s*(\w+)\s*\}\}", replace, template)
 
 
-def run_workflow(wf: Workflow, api_key: str, initial_vars: Optional[Dict[str, str]] = None,
-                 verbose: bool = False) -> WorkflowRun:
-    client    = anthropic.Anthropic(api_key=api_key)
+def run_workflow(
+    wf: Workflow, api_key: str, initial_vars: Optional[Dict[str, str]] = None, verbose: bool = False
+) -> WorkflowRun:
+    client = anthropic.Anthropic(api_key=api_key)
     variables = dict(initial_vars or {})
     results: List[StepResult] = []
     completed: set = set()
@@ -124,44 +130,59 @@ def run_workflow(wf: Workflow, api_key: str, initial_vars: Optional[Dict[str, st
         if not ready:
             remaining_ids = [s.step_id for s in pending]
             for s in pending:
-                results.append(StepResult(step_id=s.step_id, output="",
-                    latency_ms=0, status="error",
-                    error=f"Dependency deadlock — remaining: {remaining_ids}"))
+                results.append(
+                    StepResult(
+                        step_id=s.step_id,
+                        output="",
+                        latency_ms=0,
+                        status="error",
+                        error=f"Dependency deadlock — remaining: {remaining_ids}",
+                    )
+                )
             break
         for step in ready:
             pending.remove(step)
             instruction = _fill(step.instruction, variables)
-            if verbose: print(f"  → {step.step_id} …", end="", flush=True)
+            if verbose:
+                print(f"  → {step.step_id} …", end="", flush=True)
             t0 = time.time()
             try:
                 resp = client.messages.create(
-                    model=step.model or wf.model, max_tokens=step.max_tokens,
-                    messages=[{"role": "user", "content": instruction}])
+                    model=step.model or wf.model,
+                    max_tokens=step.max_tokens,
+                    messages=[{"role": "user", "content": instruction}],
+                )
                 output = resp.content[0].text
-                ms     = int((time.time() - t0) * 1000)
+                ms = int((time.time() - t0) * 1000)
                 variables[step.step_id] = output
                 completed.add(step.step_id)
                 results.append(StepResult(step_id=step.step_id, output=output, latency_ms=ms))
-                if verbose: print(f" {ms}ms ✓")
+                if verbose:
+                    print(f" {ms}ms ✓")
             except Exception as e:
                 ms = int((time.time() - t0) * 1000)
-                results.append(StepResult(step_id=step.step_id, output="",
-                    latency_ms=ms, status="error", error=str(e)))
+                results.append(
+                    StepResult(step_id=step.step_id, output="", latency_ms=ms, status="error", error=str(e))
+                )
                 completed.add(step.step_id)
-                if verbose: print(f" ERROR: {e}")
+                if verbose:
+                    print(f" ERROR: {e}")
 
-    return WorkflowRun(workflow=wf.name, results=results, variables=variables,
-                       elapsed_s=round(time.time() - t_start, 2))
+    return WorkflowRun(
+        workflow=wf.name, results=results, variables=variables, elapsed_s=round(time.time() - t_start, 2)
+    )
 
 
 # ── CLI commands ──────────────────────────────────────────────────────────────
 
-def cmd_workflow_run(path: str, api_key: str, input_text: str = "",
-                     output: Optional[str] = None, verbose: bool = True):
-    wf  = _parse(_load(path))
+
+def cmd_workflow_run(
+    path: str, api_key: str, input_text: str = "", output: Optional[str] = None, verbose: bool = True
+):
+    wf = _parse(_load(path))
     print(f"⚙  Running workflow '{wf.name}' ({len(wf.steps)} steps) …\n")
     run = run_workflow(wf, api_key, initial_vars={"input": input_text}, verbose=verbose)
-    md  = run.to_markdown()
+    md = run.to_markdown()
     if output:
         Path(output).write_text(md)
         print(f"\n✓ Output → {output}")
@@ -175,10 +196,9 @@ def cmd_workflow_scaffold(output: str):
         "name": "Example Workflow",
         "model": "claude-sonnet-5",
         "steps": [
-            {"id": "draft",   "instruction": "Write a short essay about: {{input}}"},
-            {"id": "improve", "instruction": "Improve this essay:\n{{draft}}",
-             "depends_on": ["draft"]},
-        ]
+            {"id": "draft", "instruction": "Write a short essay about: {{input}}"},
+            {"id": "improve", "instruction": "Improve this essay:\n{{draft}}", "depends_on": ["draft"]},
+        ],
     }
     Path(output).write_text(json.dumps(sample, indent=2))
     print(f"✓ Starter workflow saved to {output}")

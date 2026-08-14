@@ -1,4 +1,5 @@
 """Legacy Upgrade-21 integration verifier kept runnable from a source checkout."""
+
 import sys
 from pathlib import Path
 

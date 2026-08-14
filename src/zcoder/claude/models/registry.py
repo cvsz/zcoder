@@ -28,15 +28,14 @@ CLI flags:
 """
 
 import json
-import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
-MODELS_ENDPOINT   = "https://api.anthropic.com/v1/models"
+MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
@@ -52,94 +51,138 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 MODEL_CATALOG: dict = {
     "claude-opus-5": {
-        "display_name": "Claude Opus 5", "tier": "current",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 5.0, "price_out": 25.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Opus 5",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 5.0,
+        "price_out": 25.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Launched 2026-07-24, a step-change over Opus 4.8 at the same "
-                 "price. Thinking on by default. Full effort ladder (low/medium/"
-                 "high/xhigh/max). Breaking change vs. Opus 4.8: disabling thinking "
-                 "(thinking.type='disabled') is only allowed at effort high or "
-                 "below -- xhigh or max with thinking disabled returns a 400.",
+        "price. Thinking on by default. Full effort ladder (low/medium/"
+        "high/xhigh/max). Breaking change vs. Opus 4.8: disabling thinking "
+        "(thinking.type='disabled') is only allowed at effort high or "
+        "below -- xhigh or max with thinking disabled returns a 400.",
     },
     "claude-mythos-5": {
-        "display_name": "Claude Mythos 5", "tier": "mythos",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 10.0, "price_out": 50.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Mythos 5",
+        "tier": "mythos",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 10.0,
+        "price_out": 50.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Same underlying model as Fable 5, no safety classifiers. "
-                 "Project Glasswing invitation-only access.",
+        "Project Glasswing invitation-only access.",
     },
     "claude-fable-5": {
-        "display_name": "Claude Fable 5", "tier": "mythos",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 10.0, "price_out": 50.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Fable 5",
+        "tier": "mythos",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 10.0,
+        "price_out": 50.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Anthropic's most capable widely-released model. Thinking is "
-                 "always on and returned encrypted — omit `thinking` rather "
-                 "than passing type:\"disabled\" (that returns a 400). Has "
-                 "safety classifiers that can return stop_reason=\"refusal\".",
+        "always on and returned encrypted — omit `thinking` rather "
+        'than passing type:"disabled" (that returns a 400). Has '
+        'safety classifiers that can return stop_reason="refusal".',
     },
     "claude-opus-4-8": {
-        "display_name": "Claude Opus 4.8", "tier": "current",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 5.0, "price_out": 25.0,
-        "thinking": "adaptive", "effort_default": "high",
+        "display_name": "Claude Opus 4.8",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 5.0,
+        "price_out": 25.0,
+        "thinking": "adaptive",
+        "effort_default": "high",
         "notes": "Best for complex agentic coding and enterprise work. "
-                 "Adaptive thinking only — manual budget_tokens returns 400.",
+        "Adaptive thinking only — manual budget_tokens returns 400.",
     },
     "claude-sonnet-5": {
-        "display_name": "Claude Sonnet 5", "tier": "current",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 2.0, "price_out": 10.0,
-        "thinking": "adaptive", "effort_default": "high",
+        "display_name": "Claude Sonnet 5",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 2.0,
+        "price_out": 10.0,
+        "thinking": "adaptive",
+        "effort_default": "high",
         "notes": "Best speed/intelligence balance; builds on Sonnet 4.6. "
-                 "Pricing $2/$10 per MTok (permanent — the planned Sep 1 "
-                 "increase was cancelled on 2026-08-10; the introductory rate is "
-                 "now the permanent standard price).",
+        "Pricing $2/$10 per MTok (permanent — the planned Sep 1 "
+        "increase was cancelled on 2026-08-10; the introductory rate is "
+        "now the permanent standard price).",
     },
     "claude-haiku-4-5-20251001": {
-        "display_name": "Claude Haiku 4.5", "tier": "current",
-        "context_window": 200_000, "max_output": 64_000,
-        "price_in": 1.0, "price_out": 5.0,
-        "thinking": "extended", "effort_default": None,
+        "display_name": "Claude Haiku 4.5",
+        "tier": "current",
+        "context_window": 200_000,
+        "max_output": 64_000,
+        "price_in": 1.0,
+        "price_out": 5.0,
+        "thinking": "extended",
+        "effort_default": None,
         "notes": "Fastest, most cost-effective. Extended (manual budget_tokens) "
-                 "thinking, not adaptive. Alias: claude-haiku-4-5.",
+        "thinking, not adaptive. Alias: claude-haiku-4-5.",
     },
     # Legacy — still callable, superseded by the row above in the same tier.
     "claude-opus-4-7": {
-        "display_name": "Claude Opus 4.7", "tier": "legacy",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 5.0, "price_out": 25.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Opus 4.7",
+        "tier": "legacy",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 5.0,
+        "price_out": 25.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Superseded by Opus 4.8 (drop-in model-ID swap).",
     },
     "claude-opus-4-6": {
-        "display_name": "Claude Opus 4.6", "tier": "legacy",
-        "context_window": 1_000_000, "max_output": 128_000,
-        "price_in": 5.0, "price_out": 25.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Opus 4.6",
+        "tier": "legacy",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 5.0,
+        "price_out": 25.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Superseded by Opus 4.7 / 4.8.",
     },
     "claude-opus-4-5": {
-        "display_name": "Claude Opus 4.5", "tier": "legacy",
-        "context_window": 1_000_000, "max_output": 64_000,
-        "price_in": 5.0, "price_out": 25.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Opus 4.5",
+        "tier": "legacy",
+        "context_window": 1_000_000,
+        "max_output": 64_000,
+        "price_in": 5.0,
+        "price_out": 25.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Superseded by later Opus releases.",
     },
     "claude-sonnet-4-6": {
-        "display_name": "Claude Sonnet 4.6", "tier": "legacy",
-        "context_window": 1_000_000, "max_output": 64_000,
-        "price_in": 3.0, "price_out": 15.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Sonnet 4.6",
+        "tier": "legacy",
+        "context_window": 1_000_000,
+        "max_output": 64_000,
+        "price_in": 3.0,
+        "price_out": 15.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Superseded by Sonnet 5.",
     },
     "claude-sonnet-4-5": {
-        "display_name": "Claude Sonnet 4.5", "tier": "legacy",
-        "context_window": 1_000_000, "max_output": 64_000,
-        "price_in": 3.0, "price_out": 15.0,
-        "thinking": "adaptive", "effort_default": None,
+        "display_name": "Claude Sonnet 4.5",
+        "tier": "legacy",
+        "context_window": 1_000_000,
+        "max_output": 64_000,
+        "price_in": 3.0,
+        "price_out": 15.0,
+        "thinking": "adaptive",
+        "effort_default": None,
         "notes": "Superseded by Sonnet 4.6 / 5.",
     },
 }
@@ -178,16 +221,21 @@ def validate_fast_mode(model_id: str) -> Optional[str]:
     a warning (safe to send, but it silently runs at standard speed/price,
     not fast)."""
     if model_id in FAST_MODE_REMOVED_ERROR:
-        return (f"fast mode was removed for {model_id} on 2026-07-24 and now "
-                f"returns an error (unlike Opus 4.6, it does not fall back to "
-                f"standard speed) -- use claude-opus-5 or claude-opus-4-8 instead")
+        return (
+            f"fast mode was removed for {model_id} on 2026-07-24 and now "
+            f"returns an error (unlike Opus 4.6, it does not fall back to "
+            f"standard speed) -- use claude-opus-5 or claude-opus-4-8 instead"
+        )
     if model_id in FAST_MODE_REMOVED_SILENT:
-        return (f"fast mode was removed for {model_id} on 2026-06-29 -- the "
-                f"request will run at standard speed and standard pricing, "
-                f"not fast, with no error")
+        return (
+            f"fast mode was removed for {model_id} on 2026-06-29 -- the "
+            f"request will run at standard speed and standard pricing, "
+            f"not fast, with no error"
+        )
     if model_id not in FAST_MODE_SUPPORTED:
         return f"fast mode is not supported on {model_id}"
     return None
+
 
 # ── Priority Tier / service_tier ────────────────────────────────────────────
 # Was entirely absent from the project. Per platform.claude.com/docs/en/
@@ -211,9 +259,14 @@ SERVICE_TIER_UNSUPPORTED = {"claude-sonnet-5", "claude-mythos-preview", "claude-
 # unconfirmed" is now superseded; Opus 5 is confirmed supported at 1.1x.
 INFERENCE_GEO_SUPPORTED = {
     "claude-opus-5",
-    "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
-    "claude-sonnet-5", "claude-sonnet-4-6",
-    "claude-fable-5", "claude-mythos-5", "claude-mythos-preview",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-fable-5",
+    "claude-mythos-5",
+    "claude-mythos-preview",
 }
 INFERENCE_GEO_PRICING_MULTIPLIER = 1.1
 
@@ -249,8 +302,8 @@ RETIRED_MODELS: dict = {
         "retired": "2026-06-15",
         "replacement": "claude-sonnet-5",
         "notes": "Dateless alias claude-sonnet-4-0 retired alongside it. Anthropic's "
-                 "own migration notes point to claude-sonnet-4-6; claude-sonnet-5 is "
-                 "the current recommendation as of this catalog's last check.",
+        "own migration notes point to claude-sonnet-4-6; claude-sonnet-5 is "
+        "the current recommendation as of this catalog's last check.",
     },
     "claude-sonnet-4-0": {
         "display_name": "Claude Sonnet 4 (original 4.0, dateless alias)",
@@ -263,7 +316,7 @@ RETIRED_MODELS: dict = {
         "retired": "2026-02-19",
         "replacement": "claude-haiku-4-5-20251001",
         "notes": "Retired well before this catalog's other entries; flagged in case "
-                 "of very old pinned config.",
+        "of very old pinned config.",
     },
 }
 
@@ -304,6 +357,7 @@ def check_deprecated(model_id: str) -> Optional[dict]:
 
 # ── Models API ─────────────────────────────────────────────────────────────
 
+
 class ModelsAPI:
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -314,7 +368,7 @@ class ModelsAPI:
 
     def _get(self, url: str) -> dict:
         headers = {
-            "x-api-key":         self.api_key,
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         req = urllib.request.Request(url, headers=headers, method="GET")
@@ -338,9 +392,9 @@ def cmd_list_models(api_key: str, include_legacy: bool = False):
         print(f"\n{'MODEL ID':<35}{'DISPLAY NAME':<35}{'CONTEXT'}")
         print("─" * 85)
         for m in models:
-            mid  = m.get("id", "")
+            mid = m.get("id", "")
             name = m.get("display_name", "")[:34]
-            ctx  = m.get("context_window", 0)
+            ctx = m.get("context_window", 0)
             ctx_str = f"{ctx//1000}K" if ctx else "—"
             print(f"{mid:<35}{name:<35}{ctx_str}")
         print(f"\n{len(models)} models available")
@@ -353,13 +407,18 @@ def cmd_list_models(api_key: str, include_legacy: bool = False):
             rows = [(mid, info) for mid, info in MODEL_CATALOG.items() if info["tier"] == tier]
             if not rows:
                 continue
-            label = {"mythos": "Mythos-class (above Opus)", "current": "Current",
-                     "legacy": "Legacy (superseded, still callable)"}[tier]
+            label = {
+                "mythos": "Mythos-class (above Opus)",
+                "current": "Current",
+                "legacy": "Legacy (superseded, still callable)",
+            }[tier]
             print(f"\n  \033[1m{label}\033[0m")
             for mid, info in rows:
                 ctx = f"{info['context_window']//1000}K"
-                print(f"    {mid:<32}{info['display_name']:<24}{ctx:<7}"
-                     f"${info['price_in']}/${info['price_out']} per MTok")
+                print(
+                    f"    {mid:<32}{info['display_name']:<24}{ctx:<7}"
+                    f"${info['price_in']}/${info['price_out']} per MTok"
+                )
         if not include_legacy:
             print("\n  (legacy models hidden — pass --list-models-legacy to include them)")
         print("\n  Mythos-tier note: Fable 5 and Mythos 5 share the same underlying model;")
@@ -376,20 +435,23 @@ def cmd_model_info(model_id: str, api_key: str):
         print(f"    Was:         {retired['display_name']}")
         print(f"    Migrate to:  {retired['replacement']}")
         print(f"    Notes:       {retired['notes']}")
-        print(f"\n  API calls to this ID will fail — this isn't a live lookup, "
-              f"just the local retirement record. Continuing to check the live "
-              f"API and local catalog below in case the record above is stale:\n")
+        print(
+            "\n  API calls to this ID will fail — this isn't a live lookup, "
+            "just the local retirement record. Continuing to check the live "
+            "API and local catalog below in case the record above is stale:\n"
+        )
 
     deprecated = check_deprecated(model_id)
     if deprecated:
-        print(f"\n  \033[93m⚠ {model_id} is deprecated, retiring "
-              f"{deprecated['retirement_scheduled']}\033[0m")
+        print(
+            f"\n  \033[93m⚠ {model_id} is deprecated, retiring "
+            f"{deprecated['retirement_scheduled']}\033[0m"
+        )
         print(f"    Was:            {deprecated['display_name']}")
         print(f"    Announced:      {deprecated['deprecation_announced']}")
         print(f"    Migrate to:     {deprecated['replacement']}")
         print(f"    Notes:          {deprecated['notes']}")
-        print(f"\n  Still works today — this is an early warning, not a failure. "
-              f"Continuing below:\n")
+        print("\n  Still works today — this is an early warning, not a failure. " "Continuing below:\n")
 
     ma = ModelsAPI(api_key=api_key)
     try:
@@ -400,7 +462,7 @@ def cmd_model_info(model_id: str, api_key: str):
         print(f"  Created:        {m.get('created_at','')[:10]}")
         caps = m.get("capabilities")
         if caps:
-            print(f"  Capabilities:")
+            print("  Capabilities:")
             print(f"    Vision:              {caps.get('image_input', {}).get('supported')}")
             think = caps.get("thinking", {})
             types = think.get("types", {})
@@ -412,8 +474,10 @@ def cmd_model_info(model_id: str, api_key: str):
                 levels = effort.get("levels") or effort.get("supported_levels")
                 default = effort.get("default")
                 if levels:
-                    print(f"    Effort levels:       {', '.join(levels)}"
-                          f"{f' (default: {default})' if default else ''}")
+                    print(
+                        f"    Effort levels:       {', '.join(levels)}"
+                        f"{f' (default: {default})' if default else ''}"
+                    )
                 elif default:
                     print(f"    Effort default:      {default}")
     except RuntimeError as e:
@@ -426,7 +490,7 @@ def cmd_model_info(model_id: str, api_key: str):
                 return
             print(f"[ERROR] {e}")
             return
-        print(f"\n  \033[93m⚠ Live API unreachable — showing local catalog entry\033[0m")
+        print("\n  \033[93m⚠ Live API unreachable — showing local catalog entry\033[0m")
         print(f"  ID:              {model_id}")
         print(f"  Display name:    {info['display_name']}")
         print(f"  Tier:            {info['tier']}")
@@ -470,7 +534,7 @@ def cmd_check_deprecated(path: str):
     hits: dict = {}
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
+            with open(fp, encoding="utf-8", errors="ignore") as fh:
                 for lineno, line in enumerate(fh, 1):
                     for m in pattern.finditer(line):
                         hits.setdefault(m.group(0), []).append((fp, lineno))
@@ -488,8 +552,10 @@ def cmd_check_deprecated(path: str):
         print(f"\n\033[91m⚠ Retired model IDs found under {path}\033[0m\n")
         for model_id, locations in retired_hits.items():
             rec = RETIRED_MODELS[model_id]
-            print(f"  \033[1m{model_id}\033[0m — retired {rec['retired']}, "
-                  f"migrate to \033[92m{rec['replacement']}\033[0m")
+            print(
+                f"  \033[1m{model_id}\033[0m — retired {rec['retired']}, "
+                f"migrate to \033[92m{rec['replacement']}\033[0m"
+            )
             for fp, lineno in locations[:5]:
                 print(f"    {fp}:{lineno}")
             if len(locations) > 5:
@@ -497,13 +563,17 @@ def cmd_check_deprecated(path: str):
             print()
 
     if deprecated_hits:
-        print(f"\n\033[93m⚠ Deprecated model IDs found under {path} "
-              f"(still work today, retiring soon)\033[0m\n")
+        print(
+            f"\n\033[93m⚠ Deprecated model IDs found under {path} "
+            f"(still work today, retiring soon)\033[0m\n"
+        )
         for model_id, locations in deprecated_hits.items():
             rec = DEPRECATED_MODELS[model_id]
-            print(f"  \033[1m{model_id}\033[0m — retiring "
-                  f"{rec['retirement_scheduled']}, migrate to "
-                  f"\033[92m{rec['replacement']}\033[0m")
+            print(
+                f"  \033[1m{model_id}\033[0m — retiring "
+                f"{rec['retirement_scheduled']}, migrate to "
+                f"\033[92m{rec['replacement']}\033[0m"
+            )
             for fp, lineno in locations[:5]:
                 print(f"    {fp}:{lineno}")
             if len(locations) > 5:
@@ -525,7 +595,7 @@ def cmd_check_deprecated(path: str):
 
 UPGRADE_TARGETS = {
     "fable5": "claude-fable-5",
-    "opus":   "claude-opus-4-8",
+    "opus": "claude-opus-4-8",
 }
 
 # Known alternate spellings that aren't literal MODEL_CATALOG/RETIRED_MODELS
@@ -546,14 +616,19 @@ def _upgrade_source_ids(target_id: str) -> list:
     ID like claude-opus-4-1-20250805 is exactly the kind of reference
     --upgrade-all exists to clear out before it becomes a RETIRED_MODELS
     problem instead."""
-    ids = (set(RETIRED_MODELS.keys()) | set(MODEL_CATALOG.keys())
-           | set(MODEL_ID_ALIASES.keys()) | set(DEPRECATED_MODELS.keys()))
+    ids = (
+        set(RETIRED_MODELS.keys())
+        | set(MODEL_CATALOG.keys())
+        | set(MODEL_ID_ALIASES.keys())
+        | set(DEPRECATED_MODELS.keys())
+    )
     ids.discard(target_id)
     return sorted(ids, key=len, reverse=True)
 
 
 def _walk_upgrade_candidates(path: str):
     import os
+
     if os.path.isfile(path):
         yield path
         return
@@ -565,8 +640,7 @@ def _walk_upgrade_candidates(path: str):
             yield os.path.join(root, fn)
 
 
-def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False,
-                    no_backup: bool = False):
+def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False, no_backup: bool = False):
     """Rewrite every known Claude model ID under `path` to the chosen
     target (claude-fable-5 or claude-opus-4-8). Dry-run (report only)
     unless apply=True. Skips files that aren't valid UTF-8 text (so binary
@@ -576,23 +650,20 @@ def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False,
     import re
 
     if target not in UPGRADE_TARGETS:
-        print(f"[ERROR] Unknown upgrade target '{target}'. Choose from: "
-              f"{', '.join(UPGRADE_TARGETS)}")
+        print(f"[ERROR] Unknown upgrade target '{target}'. Choose from: " f"{', '.join(UPGRADE_TARGETS)}")
         return
 
     target_id = UPGRADE_TARGETS[target]
     old_ids = _upgrade_source_ids(target_id)
-    pattern = re.compile(
-        r"(?<![\w-])(" + "|".join(re.escape(i) for i in old_ids) + r")(?![\w-])"
-    )
+    pattern = re.compile(r"(?<![\w-])(" + "|".join(re.escape(i) for i in old_ids) + r")(?![\w-])")
 
-    files_changed  = 0
-    total_hits     = 0
+    files_changed = 0
+    total_hits = 0
     per_file_report = []
 
     for fp in _walk_upgrade_candidates(path):
         try:
-            with open(fp, "r", encoding="utf-8", errors="strict") as fh:
+            with open(fp, encoding="utf-8", errors="strict") as fh:
                 text = fh.read()
         except (UnicodeDecodeError, PermissionError, IsADirectoryError):
             continue  # binary / unreadable — skip rather than risk corrupting it
@@ -621,8 +692,10 @@ def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False,
         return
 
     verb = "Upgraded" if apply else "Would upgrade"
-    print(f"\n\033[94mℹ {verb} {total_hits} model reference(s) across "
-          f"{len(per_file_report)} file(s) to \033[1m{target_id}\033[0m\n")
+    print(
+        f"\n\033[94mℹ {verb} {total_hits} model reference(s) across "
+        f"{len(per_file_report)} file(s) to \033[1m{target_id}\033[0m\n"
+    )
     for fp, counts in per_file_report:
         detail = ", ".join(f"{mid} ×{n}" for mid, n in sorted(counts.items()))
         print(f"  {fp}: {detail}")
@@ -631,19 +704,21 @@ def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False,
         backup_note = "" if no_backup else " (.bak backup written alongside each changed file)"
         print(f"\n\033[92m✓ {files_changed} file(s) updated{backup_note}\033[0m")
     else:
-        print(f"\n\033[93m⚠ Dry run — no files were changed. Re-run with --upgrade-yes to "
-              f"apply (add --upgrade-no-backup to skip .bak files).\033[0m")
+        print(
+            "\n\033[93m⚠ Dry run — no files were changed. Re-run with --upgrade-yes to "
+            "apply (add --upgrade-no-backup to skip .bak files).\033[0m"
+        )
 
 
 # ── Computer Use ───────────────────────────────────────────────────────────
 
 COMPUTER_USE_TOOLS = [
     {
-        "type":               "computer_20250124",
-        "name":               "computer",
-        "display_width_px":   1024,
-        "display_height_px":  768,
-        "display_number":     1,
+        "type": "computer_20250124",
+        "name": "computer",
+        "display_width_px": 1024,
+        "display_height_px": 768,
+        "display_number": 1,
     },
     {
         "type": "bash_20250124",
@@ -661,22 +736,27 @@ COMPUTER_USE_BETA = "computer-use-2025-01-24"
 class ComputerUseCoder:
     """Claude with computer use tools."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096,
-                 width: int = 1024, height: int = 768):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-5",
+        max_tokens: int = 4096,
+        width: int = 1024,
+        height: int = 768,
+    ):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
-        self.width      = width
-        self.height     = height
+        self.width = width
+        self.height = height
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta":    COMPUTER_USE_BETA,
+            "anthropic-beta": COMPUTER_USE_BETA,
         }
         req = urllib.request.Request(
             MESSAGES_ENDPOINT,
@@ -697,7 +777,7 @@ class ComputerUseCoder:
     def run_task(self, task: str, system: str = None) -> dict:
         """Submit a computer use task. Returns tool calls for execution."""
         tools = [dict(t) for t in COMPUTER_USE_TOOLS]
-        tools[0]["display_width_px"]  = self.width
+        tools[0]["display_width_px"] = self.width
         tools[0]["display_height_px"] = self.height
 
         system_prompt = system or (
@@ -707,40 +787,42 @@ class ComputerUseCoder:
         )
 
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "system":     system_prompt,
-            "tools":      tools,
-            "messages":   [{"role": "user", "content": task}],
+            "system": system_prompt,
+            "tools": tools,
+            "messages": [{"role": "user", "content": task}],
         }
         data = self._post(payload)
         if "error" in data:
             return {"text": f"[ERROR] {data['error']}", "tool_calls": []}
 
-        text       = ""
+        text = ""
         tool_calls = []
         for block in data.get("content", []):
             bt = block.get("type", "")
             if bt == "text":
                 text += block.get("text", "")
             elif bt == "tool_use":
-                tool_calls.append({
-                    "name":  block.get("name"),
-                    "input": block.get("input", {}),
-                    "id":    block.get("id"),
-                })
+                tool_calls.append(
+                    {
+                        "name": block.get("name"),
+                        "input": block.get("input", {}),
+                        "id": block.get("id"),
+                    }
+                )
 
         return {"text": text, "tool_calls": tool_calls, "stop_reason": data.get("stop_reason")}
 
 
 def cmd_computer_use(task: str, api_key: str, model: str):
-    print(f"\033[94mℹ Computer Use mode\033[0m")
-    print(f"\033[93m⚠ Note: Actual execution requires a virtual display environment.\033[0m\n")
-    cu     = ComputerUseCoder(api_key=api_key, model=model)
+    print("\033[94mℹ Computer Use mode\033[0m")
+    print("\033[93m⚠ Note: Actual execution requires a virtual display environment.\033[0m\n")
+    cu = ComputerUseCoder(api_key=api_key, model=model)
     result = cu.run_task(task)
     print(result["text"])
     if result["tool_calls"]:
-        print(f"\n\033[90m── Tool calls planned ─────────────────\033[0m")
+        print("\n\033[90m── Tool calls planned ─────────────────\033[0m")
         for tc in result["tool_calls"]:
             print(f"  {tc['name']}: {json.dumps(tc['input'])[:120]}")
     return result
@@ -754,17 +836,16 @@ EFFORT_BUDGETS = {"low": 2000, "medium": 8000, "high": 16000, "max": 32000}
 class AdaptiveThinkingCoder:
     """Extended thinking with adaptive / interleaved modes."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 8000):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 8000):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict, betas: list[str] = None) -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         if betas:
@@ -785,46 +866,43 @@ class AdaptiveThinkingCoder:
         except Exception as e:
             return {"error": str(e)}
 
-    def adaptive(self, prompt: str, budget: int = 8000,
-                 effort: str = None, system: str = None) -> str:
+    def adaptive(self, prompt: str, budget: int = 8000, effort: str = None, system: str = None) -> str:
         """Adaptive thinking — model decides depth."""
         if effort:
             budget = EFFORT_BUDGETS.get(effort, budget)
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": max(self.max_tokens, budget + 1000),
-            "thinking":   {"type": "adaptive", "budget_tokens": budget},
-            "messages":   [{"role": "user", "content": prompt}],
+            "thinking": {"type": "adaptive", "budget_tokens": budget},
+            "messages": [{"role": "user", "content": prompt}],
         }
         if system:
             payload["system"] = system
-        data  = self._post(payload)
+        data = self._post(payload)
         if "error" in data:
             return f"[ERROR] {data['error']}"
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
-    def interleaved(self, prompt: str, tools: list[dict],
-                    budget: int = 8000, system: str = None) -> str:
+    def interleaved(self, prompt: str, tools: list[dict], budget: int = 8000, system: str = None) -> str:
         """Interleaved thinking — think between tool calls."""
         payload = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": max(self.max_tokens, budget + 1000),
-            "thinking":   {"type": "enabled", "budget_tokens": budget},
-            "tools":      tools,
-            "messages":   [{"role": "user", "content": prompt}],
+            "thinking": {"type": "enabled", "budget_tokens": budget},
+            "tools": tools,
+            "messages": [{"role": "user", "content": prompt}],
         }
         if system:
             payload["system"] = system
-        data  = self._post(payload, betas=["interleaved-thinking-2025-05-14"])
+        data = self._post(payload, betas=["interleaved-thinking-2025-05-14"])
         if "error" in data:
             return f"[ERROR] {data['error']}"
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
 
-def cmd_adaptive_thinking(prompt: str, api_key: str, model: str,
-                           effort: str = "medium", budget: int = None):
+def cmd_adaptive_thinking(prompt: str, api_key: str, model: str, effort: str = "medium", budget: int = None):
     print(f"\033[94mℹ Adaptive Thinking | effort={effort}\033[0m\n")
-    atc    = AdaptiveThinkingCoder(api_key=api_key, model=model)
+    atc = AdaptiveThinkingCoder(api_key=api_key, model=model)
     result = atc.adaptive(prompt, budget=budget or 8000, effort=effort)
     print(result)
     return result
