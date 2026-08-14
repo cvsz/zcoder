@@ -9,7 +9,7 @@ from sqlite_engineering_store import SQLiteEngineeringStore
 
 class TestDurabilityRestart(unittest.TestCase):
     def setUp(self):
-        self.db_path = Path("durability_test.db")
+        self.db_path = Path("durability_test.db").resolve()
         if self.db_path.exists():
             os.remove(self.db_path)
         self.store = SQLiteEngineeringStore(db_path=self.db_path)
@@ -36,7 +36,10 @@ sys.exit(0)
 """
         # Run subprocess
         env = os.environ.copy()
-        env["PYTHONPATH"] = os.getcwd()
+        repo_root = Path(__file__).resolve().parents[2]
+        src_path = repo_root / "src"
+        existing_pp = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = f"{src_path}:{repo_root}:{existing_pp}" if existing_pp else f"{src_path}:{repo_root}"
         result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
 
