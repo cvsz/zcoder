@@ -68,7 +68,7 @@ class DeploymentEngine:
         with sqlite3.connect(self.store.db_path) as conn:
             cur = conn.cursor()
             for table in ["jobs", "outbox", "webhook_inbox", "installations", "repositories"]:
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                cur.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608 -- table is hard-coded above
                 records[table] = cur.fetchone()[0]
 
             # Dump SQL lines

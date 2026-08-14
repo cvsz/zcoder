@@ -144,7 +144,7 @@ from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError
-from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
+from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
 SESSIONS_DIR = Path(os.path.expanduser("~/.ai-coder/agent_sessions"))
 ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -319,7 +319,7 @@ class McpTunnel:
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call_delete(self, req: "urllib.request.Request") -> dict:
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with safe_urlopen(req, timeout=30) as r:
                 return {"status": r.status}
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)

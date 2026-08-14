@@ -30,9 +30,12 @@ import os
 import platform
 import re
 import subprocess
+import tempfile
 import time
 import urllib.request
 from typing import Any, Callable
+
+from resilience import safe_urlopen
 
 # ---------------------------------------------------------------------------
 # 1. Hardware Profiler & Model Fit Estimator
@@ -198,7 +201,7 @@ class LocalModelArtifact:
 class ModelRegistry:
     """Manages local model inventory, verifying digests and distinguishing catalog vs installed artifacts."""
 
-    def __init__(self, cache_dir: str = "/tmp/zcoder_models"):
+    def __init__(self, cache_dir: str = os.path.join(tempfile.gettempdir(), "zcoder_models")):
         self.cache_dir = cache_dir
         self.artifacts: dict[str, LocalModelArtifact] = {}
         self._init_default_catalog()
@@ -311,7 +314,7 @@ class LlamaCppRuntime(LocalModelProvider):
     def is_running(self) -> bool:
         try:
             req = urllib.request.Request(f"{self.base_url}/health", headers={"User-Agent": "ZCoder/1.40.0"})
-            with urllib.request.urlopen(req, timeout=1) as resp:
+            with safe_urlopen(req, timeout=1) as resp:
                 return resp.status == 200
         except Exception:
             return False
@@ -325,7 +328,7 @@ class LlamaCppRuntime(LocalModelProvider):
             ]
         try:
             req = urllib.request.Request(f"{self.base_url}/v1/models")
-            with urllib.request.urlopen(req, timeout=2) as resp:
+            with safe_urlopen(req, timeout=2) as resp:
                 data = json.loads(resp.read().decode())
                 return [
                     LocalModelMetadata(
@@ -351,7 +354,7 @@ class LlamaCppRuntime(LocalModelProvider):
                 data=body,
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with safe_urlopen(req, timeout=30) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("choices", [{}])[0].get("message", {}).get("content", "")
         except Exception:
@@ -467,7 +470,7 @@ class OllamaAdapter(LocalModelProvider):
     def is_available(self) -> bool:
         try:
             req = urllib.request.Request(f"{self.base_url}/api/tags", headers={"User-Agent": "ZCoder/1.40.0"})
-            with urllib.request.urlopen(req, timeout=1) as resp:
+            with safe_urlopen(req, timeout=1) as resp:
                 return resp.status == 200
         except Exception:
             return False
@@ -485,7 +488,7 @@ class OllamaAdapter(LocalModelProvider):
             ]
         try:
             req = urllib.request.Request(f"{self.base_url}/api/tags")
-            with urllib.request.urlopen(req, timeout=2) as resp:
+            with safe_urlopen(req, timeout=2) as resp:
                 data = json.loads(resp.read().decode())
                 return [
                     LocalModelMetadata(
@@ -507,7 +510,7 @@ class OllamaAdapter(LocalModelProvider):
             req = urllib.request.Request(
                 f"{self.base_url}/api/generate", data=body, headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with safe_urlopen(req, timeout=30) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("response", "")
         except Exception:
@@ -1327,7 +1330,7 @@ class WorktreeContext:
 class WorktreeManager:
     """Safe, ownership-aware worktree lifecycle manager (§12-16)."""
 
-    def __init__(self, base_worktree_dir: str = "/tmp/zcoder_worktrees"):
+    def __init__(self, base_worktree_dir: str = os.path.join(tempfile.gettempdir(), "zcoder_worktrees")):
         self._validate_base_dir(base_worktree_dir)
         self.base_dir = base_worktree_dir
         self.active_worktrees: dict[str, WorktreeContext] = {}

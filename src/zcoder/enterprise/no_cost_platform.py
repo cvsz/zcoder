@@ -17,6 +17,7 @@ import dataclasses
 import enum
 import hashlib
 import pathlib
+import tempfile
 import time
 import uuid
 from typing import Any
@@ -137,7 +138,7 @@ class CostOptimizer:
 class LocalObjectStorage:
     """Filesystem-based object store with strict path traversal defense and tenant isolation."""
 
-    def __init__(self, base_dir: str = "/tmp/zcoder_local_storage"):
+    def __init__(self, base_dir: str = str(pathlib.Path(tempfile.gettempdir()) / "zcoder_local_storage")):
         self.base_path = pathlib.Path(base_dir).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
 
