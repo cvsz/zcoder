@@ -5,11 +5,12 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
-from zcoder.services.upgrade_lease import UpgradeRunLease
+from zcoder.services.upgrade_lease import RunLease, UpgradeRunLease
 from zcoder.services.upgrade_loop import (
     ContinuousUpgradeLoop,
     LoopCheckpoint,
@@ -160,7 +161,8 @@ class ContinuousEngineeringPipeline:
         work_sources: Sequence[WorkSource] = (),
         policy: LoopPolicy | None = None,
         retry_blocked: bool = False,
-        run_lease: UpgradeRunLease | None = None,
+        run_lease: RunLease | None = None,
+        close_callback: Callable[[], None] | None = None,
     ) -> None:
         self.executor = executor
         self.ledger = ledger
@@ -168,10 +170,12 @@ class ContinuousEngineeringPipeline:
         self.policy = policy or LoopPolicy()
         self.retry_blocked = retry_blocked
         self.run_lease = run_lease or self._default_run_lease(ledger)
+        self._close_callback = close_callback
+        self._closed = False
         self._items_by_id: dict[str, UpgradeWorkItem] = {}
 
     @staticmethod
-    def _default_run_lease(ledger: UpgradeLedger) -> UpgradeRunLease:
+    def _default_run_lease(ledger: UpgradeLedger) -> RunLease:
         ledger_path = getattr(ledger, "path", None)
         if ledger_path is None:
             raise ValueError("run_lease is required for upgrade ledgers without a local path")
@@ -179,8 +183,25 @@ class ContinuousEngineeringPipeline:
         return UpgradeRunLease(path.with_name(f"{path.name}.run.lock"))
 
     def run(self, seed_items: Iterable[UpgradeWorkItem] = ()) -> LoopReport:
+        if self._closed:
+            raise RuntimeError("continuous engineering pipeline is closed")
         with self.run_lease:
             return self._run_locked(seed_items)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self._close_callback is not None:
+            self._close_callback()
+
+    def __enter__(self) -> ContinuousEngineeringPipeline:
+        if self._closed:
+            raise RuntimeError("continuous engineering pipeline is closed")
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     def _run_locked(self, seed_items: Iterable[UpgradeWorkItem]) -> LoopReport:
         seed = self.ledger.load_resumable(retry_blocked=self.retry_blocked)
@@ -342,6 +363,65 @@ def build_sqlite_store_pipeline(
     )
 
 
+def build_postgres_store_pipeline(
+    repository_root: str | Path,
+    database_url: str,
+    *,
+    ledger_namespace: str = "zcoder-continuous-upgrades",
+    project_id: str = "zcoder-continuous-upgrades",
+    allow_push: bool = False,
+    policy: LoopPolicy | None = None,
+    retry_blocked: bool = False,
+    work_sources: Sequence[WorkSource] = (),
+    github_orchestrator: Any = None,
+    max_ci_repairs: int = 3,
+) -> ContinuousEngineeringPipeline:
+    """Build the fenced multi-host PostgreSQL continuous-engineering pipeline."""
+
+    if not database_url:
+        raise ValueError("database_url must not be empty for PostgreSQL state backend")
+
+    from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
+    from zcoder.services.upgrade_postgres_fence import PostgresUpgradeFence
+    from zcoder.services.upgrade_postgres_lease import PostgresAdvisoryRunLease
+    from zcoder.services.upgrade_postgres_runtime import FencedUpgradeEngineeringStore, PostgresFencedRunLease
+
+    store = PostgresEngineeringStore(dsn=database_url)
+    try:
+        store.init_schema()
+        probe = EngineeringStoreUpgradeLedger(store, namespace=ledger_namespace)
+        fence = PostgresUpgradeFence(
+            store.connection_scope,
+            namespace=ledger_namespace,
+            control_task_id=probe.control_task_id,
+        )
+        run_lease = PostgresFencedRunLease(
+            PostgresAdvisoryRunLease(store.connection_scope, f"{ledger_namespace}:continuous-run"),
+            fence,
+        )
+        fenced_store = FencedUpgradeEngineeringStore(store, fence, run_lease.require_token)
+        ledger = EngineeringStoreUpgradeLedger(fenced_store, namespace=ledger_namespace)
+        executor = _build_upgrade20_executor(
+            repository_root,
+            project_id=project_id,
+            allow_push=allow_push,
+            github_orchestrator=github_orchestrator,
+            max_ci_repairs=max_ci_repairs,
+        )
+        return ContinuousEngineeringPipeline(
+            executor,
+            ledger,
+            work_sources=work_sources,
+            policy=policy,
+            retry_blocked=retry_blocked,
+            run_lease=run_lease,
+            close_callback=store.close,
+        )
+    except Exception:
+        store.close()
+        raise
+
+
 def _load_work_file(path: Path) -> list[UpgradeWorkItem]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -399,7 +479,7 @@ def _report_dict(report: LoopReport, ledger: UpgradeLedger) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the durable ZCoder continuous engineering pipeline")
     parser.add_argument("--repository", default=".", help="Repository root to snapshot and improve")
-    parser.add_argument("--state-backend", choices=["json", "sqlite"], default="json")
+    parser.add_argument("--state-backend", choices=["json", "sqlite", "postgres"], default="json")
     parser.add_argument("--state-file", default=".zcoder/upgrade-loop-state.json")
     parser.add_argument("--engineering-db", default=".zcoder/engineering.db")
     parser.add_argument("--ledger-namespace", default="zcoder-continuous-upgrades")
@@ -445,6 +525,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             policy=policy,
             retry_blocked=args.retry_blocked,
         )
+    elif args.state_backend == "postgres":
+        database_url = os.environ.get("DATABASE_URL", "")
+        if not database_url:
+            raise ValueError("DATABASE_URL must be set for PostgreSQL state backend")
+        pipeline = build_postgres_store_pipeline(
+            repository_root,
+            database_url,
+            ledger_namespace=args.ledger_namespace,
+            project_id=args.project_id,
+            allow_push=args.allow_push,
+            policy=policy,
+            retry_blocked=args.retry_blocked,
+        )
     else:
         pipeline = build_local_pipeline(
             repository_root,
@@ -454,8 +547,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             policy=policy,
             retry_blocked=args.retry_blocked,
         )
-    report = pipeline.run(seed)
-    print(json.dumps(_report_dict(report, pipeline.ledger), indent=2, sort_keys=True))
+
+    try:
+        report = pipeline.run(seed)
+        output = json.dumps(_report_dict(report, pipeline.ledger), indent=2, sort_keys=True)
+    finally:
+        close = getattr(pipeline, "close", None)
+        if callable(close):
+            close()
+    print(output)
     return 0 if report.state == LoopState.COMPLETED else 2
 
 
