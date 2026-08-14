@@ -21,6 +21,7 @@ arbitrary code the model asks to execute — see claude_sandbox.py, which
 already delegates that to Anthropic's hosted code-execution tool rather
 than running anything locally.
 """
+
 from __future__ import annotations
 
 import os

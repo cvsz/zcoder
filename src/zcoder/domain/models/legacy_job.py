@@ -1,13 +1,16 @@
 """legacy_job_models.py — Legacy Job infrastructure for backward compatibility."""
+
 from __future__ import annotations
+
 import enum
-import time
 import json
 import sqlite3
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Callable
+from typing import Any, Callable, Dict, List, Optional
+
 
 class JobStatus(str, enum.Enum):
     CREATED = "CREATED"
@@ -21,6 +24,7 @@ class JobStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
     SUCCEEDED = "SUCCEEDED"
+
 
 @dataclass
 class Job:
@@ -36,6 +40,7 @@ class Job:
     cost_usd: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class JobEvent:
     id: str
@@ -44,6 +49,7 @@ class JobEvent:
     event_type: str
     timestamp: float
     payload: Dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class ApprovalRequest:
@@ -54,6 +60,7 @@ class ApprovalRequest:
     risk_level: str = "medium"
     status: str = "PENDING"
     created_at: float = field(default_factory=time.time)
+
 
 class JobStore:
     def __init__(self, db_path: Optional[Path] = None):
@@ -103,40 +110,70 @@ class JobStore:
     def save_job(self, job: Job):
         job.updated_at = time.time()
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO jobs 
                 (id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                job.id, job.task, job.runtime, job.status, job.workspace,
-                job.created_at, job.updated_at, job.model, job.budget_usd,
-                job.cost_usd, json.dumps(job.metadata)
-            ))
+            """,
+                (
+                    job.id,
+                    job.task,
+                    job.runtime,
+                    job.status,
+                    job.workspace,
+                    job.created_at,
+                    job.updated_at,
+                    job.model,
+                    job.budget_usd,
+                    job.cost_usd,
+                    json.dumps(job.metadata),
+                ),
+            )
 
     def get_job(self, job_id: str) -> Optional[Job]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
-            cur.execute("SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata FROM jobs WHERE id = ?", (job_id,))
+            cur.execute(
+                "SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata FROM jobs WHERE id = ?",
+                (job_id,),
+            )
             row = cur.fetchone()
             if not row:
                 return None
             return Job(
-                id=row[0], task=row[1], runtime=row[2], status=row[3],
-                workspace=row[4], created_at=row[5], updated_at=row[6],
-                model=row[7], budget_usd=row[8], cost_usd=row[9],
-                metadata=json.loads(row[10])
+                id=row[0],
+                task=row[1],
+                runtime=row[2],
+                status=row[3],
+                workspace=row[4],
+                created_at=row[5],
+                updated_at=row[6],
+                model=row[7],
+                budget_usd=row[8],
+                cost_usd=row[9],
+                metadata=json.loads(row[10]),
             )
 
     def list_jobs(self) -> List[Job]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
-            cur.execute("SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata FROM jobs ORDER BY created_at DESC")
+            cur.execute(
+                "SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata FROM jobs ORDER BY created_at DESC"
+            )
             return [
                 Job(
-                    id=row[0], task=row[1], runtime=row[2], status=row[3],
-                    workspace=row[4], created_at=row[5], updated_at=row[6],
-                    model=row[7], budget_usd=row[8], cost_usd=row[9],
-                    metadata=json.loads(row[10])
+                    id=row[0],
+                    task=row[1],
+                    runtime=row[2],
+                    status=row[3],
+                    workspace=row[4],
+                    created_at=row[5],
+                    updated_at=row[6],
+                    model=row[7],
+                    budget_usd=row[8],
+                    cost_usd=row[9],
+                    metadata=json.loads(row[10]),
                 )
                 for row in cur.fetchall()
             ]
@@ -152,46 +189,74 @@ class JobStore:
                 sequence=seq,
                 event_type=event_type,
                 timestamp=time.time(),
-                payload=payload
+                payload=payload,
             )
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO events (id, job_id, sequence, event_type, timestamp, payload)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (evt.id, evt.job_id, evt.sequence, evt.event_type, evt.timestamp, json.dumps(evt.payload)))
+            """,
+                (evt.id, evt.job_id, evt.sequence, evt.event_type, evt.timestamp, json.dumps(evt.payload)),
+            )
             return evt
 
     def list_events(self, job_id: str) -> List[JobEvent]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
-            cur.execute("SELECT id, job_id, sequence, event_type, timestamp, payload FROM events WHERE job_id = ? ORDER BY sequence ASC", (job_id,))
+            cur.execute(
+                "SELECT id, job_id, sequence, event_type, timestamp, payload FROM events WHERE job_id = ? ORDER BY sequence ASC",
+                (job_id,),
+            )
             return [
-                JobEvent(id=r[0], job_id=r[1], sequence=r[2], event_type=r[3], timestamp=r[4], payload=json.loads(r[5]))
+                JobEvent(
+                    id=r[0],
+                    job_id=r[1],
+                    sequence=r[2],
+                    event_type=r[3],
+                    timestamp=r[4],
+                    payload=json.loads(r[5]),
+                )
                 for r in cur.fetchall()
             ]
 
-    def create_approval(self, job_id: str, tool_name: str, action: str, risk: str = "medium") -> ApprovalRequest:
+    def create_approval(
+        self, job_id: str, tool_name: str, action: str, risk: str = "medium"
+    ) -> ApprovalRequest:
         req = ApprovalRequest(
             id=f"apr_{uuid.uuid4().hex[:8]}",
             job_id=job_id,
             tool_name=tool_name,
             action_description=action,
-            risk_level=risk
+            risk_level=risk,
         )
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO approvals (id, job_id, tool_name, action_description, risk_level, status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (req.id, req.job_id, req.tool_name, req.action_description, req.risk_level, req.status, req.created_at))
+            """,
+                (
+                    req.id,
+                    req.job_id,
+                    req.tool_name,
+                    req.action_description,
+                    req.risk_level,
+                    req.status,
+                    req.created_at,
+                ),
+            )
         return req
 
     def update_approval(self, approval_id: str, status: str):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("UPDATE approvals SET status = ? WHERE id = ?", (status, approval_id))
 
+
 class ToolPolicy(str, enum.Enum):
     ALLOW = "ALLOW"
     DENY = "DENY"
     REQUIRE_APPROVAL = "REQUIRE_APPROVAL"
+
 
 class PolicyEngine:
     DANGEROUS_COMMANDS = ["rm -rf", "git push -f", "git reset --hard", "drop table", "mkfs", "dd if="]
@@ -201,6 +266,7 @@ class PolicyEngine:
             if danger in cmd:
                 return ToolPolicy.REQUIRE_APPROVAL
         return ToolPolicy.ALLOW
+
 
 class FakeRuntime:
     def __init__(self, should_succeed: bool = True, cost: float = 0.05):
@@ -239,18 +305,23 @@ class FakeRuntime:
             store.add_event(job.id, "job.failed", {"reason": "runtime_error"})
             return False
 
+
 class JobOrchestrator:
     def __init__(self, store: Optional[JobStore] = None):
         self.store = store or JobStore()
         self.policy = PolicyEngine()
 
-    def submit_job(self, task: str, runtime: str = "direct", model: str = "claude-sonnet-5", budget_usd: float = 0.0) -> Job:
+    def submit_job(
+        self, task: str, runtime: str = "direct", model: str = "claude-sonnet-5", budget_usd: float = 0.0
+    ) -> Job:
         job_id = f"job_{uuid.uuid4().hex[:8]}"
         job = Job(id=job_id, task=task, runtime=runtime, model=model, budget_usd=budget_usd)
         self.store.save_job(job)
         return job
 
-    def run_job(self, job_id: str, runtime_adapter: Any, validator: Optional[Callable[[], bool]] = None) -> bool:
+    def run_job(
+        self, job_id: str, runtime_adapter: Any, validator: Optional[Callable[[], bool]] = None
+    ) -> bool:
         job = self.store.get_job(job_id)
         if not job:
             raise ValueError(f"Job {job_id} not found")

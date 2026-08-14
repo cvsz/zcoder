@@ -11,11 +11,11 @@ Covers:
   8. Immutable Usage Ledger & Atomic Quota Reservation Concurrency
   9. Enterprise Audit Log Export (with zero secret leakage)
 """
-import multiprocessing
+
 import os
-import time
-import pytest
+
 import psycopg2
+import pytest
 
 from agent_runtime import Job, JobStatus
 from enterprise_postgres_store import EnterprisePostgresStore
@@ -26,19 +26,14 @@ from tenant_models import (
     CrossTenantViolationError,
     EnterpriseAuditEvent,
     EnterpriseRole,
-    Membership,
-    MembershipStatus,
     Organization,
-    OrgStatus,
-    PermissionDeniedError,
     Project,
-    ProjectStatus,
     RequestContext,
-    ServiceAccount,
     UsageEvent,
 )
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
+
 
 def pg_is_available():
     try:
@@ -48,13 +43,16 @@ def pg_is_available():
     except Exception:
         return False
 
+
 pytestmark = pytest.mark.skipif(not pg_is_available(), reason="PostgreSQL test container not reachable")
+
 
 @pytest.fixture(scope="module")
 def ent_store():
     store = EnterprisePostgresStore(dsn=PG_URL)
     yield store
     store.close()
+
 
 @pytest.fixture(scope="module")
 def test_tenants(ent_store):
@@ -80,8 +78,12 @@ def test_tenants(ent_store):
     proj_a = Project(id="proj_alpha_1", organization_id="org_alpha", name="Alpha Core", slug="alpha-core")
     proj_b = Project(id="proj_beta_1", organization_id="org_beta", name="Beta Web", slug="beta-web")
 
-    ctx_a_owner = RequestContext(principal_id="user_a_owner", organization_id="org_alpha", role=EnterpriseRole.ORG_OWNER)
-    ctx_b_owner = RequestContext(principal_id="user_b_owner", organization_id="org_beta", role=EnterpriseRole.ORG_OWNER)
+    ctx_a_owner = RequestContext(
+        principal_id="user_a_owner", organization_id="org_alpha", role=EnterpriseRole.ORG_OWNER
+    )
+    ctx_b_owner = RequestContext(
+        principal_id="user_b_owner", organization_id="org_beta", role=EnterpriseRole.ORG_OWNER
+    )
 
     ent_store.create_project(ctx_a_owner, proj_a)
     ent_store.create_project(ctx_b_owner, proj_b)
@@ -91,7 +93,9 @@ def test_tenants(ent_store):
 
 class TestEnterpriseMultiTenancy:
     def test_request_context_zero_trust_tenant_validation(self):
-        ctx_a = RequestContext(principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.DEVELOPER)
+        ctx_a = RequestContext(
+            principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.DEVELOPER
+        )
         # Accessing own tenant passes
         ctx_a.validate_tenant_access("org_alpha")
 
@@ -120,7 +124,9 @@ class TestEnterpriseMultiTenancy:
 
     def test_cross_tenant_negative_matrix_job_isolation(self, ent_store, test_tenants):
         """Prove Org A cannot read, claim, or mutate Org B's jobs."""
-        ctx_a = RequestContext(principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.OPERATOR)
+        ctx_a = RequestContext(
+            principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.OPERATOR
+        )
         ctx_b = RequestContext(principal_id="bob", organization_id="org_beta", role=EnterpriseRole.OPERATOR)
 
         job_b = Job(id="job_beta_secret", task="Secret Task Beta", status=JobStatus.READY)
@@ -131,7 +137,9 @@ class TestEnterpriseMultiTenancy:
         assert claim_res_a is None or claim_res_a[0].id != "job_beta_secret"
 
         # Org A tries to mutate Org B's job directly -> must fail
-        mutated = ent_store.mutate_job_scoped(ctx_a, "job_beta_secret", "worker_a", 1, JobStatus.SUCCEEDED, 0.0)
+        mutated = ent_store.mutate_job_scoped(
+            ctx_a, "job_beta_secret", "worker_a", 1, JobStatus.SUCCEEDED, 0.0
+        )
         assert mutated is False, "Cross-tenant job mutation succeeded!"
 
     def test_policy_as_code_engine_with_obligations(self):
@@ -145,7 +153,9 @@ class TestEnterpriseMultiTenancy:
         )
         engine.add_rule(rule)
 
-        ctx_dev = RequestContext(principal_id="dan", organization_id="org_alpha", role=EnterpriseRole.DEVELOPER)
+        ctx_dev = RequestContext(
+            principal_id="dan", organization_id="org_alpha", role=EnterpriseRole.DEVELOPER
+        )
         decision = engine.evaluate(ctx_dev, "job.create", {"risk_level": "low"})
         assert decision.allow is True
         assert any(o.type == "require_approval" for o in decision.obligations)
@@ -157,9 +167,13 @@ class TestEnterpriseMultiTenancy:
         assert len(explanation["obligations"]) >= 1
 
     def test_scoped_api_keys_lifecycle(self, ent_store, test_tenants):
-        ctx_admin = RequestContext(principal_id="alice_admin", organization_id="org_alpha", role=EnterpriseRole.ORG_ADMIN)
-        key_obj, raw_secret = ApiKey.generate(organization_id="org_alpha", principal_id="ci_bot", scopes=["job:create"])
-        
+        ctx_admin = RequestContext(
+            principal_id="alice_admin", organization_id="org_alpha", role=EnterpriseRole.ORG_ADMIN
+        )
+        key_obj, raw_secret = ApiKey.generate(
+            organization_id="org_alpha", principal_id="ci_bot", scopes=["job:create"]
+        )
+
         ent_store.save_api_key(ctx_admin, key_obj)
         assert key_obj.verify(raw_secret) is True
         assert key_obj.verify("wrong_secret") is False
@@ -172,7 +186,9 @@ class TestEnterpriseMultiTenancy:
 
     def test_scim_provisioning_and_non_destructive_deactivation(self):
         scim = ScimProvisioningService(organization_id="org_alpha")
-        ctx = RequestContext(principal_id="scim_client", organization_id="org_alpha", role=EnterpriseRole.ORG_ADMIN)
+        ctx = RequestContext(
+            principal_id="scim_client", organization_id="org_alpha", role=EnterpriseRole.ORG_ADMIN
+        )
 
         user_res = scim.create_user(ctx, {"userName": "john.doe@alpha.com", "active": True})
         assert user_res["active"] is True
@@ -188,7 +204,9 @@ class TestEnterpriseMultiTenancy:
         assert fetched["active"] is False
 
     def test_usage_metering_deduplication(self, ent_store, test_tenants):
-        ctx = RequestContext(principal_id="agent_1", organization_id="org_alpha", role=EnterpriseRole.OPERATOR)
+        ctx = RequestContext(
+            principal_id="agent_1", organization_id="org_alpha", role=EnterpriseRole.OPERATOR
+        )
         event = UsageEvent(
             id="usg_1001",
             organization_id="org_alpha",
@@ -209,15 +227,34 @@ class TestEnterpriseMultiTenancy:
         assert rec2 is False, "Duplicate usage event allowed in ledger!"
 
     def test_quota_atomic_reservation_race_prevention(self, ent_store, test_tenants):
-        ctx = RequestContext(principal_id="worker_pool", organization_id="org_alpha", role=EnterpriseRole.OPERATOR)
+        ctx = RequestContext(
+            principal_id="worker_pool", organization_id="org_alpha", role=EnterpriseRole.OPERATOR
+        )
         # Limit is 100.0
-        assert ent_store.check_and_reserve_quota(ctx, "concurrent_jobs", requested_amount=60.0, limit_value=100.0) is True
-        assert ent_store.check_and_reserve_quota(ctx, "concurrent_jobs", requested_amount=30.0, limit_value=100.0) is True
+        assert (
+            ent_store.check_and_reserve_quota(
+                ctx, "concurrent_jobs", requested_amount=60.0, limit_value=100.0
+            )
+            is True
+        )
+        assert (
+            ent_store.check_and_reserve_quota(
+                ctx, "concurrent_jobs", requested_amount=30.0, limit_value=100.0
+            )
+            is True
+        )
         # Exceeds limit (60 + 30 + 20 = 110 > 100) -> Rejected
-        assert ent_store.check_and_reserve_quota(ctx, "concurrent_jobs", requested_amount=20.0, limit_value=100.0) is False
+        assert (
+            ent_store.check_and_reserve_quota(
+                ctx, "concurrent_jobs", requested_amount=20.0, limit_value=100.0
+            )
+            is False
+        )
 
     def test_enterprise_audit_log_and_export(self, ent_store, test_tenants):
-        ctx_auditor = RequestContext(principal_id="auditor_bob", organization_id="org_alpha", role=EnterpriseRole.SECURITY_AUDITOR)
+        ctx_auditor = RequestContext(
+            principal_id="auditor_bob", organization_id="org_alpha", role=EnterpriseRole.SECURITY_AUDITOR
+        )
         event = EnterpriseAuditEvent(
             event_id="evt_audit_001",
             organization_id="org_alpha",

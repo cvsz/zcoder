@@ -7,6 +7,7 @@ Provides:
   • Control Exceptions with expiration dates and approval tracking
   • Non-marketing compliance posture reporting (explicitly engineering mappings, not certifications)
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -29,7 +30,9 @@ class ComplianceControl:
     family: str  # AccessControl | TenantIsolation | Encryption | Backup | Logging | IncidentResponse
     title: str
     objective: str
-    framework_mappings: List[str] = dataclasses.field(default_factory=list)  # e.g. ["SOC2:CC6.1", "ISO27001:A.9.1"]
+    framework_mappings: List[str] = dataclasses.field(
+        default_factory=list
+    )  # e.g. ["SOC2:CC6.1", "ISO27001:A.9.1"]
     status: ControlStatus = ControlStatus.NOT_TESTED
     last_evidence_at: Optional[float] = None
     evidence_ttl_seconds: float = 86400.0 * 30.0  # 30 days default TTL
@@ -56,26 +59,42 @@ class ComplianceCatalog:
         self._init_standard_controls()
 
     def _init_standard_controls(self):
-        self.add_control(ComplianceControl(
-            id="AC-01", family="AccessControl", title="Role-Based Access Control",
-            objective="Enforce server-side role-based access control across all operations",
-            framework_mappings=["SOC2:CC6.1", "ISO27001:A.9.2"],
-        ))
-        self.add_control(ComplianceControl(
-            id="TI-01", family="TenantIsolation", title="Hard Multi-Tenant Isolation",
-            objective="Prevent cross-tenant access in database, APIs, and background processing",
-            framework_mappings=["SOC2:CC6.6", "ISO27001:A.9.4"],
-        ))
-        self.add_control(ComplianceControl(
-            id="CR-01", family="Encryption", title="Cryptographic Key Management & Redaction",
-            objective="Protect secret credentials and encrypt data in transit and at rest",
-            framework_mappings=["SOC2:CC6.7", "ISO27001:A.10.1"],
-        ))
-        self.add_control(ComplianceControl(
-            id="BC-01", family="Backup", title="Backup Freshness & Verified Restore Drills",
-            objective="Perform verified backups and periodic automated restore drills",
-            framework_mappings=["SOC2:A1.2", "ISO27001:A.12.3"],
-        ))
+        self.add_control(
+            ComplianceControl(
+                id="AC-01",
+                family="AccessControl",
+                title="Role-Based Access Control",
+                objective="Enforce server-side role-based access control across all operations",
+                framework_mappings=["SOC2:CC6.1", "ISO27001:A.9.2"],
+            )
+        )
+        self.add_control(
+            ComplianceControl(
+                id="TI-01",
+                family="TenantIsolation",
+                title="Hard Multi-Tenant Isolation",
+                objective="Prevent cross-tenant access in database, APIs, and background processing",
+                framework_mappings=["SOC2:CC6.6", "ISO27001:A.9.4"],
+            )
+        )
+        self.add_control(
+            ComplianceControl(
+                id="CR-01",
+                family="Encryption",
+                title="Cryptographic Key Management & Redaction",
+                objective="Protect secret credentials and encrypt data in transit and at rest",
+                framework_mappings=["SOC2:CC6.7", "ISO27001:A.10.1"],
+            )
+        )
+        self.add_control(
+            ComplianceControl(
+                id="BC-01",
+                family="Backup",
+                title="Backup Freshness & Verified Restore Drills",
+                objective="Perform verified backups and periodic automated restore drills",
+                framework_mappings=["SOC2:A1.2", "ISO27001:A.12.3"],
+            )
+        )
 
     def add_control(self, control: ComplianceControl) -> None:
         self.controls[control.id] = control

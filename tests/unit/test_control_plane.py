@@ -1,15 +1,15 @@
 """tests/test_control_plane.py — Tests for PostgreSQL/Storage Control Plane, Fencing Tokens, Outbox & Fleet Registry"""
+
 import tempfile
-import time
 from pathlib import Path
+
 import pytest
 
-from agent_runtime import Job, JobStatus
+from agent_runtime import JobStatus
 from control_plane import (
     ControlPlaneStore,
     FleetRepository,
     GitHubInstallation,
-    OutboxMessage,
 )
 
 
@@ -38,11 +38,15 @@ def test_atomic_claim_with_monotonic_fencing_token(cp_store):
     assert gen_token == 1
 
     # Worker A updates job using valid generation token
-    mutated = cp_store.mutate_with_fencing(job.id, "worker_A", fencing_token=1, status=JobStatus.RUNNING, cost_usd=0.05)
+    mutated = cp_store.mutate_with_fencing(
+        job.id, "worker_A", fencing_token=1, status=JobStatus.RUNNING, cost_usd=0.05
+    )
     assert mutated is True
 
     # Stale Worker attempts update with old token 0 -> REJECTED
-    stale_mutated = cp_store.mutate_with_fencing(job.id, "worker_A", fencing_token=0, status=JobStatus.SUCCEEDED, cost_usd=0.10)
+    stale_mutated = cp_store.mutate_with_fencing(
+        job.id, "worker_A", fencing_token=0, status=JobStatus.SUCCEEDED, cost_usd=0.10
+    )
     assert stale_mutated is False
 
 
@@ -51,6 +55,7 @@ def test_durable_outbox_transaction_and_processing(cp_store):
     assert out_msg.status == "PENDING"
 
     delivered = []
+
     def dummy_handler(action, payload):
         delivered.append((action, payload))
 
@@ -70,16 +75,26 @@ def test_fleet_installation_and_repo_registry(cp_store):
     inst = GitHubInstallation(installation_id=12345, account_login="my-org")
     cp_store.register_installation(inst)
 
-    repo = FleetRepository(id="repo_1", installation_id=12345, owner="my-org", name="backend", automation_enabled=True, trust_level="TRUSTED")
+    repo = FleetRepository(
+        id="repo_1",
+        installation_id=12345,
+        owner="my-org",
+        name="backend",
+        automation_enabled=True,
+        trust_level="TRUSTED",
+    )
     cp_store.register_repository(repo)
 
     with sqlite3_conn(cp_store.db_path) as conn:
         cur = conn.cursor()
-        cur.execute("SELECT owner, name, trust_level, automation_enabled FROM repositories WHERE id = 'repo_1'")
+        cur.execute(
+            "SELECT owner, name, trust_level, automation_enabled FROM repositories WHERE id = 'repo_1'"
+        )
         row = cur.fetchone()
         assert row == ("my-org", "backend", "TRUSTED", 1)
 
 
 def sqlite3_conn(path):
     import sqlite3
+
     return sqlite3.connect(path)

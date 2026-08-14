@@ -16,6 +16,7 @@ Standard features:
   • Idempotency-Key support on create/mutate endpoints
   • Fail-closed tenant authorization & scope verification
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,8 +25,8 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from tenant_models import EnterpriseRole, RequestContext
-from product_models import EntitlementService, PlanTier, Subscription
+from product_models import EntitlementService
+from tenant_models import RequestContext
 
 
 class APIError(Exception):
@@ -55,13 +56,17 @@ class PublicAPIV1Router:
         self.idempotency_store: Dict[str, Dict[str, Any]] = {}
         self.rate_limit_tracker: Dict[str, List[float]] = {}
 
-    def _check_rate_limit(self, principal_id: str, max_requests: int = 120, window_seconds: float = 60.0) -> None:
+    def _check_rate_limit(
+        self, principal_id: str, max_requests: int = 120, window_seconds: float = 60.0
+    ) -> None:
         now = time.time()
         calls = self.rate_limit_tracker.setdefault(principal_id, [])
         # purge older calls
         calls = [t for t in calls if now - t < window_seconds]
         if len(calls) >= max_requests:
-            raise APIError("RATE_LIMIT_EXCEEDED", "Rate limit exceeded. Please retry after some time.", status_code=429)
+            raise APIError(
+                "RATE_LIMIT_EXCEEDED", "Rate limit exceeded. Please retry after some time.", status_code=429
+            )
         calls.append(now)
         self.rate_limit_tracker[principal_id] = calls
 
@@ -93,7 +98,11 @@ class PublicAPIV1Router:
                     if cached.get("fingerprint") == fingerprint:
                         return cached["status_code"], cached["response"]
                     else:
-                        raise APIError("IDEMPOTENCY_CONFLICT", "Idempotency key reused with different request payload", status_code=409)
+                        raise APIError(
+                            "IDEMPOTENCY_CONFLICT",
+                            "Idempotency key reused with different request payload",
+                            status_code=409,
+                        )
 
             status_code, response_body = self._route(method, path, ctx, payload, query_params, req_id)
 
@@ -110,8 +119,10 @@ class PublicAPIV1Router:
 
         except APIError as e:
             return e.status_code, e.to_dict(req_id)
-        except Exception as e:
-            return 500, APIError("INTERNAL_SERVER_ERROR", "An unexpected server error occurred", status_code=500).to_dict(req_id)
+        except Exception:
+            return 500, APIError(
+                "INTERNAL_SERVER_ERROR", "An unexpected server error occurred", status_code=500
+            ).to_dict(req_id)
 
     def _route(
         self,
@@ -182,7 +193,11 @@ class PublicAPIV1Router:
                     raise APIError("VALIDATION_ERROR", "Field 'url' is required", status_code=422)
                 # SSRF protection: reject obvious private/loopback unless test
                 if "127.0.0.1" in url or "localhost" in url or "169.254.169.254" in url:
-                    raise APIError("SSRF_BLOCKED", "Webhook URL cannot point to localhost or metadata endpoints", status_code=400)
+                    raise APIError(
+                        "SSRF_BLOCKED",
+                        "Webhook URL cannot point to localhost or metadata endpoints",
+                        status_code=400,
+                    )
                 wh_id = f"wh_{uuid.uuid4().hex[:12]}"
                 secret = f"whsec_{uuid.uuid4().hex}"
                 return 201, {

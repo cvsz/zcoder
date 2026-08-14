@@ -19,7 +19,6 @@ CLI:
 
 Slash commands inside the REPL are documented in HELP_TEXT below.
 """
-import sys
 
 HELP_TEXT = """\
 Commands:
@@ -42,14 +41,18 @@ def _format_transcript(history, system=None):
     return "\n".join(lines)
 
 
-def cmd_interactive(api_key, model, system=None, temperature=0.3, max_tokens=4096,
-                     personality_style=None):
+def cmd_interactive(api_key, model, system=None, temperature=0.3, max_tokens=4096, personality_style=None):
     """Run the interactive chat REPL until the user exits."""
     from coder import Coder
 
     history = []
-    c = Coder(api_key=api_key, model=model, temperature=temperature,
-              max_tokens=max_tokens, personality_style=personality_style)
+    c = Coder(
+        api_key=api_key,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        personality_style=personality_style,
+    )
 
     print(f"\033[94mAI Model Coder — interactive chat\033[0m  (model: {c.model})")
     print("Type /help for commands, /exit (or Ctrl-D) to quit.\n")
@@ -80,7 +83,7 @@ def cmd_interactive(api_key, model, system=None, temperature=0.3, max_tokens=409
                 continue
             if cmd == "/system":
                 system = rest or None
-                print(f"[system prompt set]" if system else "[system prompt cleared]")
+                print("[system prompt set]" if system else "[system prompt cleared]")
                 continue
             if cmd == "/model":
                 if rest:

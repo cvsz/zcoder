@@ -1,4 +1,5 @@
 """engineering_store_interface.py — Abstract Interface for Durable Engineering Storage."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

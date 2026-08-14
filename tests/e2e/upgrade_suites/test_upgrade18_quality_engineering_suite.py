@@ -7,13 +7,11 @@ Verifies:
   4. Benchmark Fixture Versioning & Deterministic Evaluation
   5. Zero-Paid-Calls Guarantee
 """
-import pytest
 
 from local_ai_stack import (
     ModelQualityState,
     QualityBenchmarkFixture,
     QualityEngineeringService,
-    QualityOutcome,
     QualityProfile,
 )
 

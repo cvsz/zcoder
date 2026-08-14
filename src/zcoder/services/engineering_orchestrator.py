@@ -1,4 +1,5 @@
 """engineering_orchestrator.py — Orchestrates durable engineering tasks."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -20,10 +21,10 @@ class EngineeringOrchestrator:
         task = self.store.get_task(task_id)
         if not task:
             return None
-        
+
         task.status = TaskStatus.RUNNING
         self.store.save_task(task)
-        
+
         attempt = Attempt(task_id=task_id)
         self.store.create_attempt(attempt)
         return attempt

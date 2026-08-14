@@ -6,18 +6,16 @@ Supports:
   • Operator Approvals & Command/Tool Safety Policy Engine
   • Workspace change tracking & Validation Pipeline
 """
+
 from __future__ import annotations
 
 import enum
-import json
 import time
-from typing import Any, Callable, Dict, List, Optional, Protocol
 from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Optional, Protocol
 
-from engineering_models import Attempt, EngineeringTask, TaskStatus
-from engineering_orchestrator import EngineeringOrchestrator
+from engineering_models import EngineeringTask
 from engineering_store_interface import EngineeringStore
-from sqlite_engineering_store import SQLiteEngineeringStore
 
 
 class JobStatus(str, enum.Enum):
@@ -66,6 +64,9 @@ class PolicyEngine:
 
 
 class AgentRuntimeProtocol(Protocol):
-    def execute_task(self, task: EngineeringTask, store: EngineeringStore, validator: Optional[Callable[[], bool]] = None) -> bool: ...
-from legacy_job_models import (ApprovalRequest, FakeRuntime, Job, JobEvent, JobOrchestrator, JobStatus, JobStore)
-from legacy_job_models import (ApprovalRequest, FakeRuntime, Job, JobEvent, JobOrchestrator, JobStatus, JobStore, PolicyEngine, ToolPolicy)
+    def execute_task(
+        self, task: EngineeringTask, store: EngineeringStore, validator: Optional[Callable[[], bool]] = None
+    ) -> bool: ...
+
+
+from legacy_job_models import ToolPolicy

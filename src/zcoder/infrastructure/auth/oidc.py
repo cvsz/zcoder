@@ -8,10 +8,10 @@ Provides:
   • Audit logging for auth events (login, denied actions, role changes)
   • Break-glass admin (explicit, audited, disabled by default)
 """
+
 from __future__ import annotations
 
 import enum
-import hashlib
 import hmac
 import json
 import logging
@@ -19,7 +19,7 @@ import os
 import secrets
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,18 +28,21 @@ logger = logging.getLogger(__name__)
 try:
     import jwt
     import jwt.algorithms
+
     _JWT_AVAILABLE = True
 except ImportError:
     _JWT_AVAILABLE = False
 
 try:
     import httpx
+
     _HTTPX_AVAILABLE = True
 except ImportError:
     _HTTPX_AVAILABLE = False
 
 
 # ─── Role definitions ─────────────────────────────────────────────────────────
+
 
 class ZCoderRole(str, enum.Enum):
     VIEWER = "VIEWER"
@@ -62,9 +65,10 @@ def role_has_privilege(role: ZCoderRole, required: ZCoderRole) -> bool:
 
 # ─── Auth identity ────────────────────────────────────────────────────────────
 
+
 @dataclass
 class AuthenticatedIdentity:
-    sub: str                          # OIDC subject identifier
+    sub: str  # OIDC subject identifier
     email: str = ""
     name: str = ""
     role: ZCoderRole = ZCoderRole.VIEWER
@@ -89,6 +93,7 @@ class AuthenticatedIdentity:
 
 # ─── Auth exceptions ──────────────────────────────────────────────────────────
 
+
 class AuthError(Exception):
     """Base authentication error."""
 
@@ -106,6 +111,7 @@ class PermissionDeniedError(AuthError):
 
 
 # ─── JWKS key cache ──────────────────────────────────────────────────────────
+
 
 class _JwksCache:
     """Simple TTL cache for JWKS endpoint keys."""
@@ -146,6 +152,7 @@ def _fetch_jwks(jwks_uri: str) -> Dict[str, Any]:
 
 # ─── OIDC Validator ───────────────────────────────────────────────────────────
 
+
 class OidcValidator:
     """Validate OIDC JWTs with full claim verification.
 
@@ -174,9 +181,7 @@ class OidcValidator:
     def validate_token(self, token: str) -> AuthenticatedIdentity:
         """Validate a JWT bearer token and return the identity."""
         if not _JWT_AVAILABLE:
-            raise AuthError(
-                "PyJWT is required for OIDC validation. Install: pip install 'PyJWT[crypto]'"
-            )
+            raise AuthError("PyJWT is required for OIDC validation. Install: pip install 'PyJWT[crypto]'")
 
         try:
             # First decode header to get key ID
@@ -250,6 +255,7 @@ class OidcValidator:
 
 # ─── Session management ───────────────────────────────────────────────────────
 
+
 @dataclass
 class Session:
     session_id: str
@@ -311,6 +317,7 @@ class SessionStore:
 
 # ─── RBAC Enforcement ────────────────────────────────────────────────────────
 
+
 class RbacPolicy:
     """Server-side RBAC policy enforcement.
 
@@ -326,7 +333,6 @@ class RbacPolicy:
         "metrics.view": ZCoderRole.VIEWER,
         "health.view": ZCoderRole.VIEWER,
         "config.view": ZCoderRole.VIEWER,
-
         # Operator-level: operations
         "job.submit": ZCoderRole.OPERATOR,
         "job.cancel": ZCoderRole.OPERATOR,
@@ -336,7 +342,6 @@ class RbacPolicy:
         "approval.grant": ZCoderRole.OPERATOR,
         "approval.deny": ZCoderRole.OPERATOR,
         "webhook.replay": ZCoderRole.OPERATOR,
-
         # Admin-level: configuration changes
         "config.update": ZCoderRole.ADMIN,
         "github.update_installation": ZCoderRole.ADMIN,
@@ -375,11 +380,13 @@ class RbacPolicy:
 
 # ─── Audit logging ────────────────────────────────────────────────────────────
 
+
 def _audit_log(event: str, subject: str, context: Dict[str, Any]) -> None:
     """Emit a structured audit log entry. Does NOT log raw tokens."""
     # Ensure no tokens are logged
     safe_context = {
-        k: v for k, v in context.items()
+        k: v
+        for k, v in context.items()
         if not any(s in k.lower() for s in ("token", "key", "secret", "password"))
     }
     logger.info(
@@ -394,6 +401,7 @@ def _audit_log(event: str, subject: str, context: Dict[str, Any]) -> None:
 
 
 # ─── API key authentication (service-to-service) ─────────────────────────────
+
 
 class ApiKeyValidator:
     """Simple API key validator for internal service-to-service auth.
@@ -410,7 +418,9 @@ class ApiKeyValidator:
         # We store the service_name|role|token tuple hashed
         return f"zck_{service_name}_{role.value}_{token}"
 
-    def validate_key(self, api_key: str, expected_role: ZCoderRole = ZCoderRole.VIEWER) -> Optional[AuthenticatedIdentity]:
+    def validate_key(
+        self, api_key: str, expected_role: ZCoderRole = ZCoderRole.VIEWER
+    ) -> Optional[AuthenticatedIdentity]:
         """Validate an API key and return the identity."""
         try:
             parts = api_key.split("_", 3)
@@ -432,6 +442,7 @@ class ApiKeyValidator:
 
 
 # ─── Break-glass admin ────────────────────────────────────────────────────────
+
 
 class BreakGlassAdmin:
     """Emergency admin access — explicit, audited, disabled by default.

@@ -1,11 +1,11 @@
-import unittest
+import os
 import subprocess
 import sys
-import os
-import time
+import unittest
 from pathlib import Path
-from engineering_models import EngineeringTask
+
 from sqlite_engineering_store import SQLiteEngineeringStore
+
 
 class TestDurabilityRestart(unittest.TestCase):
     def setUp(self):
@@ -21,7 +21,7 @@ class TestDurabilityRestart(unittest.TestCase):
     def test_subprocess_persistence(self):
         # Create a task ID
         task_id = "test_sub_1"
-        
+
         # Spawn subprocess to write to DB
         script = f"""
 import sys
@@ -39,12 +39,13 @@ sys.exit(0)
         env["PYTHONPATH"] = os.getcwd()
         result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        
+
         # Verify persistence from parent process
         retrieved = self.store.get_task(task_id)
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.id, task_id)
-        self.assertEqual(retrieved.task_description, 'Persistent subtask')
+        self.assertEqual(retrieved.task_description, "Persistent subtask")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

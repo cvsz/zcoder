@@ -5,6 +5,7 @@ The installed console entry point is ``zcoder.main:main``. This file remains
 only so existing ``python main.py`` workflows keep working during the src-layout
 migration.
 """
+
 import sys
 from pathlib import Path
 

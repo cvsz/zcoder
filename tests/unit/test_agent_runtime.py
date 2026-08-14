@@ -1,20 +1,21 @@
 """tests/test_agent_runtime.py — Comprehensive tests for ZCoder Autonomous Agent Runtime"""
+
 import os
 import tempfile
 from pathlib import Path
+
 import pytest
 
-from legacy_job_models import (
-    ApprovalRequest,
-    Job,
-    JobStatus,
-    JobStore,
-)
 from agent_runtime import (
     FakeRuntime,
     JobOrchestrator,
     PolicyEngine,
     ToolPolicy,
+)
+from legacy_job_models import (
+    Job,
+    JobStatus,
+    JobStore,
 )
 
 

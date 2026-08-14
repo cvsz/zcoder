@@ -7,6 +7,7 @@ web_search_20250305/web_fetch_20250124). Bumped to
 web_search_20260318/web_fetch_20260318 and threaded response_inclusion
 through — see docs/36_upgrade_v1.24.0_audit_and_impl.md Finding 1.
 """
+
 import types
 from unittest.mock import MagicMock
 
@@ -25,10 +26,13 @@ def search_mod(monkeypatch):
 
     fake_anthropic.Anthropic = _FakeAnthropicClient
     import sys
+
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic)
 
     import importlib
+
     import claude_search as mod
+
     importlib.reload(mod)
     return mod
 

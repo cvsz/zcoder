@@ -7,14 +7,14 @@ Supports:
   • SCIM bearer token authentication scoped per organization
   • Idempotent user/group provisioning
 """
+
 from __future__ import annotations
 
 import dataclasses
-import json
 import time
 from typing import Any, Dict, List, Optional
 
-from tenant_models import EnterpriseRole, Membership, MembershipStatus, RequestContext
+from tenant_models import EnterpriseRole, RequestContext
 
 
 @dataclasses.dataclass

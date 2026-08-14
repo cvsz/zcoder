@@ -15,9 +15,8 @@ CLI flags:
 
 import json
 import os
-import time
+from datetime import date, datetime
 from pathlib import Path
-from datetime import datetime, date
 from typing import Optional
 
 LOG_PATH = Path(os.path.expanduser("~/.ai-coder/metrics.jsonl"))
@@ -28,18 +27,18 @@ LOG_PATH = Path(os.path.expanduser("~/.ai-coder/metrics.jsonl"))
 # as of 2026-07-02. Sonnet 5 has $2/$10 intro pricing through 2026-08-31 —
 # not modeled here; this table uses the standing post-intro rate.
 PRICE_TABLE = {
-    "claude-opus-5":                (5.0, 25.0),
-    "claude-fable-5":               (10.0, 50.0),
-    "claude-mythos-5":              (10.0, 50.0),
-    "claude-opus-4-8":               (5.0, 25.0),
-    "claude-sonnet-5":                (2.0, 10.0),
-    "claude-haiku-4-5-20251001":      (1.0,  5.0),
+    "claude-opus-5": (5.0, 25.0),
+    "claude-fable-5": (10.0, 50.0),
+    "claude-mythos-5": (10.0, 50.0),
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-sonnet-5": (2.0, 10.0),
+    "claude-haiku-4-5-20251001": (1.0, 5.0),
     # Legacy — still callable
-    "claude-opus-4-7":               (5.0, 25.0),
-    "claude-opus-4-6":               (5.0, 25.0),
-    "claude-opus-4-5":               (5.0, 25.0),
-    "claude-sonnet-4-6":              (3.0, 15.0),
-    "claude-sonnet-4-5":              (3.0, 15.0),
+    "claude-opus-4-7": (5.0, 25.0),
+    "claude-opus-4-6": (5.0, 25.0),
+    "claude-opus-4-5": (5.0, 25.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-sonnet-4-5": (3.0, 15.0),
 }
 DEFAULT_PRICE = (3.0, 15.0)
 
@@ -49,8 +48,14 @@ def _price(model: str, input_tok: int, output_tok: int) -> float:
     return input_tok / 1_000_000 * p_in + output_tok / 1_000_000 * p_out
 
 
-def record(model: str, input_tokens: int, output_tokens: int,
-           latency_seconds: float, command: str = "", stop_reason: str = ""):
+def record(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    latency_seconds: float,
+    command: str = "",
+    stop_reason: str = "",
+):
     """Append one call record to the JSONL log.
 
     v1.11.0: on the Claude API, a request that returns stop_reason:"refusal"
@@ -107,8 +112,13 @@ def summarise(entries: list[dict]) -> dict:
     for e in entries:
         m = e.get("model", "unknown")
         if m not in by_model:
-            by_model[m] = {"calls": 0, "input_tokens": 0, "output_tokens": 0,
-                           "cost_usd": 0.0, "latency_seconds": 0.0}
+            by_model[m] = {
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+                "latency_seconds": 0.0,
+            }
         s = by_model[m]
         s["calls"] += 1
         s["input_tokens"] += e.get("input_tokens", 0)
@@ -144,10 +154,12 @@ def cmd_metrics_show(today_only: bool = False, model_filter: Optional[str] = Non
     print(f"  Input tokens:   {s['total_input_tokens']:,}")
     print(f"  Output tokens:  {s['total_output_tokens']:,}")
     if s.get("by_model"):
-        print(f"\n  \033[1mBy model:\033[0m")
+        print("\n  \033[1mBy model:\033[0m")
         for model, ms in sorted(s["by_model"].items()):
-            print(f"    {model:<40} {ms['calls']} calls  "
-                  f"${ms['cost_usd']:.4f}  avg {ms['avg_latency_seconds']}s")
+            print(
+                f"    {model:<40} {ms['calls']} calls  "
+                f"${ms['cost_usd']:.4f}  avg {ms['avg_latency_seconds']}s"
+            )
     print()
 
 

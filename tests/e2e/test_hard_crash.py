@@ -1,11 +1,12 @@
-import unittest
+import os
 import subprocess
 import sys
-import os
 import time
-import signal
+import unittest
 from pathlib import Path
+
 from sqlite_engineering_store import SQLiteEngineeringStore
+
 
 class TestHardCrash(unittest.TestCase):
     def setUp(self):
@@ -37,14 +38,14 @@ for i in range(1000):
         env = os.environ.copy()
         env["PYTHONPATH"] = os.getcwd()
         proc = subprocess.Popen([sys.executable, "-c", script], env=env)
-        
+
         # Give it some time to start writing
         time.sleep(0.5)
-        
+
         # SIGKILL it
         proc.kill()
         proc.wait()
-        
+
         # Verify DB is not corrupted and some tasks are saved
         # SQLite WAL mode should make it crash-consistent
         retrieved_count = 0
@@ -52,9 +53,10 @@ for i in range(1000):
             cur = conn.cursor()
             cur.execute("SELECT count(*) FROM tasks")
             retrieved_count = cur.fetchone()[0]
-        
+
         self.assertGreater(retrieved_count, 0, "No tasks were persisted")
         print(f"Tasks persisted after crash: {retrieved_count}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

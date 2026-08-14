@@ -50,10 +50,9 @@ Mid-conversation system messages vs. the top-level `system` field:
   which models accept role:"system" in `messages` at all.
 """
 
-import os
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Optional
 
 from exceptions import AICoderError
@@ -109,6 +108,7 @@ def validate_system_message_placement(messages: list[dict]) -> None:
       - Cannot be adjacent to another system message (no consecutive
         system messages).
     """
+
     def _is_system(m: dict) -> bool:
         return m.get("role") == "system"
 
@@ -124,14 +124,16 @@ def validate_system_message_placement(messages: list[dict]) -> None:
         if i == 0:
             raise SystemMessagePlacementError(
                 "A system message cannot be the first entry in messages; "
-                "use the top-level `system` field for turn-one instructions.")
+                "use the top-level `system` field for turn-one instructions."
+            )
 
         prev = messages[i - 1]
         if _is_system(prev):
             raise SystemMessagePlacementError(
                 f"System message at index {i} is adjacent to another system "
                 f"message at index {i-1}; consecutive system messages are "
-                "not allowed.")
+                "not allowed."
+            )
 
         prev_types = _block_types(prev.get("content"))
 
@@ -140,21 +142,24 @@ def validate_system_message_placement(messages: list[dict]) -> None:
         # inserting a system message right after it would sit between the
         # tool_use and its tool_result, which is invalid regardless of the
         # more general "must follow user/server-tool-use" rule below.
-        if prev.get("role") == "assistant" and "tool_use" in prev_types \
-                and "server_tool_use" not in prev_types:
+        if (
+            prev.get("role") == "assistant"
+            and "tool_use" in prev_types
+            and "server_tool_use" not in prev_types
+        ):
             raise SystemMessagePlacementError(
-                f"System message at index {i} cannot sit between a tool_use "
-                "block and its tool_result.")
+                f"System message at index {i} cannot sit between a tool_use " "block and its tool_result."
+            )
 
-        prev_ok = (
-            prev.get("role") == "user"
-            or (prev.get("role") == "assistant" and "server_tool_use" in prev_types)
+        prev_ok = prev.get("role") == "user" or (
+            prev.get("role") == "assistant" and "server_tool_use" in prev_types
         )
         if not prev_ok:
             raise SystemMessagePlacementError(
                 f"System message at index {i} must immediately follow a user "
                 "turn or an assistant turn ending in server tool use "
-                f"(preceding message has role={prev.get('role')!r}).")
+                f"(preceding message has role={prev.get('role')!r})."
+            )
 
         if i < len(messages) - 1:
             nxt = messages[i + 1]
@@ -162,21 +167,24 @@ def validate_system_message_placement(messages: list[dict]) -> None:
                 raise SystemMessagePlacementError(
                     f"System message at index {i} is adjacent to another "
                     f"system message at index {i+1}; consecutive system "
-                    "messages are not allowed.")
+                    "messages are not allowed."
+                )
             if nxt.get("role") != "assistant":
                 raise SystemMessagePlacementError(
                     f"System message at index {i} must be the last entry in "
                     f"messages or be followed by an assistant turn "
-                    f"(next message has role={nxt.get('role')!r}).")
+                    f"(next message has role={nxt.get('role')!r})."
+                )
 
 
 # ── Low-level helpers ──────────────────────────────────────────────────────
+
 
 def _make_cache_control(ttl: str = "5m") -> dict:
     """Build a cache_control block."""
     if ttl == "1h":
         return {"type": "ephemeral", "ttl": 3600}
-    return {"type": "ephemeral"}          # 5-minute default
+    return {"type": "ephemeral"}  # 5-minute default
 
 
 def _add_cache_breakpoint(block: dict, ttl: str = "5m") -> dict:
@@ -188,24 +196,24 @@ def _add_cache_breakpoint(block: dict, ttl: str = "5m") -> dict:
 
 # ── CachingCoder ──────────────────────────────────────────────────────────
 
+
 class CachingCoder:
     """Claude client with explicit prompt-caching support."""
 
     ENDPOINT = "https://api.anthropic.com/v1/messages"
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096, ttl: str = "5m"):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096, ttl: str = "5m"):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
-        self.ttl        = ttl          # "5m" or "1h"
+        self.ttl = ttl  # "5m" or "1h"
         self._last_usage: dict = {}
         self._last_message_id: Optional[str] = None
         self._last_cache_miss_reason: Optional[str] = None
 
     def _post(self, payload: dict, diagnose: bool = False) -> dict:
-        body    = json.dumps(payload).encode()
-        betas   = ["prompt-caching-2024-07-31"]
+        body = json.dumps(payload).encode()
+        betas = ["prompt-caching-2024-07-31"]
         if diagnose:
             # Cache diagnostics (public beta). Per platform.claude.com/docs
             # (checked 2026-07-02): pass diagnostics.previous_message_id on
@@ -215,13 +223,12 @@ class CachingCoder:
             # happened, only that usage showed 0 cache_read_input_tokens.
             betas.append("cache-diagnosis-2026-04-07")
         headers = {
-            "Content-Type":    "application/json",
-            "x-api-key":       self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta":  ",".join(betas),
+            "anthropic-beta": ",".join(betas),
         }
-        req = urllib.request.Request(self.ENDPOINT, data=body,
-                                     headers=headers, method="POST")
+        req = urllib.request.Request(self.ENDPOINT, data=body, headers=headers, method="POST")
         try:
             return self._call(req)
         except AICoderError as e:
@@ -268,30 +275,27 @@ class CachingCoder:
                 raise ValueError(
                     f"Mid-conversation system messages require one of "
                     f"{sorted(MID_SYSTEM_SUPPORTED_MODELS)}; got {self.model!r}. "
-                    "Use the top-level `system` field (--cache-system) instead.")
+                    "Use the top-level `system` field (--cache-system) instead."
+                )
             messages.append(build_mid_system_message(mid_system))
             validate_system_message_placement(messages)
 
         # Build user content
         user_blocks = []
-        for doc in (cached_docs or []):
-            user_blocks.append(_add_cache_breakpoint(
-                {"type": "text", "text": doc}, self.ttl
-            ))
+        for doc in cached_docs or []:
+            user_blocks.append(_add_cache_breakpoint({"type": "text", "text": doc}, self.ttl))
         user_blocks.append({"type": "text", "text": prompt})
         messages.append({"role": "user", "content": user_blocks})
 
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages":   messages,
+            "messages": messages,
         }
 
         # Cache the system prompt
         if system:
-            payload["system"] = [
-                _add_cache_breakpoint({"type": "text", "text": system}, self.ttl)
-            ]
+            payload["system"] = [_add_cache_breakpoint({"type": "text", "text": system}, self.ttl)]
 
         if diagnose:
             # Docs opt in on every call, using previous_message_id: None on
@@ -322,21 +326,16 @@ class CachingCoder:
         No output is produced and no output tokens are billed.
         Returns usage showing cache_creation_input_tokens.
         """
-        user_blocks = [
-            _add_cache_breakpoint({"type": "text", "text": d}, self.ttl)
-            for d in (docs or [])
-        ]
+        user_blocks = [_add_cache_breakpoint({"type": "text", "text": d}, self.ttl) for d in (docs or [])]
         user_blocks.append({"type": "text", "text": "."})  # minimal user msg
 
         payload: dict = {
-            "model":      self.model,
-            "max_tokens": 1,          # minimal to satisfy API
-            "messages":   [{"role": "user", "content": user_blocks}],
+            "model": self.model,
+            "max_tokens": 1,  # minimal to satisfy API
+            "messages": [{"role": "user", "content": user_blocks}],
         }
         if system:
-            payload["system"] = [
-                _add_cache_breakpoint({"type": "text", "text": system}, self.ttl)
-            ]
+            payload["system"] = [_add_cache_breakpoint({"type": "text", "text": system}, self.ttl)]
 
         data = self._post(payload)
         self._last_usage = data.get("usage", {})
@@ -359,15 +358,13 @@ class CachingCoder:
 
         messages = [{"role": "user", "content": prompt}]
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages":   messages,
-            "tools":      tools,
+            "messages": messages,
+            "tools": tools,
         }
         if system:
-            payload["system"] = [
-                _add_cache_breakpoint({"type": "text", "text": system}, self.ttl)
-            ]
+            payload["system"] = [_add_cache_breakpoint({"type": "text", "text": system}, self.ttl)]
 
         data = self._post(payload)
         if "error" in data:
@@ -404,7 +401,8 @@ class CachingCoder:
         if mid_system_updates and self.model not in MID_SYSTEM_SUPPORTED_MODELS:
             raise ValueError(
                 f"Mid-conversation system messages require one of "
-                f"{sorted(MID_SYSTEM_SUPPORTED_MODELS)}; got {self.model!r}.")
+                f"{sorted(MID_SYSTEM_SUPPORTED_MODELS)}; got {self.model!r}."
+            )
 
         messages = []
         responses = []
@@ -431,14 +429,12 @@ class CachingCoder:
                 validate_system_message_placement(messages)
 
             payload: dict = {
-                "model":      self.model,
+                "model": self.model,
                 "max_tokens": self.max_tokens,
-                "messages":   messages,
+                "messages": messages,
             }
             if system:
-                payload["system"] = [
-                    _add_cache_breakpoint({"type": "text", "text": system}, self.ttl)
-                ]
+                payload["system"] = [_add_cache_breakpoint({"type": "text", "text": system}, self.ttl)]
 
             data = self._post(payload)
             self._last_usage = data.get("usage", {})
@@ -447,10 +443,7 @@ class CachingCoder:
                 responses.append(f"[ERROR] {data['error']}")
                 break
 
-            resp_text = "".join(
-                b.get("text", "") for b in data.get("content", [])
-                if b.get("type") == "text"
-            )
+            resp_text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
             responses.append(resp_text)
             messages.append({"role": "assistant", "content": resp_text})
 
@@ -461,24 +454,24 @@ class CachingCoder:
     def cache_stats(self) -> dict:
         u = self._last_usage
         return {
-            "input_tokens":                u.get("input_tokens", 0),
-            "output_tokens":               u.get("output_tokens", 0),
+            "input_tokens": u.get("input_tokens", 0),
+            "output_tokens": u.get("output_tokens", 0),
             "cache_creation_input_tokens": u.get("cache_creation_input_tokens", 0),
-            "cache_read_input_tokens":     u.get("cache_read_input_tokens", 0),
+            "cache_read_input_tokens": u.get("cache_read_input_tokens", 0),
             # Only populated when the last generate_cached() call passed
             # diagnose=True and the API had a previous request to compare
             # against — see Cache diagnostics (beta) in generate_cached().
-            "cache_miss_reason":           self._last_cache_miss_reason,
+            "cache_miss_reason": self._last_cache_miss_reason,
         }
 
     def print_cache_stats(self):
         s = self.cache_stats()
-        hit  = s["cache_read_input_tokens"]
+        hit = s["cache_read_input_tokens"]
         miss = s["cache_creation_input_tokens"]
-        inp  = s["input_tokens"]
-        out  = s["output_tokens"]
-        ratio = f"{hit/(hit+miss+inp)*100:.1f}%" if (hit+miss+inp) > 0 else "—"
-        print(f"\n\033[90m── Cache Stats ─────────────────────────")
+        inp = s["input_tokens"]
+        out = s["output_tokens"]
+        ratio = f"{hit/(hit+miss+inp)*100:.1f}%" if (hit + miss + inp) > 0 else "—"
+        print("\n\033[90m── Cache Stats ─────────────────────────")
         print(f"  input tokens:        {inp}")
         print(f"  cache write tokens:  {miss}  (billed at 1.25x)")
         print(f"  cache read tokens:   {hit}  (billed at 0.1x)")
@@ -486,14 +479,22 @@ class CachingCoder:
         print(f"  cache hit rate:      {ratio}")
         if s["cache_miss_reason"]:
             print(f"  cache miss reason:   {s['cache_miss_reason']}  (diagnostics beta)")
-        print(f"──────────────────────────────────────\033[0m")
+        print("──────────────────────────────────────\033[0m")
 
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_cache_generate(prompt: str, api_key: str, model: str, system: str = None,
-                       docs: list[str] = None, ttl: str = "5m",
-                       show_stats: bool = True, diagnose: bool = False) -> str:
+
+def cmd_cache_generate(
+    prompt: str,
+    api_key: str,
+    model: str,
+    system: str = None,
+    docs: list[str] = None,
+    ttl: str = "5m",
+    show_stats: bool = True,
+    diagnose: bool = False,
+) -> str:
     print(f"\033[94mℹ Prompt caching enabled (TTL={ttl})\033[0m\n")
     cc = CachingCoder(api_key=api_key, model=model, ttl=ttl)
     result = cc.generate_cached(prompt, system=system, cached_docs=docs, diagnose=diagnose)
@@ -503,10 +504,16 @@ def cmd_cache_generate(prompt: str, api_key: str, model: str, system: str = None
     return result
 
 
-def cmd_cache_multi_turn(turns: list[str], api_key: str, model: str,
-                         system: str = None, ttl: str = "5m",
-                         mid_system: str = None, mid_system_after: int = 0,
-                         show_stats: bool = True) -> list[str]:
+def cmd_cache_multi_turn(
+    turns: list[str],
+    api_key: str,
+    model: str,
+    system: str = None,
+    ttl: str = "5m",
+    mid_system: str = None,
+    mid_system_after: int = 0,
+    show_stats: bool = True,
+) -> list[str]:
     """
     Run a multi-turn cached conversation. If mid_system is given, it's
     inserted as a mid-conversation system message immediately after
@@ -518,13 +525,14 @@ def cmd_cache_multi_turn(turns: list[str], api_key: str, model: str,
     """
     print(f"\033[94mℹ Prompt caching enabled (TTL={ttl}, {len(turns)} turns)\033[0m")
     if mid_system:
-        print(f"\033[94mℹ Mid-conversation system message queued after turn "
-              f"{mid_system_after}: {mid_system!r}\033[0m")
+        print(
+            f"\033[94mℹ Mid-conversation system message queued after turn "
+            f"{mid_system_after}: {mid_system!r}\033[0m"
+        )
     cc = CachingCoder(api_key=api_key, model=model, ttl=ttl)
     updates = {mid_system_after: mid_system} if mid_system else None
     try:
-        responses = cc.multi_turn_cached(turns, system=system,
-                                         mid_system_updates=updates)
+        responses = cc.multi_turn_cached(turns, system=system, mid_system_updates=updates)
     except (ValueError, SystemMessagePlacementError) as e:
         print(f"\033[91m✗ {e}\033[0m")
         return []
@@ -535,18 +543,19 @@ def cmd_cache_multi_turn(turns: list[str], api_key: str, model: str,
     return responses
 
 
-def cmd_cache_warm(api_key: str, model: str, system: str = None,
-                   doc_files: list[str] = None, ttl: str = "5m"):
+def cmd_cache_warm(
+    api_key: str, model: str, system: str = None, doc_files: list[str] = None, ttl: str = "5m"
+):
     print(f"\033[94mℹ Pre-warming cache (TTL={ttl})…\033[0m")
     docs = []
-    for f in (doc_files or []):
+    for f in doc_files or []:
         try:
             with open(f) as fh:
                 docs.append(fh.read())
         except Exception as e:
             print(f"  [WARN] Cannot read {f}: {e}")
 
-    cc    = CachingCoder(api_key=api_key, model=model, ttl=ttl)
+    cc = CachingCoder(api_key=api_key, model=model, ttl=ttl)
     usage = cc.warm_cache(system=system, docs=docs)
     created = usage.get("cache_creation_input_tokens", 0)
     print(f"\033[92m✓ Cache warmed — {created} tokens written to cache\033[0m")

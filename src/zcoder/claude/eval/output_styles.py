@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 PROJECT_STYLES_DIR = Path(".claude/output-styles")
-USER_STYLES_DIR     = Path(os.path.expanduser("~/.claude/output-styles"))
+USER_STYLES_DIR = Path(os.path.expanduser("~/.claude/output-styles"))
 
 BUILTIN_STYLES = {
     "default": {
@@ -101,6 +101,7 @@ def discover_custom_styles() -> dict:
                     out[style["name"]] = style
     try:
         from claude_plugins import load_plugin_output_styles
+
         for entry in load_plugin_output_styles():
             style = _parse_style_file(Path(entry["path"]))
             if style:
@@ -112,13 +113,16 @@ def discover_custom_styles() -> dict:
 
 
 def list_styles() -> list:
-    out = [{"name": n, "description": s["description"], "builtin": True}
-           for n, s in BUILTIN_STYLES.items()]
+    out = [{"name": n, "description": s["description"], "builtin": True} for n, s in BUILTIN_STYLES.items()]
     for n, s in discover_custom_styles().items():
-        out.append({
-            "name": n, "description": s["description"], "builtin": False,
-            "plugin": s.get("plugin"),
-        })
+        out.append(
+            {
+                "name": n,
+                "description": s["description"],
+                "builtin": False,
+                "plugin": s.get("plugin"),
+            }
+        )
     return out
 
 
@@ -140,7 +144,9 @@ def cmd_list_output_styles():
     styles = list_styles()
     print("\nOutput styles:")
     for s in styles:
-        tag = "(builtin)" if s["builtin"] else f"(plugin: {s.get('plugin')})" if s.get("plugin") else "(custom)"
+        tag = (
+            "(builtin)" if s["builtin"] else f"(plugin: {s.get('plugin')})" if s.get("plugin") else "(custom)"
+        )
         print(f"  {s['name']:<14} {tag:<22} {s['description']}")
     print(f"\nProject styles dir: {PROJECT_STYLES_DIR}")
     print(f"User styles dir:    {USER_STYLES_DIR}")

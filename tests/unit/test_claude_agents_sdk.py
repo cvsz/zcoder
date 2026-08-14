@@ -13,6 +13,7 @@ the `anthropic` SDK's client.beta.{agents,environments,sessions,
 memory_stores} resources, so these tests stub out `anthropic.Anthropic`
 rather than hitting the network.
 """
+
 import sys
 import types
 from unittest.mock import MagicMock
@@ -35,7 +36,9 @@ def _install_fake_anthropic_module():
 def agents_sdk(monkeypatch):
     _install_fake_anthropic_module()
     import importlib
+
     import claude_agents_sdk as mod
+
     importlib.reload(mod)
     return mod
 
@@ -107,7 +110,8 @@ def test_get_memory_store_uses_memory_store_beta_alone(agents_sdk):
     client.get_memory_store("store_1")
 
     client.client.beta.memory_stores.retrieve.assert_called_once_with(
-        "store_1", betas=[agents_sdk.MEMORY_STORE_BETA],
+        "store_1",
+        betas=[agents_sdk.MEMORY_STORE_BETA],
     )
 
 
@@ -118,7 +122,9 @@ def test_list_memory_stores_uses_memory_store_beta_alone(agents_sdk):
     client.list_memory_stores(include_archived=True)
 
     client.client.beta.memory_stores.list.assert_called_once_with(
-        betas=[agents_sdk.MEMORY_STORE_BETA], limit=50, include_archived=True,
+        betas=[agents_sdk.MEMORY_STORE_BETA],
+        limit=50,
+        include_archived=True,
     )
 
 
@@ -129,7 +135,8 @@ def test_archive_memory_store_uses_memory_store_beta_alone(agents_sdk):
     client.archive_memory_store("store_1")
 
     client.client.beta.memory_stores.archive.assert_called_once_with(
-        "store_1", betas=[agents_sdk.MEMORY_STORE_BETA],
+        "store_1",
+        betas=[agents_sdk.MEMORY_STORE_BETA],
     )
 
 
@@ -139,7 +146,8 @@ def test_delete_memory_store_uses_memory_store_beta_alone(agents_sdk):
     result = client.delete_memory_store("store_1")
 
     client.client.beta.memory_stores.delete.assert_called_once_with(
-        "store_1", betas=[agents_sdk.MEMORY_STORE_BETA],
+        "store_1",
+        betas=[agents_sdk.MEMORY_STORE_BETA],
     )
     assert result == {"id": "store_1", "deleted": True}
 
@@ -151,7 +159,10 @@ def test_create_memory_uses_memory_store_beta_alone(agents_sdk):
     result = client.create_memory("store_1", path="/notes.md", content="hello")
 
     client.client.beta.memory_stores.memories.create.assert_called_once_with(
-        "store_1", path="/notes.md", content="hello", betas=[agents_sdk.MEMORY_STORE_BETA],
+        "store_1",
+        path="/notes.md",
+        content="hello",
+        betas=[agents_sdk.MEMORY_STORE_BETA],
     )
     assert result["id"] == "mem_1"
 
@@ -163,7 +174,9 @@ def test_get_memory_uses_memory_store_beta_alone(agents_sdk):
     client.get_memory("store_1", "mem_1")
 
     client.client.beta.memory_stores.memories.retrieve.assert_called_once_with(
-        "store_1", "mem_1", betas=[agents_sdk.MEMORY_STORE_BETA],
+        "store_1",
+        "mem_1",
+        betas=[agents_sdk.MEMORY_STORE_BETA],
     )
 
 
@@ -185,7 +198,9 @@ def test_delete_memory_uses_memory_store_beta_alone(agents_sdk):
     result = client.delete_memory("store_1", "mem_1")
 
     client.client.beta.memory_stores.memories.delete.assert_called_once_with(
-        "store_1", "mem_1", betas=[agents_sdk.MEMORY_STORE_BETA],
+        "store_1",
+        "mem_1",
+        betas=[agents_sdk.MEMORY_STORE_BETA],
     )
     assert result == {"id": "mem_1", "deleted": True}
 
@@ -240,13 +255,10 @@ def test_create_session_with_memory_store_mounts_resource(agents_sdk):
     fake_session = MagicMock(id="sess_2")
     client.client.beta.sessions.create.return_value = fake_session
 
-    result = client.create_session("agent_1", "env_1", title="t",
-                                    memory_store_id="store_123")
+    result = client.create_session("agent_1", "env_1", title="t", memory_store_id="store_123")
 
     _, kwargs = client.client.beta.sessions.create.call_args
-    assert kwargs["resources"] == [
-        {"type": "memory_store", "memory_store_id": "store_123"}
-    ]
+    assert kwargs["resources"] == [{"type": "memory_store", "memory_store_id": "store_123"}]
     assert agents_sdk.MEMORY_STORE_BETA in kwargs["betas"]
     assert result["memory_store_id"] == "store_123"
 
@@ -260,8 +272,7 @@ def test_cmd_managed_agent_run_creates_and_mounts_store_when_named(agents_sdk, m
     mac.run_task.return_value = {"text": "done", "tool_calls": []}
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
-    agents_sdk.cmd_managed_agent_run("do the thing", api_key="sk-test",
-                                     memory_store="notes")
+    agents_sdk.cmd_managed_agent_run("do the thing", api_key="sk-test", memory_store="notes")
 
     mac.create_memory_store.assert_called_once_with(name="notes")
     _, kwargs = mac.create_session.call_args
@@ -306,8 +317,9 @@ def test_create_dream_sends_expected_inputs_and_betas(agents_sdk):
     fake_dream = MagicMock(id="drm_1", status="pending")
     client.client.beta.dreams.create.return_value = fake_dream
 
-    result = client.create_dream("store_1", session_ids=["sesn_1", "sesn_2"],
-                                  model="claude-opus-4-8", instructions="focus on prefs")
+    result = client.create_dream(
+        "store_1", session_ids=["sesn_1", "sesn_2"], model="claude-opus-4-8", instructions="focus on prefs"
+    )
 
     _, kwargs = client.client.beta.dreams.create.call_args
     assert kwargs["inputs"] == [
@@ -349,10 +361,18 @@ def test_create_dream_without_sessions_omits_sessions_input(agents_sdk):
 def test_get_dream_extracts_output_store_id(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     fake_output = MagicMock(type="memory_store", memory_store_id="store_curated")
-    fake_usage = MagicMock(input_tokens=100, output_tokens=20,
-                            cache_creation_input_tokens=0, cache_read_input_tokens=50)
-    fake_dream = MagicMock(id="drm_1", status="completed", outputs=[fake_output], error=None,
-                            session_id="sesn_dream_1", archived_at=None, usage=fake_usage)
+    fake_usage = MagicMock(
+        input_tokens=100, output_tokens=20, cache_creation_input_tokens=0, cache_read_input_tokens=50
+    )
+    fake_dream = MagicMock(
+        id="drm_1",
+        status="completed",
+        outputs=[fake_output],
+        error=None,
+        session_id="sesn_dream_1",
+        archived_at=None,
+        usage=fake_usage,
+    )
     client.client.beta.dreams.retrieve.return_value = fake_dream
 
     result = client.get_dream("drm_1")
@@ -365,8 +385,9 @@ def test_get_dream_extracts_output_store_id(agents_sdk):
 
 def test_get_dream_handles_no_outputs_yet(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    fake_dream = MagicMock(id="drm_1", status="pending", outputs=[], error=None,
-                            session_id=None, archived_at=None, usage=None)
+    fake_dream = MagicMock(
+        id="drm_1", status="pending", outputs=[], error=None, session_id=None, archived_at=None, usage=None
+    )
     client.client.beta.dreams.retrieve.return_value = fake_dream
 
     result = client.get_dream("drm_1")
@@ -379,10 +400,18 @@ def test_get_dream_surfaces_usage_session_id_and_archived_at(agents_sdk):
     archived_at entirely, even though the documented 'Track progress'
     polling loop reads dream.usage.input_tokens on every poll."""
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    fake_usage = MagicMock(input_tokens=1500, output_tokens=300,
-                            cache_creation_input_tokens=200, cache_read_input_tokens=900)
-    fake_dream = MagicMock(id="drm_2", status="running", outputs=[], error=None,
-                            session_id="sesn_dream_2", archived_at=None, usage=fake_usage)
+    fake_usage = MagicMock(
+        input_tokens=1500, output_tokens=300, cache_creation_input_tokens=200, cache_read_input_tokens=900
+    )
+    fake_dream = MagicMock(
+        id="drm_2",
+        status="running",
+        outputs=[],
+        error=None,
+        session_id="sesn_dream_2",
+        archived_at=None,
+        usage=fake_usage,
+    )
     client.client.beta.dreams.retrieve.return_value = fake_dream
 
     result = client.get_dream("drm_2")
@@ -390,15 +419,18 @@ def test_get_dream_surfaces_usage_session_id_and_archived_at(agents_sdk):
     assert result["session_id"] == "sesn_dream_2"
     assert result["archived_at"] is None
     assert result["usage"] == {
-        "input_tokens": 1500, "output_tokens": 300,
-        "cache_creation_input_tokens": 200, "cache_read_input_tokens": 900,
+        "input_tokens": 1500,
+        "output_tokens": 300,
+        "cache_creation_input_tokens": 200,
+        "cache_read_input_tokens": 900,
     }
 
 
 def test_get_dream_handles_missing_usage(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    fake_dream = MagicMock(id="drm_3", status="pending", outputs=[], error=None,
-                            session_id=None, archived_at=None, usage=None)
+    fake_dream = MagicMock(
+        id="drm_3", status="pending", outputs=[], error=None, session_id=None, archived_at=None, usage=None
+    )
     client.client.beta.dreams.retrieve.return_value = fake_dream
 
     result = client.get_dream("drm_3")
@@ -415,8 +447,7 @@ def test_list_dreams_returns_id_and_status(agents_sdk):
 
     result = client.list_dreams()
 
-    assert result == [{"id": "drm_1", "status": "completed"},
-                       {"id": "drm_2", "status": "pending"}]
+    assert result == [{"id": "drm_1", "status": "completed"}, {"id": "drm_2", "status": "pending"}]
 
 
 def test_list_dreams_defaults_limit_20_no_page(agents_sdk):
@@ -459,14 +490,14 @@ def test_archive_dream(agents_sdk):
     cycle even though create/get/list/cancel all shipped in v1.20.0."""
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     client.client.beta.dreams.archive.return_value = MagicMock(
-        id="drm_1", status="completed", archived_at="2026-07-26T00:00:00Z")
+        id="drm_1", status="completed", archived_at="2026-07-26T00:00:00Z"
+    )
 
     result = client.archive_dream("drm_1")
 
     _, kwargs = client.client.beta.dreams.archive.call_args
     assert kwargs["betas"] == [agents_sdk.MANAGED_AGENTS_BETA, agents_sdk.DREAMING_BETA]
-    assert result == {"id": "drm_1", "status": "completed",
-                       "archived_at": "2026-07-26T00:00:00Z"}
+    assert result == {"id": "drm_1", "status": "completed", "archived_at": "2026-07-26T00:00:00Z"}
 
 
 def test_cmd_agent_dream_prints_and_returns(agents_sdk, monkeypatch, capsys):
@@ -497,8 +528,7 @@ def test_cmd_agent_dream_list_passes_pagination_through(agents_sdk, monkeypatch)
     mac.list_dreams.return_value = []
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
-    agents_sdk.cmd_agent_dream_list(api_key="sk-test", include_archived=True,
-                                    limit=100, page="cursor_1")
+    agents_sdk.cmd_agent_dream_list(api_key="sk-test", include_archived=True, limit=100, page="cursor_1")
 
     mac.list_dreams.assert_called_once_with(include_archived=True, limit=100, page="cursor_1")
 
@@ -561,10 +591,18 @@ def test_cmd_agent_dream_no_warning_for_supported_model(agents_sdk, monkeypatch,
 def test_cmd_agent_dream_get_prints_usage_and_session_id(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.get_dream.return_value = {
-        "id": "drm_1", "status": "running", "output_store_id": None, "error": None,
-        "session_id": "sesn_dream_1", "archived_at": None,
-        "usage": {"input_tokens": 10, "output_tokens": 2,
-                  "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+        "id": "drm_1",
+        "status": "running",
+        "output_store_id": None,
+        "error": None,
+        "session_id": "sesn_dream_1",
+        "archived_at": None,
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 2,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        },
     }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
@@ -591,8 +629,11 @@ def test_cmd_agent_dream_cancel_prints_and_returns(agents_sdk, monkeypatch, caps
 
 def test_cmd_agent_dream_archive_prints_and_returns(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
-    mac.archive_dream.return_value = {"id": "drm_1", "status": "completed",
-                                      "archived_at": "2026-07-26T00:00:00Z"}
+    mac.archive_dream.return_value = {
+        "id": "drm_1",
+        "status": "completed",
+        "archived_at": "2026-07-26T00:00:00Z",
+    }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
     result = agents_sdk.cmd_agent_dream_archive("drm_1", api_key="sk-test")
@@ -609,8 +650,7 @@ def test_define_outcome_sends_expected_event(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     client.client.beta.sessions.events.send.return_value = {"ok": True}
 
-    client.define_outcome("sess_1", "Build a DCF model", "## Rubric\n- has a price column",
-                          max_iterations=5)
+    client.define_outcome("sess_1", "Build a DCF model", "## Rubric\n- has a price column", max_iterations=5)
 
     _, kwargs = client.client.beta.sessions.events.send.call_args
     event = kwargs["events"][0]
@@ -641,14 +681,19 @@ def test_cmd_managed_agent_run_with_outcome_calls_define_outcome_not_run_task(ag
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
     result = agents_sdk.cmd_managed_agent_run(
-        "unused task text", api_key="sk-test",
-        outcome_description="Build a report", outcome_rubric="## has a table",
+        "unused task text",
+        api_key="sk-test",
+        outcome_description="Build a report",
+        outcome_rubric="## has a table",
         outcome_max_iterations=7,
     )
 
     mac.define_outcome.assert_called_once_with(
-        "sess_1", "Build a report",
-        rubric_text="## has a table", rubric_file_id=None, max_iterations=7,
+        "sess_1",
+        "Build a report",
+        rubric_text="## has a table",
+        rubric_file_id=None,
+        max_iterations=7,
     )
     mac.run_task.assert_not_called()
     assert result == {"text": "done", "result": "satisfied"}
@@ -685,8 +730,7 @@ def test_register_webhook_sends_expected_payload(agents_sdk):
     assert kwargs["url"] == "https://example.com/hook"
     assert kwargs["event_types"] == ["session.status_idle"]
     assert kwargs["betas"] == [agents_sdk.MANAGED_AGENTS_BETA]
-    assert result == {"id": "wh_1", "url": "https://example.com/hook",
-                       "event_types": ["session.status_idle"]}
+    assert result == {"id": "wh_1", "url": "https://example.com/hook", "event_types": ["session.status_idle"]}
 
 
 def test_register_webhook_defaults_event_types_to_none(agents_sdk):
@@ -701,8 +745,7 @@ def test_register_webhook_defaults_event_types_to_none(agents_sdk):
 
 def test_cmd_agent_webhook_register_prints_and_returns(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
-    mac.register_webhook.return_value = {"id": "wh_1", "url": "https://x.test/h",
-                                          "event_types": None}
+    mac.register_webhook.return_value = {"id": "wh_1", "url": "https://x.test/h", "event_types": None}
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
     result = agents_sdk.cmd_agent_webhook_register("https://x.test/h", api_key="sk-test")
@@ -734,8 +777,11 @@ def test_create_session_with_overrides_builds_agent_with_overrides(agents_sdk):
 
     _, kwargs = client.client.beta.sessions.create.call_args
     assert kwargs["agent"] == {
-        "type": "agent_with_overrides", "id": "agent_1",
-        "model": {"id": "claude-sonnet-5"}, "system": None, "tools": [],
+        "type": "agent_with_overrides",
+        "id": "agent_1",
+        "model": {"id": "claude-sonnet-5"},
+        "system": None,
+        "tools": [],
     }
     assert result["agent_overrides"] == overrides
 
@@ -749,7 +795,8 @@ def test_cmd_managed_agent_run_merges_override_model_and_system(agents_sdk, monk
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
     agents_sdk.cmd_managed_agent_run(
-        "task", api_key="sk-test",
+        "task",
+        api_key="sk-test",
         agent_overrides={"model": "claude-sonnet-5", "system": "be terse"},
     )
 
@@ -779,9 +826,12 @@ def test_add_credential_environment_variable_with_injection_location(agents_sdk)
     client.client.beta.vaults.credentials.create.return_value = MagicMock(id="cred_1")
 
     client.add_credential(
-        "vault_1", "environment_variable",
-        secret_name="NOTION_API_KEY", secret_value="secret",
-        allowed_domains=["api.notion.com"], injection_location="headers",
+        "vault_1",
+        "environment_variable",
+        secret_name="NOTION_API_KEY",
+        secret_value="secret",
+        allowed_domains=["api.notion.com"],
+        injection_location="headers",
     )
 
     _, kwargs = client.client.beta.vaults.credentials.create.call_args
@@ -793,8 +843,10 @@ def test_add_credential_omits_injection_location_when_not_given(agents_sdk):
     client.client.beta.vaults.credentials.create.return_value = MagicMock(id="cred_2")
 
     client.add_credential(
-        "vault_1", "environment_variable",
-        secret_name="NOTION_API_KEY", secret_value="secret",
+        "vault_1",
+        "environment_variable",
+        secret_name="NOTION_API_KEY",
+        secret_value="secret",
         allowed_domains=["api.notion.com"],
     )
 
@@ -805,16 +857,26 @@ def test_add_credential_omits_injection_location_when_not_given(agents_sdk):
 def test_add_credential_rejects_injection_location_for_mcp_oauth(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     with pytest.raises(ValueError, match="injection_location is only valid"):
-        client.add_credential("vault_1", "mcp_oauth", mcp_server_url="https://x",
-                              secret_value="tok", injection_location="headers")
+        client.add_credential(
+            "vault_1",
+            "mcp_oauth",
+            mcp_server_url="https://x",
+            secret_value="tok",
+            injection_location="headers",
+        )
 
 
 def test_add_credential_rejects_invalid_injection_location(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     with pytest.raises(ValueError, match="must be one of"):
-        client.add_credential("vault_1", "environment_variable",
-                              secret_name="X", secret_value="v",
-                              allowed_domains=["a.com"], injection_location="bogus")
+        client.add_credential(
+            "vault_1",
+            "environment_variable",
+            secret_name="X",
+            secret_value="v",
+            allowed_domains=["a.com"],
+            injection_location="bogus",
+        )
 
 
 @pytest.mark.parametrize("loc", ["headers", "body", "both"])
@@ -822,9 +884,14 @@ def test_add_credential_accepts_all_valid_injection_locations(agents_sdk, loc):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     client.client.beta.vaults.credentials.create.return_value = MagicMock(id="cred_3")
 
-    client.add_credential("vault_1", "environment_variable",
-                          secret_name="X", secret_value="v",
-                          allowed_domains=["a.com"], injection_location=loc)
+    client.add_credential(
+        "vault_1",
+        "environment_variable",
+        secret_name="X",
+        secret_value="v",
+        allowed_domains=["a.com"],
+        injection_location=loc,
+    )
 
     _, kwargs = client.client.beta.vaults.credentials.create.call_args
     assert kwargs["auth"]["injection_location"] == loc
@@ -832,14 +899,22 @@ def test_add_credential_accepts_all_valid_injection_locations(agents_sdk, loc):
 
 def test_cmd_agent_vault_add_credential_threads_injection_location(agents_sdk, monkeypatch):
     mac = MagicMock()
-    mac.add_credential.return_value = {"id": "cred_1", "vault_id": "vault_1",
-                                       "credential_type": "environment_variable",
-                                       "mcp_server_url": None, "secret_name": "X"}
+    mac.add_credential.return_value = {
+        "id": "cred_1",
+        "vault_id": "vault_1",
+        "credential_type": "environment_variable",
+        "mcp_server_url": None,
+        "secret_name": "X",
+    }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
     agents_sdk.cmd_agent_vault_add_credential(
-        "vault_1", "environment_variable", api_key="sk-test",
-        secret_name="X", secret_value="v", allowed_domains=["a.com"],
+        "vault_1",
+        "environment_variable",
+        api_key="sk-test",
+        secret_name="X",
+        secret_value="v",
+        allowed_domains=["a.com"],
         injection_location="body",
     )
 
@@ -871,8 +946,7 @@ def _fake_stream_cm(events):
 
 def test_run_task_default_omits_event_deltas(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    events = [_FakeEvent("agent.message", content=[_FakeBlock("hi")]),
-              _FakeEvent("session.status_idle")]
+    events = [_FakeEvent("agent.message", content=[_FakeBlock("hi")]), _FakeEvent("session.status_idle")]
     client.client.beta.sessions.events.stream.return_value = _fake_stream_cm(events)
     client.client.beta.sessions.events.send.return_value = {}
 
@@ -885,8 +959,7 @@ def test_run_task_default_omits_event_deltas(agents_sdk):
 
 def test_run_task_stream_deltas_sends_event_deltas_param(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    events = [_FakeEvent("agent.message", content=[_FakeBlock("hi")]),
-              _FakeEvent("session.status_idle")]
+    events = [_FakeEvent("agent.message", content=[_FakeBlock("hi")]), _FakeEvent("session.status_idle")]
     client.client.beta.sessions.events.stream.return_value = _fake_stream_cm(events)
     client.client.beta.sessions.events.send.return_value = {}
 
@@ -916,9 +989,11 @@ def test_run_task_event_delta_prints_live_without_altering_returned_text(agents_
 
 def test_wait_for_outcome_default_omits_event_deltas(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    events = [_FakeEvent("agent.message", content=[_FakeBlock("hi")]),
-              _FakeEvent("span.outcome_evaluation_end", result="satisfied"),
-              _FakeEvent("session.status_idle")]
+    events = [
+        _FakeEvent("agent.message", content=[_FakeBlock("hi")]),
+        _FakeEvent("span.outcome_evaluation_end", result="satisfied"),
+        _FakeEvent("session.status_idle"),
+    ]
     client.client.beta.sessions.events.stream.return_value = _fake_stream_cm(events)
 
     result = client.wait_for_outcome("sess_1")
@@ -930,9 +1005,11 @@ def test_wait_for_outcome_default_omits_event_deltas(agents_sdk):
 
 def test_wait_for_outcome_stream_deltas_sends_event_deltas_param(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    events = [_FakeEvent("agent.message", content=[_FakeBlock("hi")]),
-              _FakeEvent("span.outcome_evaluation_end", result="satisfied"),
-              _FakeEvent("session.status_idle")]
+    events = [
+        _FakeEvent("agent.message", content=[_FakeBlock("hi")]),
+        _FakeEvent("span.outcome_evaluation_end", result="satisfied"),
+        _FakeEvent("session.status_idle"),
+    ]
     client.client.beta.sessions.events.stream.return_value = _fake_stream_cm(events)
 
     client.wait_for_outcome("sess_1", stream_deltas=True)
@@ -964,8 +1041,11 @@ def test_cmd_managed_agent_run_threads_stream_deltas_into_wait_for_outcome(agent
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
     agents_sdk.cmd_managed_agent_run(
-        "unused", api_key="sk-test", outcome_description="Build a report",
-        outcome_rubric="rubric text", stream_deltas=True,
+        "unused",
+        api_key="sk-test",
+        outcome_description="Build a report",
+        outcome_rubric="rubric text",
+        stream_deltas=True,
     )
 
     _, kwargs = mac.wait_for_outcome.call_args
@@ -978,7 +1058,8 @@ def test_cmd_managed_agent_run_threads_stream_deltas_into_wait_for_outcome(agent
 def test_list_memories_sends_expected_params_and_betas(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
     client.client.beta.memory_stores.memories.list.return_value = {
-        "data": [{"path": "notes/a.md"}], "has_more": False,
+        "data": [{"path": "notes/a.md"}],
+        "has_more": False,
     }
 
     result = client.list_memories("store_1", path_prefix="notes/", depth=1, limit=10)
@@ -1043,7 +1124,9 @@ def test_list_memories_accepts_path_prefix_with_trailing_slash(agents_sdk):
 def test_cmd_agent_memory_list_prints_paths(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.list_memories.return_value = {
-        "memory_store_id": "store_1", "path_prefix": None, "depth": None,
+        "memory_store_id": "store_1",
+        "path_prefix": None,
+        "depth": None,
         "raw": {"data": [{"path": "a.md"}, {"path": "b.md"}]},
     }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
@@ -1059,7 +1142,9 @@ def test_cmd_agent_memory_list_prints_paths(agents_sdk, monkeypatch, capsys):
 def test_cmd_agent_memory_list_handles_empty(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.list_memories.return_value = {
-        "memory_store_id": "store_1", "path_prefix": None, "depth": None,
+        "memory_store_id": "store_1",
+        "path_prefix": None,
+        "depth": None,
         "raw": {"data": []},
     }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
@@ -1093,8 +1178,7 @@ def test_create_environment_self_hosted_config_has_no_networking_field(agents_sd
     fake_env = MagicMock(id="env_2")
     client.client.beta.environments.create.return_value = fake_env
 
-    result = client.create_environment(name="sh-env", env_type="self_hosted",
-                                       networking="limited")
+    result = client.create_environment(name="sh-env", env_type="self_hosted", networking="limited")
 
     _, kwargs = client.client.beta.environments.create.call_args
     assert kwargs["config"] == {"type": "self_hosted"}
@@ -1103,16 +1187,17 @@ def test_create_environment_self_hosted_config_has_no_networking_field(agents_sd
 
 def test_get_environment_work_stats_shapes_response(agents_sdk):
     client = agents_sdk.ManagedAgentsClient(api_key="sk-test")
-    fake_stats = MagicMock(depth=3, pending=1, oldest_queued_at="2026-07-13T00:00:00Z",
-                           workers_polling=2)
+    fake_stats = MagicMock(depth=3, pending=1, oldest_queued_at="2026-07-13T00:00:00Z", workers_polling=2)
     client.client.beta.environments.work.stats.return_value = fake_stats
 
     result = client.get_environment_work_stats("env_1")
 
     client.client.beta.environments.work.stats.assert_called_once_with("env_1")
     assert result == {
-        "depth": 3, "pending": 1,
-        "oldest_queued_at": "2026-07-13T00:00:00Z", "workers_polling": 2,
+        "depth": 3,
+        "pending": 1,
+        "oldest_queued_at": "2026-07-13T00:00:00Z",
+        "workers_polling": 2,
     }
 
 
@@ -1133,7 +1218,10 @@ def test_cmd_agent_env_self_hosted_create_prints_next_steps(agents_sdk, monkeypa
 def test_cmd_agent_env_work_stats_warns_when_no_workers(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.get_environment_work_stats.return_value = {
-        "depth": 0, "pending": 0, "oldest_queued_at": None, "workers_polling": 0,
+        "depth": 0,
+        "pending": 0,
+        "oldest_queued_at": None,
+        "workers_polling": 0,
     }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
@@ -1146,7 +1234,10 @@ def test_cmd_agent_env_work_stats_warns_when_no_workers(agents_sdk, monkeypatch,
 def test_cmd_agent_env_work_stats_no_warning_when_workers_active(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.get_environment_work_stats.return_value = {
-        "depth": 0, "pending": 1, "oldest_queued_at": None, "workers_polling": 1,
+        "depth": 0,
+        "pending": 1,
+        "oldest_queued_at": None,
+        "workers_polling": 1,
     }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 
@@ -1154,6 +1245,7 @@ def test_cmd_agent_env_work_stats_no_warning_when_workers_active(agents_sdk, mon
 
     out = capsys.readouterr().out
     assert "no worker has polled" not in out
+
 
 # ── Session budgets (v1.39.0, public beta — platform.claude.com/docs/en/ ──
 # managed-agents/budgets, shipped Aug 7 2026) ───────────────────────────
@@ -1213,7 +1305,8 @@ def test_create_session_with_budget_sends_encoded_budget(agents_sdk):
 
     _, kwargs = client.client.beta.sessions.create.call_args
     assert kwargs["budget"] == {
-        "type": "limit", "max_list_cost": {"amount": "2500", "currency": "USD"},
+        "type": "limit",
+        "max_list_cost": {"amount": "2500", "currency": "USD"},
     }
     # Budgets ride the existing managed-agents beta header, not a new one.
     assert kwargs["betas"] == [agents_sdk.MANAGED_AGENTS_BETA]
@@ -1225,14 +1318,16 @@ def test_get_session_parses_status_stop_reason_and_budget(agents_sdk):
     fake_max_list_cost = MagicMock(amount="1200", currency="USD")
     fake_budget = MagicMock(type="limit", max_list_cost=fake_max_list_cost)
     fake_usage = MagicMock(list_cost=MagicMock(amount="850"))
-    fake_session = MagicMock(status="paused", stop_reason="budget_reached",
-                             budget=fake_budget, usage=fake_usage)
+    fake_session = MagicMock(
+        status="paused", stop_reason="budget_reached", budget=fake_budget, usage=fake_usage
+    )
     client.client.beta.sessions.retrieve.return_value = fake_session
 
     info = client.get_session("sess_1")
 
     client.client.beta.sessions.retrieve.assert_called_once_with(
-        "sess_1", betas=[agents_sdk.MANAGED_AGENTS_BETA],
+        "sess_1",
+        betas=[agents_sdk.MANAGED_AGENTS_BETA],
     )
     assert info["status"] == "paused"
     assert info["stop_reason"] == "budget_reached"
@@ -1260,7 +1355,8 @@ def test_update_session_budget_replace_sends_new_cap(agents_sdk):
     args, kwargs = client.client.beta.sessions.update.call_args
     assert args[0] == "sess_1"
     assert kwargs["budget"] == {
-        "type": "limit", "max_list_cost": {"amount": "5000", "currency": "USD"},
+        "type": "limit",
+        "max_list_cost": {"amount": "5000", "currency": "USD"},
     }
     assert result["status"] == "running"
 
@@ -1316,7 +1412,8 @@ def test_cmd_managed_agent_run_no_budget_by_default(agents_sdk, monkeypatch):
 def test_cmd_agent_session_get_prints_budget_progress(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.get_session.return_value = {
-        "status": "paused", "stop_reason": "budget_reached",
+        "status": "paused",
+        "stop_reason": "budget_reached",
         "budget": {"max_list_cost": {"amount": "2500"}},
         "list_cost_usd_cents": 2510,
     }
@@ -1332,8 +1429,10 @@ def test_cmd_agent_session_get_prints_budget_progress(agents_sdk, monkeypatch, c
 def test_cmd_agent_session_get_no_budget(agents_sdk, monkeypatch, capsys):
     mac = MagicMock()
     mac.get_session.return_value = {
-        "status": "running", "stop_reason": None,
-        "budget": None, "list_cost_usd_cents": None,
+        "status": "running",
+        "stop_reason": None,
+        "budget": None,
+        "list_cost_usd_cents": None,
     }
     monkeypatch.setattr(agents_sdk, "ManagedAgentsClient", lambda api_key: mac)
 

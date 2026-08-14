@@ -1,4 +1,5 @@
 """Architecture and CLI wiring regression tests for the src-layout package."""
+
 from __future__ import annotations
 
 import ast
@@ -28,11 +29,7 @@ def _cmd_functions(path: Path) -> list[str]:
 
 
 def _claude_modules() -> list[Path]:
-    return sorted(
-        path
-        for path in CLAUDE_ROOT.rglob("*.py")
-        if path.name != "__init__.py"
-    )
+    return sorted(path for path in CLAUDE_ROOT.rglob("*.py") if path.name != "__init__.py")
 
 
 def _module_key(path: Path) -> str:

@@ -13,29 +13,31 @@ CLI flags:
   --vision-compare F1 F2  Compare two images side by side
 """
 
-import os
-import sys
 import base64
 import mimetypes
-import anthropic
+import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 
+import anthropic
 
 SUPPORTED_IMAGE_TYPES = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-SUPPORTED_DOC_TYPES   = {".pdf"}
+SUPPORTED_DOC_TYPES = {".pdf"}
 
 
 def _encode_file(path: str) -> tuple[str, str]:
     """Return (base64_data, media_type)."""
-    p    = Path(path)
-    ext  = p.suffix.lower()
+    p = Path(path)
+    ext = p.suffix.lower()
     data = base64.standard_b64encode(p.read_bytes()).decode("utf-8")
-    mt   = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    mt = mimetypes.guess_type(path)[0] or "application/octet-stream"
     if ext in SUPPORTED_IMAGE_TYPES:
         mt = {
-            ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-            ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
         }[ext]
     elif ext == ".pdf":
         mt = "application/pdf"
@@ -61,26 +63,26 @@ def _doc_block(path: str) -> dict:
 class VisionCoder:
     """Claude client for image and PDF analysis."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096):
-        self.client     = anthropic.Anthropic(api_key=api_key)
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model
         self.max_tokens = max_tokens
 
-    def analyse_image(self, path: str = None, url: str = None,
-                      prompt: str = "Describe this image in detail.",
-                      system: str = None) -> str:
+    def analyse_image(
+        self,
+        path: str = None,
+        url: str = None,
+        prompt: str = "Describe this image in detail.",
+        system: str = None,
+    ) -> str:
         content = [_image_block(path=path, url=url), {"type": "text", "text": prompt}]
         return self._call(content, system)
 
-    def analyse_pdf(self, path: str,
-                    prompt: str = "Summarise this document.",
-                    system: str = None) -> str:
+    def analyse_pdf(self, path: str, prompt: str = "Summarise this document.", system: str = None) -> str:
         content = [_doc_block(path), {"type": "text", "text": prompt}]
         return self._call(content, system)
 
-    def code_from_screenshot(self, path: str = None, url: str = None,
-                              language: str = "auto") -> str:
+    def code_from_screenshot(self, path: str = None, url: str = None, language: str = "auto") -> str:
         prompt = (
             f"This is a screenshot of a UI or code. "
             f"Generate {'the ' + language + ' ' if language != 'auto' else ''}code "
@@ -88,20 +90,22 @@ class VisionCoder:
             f"Provide complete, runnable code with comments."
         )
         content = [_image_block(path=path, url=url), {"type": "text", "text": prompt}]
-        system  = "You are an expert developer. Write clean, production-ready code."
+        system = "You are an expert developer. Write clean, production-ready code."
         return self._call(content, system)
 
     def compare_images(self, paths: List[str], prompt: str = "") -> str:
         content = [_image_block(path=p) for p in paths]
-        content.append({
-            "type": "text",
-            "text": prompt or "Compare these images. Describe the differences and similarities."
-        })
+        content.append(
+            {
+                "type": "text",
+                "text": prompt or "Compare these images. Describe the differences and similarities.",
+            }
+        )
         return self._call(content)
 
     def extract_text(self, path: str = None, url: str = None) -> str:
         """OCR – extract all text from an image."""
-        prompt  = "Extract and transcribe ALL text visible in this image. Preserve formatting."
+        prompt = "Extract and transcribe ALL text visible in this image. Preserve formatting."
         content = [_image_block(path=path, url=url), {"type": "text", "text": prompt}]
         return self._call(content)
 
@@ -119,6 +123,7 @@ class VisionCoder:
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
+
 def _validate_image(path: str):
     p = Path(path)
     if not p.exists():
@@ -129,8 +134,9 @@ def _validate_image(path: str):
         sys.exit(1)
 
 
-def cmd_vision(path: str, prompt: str, api_key: str, model: str,
-               is_code: bool = False, language: str = "auto"):
+def cmd_vision(
+    path: str, prompt: str, api_key: str, model: str, is_code: bool = False, language: str = "auto"
+):
     _validate_image(path)
     vc = VisionCoder(api_key=api_key, model=model)
     size = Path(path).stat().st_size // 1024
@@ -154,7 +160,8 @@ def cmd_vision_url(url: str, prompt: str, api_key: str, model: str):
 def cmd_vision_pdf(path: str, prompt: str, api_key: str, model: str):
     p = Path(path)
     if not p.exists():
-        print(f"\033[91m✗ File not found: {path}\033[0m", file=sys.stderr); sys.exit(1)
+        print(f"\033[91m✗ File not found: {path}\033[0m", file=sys.stderr)
+        sys.exit(1)
     vc = VisionCoder(api_key=api_key, model=model)
     size = p.stat().st_size // 1024
     print(f"\033[94mℹ Analysing PDF: {path} ({size} KB)\033[0m\n")

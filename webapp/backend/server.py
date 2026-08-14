@@ -17,6 +17,7 @@ and modules `main.py` already uses:
 Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
 (or just `make start`, see the project Makefile).
 """
+
 from __future__ import annotations
 
 import json
@@ -37,14 +38,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from coder import Coder                                  # noqa: E402
-from config import Config                                # noqa: E402
-from health import run_health_check                      # noqa: E402
-from personalities import PersonalityManager              # noqa: E402
-from skills import SkillManager                           # noqa: E402
-from main import VERSION, AGENT_SYSTEM_PROMPTS            # noqa: E402
-from claude_models import MODEL_CATALOG                   # noqa: E402
-from logging_config import get_logger                     # noqa: E402
+from claude_models import MODEL_CATALOG  # noqa: E402
+from coder import Coder  # noqa: E402
+from config import Config  # noqa: E402
+from health import run_health_check  # noqa: E402
+from logging_config import get_logger  # noqa: E402
+from main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
+from personalities import PersonalityManager  # noqa: E402
+from skills import SkillManager  # noqa: E402
 
 logger = get_logger("webapp.server")
 
@@ -121,8 +122,8 @@ class ChatResponse(BaseModel):
 # single-process dev/small-team console, not a distributed system" spirit
 # as the session store above. Protects the API key / quota behind this
 # console from a runaway client loop, not from a determined attacker.
-_RATE_LIMIT = 30          # requests
-_RATE_WINDOW = 60.0       # seconds
+_RATE_LIMIT = 30  # requests
+_RATE_WINDOW = 60.0  # seconds
 _rate_buckets: Dict[str, List[float]] = {}
 
 
@@ -223,11 +224,13 @@ def list_sessions():
     out = []
     for sid, history in _sessions.items():
         first_user = next((m["content"] for m in history if m["role"] == "user"), "")
-        out.append({
-            "session_id": sid,
-            "turns": len(history) // 2,
-            "preview": (first_user[:80] + "…") if len(first_user) > 80 else first_user,
-        })
+        out.append(
+            {
+                "session_id": sid,
+                "turns": len(history) // 2,
+                "preview": (first_user[:80] + "…") if len(first_user) > 80 else first_user,
+            }
+        )
     return out
 
 
@@ -303,6 +306,7 @@ def chat_stream(req: ChatRequest, request: Request):
 
     def event_stream():
         import anthropic
+
         full_text = ""
         try:
             client = anthropic.Anthropic(api_key=api_key)

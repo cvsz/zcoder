@@ -1,12 +1,12 @@
 """tests/test_deployment_engine.py — Tests for Deployment Health, Backup/Restore Drills & Worker Recovery"""
+
 import tempfile
-import time
 from pathlib import Path
+
 import pytest
 
-from agent_runtime import Job, JobStatus
 from control_plane import ControlPlaneStore, GitHubInstallation
-from deployment_engine import BackupArchive, DeploymentEngine
+from deployment_engine import DeploymentEngine
 
 
 @pytest.fixture
@@ -53,6 +53,7 @@ def test_logical_backup_and_restoration_drill(deploy_setup):
     # Verify target has restored records
     with tempfile.NamedTemporaryFile(suffix=".db") as _:
         import sqlite3
+
         with sqlite3.connect(target_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT account_login FROM installations WHERE installation_id = 99001")
@@ -69,6 +70,7 @@ def test_worker_crash_lease_expiry_drill(deploy_setup):
 
     # Seed running job claimed by Worker A
     import sqlite3
+
     with sqlite3.connect(store.db_path) as conn:
         conn.execute("""
             INSERT INTO jobs (id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, claimed_by, claim_generation, lease_expires_at, metadata)

@@ -57,12 +57,12 @@ CLI flags:
 
 import json
 import os
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError, AuthenticationError, RateLimitError, APIError
+from exceptions import AICoderError, APIError, AuthenticationError, RateLimitError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 OAUTH_TOKEN_ENDPOINT = "https://api.anthropic.com/v1/oauth/token"
@@ -90,10 +90,15 @@ class WIFCredentialExchanger:
     token via POST /v1/oauth/token (RFC 7523 jwt-bearer grant)."""
 
     @retry(max_attempts=3, base_delay=1.0, max_delay=10.0, breaker=_breaker)
-    def exchange(self, federation_rule_id: str, organization_id: str,
-                service_account_id: str, identity_token: str,
-                workspace_id: Optional[str] = None,
-                token_lifetime_seconds: Optional[int] = None) -> dict:
+    def exchange(
+        self,
+        federation_rule_id: str,
+        organization_id: str,
+        service_account_id: str,
+        identity_token: str,
+        workspace_id: Optional[str] = None,
+        token_lifetime_seconds: Optional[int] = None,
+    ) -> dict:
         """Returns the OAuth 2.0 token response: access_token, expires_in,
         token_type, and scope. Never logs `identity_token` or the
         returned `access_token`, including on failure."""
@@ -201,8 +206,10 @@ class WIFAdminClient:
 
     def _post(self, path: str, payload: dict) -> dict:
         req = urllib.request.Request(
-            f"{ADMIN_BASE}{path}", data=json.dumps(payload).encode(),
-            headers=self._headers(), method="POST",
+            f"{ADMIN_BASE}{path}",
+            data=json.dumps(payload).encode(),
+            headers=self._headers(),
+            method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
@@ -220,23 +227,28 @@ class WIFAdminClient:
         return self._get("/service_accounts")
 
     # ── Federation issuers ───────────────────────────────────────────
-    def create_federation_issuer(self, name: str, issuer_url: str,
-                                 jwks: Optional[dict] = None) -> dict:
-        payload = {"name": name, "issuer_url": issuer_url,
-                  "jwks": jwks or {"type": "discovery"}}
+    def create_federation_issuer(self, name: str, issuer_url: str, jwks: Optional[dict] = None) -> dict:
+        payload = {"name": name, "issuer_url": issuer_url, "jwks": jwks or {"type": "discovery"}}
         return self._post("/federation_issuers", payload)
 
     def list_federation_issuers(self) -> dict:
         return self._get("/federation_issuers")
 
     # ── Federation rules ─────────────────────────────────────────────
-    def create_federation_rule(self, name: str, issuer_id: str,
-                               service_account_id: str, match: dict,
-                               oauth_scope: Optional[str] = None,
-                               token_lifetime_seconds: Optional[int] = None) -> dict:
+    def create_federation_rule(
+        self,
+        name: str,
+        issuer_id: str,
+        service_account_id: str,
+        match: dict,
+        oauth_scope: Optional[str] = None,
+        token_lifetime_seconds: Optional[int] = None,
+    ) -> dict:
         payload = {
-            "name": name, "issuer_id": issuer_id,
-            "service_account_id": service_account_id, "match": match,
+            "name": name,
+            "issuer_id": issuer_id,
+            "service_account_id": service_account_id,
+            "match": match,
         }
         if oauth_scope is not None:
             payload["oauth_scope"] = oauth_scope
@@ -251,9 +263,12 @@ class WIFAdminClient:
 # ── CLI entry points ────────────────────────────────────────────────────
 
 WIF_ENV_VARS = (
-    "ANTHROPIC_FEDERATION_RULE_ID", "ANTHROPIC_ORGANIZATION_ID",
-    "ANTHROPIC_SERVICE_ACCOUNT_ID", "ANTHROPIC_WORKSPACE_ID",
-    "ANTHROPIC_IDENTITY_TOKEN_FILE", "ANTHROPIC_IDENTITY_TOKEN",
+    "ANTHROPIC_FEDERATION_RULE_ID",
+    "ANTHROPIC_ORGANIZATION_ID",
+    "ANTHROPIC_SERVICE_ACCOUNT_ID",
+    "ANTHROPIC_WORKSPACE_ID",
+    "ANTHROPIC_IDENTITY_TOKEN_FILE",
+    "ANTHROPIC_IDENTITY_TOKEN",
 )
 
 
@@ -270,18 +285,22 @@ def cmd_wif_status():
     if config:
         print("\033[92m✓ Federation would activate\033[0m (all required vars present)")
     else:
-        print("\033[93mℹ Federation would NOT activate\033[0m — falls through to a "
-             "static API key. Required: ANTHROPIC_FEDERATION_RULE_ID, "
-             "ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of "
-             "ANTHROPIC_IDENTITY_TOKEN_FILE / ANTHROPIC_IDENTITY_TOKEN.")
+        print(
+            "\033[93mℹ Federation would NOT activate\033[0m — falls through to a "
+            "static API key. Required: ANTHROPIC_FEDERATION_RULE_ID, "
+            "ANTHROPIC_ORGANIZATION_ID, ANTHROPIC_SERVICE_ACCOUNT_ID, and one of "
+            "ANTHROPIC_IDENTITY_TOKEN_FILE / ANTHROPIC_IDENTITY_TOKEN."
+        )
     return config
 
 
 def cmd_wif_exchange_token():
     config = resolve_wif_env()
     if not config:
-        print("\033[91m✗ WIF is not fully configured in the environment.\033[0m "
-             "Run --wif-status to see which variables are missing.")
+        print(
+            "\033[91m✗ WIF is not fully configured in the environment.\033[0m "
+            "Run --wif-status to see which variables are missing."
+        )
         return None
     exchanger = WIFCredentialExchanger()
     try:
@@ -297,9 +316,11 @@ def cmd_wif_exchange_token():
         return None
     access_token = token_response.get("access_token", "")
     preview = f"{access_token[:14]}...{access_token[-4:]}" if len(access_token) > 20 else "***"
-    print(f"\033[92m✓ Exchanged for a Claude API access token\033[0m  "
-         f"token={preview}  expires_in={token_response.get('expires_in')}s  "
-         f"scope={token_response.get('scope')}")
+    print(
+        f"\033[92m✓ Exchanged for a Claude API access token\033[0m  "
+        f"token={preview}  expires_in={token_response.get('expires_in')}s  "
+        f"scope={token_response.get('scope')}"
+    )
     return token_response
 
 
@@ -345,8 +366,9 @@ def cmd_wif_list_issuers(org_admin_token: str) -> dict:
     return data
 
 
-def cmd_wif_create_rule(name: str, issuer_id: str, service_account_id: str,
-                        subject_prefix: str, org_admin_token: str) -> dict:
+def cmd_wif_create_rule(
+    name: str, issuer_id: str, service_account_id: str, subject_prefix: str, org_admin_token: str
+) -> dict:
     client = WIFAdminClient(org_admin_token)
     match = {"subject_prefix": subject_prefix}
     data = client.create_federation_rule(name, issuer_id, service_account_id, match)

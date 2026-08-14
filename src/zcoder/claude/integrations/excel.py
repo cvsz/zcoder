@@ -29,6 +29,7 @@ Slash commands inside the session:
   /show SHEET [N]       Print the first N rows of SHEET (default 10)
   /undo                Revert to the state before the last applied change
 """
+
 import re
 import sys
 
@@ -78,18 +79,28 @@ _CODE_BLOCK = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
 # not a malicious actor. Anything more sensitive should go through
 # --code-agent-sandbox instead, which isolates filesystem/network access.
 _DENYLIST = (
-    "import os", "import sys", "import subprocess", "import socket",
-    "__import__", "open(", "eval(", "exec(", "os.", "sys.", "subprocess.",
-    "socket.", "shutil.", ".system(", "pathlib",
+    "import os",
+    "import sys",
+    "import subprocess",
+    "import socket",
+    "__import__",
+    "open(",
+    "eval(",
+    "exec(",
+    "os.",
+    "sys.",
+    "subprocess.",
+    "socket.",
+    "shutil.",
+    ".system(",
+    "pathlib",
 )
 
 
 class ExcelSession:
     def __init__(self, input_path=None, sheet_name=None):
         if pd is None:
-            raise ImportError(
-                "pandas is required for --excel (pip install pandas openpyxl)"
-            )
+            raise ImportError("pandas is required for --excel (pip install pandas openpyxl)")
         self.sheets = {}
         self._history_stack = []  # for /undo — list of {name: df.copy()} snapshots
         self._pending_charts = []  # (sheet, chart_type, title, categories_col, value_cols)
@@ -118,8 +129,7 @@ class ExcelSession:
         for name, df in self.sheets.items():
             cols = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns[:30])
             parts.append(
-                f"Sheet {name!r}: {df.shape[0]} rows x {df.shape[1]} cols. "
-                f"Columns: {cols or '(empty)'}"
+                f"Sheet {name!r}: {df.shape[0]} rows x {df.shape[1]} cols. " f"Columns: {cols or '(empty)'}"
             )
             if not df.empty:
                 parts.append(f"First rows of {name!r}:\n{df.head(5).to_string()}")
@@ -152,12 +162,30 @@ class ExcelSession:
             "add_chart": self._add_chart,
         }
         try:
-            exec(compile(code, "<excel-turn>", "exec"), {"__builtins__": {
-                "len": len, "range": range, "sum": sum, "min": min, "max": max,
-                "round": round, "sorted": sorted, "list": list, "dict": dict,
-                "str": str, "int": int, "float": float, "bool": bool,
-                "enumerate": enumerate, "zip": zip, "abs": abs,
-            }}, local_ns)
+            exec(
+                compile(code, "<excel-turn>", "exec"),
+                {
+                    "__builtins__": {
+                        "len": len,
+                        "range": range,
+                        "sum": sum,
+                        "min": min,
+                        "max": max,
+                        "round": round,
+                        "sorted": sorted,
+                        "list": list,
+                        "dict": dict,
+                        "str": str,
+                        "int": int,
+                        "float": float,
+                        "bool": bool,
+                        "enumerate": enumerate,
+                        "zip": zip,
+                        "abs": abs,
+                    }
+                },
+                local_ns,
+            )
         except Exception as e:
             self.undo()
             return False, f"[ERROR] generated code failed: {e}"
@@ -221,8 +249,16 @@ Commands:
 """
 
 
-def cmd_excel_chat(api_key, model, input_path=None, output_path=None, sheet_name=None,
-                    temperature=0.3, max_tokens=4096, native=False):
+def cmd_excel_chat(
+    api_key,
+    model,
+    input_path=None,
+    output_path=None,
+    sheet_name=None,
+    temperature=0.3,
+    max_tokens=4096,
+    native=False,
+):
     """native=True routes each turn through claude_skills_api.py's xlsx
     Skill (Anthropic's own maintained implementation, server-side in a
     code-execution container) instead of the hand-rolled pandas/openpyxl
@@ -230,12 +266,15 @@ def cmd_excel_chat(api_key, model, input_path=None, output_path=None, sheet_name
     account; the hand-rolled path here remains the default and the
     fallback for accounts without it."""
     if native:
-        return _cmd_excel_chat_native(api_key, model, input_path=input_path,
-                                      output_path=output_path, max_tokens=max_tokens)
+        return _cmd_excel_chat_native(
+            api_key, model, input_path=input_path, output_path=output_path, max_tokens=max_tokens
+        )
 
     if pd is None:
-        print("[ERROR] pandas is required for --excel. Install with: "
-              "pip install pandas openpyxl", file=sys.stderr)
+        print(
+            "[ERROR] pandas is required for --excel. Install with: " "pip install pandas openpyxl",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     from coder import Coder
@@ -272,7 +311,8 @@ def cmd_excel_chat(api_key, model, input_path=None, output_path=None, sheet_name
             if cmd in ("/exit", "/quit"):
                 break
             if cmd == "/help":
-                print(HELP_TEXT); continue
+                print(HELP_TEXT)
+                continue
             if cmd == "/sheets":
                 for name, df in session.sheets.items():
                     print(f"  {name}: {df.shape[0]} rows x {df.shape[1]} cols")
@@ -326,8 +366,8 @@ def _cmd_excel_chat_native(api_key, model, input_path=None, output_path=None, ma
     aren't available here — the xlsx Skill owns the workbook, this CLI
     has no local copy of it to inspect or revert.
     """
-    from claude_skills_api import SkillsApiClient, build_user_content, extract_output_file_ids
     from claude_files import FilesAPI
+    from claude_skills_api import SkillsApiClient, build_user_content, extract_output_file_ids
 
     files_api = FilesAPI(api_key=api_key, model=model)
     client = SkillsApiClient(api_key=api_key, model=model, max_tokens=max_tokens)
@@ -371,7 +411,10 @@ def _cmd_excel_chat_native(api_key, model, input_path=None, output_path=None, ma
         pending_file_ids = []  # only attach on the turn that actually introduces the file
 
         data = client.call_with_skills_turn(
-            messages, skills=["xlsx"], container_id=container_id, has_file_uploads=has_uploads,
+            messages,
+            skills=["xlsx"],
+            container_id=container_id,
+            has_file_uploads=has_uploads,
         )
         if "error" in data:
             print(f"\033[91m✗ {data['error']}\033[0m\n")

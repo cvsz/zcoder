@@ -68,13 +68,12 @@ CLI flags:
 """
 
 import json
-import urllib.request
 import urllib.error
-from typing import Optional, Callable
+import urllib.request
+from typing import Callable, Optional
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, retry, urlopen_json
-
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
 
@@ -102,7 +101,7 @@ SERVER_TOOLS = {
     "computer_use": {
         "type": "computer_20251124",
         "name": "computer",
-        "display_width_px":  1024,
+        "display_width_px": 1024,
         "display_height_px": 768,
     },
     "memory": {
@@ -125,9 +124,13 @@ COMPUTER_USE_TOOL_VERSIONS = {
     "2025-01-24": {"type": "computer_20250124", "beta": "computer-use-2025-01-24"},
 }
 _COMPUTER_USE_2025_01_24_MODELS = {
-    "claude-sonnet-4-5", "claude-haiku-4-5", "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-20250514", "claude-sonnet-4-0",
-    "claude-opus-4-20250514", "claude-opus-4-0",
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-20250514",
+    "claude-sonnet-4-0",
+    "claude-opus-4-20250514",
+    "claude-opus-4-0",
 }
 
 
@@ -144,9 +147,9 @@ RETIRED_TOOL_VERSIONS: dict = {
     "web_search_20250305": {
         "replacement": "web_search_20260318",
         "notes": "Still works. 20260209 added dynamic content filtering; "
-                 "20260318 adds the response_inclusion param (drop a "
-                 "consumed result's blocks from the response — see "
-                 "programmatic tool calling).",
+        "20260318 adds the response_inclusion param (drop a "
+        "consumed result's blocks from the response — see "
+        "programmatic tool calling).",
     },
     "web_search_20260209": {
         "replacement": "web_search_20260318",
@@ -155,48 +158,48 @@ RETIRED_TOOL_VERSIONS: dict = {
     "web_fetch_20250910": {
         "replacement": "web_fetch_20260318",
         "notes": "Still works. 20260209 added dynamic content filtering, "
-                 "20260309 added use_cache, 20260318 adds response_inclusion "
-                 "(v1.24.0) — see Web fetch tool docs for the full chain.",
+        "20260309 added use_cache, 20260318 adds response_inclusion "
+        "(v1.24.0) — see Web fetch tool docs for the full chain.",
     },
     "web_fetch_20250124": {
         "replacement": "web_fetch_20260318",
         "notes": "Older than web_fetch_20250910 above — see that entry for "
-                 "the full upgrade chain to 20260318.",
+        "the full upgrade chain to 20260318.",
     },
     "code_execution_20250522": {
         "replacement": "code_execution_20260521",
         "notes": "Still works, but 20260120 is the minimum version for "
-                 "programmatic tool calling (adds REPL-state persistence); "
-                 "20260521 additionally discloses the sandbox's 90-second "
-                 "per-cell wall-clock limit in the tool description "
-                 "(v1.24.0), so Claude budgets long-running cells.",
+        "programmatic tool calling (adds REPL-state persistence); "
+        "20260521 additionally discloses the sandbox's 90-second "
+        "per-cell wall-clock limit in the tool description "
+        "(v1.24.0), so Claude budgets long-running cells.",
     },
     "code_execution_20250825": {
         "replacement": "code_execution_20260521",
         "notes": "Both 20250522 and 20250825 are accepted interchangeably "
-                 "in allowed_callers per the programmatic tool calling "
-                 "docs; 20260521 is current as of v1.24.0.",
+        "in allowed_callers per the programmatic tool calling "
+        "docs; 20260521 is current as of v1.24.0.",
     },
     "code_execution_20260120": {
         "replacement": "code_execution_20260521",
         "notes": "Still works and is still the minimum version for "
-                 "programmatic tool calling. 20260521 (v1.24.0) additionally "
-                 "discloses the sandbox's 90-second per-cell wall-clock "
-                 "limit in the tool description, so Claude budgets "
-                 "long-running cells instead of writing one loop that "
-                 "times out.",
+        "programmatic tool calling. 20260521 (v1.24.0) additionally "
+        "discloses the sandbox's 90-second per-cell wall-clock "
+        "limit in the tool description, so Claude budgets "
+        "long-running cells instead of writing one loop that "
+        "times out.",
     },
     "text_editor_20250124": {
         "replacement": "text_editor_20250728",
         "notes": "Model-keyed, not a strict upgrade: 20250124 is for pre-Claude-4 "
-                 "models, 20250728 is for Claude 4 series. Use the one matching "
-                 "your model, not automatically the newer string.",
+        "models, 20250728 is for Claude 4 series. Use the one matching "
+        "your model, not automatically the newer string.",
     },
     "computer_20250124": {
         "replacement": "computer_20251124",
         "notes": "Model-keyed, see computer_use_tool_for_model() — current models "
-                 "(Sonnet 5, Opus 4.5+) use 20251124, older models still need "
-                 "20250124. Sending the wrong pairing 400s.",
+        "(Sonnet 5, Opus 4.5+) use 20251124, older models still need "
+        "20250124. Sending the wrong pairing 400s.",
     },
 }
 
@@ -217,8 +220,7 @@ def computer_use_tool_for_model(model: str, width: int = 1024, height: int = 768
     on a model not listed here."""
     key = "2025-01-24" if model in _COMPUTER_USE_2025_01_24_MODELS else "2025-11-24"
     v = COMPUTER_USE_TOOL_VERSIONS[key]
-    tool = {"type": v["type"], "name": "computer",
-            "display_width_px": width, "display_height_px": height}
+    tool = {"type": v["type"], "name": "computer", "display_width_px": width, "display_height_px": height}
     return tool, v["beta"]
 
 
@@ -231,10 +233,10 @@ def computer_use_tool_for_model(model: str, width: int = 1024, height: int = 768
 # covering bash/text_editor/computer_use/code_execution, which was wrong for
 # code_execution (its own beta line) — split out per-tool here.
 SERVER_TOOL_BETAS = {
-    "bash":          "computer-use-2025-01-24",
-    "text_editor":   "computer-use-2025-01-24",
-    "computer_use":  "computer-use-2025-11-24",
-    "tool_search":   "tool-search-tool-2025-10-19",
+    "bash": "computer-use-2025-01-24",
+    "text_editor": "computer-use-2025-01-24",
+    "computer_use": "computer-use-2025-11-24",
+    "tool_search": "tool-search-tool-2025-10-19",
 }
 
 # context_management requires this beta header regardless of which edit
@@ -252,8 +254,10 @@ COMPACTION_BETA = "compact-2026-01-12"
 TASK_BUDGET_BETA = "task-budgets-2026-03-13"
 TASK_BUDGET_MODELS = {
     "claude-opus-5",
-    "claude-fable-5", "claude-mythos-5",
-    "claude-opus-4-8", "claude-opus-4-7",
+    "claude-fable-5",
+    "claude-mythos-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
 }
 
 # Programmatic Tool Calling (allowed_callers) and Tool Use Examples
@@ -271,7 +275,10 @@ ADVANCED_TOOL_USE_BETA = "advanced-tool-use-2025-11-20"
 MID_CONVERSATION_TOOL_CHANGES_BETA = "mid-conversation-tool-changes-2026-07-01"
 
 MID_CONVERSATION_TOOL_CHANGES_SUPPORTED = {
-    "claude-fable-5", "claude-mythos-5", "claude-opus-4-8", "claude-opus-5",
+    "claude-fable-5",
+    "claude-mythos-5",
+    "claude-opus-4-8",
+    "claude-opus-5",
 }
 
 
@@ -285,10 +292,12 @@ def validate_mid_conversation_tool_change(model_id: str) -> Optional[str]:
     proceeding, so this matches that convention."""
     if model_id in MID_CONVERSATION_TOOL_CHANGES_SUPPORTED:
         return None
-    return (f"{model_id} is not in claude_tools.MID_CONVERSATION_TOOL_CHANGES_SUPPORTED "
-            f"(Fable 5, Mythos 5, Opus 4.8, Opus 5 only) — changing `tools` between "
-            f"turns on this model may not preserve the prompt cache the way it does "
-            f"on those four.")
+    return (
+        f"{model_id} is not in claude_tools.MID_CONVERSATION_TOOL_CHANGES_SUPPORTED "
+        f"(Fable 5, Mythos 5, Opus 4.8, Opus 5 only) — changing `tools` between "
+        f"turns on this model may not preserve the prompt cache the way it does "
+        f"on those four."
+    )
 
 
 def with_mid_conversation_tool_changes(headers: dict, model_id: str) -> dict:
@@ -339,16 +348,20 @@ def build_context_management(
     added automatically based on which edits are present here."""
     edits = []
     if clear_tool_uses:
-        edits.append({
-            "type": "clear_tool_uses_20250919",
-            "trigger": {"type": "input_tokens", "value": clear_tool_uses_trigger_tokens},
-            "keep": {"type": "tool_uses", "value": keep_last_n_tool_uses},
-        })
+        edits.append(
+            {
+                "type": "clear_tool_uses_20250919",
+                "trigger": {"type": "input_tokens", "value": clear_tool_uses_trigger_tokens},
+                "keep": {"type": "tool_uses", "value": keep_last_n_tool_uses},
+            }
+        )
     if clear_thinking:
-        edits.append({
-            "type": "clear_thinking_20251015",
-            "keep": {"type": "thinking_turns", "value": keep_last_n_thinking_turns},
-        })
+        edits.append(
+            {
+                "type": "clear_thinking_20251015",
+                "keep": {"type": "thinking_turns", "value": keep_last_n_thinking_turns},
+            }
+        )
     if compact:
         edit = {
             "type": "compact_20260112",
@@ -362,8 +375,9 @@ def build_context_management(
     return {"edits": edits}
 
 
-def resume_after_compaction(messages: list, compaction_response: dict,
-                             extra_content: Optional[list] = None) -> list:
+def resume_after_compaction(
+    messages: list, compaction_response: dict, extra_content: Optional[list] = None
+) -> list:
     """After a call made with compact_pause_after=True returns
     stop_reason:"compaction", the API expects the compaction block appended
     as an assistant turn before you continue. extra_content lets you inject
@@ -426,17 +440,19 @@ class MemoryToolHandler:
 
     def __init__(self, base_dir: str = "~/.ai-coder/memory"):
         import os
+
         self.base_dir = os.path.abspath(os.path.expanduser(base_dir))
         os.makedirs(self.base_dir, exist_ok=True)
 
     def _resolve(self, rel_path: str) -> str:
         import os
+
         # Memory tool paths are always given relative to /memories.
         rel_path = rel_path.lstrip("/")
         if rel_path == "memories":
             rel_path = ""
         elif rel_path.startswith("memories/"):
-            rel_path = rel_path[len("memories/"):]
+            rel_path = rel_path[len("memories/") :]
         full = os.path.abspath(os.path.join(self.base_dir, rel_path))
         if not (full == self.base_dir or full.startswith(self.base_dir + os.sep)):
             raise PermissionError(f"Path escapes memory directory: {rel_path}")
@@ -444,6 +460,7 @@ class MemoryToolHandler:
 
     def handle(self, command_input: dict) -> str:
         import os
+
         cmd = command_input.get("command")
         try:
             if cmd == "view":
@@ -482,6 +499,7 @@ class MemoryToolHandler:
                 path = self._resolve(command_input["path"])
                 if os.path.isdir(path):
                     import shutil
+
                     shutil.rmtree(path)
                 else:
                     os.remove(path)
@@ -504,18 +522,18 @@ class MemoryToolHandler:
 
 # ── ToolRegistry ──────────────────────────────────────────────────────────
 
+
 class ToolRegistry:
     """Register Python functions as Claude tools with auto-generated schemas."""
 
     def __init__(self):
-        self._tools: dict[str, dict]     = {}   # name → definition
-        self._funcs: dict[str, Callable] = {}   # name → callable
+        self._tools: dict[str, dict] = {}  # name → definition
+        self._funcs: dict[str, Callable] = {}  # name → callable
 
-    def register(self, name: str, description: str, parameters: dict,
-                 func: Callable, strict: bool = False):
+    def register(self, name: str, description: str, parameters: dict, func: Callable, strict: bool = False):
         defn = {
-            "name":         name,
-            "description":  description,
+            "name": name,
+            "description": description,
             "input_schema": parameters,
         }
         if strict:
@@ -537,16 +555,16 @@ class ToolRegistry:
 
 # ── ToolCoder ─────────────────────────────────────────────────────────────
 
+
 class ToolCoder:
     """Claude client with full tool-use support."""
 
     ENDPOINT = "https://api.anthropic.com/v1/messages"
     _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 4096):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
@@ -555,8 +573,8 @@ class ToolCoder:
 
     def _post(self, payload: dict) -> dict:
         headers = {
-            "Content-Type":    "application/json",
-            "x-api-key":       self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         req = urllib.request.Request(
@@ -588,10 +606,10 @@ class ToolCoder:
 
         messages = [{"role": "user", "content": prompt}]
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages":   messages,
-            "tools":      tools,
+            "messages": messages,
+            "tools": tools,
         }
         if not parallel:
             payload["parallel_tool_use"] = False
@@ -615,15 +633,15 @@ class ToolCoder:
         results, repeat until stop_reason == 'end_turn'.
         """
         messages = [{"role": "user", "content": prompt}]
-        tools    = registry.definitions()
-        turn     = 0
+        tools = registry.definitions()
+        turn = 0
 
         while turn < max_turns:
             payload: dict = {
-                "model":      self.model,
+                "model": self.model,
                 "max_tokens": self.max_tokens,
-                "messages":   messages,
-                "tools":      tools,
+                "messages": messages,
+                "tools": tools,
             }
             if system:
                 payload["system"] = system
@@ -633,17 +651,14 @@ class ToolCoder:
                 return f"[ERROR] {data['error']}"
 
             stop_reason = data.get("stop_reason", "")
-            content     = data.get("content", [])
+            content = data.get("content", [])
 
             # Append assistant turn
             messages.append({"role": "assistant", "content": content})
 
             if stop_reason == "end_turn":
                 # Extract final text
-                return "".join(
-                    b.get("text", "") for b in content
-                    if b.get("type") == "text"
-                )
+                return "".join(b.get("text", "") for b in content if b.get("type") == "text")
 
             if stop_reason != "tool_use":
                 return f"[UNEXPECTED stop_reason={stop_reason}]"
@@ -654,18 +669,20 @@ class ToolCoder:
                 if block.get("type") != "tool_use":
                     continue
                 tool_name = block["name"]
-                tool_id   = block["id"]
+                tool_id = block["id"]
                 tool_input = block.get("input", {})
 
                 if verbose:
                     print(f"\033[90m  [tool] {tool_name}({json.dumps(tool_input)[:80]})\033[0m")
 
                 result = registry.execute(tool_name, tool_input)
-                tool_results.append({
-                    "type":        "tool_result",
-                    "tool_use_id": tool_id,
-                    "content":     str(result),
-                })
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": str(result),
+                    }
+                )
 
             messages.append({"role": "user", "content": tool_results})
             turn += 1
@@ -727,17 +744,17 @@ class ToolCoder:
             if beta:
                 betas.append(beta)
 
-        for t in (extra_tools or []):
+        for t in extra_tools or []:
             tools.append(t)
             if "input_examples" in t or "allowed_callers" in t:
                 betas.append(ADVANCED_TOOL_USE_BETA)
 
         headers_extra = {}
         payload: dict = {
-            "model":      self.model,
+            "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages":   [{"role": "user", "content": prompt}],
-            "tools":      tools,
+            "messages": [{"role": "user", "content": prompt}],
+            "tools": tools,
         }
         if system:
             payload["system"] = system
@@ -748,17 +765,19 @@ class ToolCoder:
                 betas.append(COMPACTION_BETA)
         if task_budget is not None:
             if self.model not in TASK_BUDGET_MODELS:
-                print(f"\033[93m⚠ task_budget requested but {self.model} isn't in "
-                      f"TASK_BUDGET_MODELS ({sorted(TASK_BUDGET_MODELS)}) — sending anyway, "
-                      f"the API will reject it if unsupported.\033[0m")
+                print(
+                    f"\033[93m⚠ task_budget requested but {self.model} isn't in "
+                    f"TASK_BUDGET_MODELS ({sorted(TASK_BUDGET_MODELS)}) — sending anyway, "
+                    f"the API will reject it if unsupported.\033[0m"
+                )
             payload["task_budget"] = task_budget
             betas.append(TASK_BUDGET_BETA)
         if betas:
             headers_extra["anthropic-beta"] = ",".join(sorted(set(betas)))
 
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
             **headers_extra,
         }
@@ -773,10 +792,7 @@ class ToolCoder:
         except AICoderError as e:
             return f"[API ERROR {getattr(e, 'status_code', '')}] {e.message}"
 
-        return "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
     # ── Memory-tool agent loop ───────────────────────────────────────────
 
@@ -801,10 +817,10 @@ class ToolCoder:
 
         while turn < max_turns:
             payload: dict = {
-                "model":      self.model,
+                "model": self.model,
                 "max_tokens": self.max_tokens,
-                "messages":   messages,
-                "tools":      tools,
+                "messages": messages,
+                "tools": tools,
             }
             if system:
                 payload["system"] = system
@@ -812,15 +828,17 @@ class ToolCoder:
                 payload["context_management"] = build_context_management()
 
             headers = {
-                "Content-Type":      "application/json",
-                "x-api-key":         self.api_key,
+                "Content-Type": "application/json",
+                "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
             }
             if betas:
                 headers["anthropic-beta"] = ",".join(sorted(set(betas)))
             req = urllib.request.Request(
-                self.ENDPOINT, data=json.dumps(payload).encode(),
-                headers=headers, method="POST",
+                self.ENDPOINT,
+                data=json.dumps(payload).encode(),
+                headers=headers,
+                method="POST",
             )
             try:
                 data = self._call(req)
@@ -828,7 +846,7 @@ class ToolCoder:
                 return f"[API ERROR {getattr(e, 'status_code', '')}] {e.message}"
 
             stop_reason = data.get("stop_reason", "")
-            content     = data.get("content", [])
+            content = data.get("content", [])
             messages.append({"role": "assistant", "content": content})
 
             if stop_reason == "end_turn":
@@ -841,12 +859,18 @@ class ToolCoder:
                 if block.get("type") != "tool_use":
                     continue
                 if verbose:
-                    print(f"\033[90m  [memory:{block['input'].get('command')}] "
-                          f"{block['input'].get('path', '')}\033[0m")
+                    print(
+                        f"\033[90m  [memory:{block['input'].get('command')}] "
+                        f"{block['input'].get('path', '')}\033[0m"
+                    )
                 result = memory.handle(block.get("input", {}))
-                tool_results.append({
-                    "type": "tool_result", "tool_use_id": block["id"], "content": str(result),
-                })
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block["id"],
+                        "content": str(result),
+                    }
+                )
             messages.append({"role": "user", "content": tool_results})
             turn += 1
 
@@ -855,16 +879,16 @@ class ToolCoder:
 
 # ── Pre-built tool examples ────────────────────────────────────────────────
 
+
 def build_code_tools_registry() -> ToolRegistry:
     """Example registry with useful coding tools."""
     reg = ToolRegistry()
 
     def run_python(code: str) -> str:
-        import subprocess, sys
-        result = subprocess.run(
-            [sys.executable, "-c", code],
-            capture_output=True, text=True, timeout=30
-        )
+        import subprocess
+        import sys
+
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
         out = result.stdout.strip()
         err = result.stderr.strip()
         if err:
@@ -888,51 +912,75 @@ def build_code_tools_registry() -> ToolRegistry:
 
     def list_files(directory: str = ".") -> str:
         import os
+
         try:
             return "\n".join(sorted(os.listdir(directory)))
         except Exception as e:
             return f"[ERROR] {e}"
 
-    reg.register("run_python", "Execute Python code and return output",
-        {"type": "object", "properties": {"code": {"type": "string", "description": "Python code to execute"}},
-         "required": ["code"]}, run_python)
+    reg.register(
+        "run_python",
+        "Execute Python code and return output",
+        {
+            "type": "object",
+            "properties": {"code": {"type": "string", "description": "Python code to execute"}},
+            "required": ["code"],
+        },
+        run_python,
+    )
 
-    reg.register("read_file", "Read a file from disk",
+    reg.register(
+        "read_file",
+        "Read a file from disk",
         {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
-        read_file)
+        read_file,
+    )
 
-    reg.register("write_file", "Write content to a file",
-        {"type": "object", "properties": {
-            "path":    {"type": "string"},
-            "content": {"type": "string"}
-        }, "required": ["path", "content"]}, write_file)
+    reg.register(
+        "write_file",
+        "Write content to a file",
+        {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["path", "content"],
+        },
+        write_file,
+    )
 
-    reg.register("list_files", "List files in a directory",
-        {"type": "object", "properties": {"directory": {"type": "string", "default": "."}},
-         "required": []}, list_files)
+    reg.register(
+        "list_files",
+        "List files in a directory",
+        {"type": "object", "properties": {"directory": {"type": "string", "default": "."}}, "required": []},
+        list_files,
+    )
 
     return reg
 
 
 # ── CLI entry points ───────────────────────────────────────────────────────
 
-def cmd_tool_agent(prompt: str, api_key: str, model: str,
-                   system: str = None, max_turns: int = 10):
+
+def cmd_tool_agent(prompt: str, api_key: str, model: str, system: str = None, max_turns: int = 10):
     """Run agentic tool loop with code tools."""
     print(f"\033[94mℹ Agentic tool runner | max_turns={max_turns}\033[0m\n")
-    tc  = ToolCoder(api_key=api_key, model=model)
+    tc = ToolCoder(api_key=api_key, model=model)
     reg = build_code_tools_registry()
     result = tc.run_agent(prompt, reg, system=system, max_turns=max_turns)
     print(result)
     return result
 
 
-def cmd_server_tool(prompt: str, tools: list[str], api_key: str, model: str,
-                    use_context_management: bool = False,
-                    use_compaction: bool = False,
-                    task_budget_tokens: Optional[int] = None,
-                    use_ptc: bool = False,
-                    extra_tool_defs: Optional[list[dict]] = None):
+def cmd_server_tool(
+    prompt: str,
+    tools: list[str],
+    api_key: str,
+    model: str,
+    use_context_management: bool = False,
+    use_compaction: bool = False,
+    task_budget_tokens: Optional[int] = None,
+    use_ptc: bool = False,
+    extra_tool_defs: Optional[list[dict]] = None,
+):
     """Call with Anthropic server tools. use_compaction and
     task_budget_tokens are independent of use_context_management — compaction
     rides inside the same context_management payload as clear_tool_uses, but
@@ -950,24 +998,28 @@ def cmd_server_tool(prompt: str, tools: list[str], api_key: str, model: str,
     tb = build_task_budget(task_budget_tokens) if task_budget_tokens else None
 
     extra_tools = []
-    for t in (extra_tool_defs or []):
+    for t in extra_tool_defs or []:
         if use_ptc and "code_execution" in tools:
             t = with_allowed_callers(t)
         extra_tools.append(t)
 
     result = tc.generate_with_server_tools(
-        prompt, tools, context_management=cm, task_budget=tb,
+        prompt,
+        tools,
+        context_management=cm,
+        task_budget=tb,
         extra_tools=extra_tools or None,
     )
     print(result)
     return result
 
 
-def cmd_memory_agent(prompt: str, api_key: str, model: str,
-                     memory_dir: str = "~/.ai-coder/memory", max_turns: int = 10):
+def cmd_memory_agent(
+    prompt: str, api_key: str, model: str, memory_dir: str = "~/.ai-coder/memory", max_turns: int = 10
+):
     """Run an agent loop backed by the native memory tool."""
     print(f"\033[94mℹ Memory-tool agent | dir={memory_dir}\033[0m\n")
-    tc     = ToolCoder(api_key=api_key, model=model)
+    tc = ToolCoder(api_key=api_key, model=model)
     memory = MemoryToolHandler(base_dir=memory_dir)
     result = tc.run_agent_with_memory(prompt, memory, max_turns=max_turns)
     print(result)
@@ -977,16 +1029,16 @@ def cmd_memory_agent(prompt: str, api_key: str, model: str,
 def cmd_list_server_tools():
     print("\nAvailable server tools:")
     descs = {
-        "web_search":     "Search the web for real-time information (GA)",
-        "web_fetch":      "Fetch and read a specific URL (GA)",
+        "web_search": "Search the web for real-time information (GA)",
+        "web_fetch": "Fetch and read a specific URL (GA)",
         "code_execution": "Execute Python/bash in a secure sandbox (GA, code_execution_20260120 "
-                           "— minimum version for programmatic tool calling)",
-        "bash":           "Run bash commands (computer use)",
-        "text_editor":    "Read and edit files (computer use)",
-        "computer_use":   "Control a virtual desktop — version auto-selected per model, "
-                           "see computer_use_tool_for_model()",
-        "memory":         "Persistent file-based memory across conversations (GA)",
-        "tool_search":    "On-demand tool discovery for large tool libraries (beta)",
+        "— minimum version for programmatic tool calling)",
+        "bash": "Run bash commands (computer use)",
+        "text_editor": "Read and edit files (computer use)",
+        "computer_use": "Control a virtual desktop — version auto-selected per model, "
+        "see computer_use_tool_for_model()",
+        "memory": "Persistent file-based memory across conversations (GA)",
+        "tool_search": "On-demand tool discovery for large tool libraries (beta)",
     }
     for name, desc in descs.items():
         beta = SERVER_TOOL_BETAS.get(name)
@@ -996,15 +1048,17 @@ def cmd_list_server_tools():
         if retired:
             tag += f" [note: newer version {retired['replacement']} available — {retired['notes']}]"
         print(f"  {name:<18} — {desc}{tag}")
-    print(f"\n  Also available on custom tool definitions (--tool-file), not server tools:")
-    print(f"    input_examples   — Tool Use Examples, worked examples of a correct call.")
+    print("\n  Also available on custom tool definitions (--tool-file), not server tools:")
+    print("    input_examples   — Tool Use Examples, worked examples of a correct call.")
     print(f"                       Use with_input_examples(). [beta: {ADVANCED_TOOL_USE_BETA}]")
-    print(f"    allowed_callers  — Programmatic Tool Calling: callable from code_execution")
-    print(f"                       instead of one round-trip per call. Use")
+    print("    allowed_callers  — Programmatic Tool Calling: callable from code_execution")
+    print("                       instead of one round-trip per call. Use")
     print(f"                       with_allowed_callers(). [beta: {ADVANCED_TOOL_USE_BETA}]")
-    print(f"\n  Context/budget controls, not tools but combine with any of the above:")
-    print(f"    context_management compact edit — server-side conversation summarization.")
+    print("\n  Context/budget controls, not tools but combine with any of the above:")
+    print("    context_management compact edit — server-side conversation summarization.")
     print(f"                       Use build_context_management(compact=True). [beta: {COMPACTION_BETA}]")
-    print(f"    task_budget        — advisory token countdown for a full agentic loop.")
-    print(f"                       Use build_task_budget(). [beta: {TASK_BUDGET_BETA}, "
-          f"models: {sorted(TASK_BUDGET_MODELS)}]")
+    print("    task_budget        — advisory token countdown for a full agentic loop.")
+    print(
+        f"                       Use build_task_budget(). [beta: {TASK_BUDGET_BETA}, "
+        f"models: {sorted(TASK_BUDGET_MODELS)}]"
+    )

@@ -5,22 +5,18 @@ default date range, the 401/403 admin-key-required error hint, API key
 revoke (status -> inactive, no delete endpoint), and that
 --admin-create-key is a pure explanation with no network call.
 """
-import re
-
-import pytest
 
 from claude_admin_api import (
     AdminApiClient,
-    cmd_usage_report,
-    cmd_cost_report,
+    _default_date_range,
+    cmd_admin_create_key,
     cmd_admin_list_keys,
     cmd_admin_revoke_key,
-    cmd_admin_create_key,
+    cmd_cost_report,
     cmd_rate_limits,
     cmd_rate_limits_workspace,
-    _default_date_range,
+    cmd_usage_report,
 )
-
 
 # ── AdminApiClient query building ────────────────────────────────────────
 
@@ -28,15 +24,16 @@ from claude_admin_api import (
 def test_get_usage_report_builds_expected_params(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.get_usage_report("2026-06-01", "2026-07-01", group_by="api_key_id")
 
     assert captured["path"] == "/usage_report"
     assert captured["params"] == {
-        "starting_at": "2026-06-01", "ending_at": "2026-07-01",
+        "starting_at": "2026-06-01",
+        "ending_at": "2026-07-01",
         "group_by": "api_key_id",
     }
 
@@ -44,9 +41,9 @@ def test_get_usage_report_builds_expected_params(monkeypatch):
 def test_get_cost_report_builds_expected_params(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.get_cost_report("2026-06-01", "2026-07-01")
 
@@ -57,9 +54,13 @@ def test_get_cost_report_builds_expected_params(monkeypatch):
 def test_revoke_api_key_sets_status_inactive_not_delete(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {"id": "key_1", "status": "inactive"}
-    ))
+    monkeypatch.setattr(
+        client,
+        "_post",
+        lambda path, payload: (
+            captured.update(path=path, payload=payload) or {"id": "key_1", "status": "inactive"}
+        ),
+    )
 
     client.revoke_api_key("key_1")
 
@@ -70,6 +71,7 @@ def test_revoke_api_key_sets_status_inactive_not_delete(monkeypatch):
 def test_default_date_range_is_30_days():
     start, end = _default_date_range()
     from datetime import date
+
     d1 = date.fromisoformat(start)
     d2 = date.fromisoformat(end)
     assert (d2 - d1).days == 30
@@ -84,8 +86,9 @@ def test_cmd_usage_report_prints_admin_key_hint_on_403(monkeypatch, capsys):
         "claude_admin_api.AdminApiClient",
         lambda admin_api_key: client,
     )
-    monkeypatch.setattr(client, "get_usage_report",
-                        lambda start, end, group_by="model": {"error": "forbidden", "status": 403})
+    monkeypatch.setattr(
+        client, "get_usage_report", lambda start, end, group_by="model": {"error": "forbidden", "status": 403}
+    )
 
     result = cmd_usage_report("regular-looking-key")
 
@@ -97,10 +100,13 @@ def test_cmd_usage_report_prints_admin_key_hint_on_403(monkeypatch, capsys):
 def test_cmd_cost_report_prints_rows(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="k")
     monkeypatch.setattr("claude_admin_api.AdminApiClient", lambda admin_api_key: client)
-    monkeypatch.setattr(client, "get_cost_report",
-                        lambda start, end, group_by="model": {
-                            "data": [{"model": "claude-sonnet-5", "amount": "12.50", "currency": "usd"}]
-                        })
+    monkeypatch.setattr(
+        client,
+        "get_cost_report",
+        lambda start, end, group_by="model": {
+            "data": [{"model": "claude-sonnet-5", "amount": "12.50", "currency": "usd"}]
+        },
+    )
 
     result = cmd_cost_report("k", start="2026-06-01", end="2026-07-01")
 
@@ -113,9 +119,11 @@ def test_cmd_cost_report_prints_rows(monkeypatch, capsys):
 def test_cmd_admin_list_keys_prints_each_key(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="k")
     monkeypatch.setattr("claude_admin_api.AdminApiClient", lambda admin_api_key: client)
-    monkeypatch.setattr(client, "list_api_keys", lambda limit=20: {
-        "data": [{"id": "key_1", "name": "prod", "status": "active"}]
-    })
+    monkeypatch.setattr(
+        client,
+        "list_api_keys",
+        lambda limit=20: {"data": [{"id": "key_1", "name": "prod", "status": "active"}]},
+    )
 
     result = cmd_admin_list_keys("k")
 
@@ -171,9 +179,9 @@ def test_cmd_admin_create_key_makes_no_network_call(monkeypatch, capsys):
 def test_get_org_rate_limits_omits_model_by_default(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.get_org_rate_limits()
 
@@ -184,9 +192,9 @@ def test_get_org_rate_limits_omits_model_by_default(monkeypatch):
 def test_get_org_rate_limits_includes_model_when_given(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.get_org_rate_limits(model="claude-opus-4-8")
 
@@ -196,9 +204,9 @@ def test_get_org_rate_limits_includes_model_when_given(monkeypatch):
 def test_get_workspace_rate_limits_builds_path(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path) or {"data": []})
+    )
 
     client.get_workspace_rate_limits("wrkspc_1")
 
@@ -206,9 +214,16 @@ def test_get_workspace_rate_limits_builds_path(monkeypatch):
 
 
 def test_cmd_rate_limits_prints_value_and_org_limit(monkeypatch, capsys):
-    client_data = {"data": [{"model_group": "opus", "limits": [
-        {"type": "requests_per_minute", "value": 4000},
-    ]}]}
+    client_data = {
+        "data": [
+            {
+                "model_group": "opus",
+                "limits": [
+                    {"type": "requests_per_minute", "value": 4000},
+                ],
+            }
+        ]
+    }
     monkeypatch.setattr(AdminApiClient, "get_org_rate_limits", lambda self, model=None: client_data)
 
     cmd_rate_limits("admin-k")
@@ -219,11 +234,17 @@ def test_cmd_rate_limits_prints_value_and_org_limit(monkeypatch, capsys):
 
 
 def test_cmd_rate_limits_workspace_shows_value_and_org_limit(monkeypatch, capsys):
-    client_data = {"data": [{"model_group": "opus", "limits": [
-        {"type": "requests_per_minute", "value": 1000, "org_limit": 4000},
-    ]}]}
-    monkeypatch.setattr(AdminApiClient, "get_workspace_rate_limits",
-                        lambda self, workspace_id: client_data)
+    client_data = {
+        "data": [
+            {
+                "model_group": "opus",
+                "limits": [
+                    {"type": "requests_per_minute", "value": 1000, "org_limit": 4000},
+                ],
+            }
+        ]
+    }
+    monkeypatch.setattr(AdminApiClient, "get_workspace_rate_limits", lambda self, workspace_id: client_data)
 
     cmd_rate_limits_workspace("wrkspc_1", "admin-k")
 
@@ -232,8 +253,7 @@ def test_cmd_rate_limits_workspace_shows_value_and_org_limit(monkeypatch, capsys
 
 
 def test_cmd_rate_limits_workspace_no_overrides_message(monkeypatch, capsys):
-    monkeypatch.setattr(AdminApiClient, "get_workspace_rate_limits",
-                        lambda self, workspace_id: {"data": []})
+    monkeypatch.setattr(AdminApiClient, "get_workspace_rate_limits", lambda self, workspace_id: {"data": []})
 
     cmd_rate_limits_workspace("wrkspc_1", "admin-k")
 
@@ -246,9 +266,9 @@ def test_cmd_rate_limits_workspace_no_overrides_message(monkeypatch, capsys):
 def test_list_effective_spend_limits_builds_expected_params(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.list_effective_spend_limits(limit=25)
 
@@ -259,9 +279,9 @@ def test_list_effective_spend_limits_builds_expected_params(monkeypatch):
 def test_set_spend_limit_omits_suppress_notification_by_default(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {}
-    ))
+    monkeypatch.setattr(
+        client, "_post", lambda path, payload: (captured.update(path=path, payload=payload) or {})
+    )
 
     client.set_spend_limit("user_1", "5000")
 
@@ -271,9 +291,7 @@ def test_set_spend_limit_omits_suppress_notification_by_default(monkeypatch):
 def test_set_spend_limit_includes_suppress_notification_when_true(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(payload=payload) or {}
-    ))
+    monkeypatch.setattr(client, "_post", lambda path, payload: (captured.update(payload=payload) or {}))
 
     client.set_spend_limit("user_1", "5000", suppress_notification=True)
 
@@ -283,9 +301,7 @@ def test_set_spend_limit_includes_suppress_notification_when_true(monkeypatch):
 def test_delete_spend_limit_uses_delete_verb(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_delete", lambda path: (
-        captured.update(path=path) or {"deleted": True}
-    ))
+    monkeypatch.setattr(client, "_delete", lambda path: (captured.update(path=path) or {"deleted": True}))
 
     result = client.delete_spend_limit("spl_1")
 
@@ -296,9 +312,9 @@ def test_delete_spend_limit_uses_delete_verb(monkeypatch):
 def test_list_spend_limit_increase_requests_filters_by_status(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.list_spend_limit_increase_requests(status=["pending"])
 
@@ -308,9 +324,9 @@ def test_list_spend_limit_increase_requests_filters_by_status(monkeypatch):
 def test_list_spend_limit_increase_requests_omits_status_when_not_given(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(params=params) or {"data": []})
+    )
 
     client.list_spend_limit_increase_requests()
 
@@ -320,9 +336,9 @@ def test_list_spend_limit_increase_requests_omits_status_when_not_given(monkeypa
 def test_approve_spend_limit_increase_request_path_and_payload(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {}
-    ))
+    monkeypatch.setattr(
+        client, "_post", lambda path, payload: (captured.update(path=path, payload=payload) or {})
+    )
 
     client.approve_spend_limit_increase_request("req_1")
 
@@ -333,9 +349,9 @@ def test_approve_spend_limit_increase_request_path_and_payload(monkeypatch):
 def test_deny_spend_limit_increase_request_with_suppress(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {}
-    ))
+    monkeypatch.setattr(
+        client, "_post", lambda path, payload: (captured.update(path=path, payload=payload) or {})
+    )
 
     client.deny_spend_limit_increase_request("req_1", suppress_notification=True)
 
@@ -345,10 +361,16 @@ def test_deny_spend_limit_increase_request_with_suppress(monkeypatch):
 
 def test_cmd_spend_limits_list_prints_rows(monkeypatch, capsys):
     from claude_admin_api import cmd_spend_limits_list
-    monkeypatch.setattr(AdminApiClient, "list_effective_spend_limits", lambda self, limit=50, page=None: {
-        "data": [{"user_id": "user_1", "amount": "5000", "source": "group",
-                 "period_to_date_spend": "1200"}],
-    })
+
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_effective_spend_limits",
+        lambda self, limit=50, page=None: {
+            "data": [
+                {"user_id": "user_1", "amount": "5000", "source": "group", "period_to_date_spend": "1200"}
+            ],
+        },
+    )
 
     cmd_spend_limits_list("admin-k")
 
@@ -358,8 +380,12 @@ def test_cmd_spend_limits_list_prints_rows(monkeypatch, capsys):
 
 def test_cmd_spend_limits_list_enterprise_hint_on_403(monkeypatch, capsys):
     from claude_admin_api import cmd_spend_limits_list
-    monkeypatch.setattr(AdminApiClient, "list_effective_spend_limits",
-                        lambda self, limit=50, page=None: {"error": "forbidden", "status": 403})
+
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_effective_spend_limits",
+        lambda self, limit=50, page=None: {"error": "forbidden", "status": 403},
+    )
 
     cmd_spend_limits_list("admin-k")
 
@@ -369,8 +395,12 @@ def test_cmd_spend_limits_list_enterprise_hint_on_403(monkeypatch, capsys):
 
 def test_cmd_spend_limit_set_success_message(monkeypatch, capsys):
     from claude_admin_api import cmd_spend_limit_set
-    monkeypatch.setattr(AdminApiClient, "set_spend_limit",
-                        lambda self, user_id, amount, suppress_notification=False: {"id": "spl_1"})
+
+    monkeypatch.setattr(
+        AdminApiClient,
+        "set_spend_limit",
+        lambda self, user_id, amount, suppress_notification=False: {"id": "spl_1"},
+    )
 
     cmd_spend_limit_set("user_1", "5000", "admin-k")
 
@@ -380,8 +410,8 @@ def test_cmd_spend_limit_set_success_message(monkeypatch, capsys):
 
 def test_cmd_spend_limit_delete_success_message(monkeypatch, capsys):
     from claude_admin_api import cmd_spend_limit_delete
-    monkeypatch.setattr(AdminApiClient, "delete_spend_limit",
-                        lambda self, spend_limit_id: {"deleted": True})
+
+    monkeypatch.setattr(AdminApiClient, "delete_spend_limit", lambda self, spend_limit_id: {"deleted": True})
 
     cmd_spend_limit_delete("spl_1", "admin-k")
 
@@ -390,11 +420,15 @@ def test_cmd_spend_limit_delete_success_message(monkeypatch, capsys):
 
 def test_cmd_spend_limit_requests_list_passes_single_status_filter(monkeypatch, capsys):
     from claude_admin_api import cmd_spend_limit_requests_list
+
     captured = {}
-    monkeypatch.setattr(AdminApiClient, "list_spend_limit_increase_requests",
-                        lambda self, status=None, actor_ids=None, limit=50, page=None: (
-                            captured.update(status=status) or {"data": []}
-                        ))
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_spend_limit_increase_requests",
+        lambda self, status=None, actor_ids=None, limit=50, page=None: (
+            captured.update(status=status) or {"data": []}
+        ),
+    )
 
     cmd_spend_limit_requests_list("admin-k", status="pending")
 
@@ -403,10 +437,17 @@ def test_cmd_spend_limit_requests_list_passes_single_status_filter(monkeypatch, 
 
 def test_cmd_spend_limit_request_approve_and_deny(monkeypatch, capsys):
     from claude_admin_api import cmd_spend_limit_request_approve, cmd_spend_limit_request_deny
-    monkeypatch.setattr(AdminApiClient, "approve_spend_limit_increase_request",
-                        lambda self, request_id, suppress_notification=False: {"id": request_id})
-    monkeypatch.setattr(AdminApiClient, "deny_spend_limit_increase_request",
-                        lambda self, request_id, suppress_notification=False: {"id": request_id})
+
+    monkeypatch.setattr(
+        AdminApiClient,
+        "approve_spend_limit_increase_request",
+        lambda self, request_id, suppress_notification=False: {"id": request_id},
+    )
+    monkeypatch.setattr(
+        AdminApiClient,
+        "deny_spend_limit_increase_request",
+        lambda self, request_id, suppress_notification=False: {"id": request_id},
+    )
 
     cmd_spend_limit_request_approve("req_1", "admin-k")
     cmd_spend_limit_request_deny("req_2", "admin-k")
@@ -422,9 +463,9 @@ def test_cmd_spend_limit_request_approve_and_deny(monkeypatch, capsys):
 def test_get_claude_code_usage_report_builds_expected_params(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.get_claude_code_usage_report("2026-07-08", limit=15)
 
@@ -435,9 +476,9 @@ def test_get_claude_code_usage_report_builds_expected_params(monkeypatch):
 def test_get_claude_code_usage_report_passes_page_cursor(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.get_claude_code_usage_report("2026-07-08", page="page_abc123")
 
@@ -446,8 +487,11 @@ def test_get_claude_code_usage_report_passes_page_cursor(monkeypatch):
 
 def test_cmd_claude_code_usage_report_prints_wrong_key_hint(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="admin-k")
-    monkeypatch.setattr(AdminApiClient, "get_claude_code_usage_report",
-                        lambda self, *a, **k: {"error": "forbidden", "status": 403})
+    monkeypatch.setattr(
+        AdminApiClient,
+        "get_claude_code_usage_report",
+        lambda self, *a, **k: {"error": "forbidden", "status": 403},
+    )
     from claude_admin_api import cmd_claude_code_usage_report
 
     result = cmd_claude_code_usage_report("regular-key", "2026-07-08")
@@ -458,10 +502,15 @@ def test_cmd_claude_code_usage_report_prints_wrong_key_hint(monkeypatch, capsys)
 
 
 def test_cmd_claude_code_usage_report_handles_missing_optional_fields(monkeypatch, capsys):
-    monkeypatch.setattr(AdminApiClient, "get_claude_code_usage_report",
-                        lambda self, *a, **k: {"data": [
-                            {"date": "2026-07-08T00:00:00Z", "api_actor": {"api_key_name": "ci-key"}},
-                        ]})
+    monkeypatch.setattr(
+        AdminApiClient,
+        "get_claude_code_usage_report",
+        lambda self, *a, **k: {
+            "data": [
+                {"date": "2026-07-08T00:00:00Z", "api_actor": {"api_key_name": "ci-key"}},
+            ]
+        },
+    )
     from claude_admin_api import cmd_claude_code_usage_report
 
     result = cmd_claude_code_usage_report("admin-k", "2026-07-08")
@@ -472,21 +521,27 @@ def test_cmd_claude_code_usage_report_handles_missing_optional_fields(monkeypatc
 
 
 def test_cmd_claude_code_usage_report_prints_named_user_and_metrics(monkeypatch, capsys):
-    monkeypatch.setattr(AdminApiClient, "get_claude_code_usage_report",
-                        lambda self, *a, **k: {"data": [{
-                            "date": "2026-07-08T00:00:00Z",
-                            "user_actor": {"email_address": "[email protected]"},
-                            "core_metrics": {
-                                "num_sessions": 5,
-                                "lines_of_code": {"added": 100, "removed": 20},
-                                "commits_by_claude_code": 3,
-                                "pull_requests_by_claude_code": 1,
-                            },
-                            "model_breakdown": [
-                                {"model": "claude-opus-4-8",
-                                 "estimated_cost": {"currency": "USD", "amount": 1025}},
-                            ],
-                        }]})
+    monkeypatch.setattr(
+        AdminApiClient,
+        "get_claude_code_usage_report",
+        lambda self, *a, **k: {
+            "data": [
+                {
+                    "date": "2026-07-08T00:00:00Z",
+                    "user_actor": {"email_address": "[email protected]"},
+                    "core_metrics": {
+                        "num_sessions": 5,
+                        "lines_of_code": {"added": 100, "removed": 20},
+                        "commits_by_claude_code": 3,
+                        "pull_requests_by_claude_code": 1,
+                    },
+                    "model_breakdown": [
+                        {"model": "claude-opus-4-8", "estimated_cost": {"currency": "USD", "amount": 1025}},
+                    ],
+                }
+            ]
+        },
+    )
     from claude_admin_api import cmd_claude_code_usage_report
 
     cmd_claude_code_usage_report("admin-k", "2026-07-08")
@@ -501,11 +556,15 @@ def test_cmd_claude_code_usage_report_prints_named_user_and_metrics(monkeypatch,
 
 
 def test_cmd_admin_list_keys_prints_expires_at(monkeypatch, capsys):
-    monkeypatch.setattr(AdminApiClient, "list_api_keys",
-                        lambda self, limit=20: {"data": [
-                            {"id": "key_1", "name": "prod", "status": "active",
-                             "expires_at": "2026-12-01T00:00:00Z"},
-                        ]})
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_api_keys",
+        lambda self, limit=20: {
+            "data": [
+                {"id": "key_1", "name": "prod", "status": "active", "expires_at": "2026-12-01T00:00:00Z"},
+            ]
+        },
+    )
 
     cmd_admin_list_keys("admin-k")
 
@@ -514,10 +573,15 @@ def test_cmd_admin_list_keys_prints_expires_at(monkeypatch, capsys):
 
 
 def test_cmd_admin_list_keys_prints_placeholder_when_expires_at_absent(monkeypatch, capsys):
-    monkeypatch.setattr(AdminApiClient, "list_api_keys",
-                        lambda self, limit=20: {"data": [
-                            {"id": "key_2", "name": "dev", "status": "active"},
-                        ]})
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_api_keys",
+        lambda self, limit=20: {
+            "data": [
+                {"id": "key_2", "name": "dev", "status": "active"},
+            ]
+        },
+    )
 
     cmd_admin_list_keys("admin-k")
 
@@ -532,15 +596,18 @@ def test_cmd_admin_list_keys_prints_placeholder_when_expires_at_absent(monkeypat
 def test_create_external_key_builds_expected_payload(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {"id": "key_1"}
-    ))
+    monkeypatch.setattr(
+        client,
+        "_post",
+        lambda path, payload: (captured.update(path=path, payload=payload) or {"id": "key_1"}),
+    )
 
     client.create_external_key("wrkspc_1", "aws_kms", "arn:aws:kms:us-east-1:123:key/abc")
 
     assert captured["path"] == "/external_keys"
     assert captured["payload"] == {
-        "workspace_id": "wrkspc_1", "provider": "aws_kms",
+        "workspace_id": "wrkspc_1",
+        "provider": "aws_kms",
         "key_arn_or_id": "arn:aws:kms:us-east-1:123:key/abc",
     }
 
@@ -548,9 +615,11 @@ def test_create_external_key_builds_expected_payload(monkeypatch):
 def test_validate_external_key_posts_to_validate_path(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {"valid": True}
-    ))
+    monkeypatch.setattr(
+        client,
+        "_post",
+        lambda path, payload: (captured.update(path=path, payload=payload) or {"valid": True}),
+    )
 
     client.validate_external_key("key_1")
 
@@ -560,9 +629,11 @@ def test_validate_external_key_posts_to_validate_path(monkeypatch):
 def test_attach_external_key_posts_workspace_id(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_post", lambda path, payload: (
-        captured.update(path=path, payload=payload) or {"attached": True}
-    ))
+    monkeypatch.setattr(
+        client,
+        "_post",
+        lambda path, payload: (captured.update(path=path, payload=payload) or {"attached": True}),
+    )
 
     client.attach_external_key("key_1", "wrkspc_1")
 
@@ -573,9 +644,9 @@ def test_attach_external_key_posts_workspace_id(monkeypatch):
 def test_list_external_keys_without_workspace_filter(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.list_external_keys()
 
@@ -586,9 +657,9 @@ def test_list_external_keys_without_workspace_filter(monkeypatch):
 def test_list_external_keys_with_workspace_filter(monkeypatch):
     client = AdminApiClient(admin_api_key="admin-k")
     captured = {}
-    monkeypatch.setattr(client, "_get", lambda path, params=None: (
-        captured.update(path=path, params=params) or {"data": []}
-    ))
+    monkeypatch.setattr(
+        client, "_get", lambda path, params=None: (captured.update(path=path, params=params) or {"data": []})
+    )
 
     client.list_external_keys(workspace_id="wrkspc_1")
 
@@ -597,8 +668,12 @@ def test_list_external_keys_with_workspace_filter(monkeypatch):
 
 def test_cmd_cmek_list_prints_wrong_key_hint(monkeypatch, capsys):
     from claude_admin_api import cmd_cmek_list
-    monkeypatch.setattr(AdminApiClient, "list_external_keys",
-                        lambda self, workspace_id=None: {"error": "forbidden", "status": 403})
+
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_external_keys",
+        lambda self, workspace_id=None: {"error": "forbidden", "status": 403},
+    )
 
     result = cmd_cmek_list("regular-key")
 
@@ -608,11 +683,16 @@ def test_cmd_cmek_list_prints_wrong_key_hint(monkeypatch, capsys):
 
 def test_cmd_cmek_list_prints_keys(monkeypatch, capsys):
     from claude_admin_api import cmd_cmek_list
-    monkeypatch.setattr(AdminApiClient, "list_external_keys",
-                        lambda self, workspace_id=None: {"data": [
-                            {"id": "key_1", "workspace_id": "wrkspc_1",
-                             "provider": "aws_kms", "status": "active"},
-                        ]})
+
+    monkeypatch.setattr(
+        AdminApiClient,
+        "list_external_keys",
+        lambda self, workspace_id=None: {
+            "data": [
+                {"id": "key_1", "workspace_id": "wrkspc_1", "provider": "aws_kms", "status": "active"},
+            ]
+        },
+    )
 
     result = cmd_cmek_list("admin-k")
 

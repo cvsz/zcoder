@@ -6,12 +6,12 @@ Provides:
   • Bounded pagination iterator
   • Standardized exception mapping (APIError, RateLimitError, AuthError)
 """
+
 from __future__ import annotations
 
-import json
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, List, Optional
 
-from public_api_v1 import APIError, PublicAPIV1Router
+from public_api_v1 import PublicAPIV1Router
 from tenant_models import EnterpriseRole, RequestContext
 
 

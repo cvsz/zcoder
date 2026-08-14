@@ -10,11 +10,12 @@ Covers claude_cache.py's three features:
 
 Previously this module (claude_cache.py) had zero test coverage at all.
 """
+
 import pytest
 
 from claude_cache import (
-    CachingCoder,
     MID_SYSTEM_SUPPORTED_MODELS,
+    CachingCoder,
     SystemMessagePlacementError,
     build_mid_system_message,
     validate_system_message_placement,
@@ -25,9 +26,13 @@ def _response(text="ok", usage=None, diagnostics=None, message_id="msg_1"):
     data = {
         "id": message_id,
         "content": [{"type": "text", "text": text}],
-        "usage": usage or {"input_tokens": 10, "output_tokens": 5,
-                            "cache_creation_input_tokens": 0,
-                            "cache_read_input_tokens": 0},
+        "usage": usage
+        or {
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        },
     }
     if diagnostics is not None:
         data["diagnostics"] = diagnostics
@@ -93,7 +98,8 @@ def test_diagnose_second_call_references_prior_message_id_and_surfaces_miss_reas
         if len(calls) == 1:
             return _response("first", message_id="msg_1")
         return _response(
-            "second", message_id="msg_2",
+            "second",
+            message_id="msg_2",
             diagnostics={"cache_miss_reason": {"type": "system_changed"}},
         )
 
@@ -108,7 +114,6 @@ def test_diagnose_second_call_references_prior_message_id_and_surfaces_miss_reas
 
 
 def test_diagnose_adds_beta_header(monkeypatch):
-    from claude_cache import CachingCoder as _CC
 
     cc = CachingCoder(api_key="k", model="claude-sonnet-5")
     captured = {}
@@ -200,8 +205,7 @@ def test_generate_cached_mid_system_rejects_unsupported_model(monkeypatch):
     monkeypatch.setattr(cc, "_post", lambda payload, diagnose=False: _response("ok"))
 
     with pytest.raises(ValueError, match="claude-opus-4-8"):
-        cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}],
-                           mid_system="update")
+        cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}], mid_system="update")
 
 
 def test_generate_cached_mid_system_appends_message_on_supported_model(monkeypatch):
@@ -214,8 +218,7 @@ def test_generate_cached_mid_system_appends_message_on_supported_model(monkeypat
     cc = CachingCoder(api_key="k", model="claude-opus-4-8")
     monkeypatch.setattr(cc, "_post", fake_post)
 
-    cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}],
-                       mid_system="update instructions")
+    cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}], mid_system="update instructions")
 
     messages = captured["payload"]["messages"]
     assert messages[1] == build_mid_system_message("update instructions")
@@ -254,7 +257,9 @@ def test_mid_system_supported_models_matches_docs():
     # and Opus 4.8 — NOT Sonnet 5 or Opus 5. Regression test for the v1.36.0
     # fix (this set was stuck at {"claude-opus-4-8"} since v1.18.0 launch).
     assert MID_SYSTEM_SUPPORTED_MODELS == {
-        "claude-fable-5", "claude-mythos-5", "claude-opus-4-8",
+        "claude-fable-5",
+        "claude-mythos-5",
+        "claude-opus-4-8",
     }
 
 
@@ -269,8 +274,7 @@ def test_generate_cached_mid_system_accepts_fable5_and_mythos5(monkeypatch, mode
     cc = CachingCoder(api_key="k", model=model)
     monkeypatch.setattr(cc, "_post", fake_post)
 
-    cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}],
-                       mid_system="update instructions")
+    cc.generate_cached("hi", history=[{"role": "user", "content": "prior"}], mid_system="update instructions")
 
     messages = captured["payload"]["messages"]
     assert messages[1] == build_mid_system_message("update instructions")

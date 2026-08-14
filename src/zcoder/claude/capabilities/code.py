@@ -65,24 +65,23 @@ PLUGINS
 CLI flags: see main.py --code-agent-*
 """
 
-import os
-import sys
 import json
+import os
+import subprocess
 import time
 import uuid
-import subprocess
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 # ── Storage paths ──────────────────────────────────────────────────────────
-SESSIONS_DIR  = Path(os.path.expanduser("~/.ai-coder/code_sessions"))
-HOOKS_DIR     = Path(os.path.expanduser("~/.ai-coder/hooks"))
-SKILLS_DIR    = Path(".claude/skills")
-AGENTS_DIR    = Path(".claude/agents")
-COMMANDS_DIR  = Path(".claude/commands")
-MEMORY_FILE   = Path(".claude/CLAUDE.md")
-USER_MEMORY   = Path(os.path.expanduser("~/.claude/CLAUDE.md"))
-MCP_JSON      = Path(".mcp.json")
+SESSIONS_DIR = Path(os.path.expanduser("~/.ai-coder/code_sessions"))
+HOOKS_DIR = Path(os.path.expanduser("~/.ai-coder/hooks"))
+SKILLS_DIR = Path(".claude/skills")
+AGENTS_DIR = Path(".claude/agents")
+COMMANDS_DIR = Path(".claude/commands")
+MEMORY_FILE = Path(".claude/CLAUDE.md")
+USER_MEMORY = Path(os.path.expanduser("~/.claude/CLAUDE.md"))
+MCP_JSON = Path(".mcp.json")
 SETTINGS_JSON = Path(".claude/settings.json")
 
 for d in (SESSIONS_DIR, HOOKS_DIR):
@@ -94,27 +93,40 @@ for d in (SESSIONS_DIR, HOOKS_DIR):
 # ══════════════════════════════════════════════════════════════════════════
 
 BUILTIN_TOOLS = [
-    "Read", "Write", "Edit", "MultiEdit", "Bash", "Glob", "Grep",
-    "LS", "WebSearch", "WebFetch", "Task", "TodoRead", "TodoWrite",
-    "NotebookRead", "NotebookEdit", "mcp__*",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Bash",
+    "Glob",
+    "Grep",
+    "LS",
+    "WebSearch",
+    "WebFetch",
+    "Task",
+    "TodoRead",
+    "TodoWrite",
+    "NotebookRead",
+    "NotebookEdit",
+    "mcp__*",
 ]
 
 TOOL_PRESETS = {
-    "all":        BUILTIN_TOOLS,
-    "code":       ["Read", "Write", "Edit", "MultiEdit", "Bash", "Glob", "Grep", "LS"],
-    "web":        ["WebSearch", "WebFetch"],
-    "readonly":   ["Read", "Glob", "Grep", "LS", "WebSearch", "WebFetch"],
+    "all": BUILTIN_TOOLS,
+    "code": ["Read", "Write", "Edit", "MultiEdit", "Bash", "Glob", "Grep", "LS"],
+    "web": ["WebSearch", "WebFetch"],
+    "readonly": ["Read", "Glob", "Grep", "LS", "WebSearch", "WebFetch"],
     "filesystem": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "LS"],
-    "safe":       ["Read", "Glob", "Grep", "LS"],
-    "none":       [],
+    "safe": ["Read", "Glob", "Grep", "LS"],
+    "none": [],
 }
 
 PERMISSION_MODES = {
-    "acceptEdits":      "Auto-approve file edits; ask for other tool calls",
-    "askPermission":    "Ask user before each tool call (default)",
-    "bypassPermissions":"Auto-approve ALL tool calls (use with caution)",
-    "dontAsk":          "Deny anything not in allowed_tools; no prompts",
-    "planMode":         "Plan only — no tool execution, output a plan",
+    "acceptEdits": "Auto-approve file edits; ask for other tool calls",
+    "askPermission": "Ask user before each tool call (default)",
+    "bypassPermissions": "Auto-approve ALL tool calls (use with caution)",
+    "dontAsk": "Deny anything not in allowed_tools; no prompts",
+    "planMode": "Plan only — no tool execution, output a plan",
 }
 
 
@@ -123,23 +135,23 @@ PERMISSION_MODES = {
 # ══════════════════════════════════════════════════════════════════════════
 
 HOOK_EVENTS = [
-    "PreToolUse",           # before tool execution
-    "PostToolUse",          # after tool execution
-    "PostToolUseFailure",   # after tool fails
-    "UserPromptSubmit",     # when user submits a prompt
-    "Stop",                 # agent stopping
-    "SubagentStart",        # subagent starts
-    "SubagentStop",         # subagent stops
-    "PreCompact",           # before message compaction
-    "Notification",         # notification events
-    "PermissionRequest",    # permission decision needed
-    "SessionStart",         # session begins (TypeScript only)
-    "SessionEnd",           # session ends (TypeScript only)
-    "Setup",                # setup phase
-    "TaskCompleted",        # task done
-    "ConfigChange",         # settings changed
-    "WorktreeCreate",       # git worktree created
-    "WorktreeRemove",       # git worktree removed
+    "PreToolUse",  # before tool execution
+    "PostToolUse",  # after tool execution
+    "PostToolUseFailure",  # after tool fails
+    "UserPromptSubmit",  # when user submits a prompt
+    "Stop",  # agent stopping
+    "SubagentStart",  # subagent starts
+    "SubagentStop",  # subagent stops
+    "PreCompact",  # before message compaction
+    "Notification",  # notification events
+    "PermissionRequest",  # permission decision needed
+    "SessionStart",  # session begins (TypeScript only)
+    "SessionEnd",  # session ends (TypeScript only)
+    "Setup",  # setup phase
+    "TaskCompleted",  # task done
+    "ConfigChange",  # settings changed
+    "WorktreeCreate",  # git worktree created
+    "WorktreeRemove",  # git worktree removed
 ]
 
 
@@ -148,28 +160,33 @@ HOOK_EVENTS = [
 # ══════════════════════════════════════════════════════════════════════════
 
 BUILTIN_SLASH_COMMANDS = {
-    "/clear":    "Clear conversation history and start a new session",
-    "/compact":  "Compact message history to save context window",
-    "/help":     "Show available commands",
-    "/model":    "Switch or display current model",
-    "/status":   "Show current session status",
-    "/cost":     "Show token usage and cost for this session",
-    "/memory":   "View or edit memory (CLAUDE.md)",
-    "/vim":      "Toggle vim keybindings",
-    "/agents":   "List or create subagent definitions",
-    "/skills":   "List available skills",
-    "/mcp":      "Show MCP server status",
-    "/review":   "Start a code review",
-    "/doctor":   "Run diagnostics",
-    "/bug":      "Report a bug",
-    "/pr":       "Create a pull request",
-    "/commit":   "Commit staged changes",
+    "/clear": "Clear conversation history and start a new session",
+    "/compact": "Compact message history to save context window",
+    "/help": "Show available commands",
+    "/model": "Switch or display current model",
+    "/status": "Show current session status",
+    "/cost": "Show token usage and cost for this session",
+    "/memory": "View or edit memory (CLAUDE.md)",
+    "/vim": "Toggle vim keybindings",
+    "/agents": "List or create subagent definitions",
+    "/skills": "List available skills",
+    "/mcp": "Show MCP server status",
+    "/review": "Start a code review",
+    "/doctor": "Run diagnostics",
+    "/bug": "Report a bug",
+    "/pr": "Create a pull request",
+    "/commit": "Commit staged changes",
 }
 
 SLASH_COMMAND_ALIASES = {
-    "clear": "/clear", "compact": "/compact", "help": "/help",
-    "model": "/model", "status": "/status", "cost": "/cost",
-    "memory": "/memory", "vim": "/vim",
+    "clear": "/clear",
+    "compact": "/compact",
+    "help": "/help",
+    "model": "/model",
+    "status": "/status",
+    "cost": "/cost",
+    "memory": "/memory",
+    "vim": "/vim",
 }
 
 
@@ -177,28 +194,33 @@ SLASH_COMMAND_ALIASES = {
 # SESSION
 # ══════════════════════════════════════════════════════════════════════════
 
+
 class CodeSession:
     """Persistent Agent SDK session with full history and metadata."""
 
-    def __init__(self, session_id: str = None, cwd: str = ".",
-                 model: str = "claude-sonnet-5",
-                 permission_mode: str = "askPermission",
-                 system_prompt: str = None):
-        self.id             = session_id or str(uuid.uuid4())[:16]
-        self.cwd            = str(Path(cwd).resolve())
-        self.model          = model
+    def __init__(
+        self,
+        session_id: str = None,
+        cwd: str = ".",
+        model: str = "claude-sonnet-5",
+        permission_mode: str = "askPermission",
+        system_prompt: str = None,
+    ):
+        self.id = session_id or str(uuid.uuid4())[:16]
+        self.cwd = str(Path(cwd).resolve())
+        self.model = model
         self.permission_mode = permission_mode
-        self.system_prompt  = system_prompt or ""
-        self.turns: list    = []
+        self.system_prompt = system_prompt or ""
+        self.turns: list = []
         self.tool_calls: list = []
         self.mcp_servers: dict = {}
         self.allowed_tools: list = []
-        self.hooks: dict    = {}
+        self.hooks: dict = {}
         self.cost_usd: float = 0.0
         self.input_tokens: int = 0
         self.output_tokens: int = 0
-        self.created_at     = time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.updated_at     = self.created_at
+        self.created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.updated_at = self.created_at
         self.checkpoints: list = []
 
     @classmethod
@@ -213,38 +235,43 @@ class CodeSession:
 
     def save(self):
         self.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        (SESSIONS_DIR / f"{self.id}.json").write_text(
-            json.dumps(self.__dict__, indent=2)
-        )
+        (SESSIONS_DIR / f"{self.id}.json").write_text(json.dumps(self.__dict__, indent=2))
 
     def add_turn(self, role: str, content: str, usage: dict = None):
-        self.turns.append({
-            "role": role, "content": content,
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "usage": usage or {},
-        })
+        self.turns.append(
+            {
+                "role": role,
+                "content": content,
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "usage": usage or {},
+            }
+        )
         if usage:
-            self.input_tokens  += usage.get("input_tokens", 0)
+            self.input_tokens += usage.get("input_tokens", 0)
             self.output_tokens += usage.get("output_tokens", 0)
             # rough cost estimate (Sonnet 4.5 rates)
-            self.cost_usd += (usage.get("input_tokens", 0) / 1e6 * 3.0 +
-                              usage.get("output_tokens", 0) / 1e6 * 15.0)
+            self.cost_usd += (
+                usage.get("input_tokens", 0) / 1e6 * 3.0 + usage.get("output_tokens", 0) / 1e6 * 15.0
+            )
 
-    def add_tool_call(self, name: str, inputs: dict, result: str,
-                      approved: bool = True):
-        self.tool_calls.append({
-            "name": name, "inputs": inputs, "result": result,
-            "approved": approved,
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        })
+    def add_tool_call(self, name: str, inputs: dict, result: str, approved: bool = True):
+        self.tool_calls.append(
+            {
+                "name": name,
+                "inputs": inputs,
+                "result": result,
+                "approved": approved,
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+        )
 
     def checkpoint(self, label: str = ""):
         """Save a file-level checkpoint (rewind point)."""
         cp = {
-            "id":    str(uuid.uuid4())[:8],
+            "id": str(uuid.uuid4())[:8],
             "label": label or f"checkpoint-{len(self.checkpoints)+1}",
-            "ts":    time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "turn":  len(self.turns),
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "turn": len(self.turns),
         }
         self.checkpoints.append(cp)
         return cp
@@ -253,14 +280,17 @@ class CodeSession:
         return [{"role": t["role"], "content": t["content"]} for t in self.turns]
 
     def cost_summary(self) -> str:
-        return (f"Session {self.id[:8]}  |  "
-                f"in={self.input_tokens:,}  out={self.output_tokens:,}  "
-                f"cost≈${self.cost_usd:.4f}")
+        return (
+            f"Session {self.id[:8]}  |  "
+            f"in={self.input_tokens:,}  out={self.output_tokens:,}  "
+            f"cost≈${self.cost_usd:.4f}"
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # HOOKS ENGINE
 # ══════════════════════════════════════════════════════════════════════════
+
 
 class HooksEngine:
     """
@@ -299,6 +329,7 @@ class HooksEngine:
         """Merge plugin-bundled hooks.json files into an existing engine's config."""
         try:
             from claude_plugins import load_plugin_hooks
+
             plugin_hooks = load_plugin_hooks()
         except ImportError:
             return base
@@ -318,14 +349,19 @@ class HooksEngine:
 
         stdin_data = json.dumps(payload)
         for handler in handlers:
-            cmd  = handler.get("command", "")
-            env  = {**os.environ, **handler.get("env", {})}
+            cmd = handler.get("command", "")
+            env = {**os.environ, **handler.get("env", {})}
             if not cmd:
                 continue
             try:
                 result = subprocess.run(
-                    cmd, shell=True, input=stdin_data,
-                    capture_output=True, text=True, timeout=30, env=env,
+                    cmd,
+                    shell=True,
+                    input=stdin_data,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    env=env,
                 )
                 if result.returncode == 2:
                     msg = result.stdout.strip() or result.stderr.strip()
@@ -339,38 +375,46 @@ class HooksEngine:
 
         return {"allowed": True, "message": ""}
 
-    def pre_tool_use(self, tool_name: str, tool_input: dict,
-                     session: CodeSession) -> dict:
-        return self.fire("PreToolUse", {
-            "hook_event_name": "PreToolUse",
-            "session_id": session.id,
-            "cwd": session.cwd,
-            "tool_name": tool_name,
-            "tool_input": tool_input,
-        })
+    def pre_tool_use(self, tool_name: str, tool_input: dict, session: CodeSession) -> dict:
+        return self.fire(
+            "PreToolUse",
+            {
+                "hook_event_name": "PreToolUse",
+                "session_id": session.id,
+                "cwd": session.cwd,
+                "tool_name": tool_name,
+                "tool_input": tool_input,
+            },
+        )
 
-    def post_tool_use(self, tool_name: str, tool_input: dict,
-                      tool_response: str, session: CodeSession):
-        self.fire("PostToolUse", {
-            "hook_event_name": "PostToolUse",
-            "session_id": session.id,
-            "cwd": session.cwd,
-            "tool_name": tool_name,
-            "tool_input": tool_input,
-            "tool_response": tool_response,
-        })
+    def post_tool_use(self, tool_name: str, tool_input: dict, tool_response: str, session: CodeSession):
+        self.fire(
+            "PostToolUse",
+            {
+                "hook_event_name": "PostToolUse",
+                "session_id": session.id,
+                "cwd": session.cwd,
+                "tool_name": tool_name,
+                "tool_input": tool_input,
+                "tool_response": tool_response,
+            },
+        )
 
     def notify(self, message: str, session: CodeSession):
-        self.fire("Notification", {
-            "hook_event_name": "Notification",
-            "session_id": session.id,
-            "message": message,
-        })
+        self.fire(
+            "Notification",
+            {
+                "hook_event_name": "Notification",
+                "session_id": session.id,
+                "message": message,
+            },
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # MCP CONNECTOR
 # ══════════════════════════════════════════════════════════════════════════
+
 
 class McpConnector:
     """
@@ -393,26 +437,32 @@ class McpConnector:
                 print(f"  [WARN] .mcp.json parse error: {e}")
         try:
             from claude_plugins import load_plugin_mcp_servers
+
             mc.servers.update(load_plugin_mcp_servers())
         except ImportError:
             pass
         return mc
 
-    def add_stdio(self, name: str, command: str, args: list = None,
-                  env: dict = None):
+    def add_stdio(self, name: str, command: str, args: list = None, env: dict = None):
         self.servers[name] = {
-            "type": "stdio", "command": command,
-            "args": args or [], "env": env or {},
+            "type": "stdio",
+            "command": command,
+            "args": args or [],
+            "env": env or {},
         }
 
     def add_http(self, name: str, url: str, headers: dict = None):
         self.servers[name] = {
-            "type": "http", "url": url, "headers": headers or {},
+            "type": "http",
+            "url": url,
+            "headers": headers or {},
         }
 
     def add_sse(self, name: str, url: str, headers: dict = None):
         self.servers[name] = {
-            "type": "sse", "url": url, "headers": headers or {},
+            "type": "sse",
+            "url": url,
+            "headers": headers or {},
         }
 
     def add_from_url(self, url: str):
@@ -438,6 +488,7 @@ class McpConnector:
 # SUBAGENT REGISTRY
 # ══════════════════════════════════════════════════════════════════════════
 
+
 class SubagentRegistry:
     """
     Load subagent definitions from .claude/agents/*.md
@@ -445,7 +496,7 @@ class SubagentRegistry:
     """
 
     def __init__(self, agents_dir: Path = AGENTS_DIR):
-        self.dir   = agents_dir
+        self.dir = agents_dir
         self._agents: dict = {}
 
     def load(self):
@@ -456,27 +507,30 @@ class SubagentRegistry:
         # Plugin-bundled agents (.claude/plugins/installed/<plugin>/agents/*.md)
         try:
             from claude_plugins import load_plugin_agents
+
             for entry in load_plugin_agents():
-                self._load_one(Path(entry["path"]), plugin=entry["plugin"],
-                               namespace=f"{entry['plugin']}:{entry['name']}")
+                self._load_one(
+                    Path(entry["path"]),
+                    plugin=entry["plugin"],
+                    namespace=f"{entry['plugin']}:{entry['name']}",
+                )
         except ImportError:
             pass
 
-    def _load_one(self, f: Path, plugin: Optional[str] = None,
-                 namespace: Optional[str] = None):
+    def _load_one(self, f: Path, plugin: Optional[str] = None, namespace: Optional[str] = None):
         try:
             content = f.read_text()
             meta, body = self._parse_frontmatter(content)
             name = namespace or meta.get("name") or f.stem
             self._agents[name] = {
-                "name":           name,
-                "description":    meta.get("description", ""),
-                "tools":          meta.get("tools", "all"),
-                "disallowedTools":meta.get("disallowedTools", ""),
-                "model":          meta.get("model", ""),
-                "system_prompt":  body.strip(),
-                "file":           str(f),
-                "plugin":         plugin,
+                "name": name,
+                "description": meta.get("description", ""),
+                "tools": meta.get("tools", "all"),
+                "disallowedTools": meta.get("disallowedTools", ""),
+                "model": meta.get("model", ""),
+                "system_prompt": body.strip(),
+                "file": str(f),
+                "plugin": plugin,
             }
         except Exception as e:
             print(f"  [WARN] Could not load agent {f.name}: {e}")
@@ -484,17 +538,18 @@ class SubagentRegistry:
     def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
         if not content.startswith("---"):
             return {}, content
-        lines  = content.split("\n")
-        end    = next((i for i, l in enumerate(lines[1:], 1) if l.strip() == "---"), None)
+        lines = content.split("\n")
+        end = next((i for i, l in enumerate(lines[1:], 1) if l.strip() == "---"), None)
         if end is None:
             return {}, content
         import re
+
         meta = {}
         for line in lines[1:end]:
-            m = re.match(r'^(\w+):\s*(.+)', line)
+            m = re.match(r"^(\w+):\s*(.+)", line)
             if m:
                 meta[m.group(1)] = m.group(2).strip()
-        body = "\n".join(lines[end+1:])
+        body = "\n".join(lines[end + 1 :])
         return meta, body
 
     def list(self) -> list:
@@ -503,8 +558,9 @@ class SubagentRegistry:
     def get(self, name: str) -> dict:
         return self._agents.get(name)
 
-    def create(self, name: str, description: str, system_prompt: str,
-               tools: str = "all", disallowed: str = "") -> Path:
+    def create(
+        self, name: str, description: str, system_prompt: str, tools: str = "all", disallowed: str = ""
+    ) -> Path:
         """Write a new agent definition file."""
         self.dir.mkdir(parents=True, exist_ok=True)
         content = (
@@ -526,14 +582,15 @@ ANTHROPIC_MANAGED_SKILLS = {
     "pptx": "Create PowerPoint presentations",
     "xlsx": "Create Excel spreadsheets",
     "docx": "Create Word documents",
-    "pdf":  "Create and fill PDF files",
+    "pdf": "Create and fill PDF files",
 }
+
 
 class SkillsRegistry:
     """Load Agent Skills from .claude/skills/<name>/SKILL.md"""
 
     def __init__(self, skills_dir: Path = SKILLS_DIR):
-        self.dir    = skills_dir
+        self.dir = skills_dir
         self._skills: dict = {}
 
     def load(self):
@@ -542,31 +599,48 @@ class SkillsRegistry:
                 skill_md = skill_dir / "SKILL.md"
                 if skill_md.exists():
                     content = skill_md.read_text()
-                    name    = skill_dir.name
+                    name = skill_dir.name
                     # extract first line description
-                    desc    = next((l.lstrip("# ").strip()
-                                    for l in content.splitlines()
-                                    if l.strip() and not l.startswith("---")), "")
+                    desc = next(
+                        (
+                            l.lstrip("# ").strip()
+                            for l in content.splitlines()
+                            if l.strip() and not l.startswith("---")
+                        ),
+                        "",
+                    )
                     self._skills[name] = {
-                        "name": name, "description": desc,
-                        "path": str(skill_md), "source": "custom",
+                        "name": name,
+                        "description": desc,
+                        "path": str(skill_md),
+                        "source": "custom",
                     }
         for name, desc in ANTHROPIC_MANAGED_SKILLS.items():
             self._skills[name] = {
-                "name": name, "description": desc,
-                "path": "", "source": "anthropic",
+                "name": name,
+                "description": desc,
+                "path": "",
+                "source": "anthropic",
             }
         try:
             from claude_plugins import load_plugin_skills
+
             for entry in load_plugin_skills():
                 content = Path(entry["path"]).read_text()
-                desc = next((l.lstrip("# ").strip()
-                            for l in content.splitlines()
-                            if l.strip() and not l.startswith("---")), "")
+                desc = next(
+                    (
+                        l.lstrip("# ").strip()
+                        for l in content.splitlines()
+                        if l.strip() and not l.startswith("---")
+                    ),
+                    "",
+                )
                 key = f"{entry['plugin']}:{entry['name']}"
                 self._skills[key] = {
-                    "name": key, "description": desc,
-                    "path": entry["path"], "source": f"plugin:{entry['plugin']}",
+                    "name": key,
+                    "description": desc,
+                    "path": entry["path"],
+                    "source": f"plugin:{entry['plugin']}",
                 }
         except ImportError:
             pass
@@ -584,6 +658,7 @@ class SkillsRegistry:
 
 TODO_FILE = Path(os.path.expanduser("~/.ai-coder/code_todos.json"))
 
+
 class TodoManager:
     def __init__(self):
         self._todos: list = []
@@ -598,9 +673,13 @@ class TodoManager:
         TODO_FILE.write_text(json.dumps(self._todos, indent=2))
 
     def add(self, text: str, priority: str = "medium") -> dict:
-        item = {"id": str(uuid.uuid4())[:8], "text": text,
-                "status": "todo", "priority": priority,
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+        item = {
+            "id": str(uuid.uuid4())[:8],
+            "text": text,
+            "status": "todo",
+            "priority": priority,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
         self._todos.append(item)
         self._save()
         return item
@@ -624,6 +703,7 @@ class TodoManager:
 # ══════════════════════════════════════════════════════════════════════════
 # MEMORY (CLAUDE.md)
 # ══════════════════════════════════════════════════════════════════════════
+
 
 class MemoryManager:
     """Read/write CLAUDE.md project and user memory."""
@@ -663,8 +743,8 @@ class MemoryManager:
 # CORE AGENT (Messages API agentic loop)
 # ══════════════════════════════════════════════════════════════════════════
 
-import urllib.request
 import urllib.error
+import urllib.request
 
 from exceptions import AICoderError
 from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
@@ -679,17 +759,16 @@ class CodeAgent:
     Replicates the Agent SDK's query() loop in pure stdlib Python.
     """
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5",
-                 max_tokens: int = 8192):
-        self.api_key    = api_key
-        self.model      = model
+    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 8192):
+        self.api_key = api_key
+        self.model = model
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict, betas: Optional[list] = None) -> dict:
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         if betas:
@@ -697,7 +776,8 @@ class CodeAgent:
         req = urllib.request.Request(
             MESSAGES_ENDPOINT,
             data=json.dumps(payload).encode(),
-            headers=headers, method="POST",
+            headers=headers,
+            method="POST",
         )
         return urlopen_json(req, timeout=300)
 
@@ -727,28 +807,98 @@ class CodeAgent:
         names = allowed or TOOL_PRESETS.get(preset, TOOL_PRESETS["all"])
 
         TOOL_SCHEMAS = {
-            "Read":      {"description": "Read a file", "input_schema": {
-                "type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},
-            "Write":     {"description": "Write a file", "input_schema": {
-                "type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}},
-            "Edit":      {"description": "Edit part of a file", "input_schema": {
-                "type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"}},"required":["path","old_string","new_string"]}},
-            "Bash":      {"description": "Run a bash command", "input_schema": {
-                "type":"object","properties":{"command":{"type":"string"},"timeout":{"type":"integer"}},"required":["command"]}},
-            "Glob":      {"description": "Find files matching a pattern", "input_schema": {
-                "type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"}},"required":["pattern"]}},
-            "Grep":      {"description": "Search file contents", "input_schema": {
-                "type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string"},"include":{"type":"string"}},"required":["pattern"]}},
-            "LS":        {"description": "List directory contents", "input_schema": {
-                "type":"object","properties":{"path":{"type":"string"}},"required":[]}},
-            "WebSearch": {"description": "Search the web", "input_schema": {
-                "type":"object","properties":{"query":{"type":"string"}},"required":["query"]}},
-            "WebFetch":  {"description": "Fetch a URL", "input_schema": {
-                "type":"object","properties":{"url":{"type":"string"}},"required":["url"]}},
-            "TodoRead":  {"description": "Read todo list", "input_schema": {
-                "type":"object","properties":{},"required":[]}},
-            "TodoWrite": {"description": "Update todo list", "input_schema": {
-                "type":"object","properties":{"todos":{"type":"array","items":{"type":"object"}}},"required":["todos"]}},
+            "Read": {
+                "description": "Read a file",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"],
+                },
+            },
+            "Write": {
+                "description": "Write a file",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                    "required": ["path", "content"],
+                },
+            },
+            "Edit": {
+                "description": "Edit part of a file",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "old_string": {"type": "string"},
+                        "new_string": {"type": "string"},
+                    },
+                    "required": ["path", "old_string", "new_string"],
+                },
+            },
+            "Bash": {
+                "description": "Run a bash command",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"command": {"type": "string"}, "timeout": {"type": "integer"}},
+                    "required": ["command"],
+                },
+            },
+            "Glob": {
+                "description": "Find files matching a pattern",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"pattern": {"type": "string"}, "path": {"type": "string"}},
+                    "required": ["pattern"],
+                },
+            },
+            "Grep": {
+                "description": "Search file contents",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {"type": "string"},
+                        "path": {"type": "string"},
+                        "include": {"type": "string"},
+                    },
+                    "required": ["pattern"],
+                },
+            },
+            "LS": {
+                "description": "List directory contents",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": [],
+                },
+            },
+            "WebSearch": {
+                "description": "Search the web",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            },
+            "WebFetch": {
+                "description": "Fetch a URL",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"url": {"type": "string"}},
+                    "required": ["url"],
+                },
+            },
+            "TodoRead": {
+                "description": "Read todo list",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            "TodoWrite": {
+                "description": "Update todo list",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"todos": {"type": "array", "items": {"type": "object"}}},
+                    "required": ["todos"],
+                },
+            },
         }
         for name in names:
             if name == "mcp__*":
@@ -757,9 +907,15 @@ class CodeAgent:
                 tools_out.append({"name": name, **TOOL_SCHEMAS[name]})
         return tools_out
 
-    def _execute_tool(self, name: str, inputs: dict, session: CodeSession,
-                      hooks: HooksEngine, permission: str,
-                      can_use_tool: Callable = None) -> str:
+    def _execute_tool(
+        self,
+        name: str,
+        inputs: dict,
+        session: CodeSession,
+        hooks: HooksEngine,
+        permission: str,
+        can_use_tool: Callable = None,
+    ) -> str:
         """Execute a tool call with permission checking and hooks."""
 
         # Hook: PreToolUse
@@ -825,7 +981,8 @@ class CodeAgent:
                 timeout = inputs.get("timeout", 30)
                 if os.environ.get("AI_CODER_SANDBOX") == "1":
                     try:
-                        from claude_sandbox import enforce, SandboxViolation
+                        from claude_sandbox import SandboxViolation, enforce
+
                         roots = json.loads(os.environ.get("AI_CODER_SANDBOX_ROOTS", "[]"))
                         allow_net = os.environ.get("AI_CODER_SANDBOX_NET") == "1"
                         enforce(cmd, cwd, allow_net=allow_net, extra_roots=roots)
@@ -833,8 +990,7 @@ class CodeAgent:
                         return f"[SANDBOX BLOCKED] {e}"
                     except ImportError:
                         pass
-                r = subprocess.run(cmd, shell=True, cwd=cwd,
-                                   capture_output=True, text=True, timeout=timeout)
+                r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout)
                 out = r.stdout.strip()
                 err = r.stderr.strip()
                 if r.returncode != 0:
@@ -843,14 +999,15 @@ class CodeAgent:
 
             elif name == "Glob":
                 pattern = inputs["pattern"]
-                base    = Path(cwd) / inputs.get("path", ".")
+                base = Path(cwd) / inputs.get("path", ".")
                 matches = sorted(base.glob(pattern))
                 return "\n".join(str(m.relative_to(cwd)) for m in matches[:100])
 
             elif name == "Grep":
                 import re
+
                 pattern = inputs["pattern"]
-                base    = Path(cwd) / inputs.get("path", ".")
+                base = Path(cwd) / inputs.get("path", ".")
                 include = inputs.get("include", "*")
                 results = []
                 for f in base.rglob(include):
@@ -901,14 +1058,14 @@ class CodeAgent:
 
     def query(
         self,
-        prompt:      str,
-        session:     CodeSession,
-        tools:       str = "all",
-        allowed:     list = None,
-        disallowed:  list = None,
-        permission:  str = "askPermission",
-        hooks:       HooksEngine = None,
-        max_turns:   int = 10,
+        prompt: str,
+        session: CodeSession,
+        tools: str = "all",
+        allowed: list = None,
+        disallowed: list = None,
+        permission: str = "askPermission",
+        hooks: HooksEngine = None,
+        max_turns: int = 10,
         can_use_tool: Callable = None,
         output_mode: str = "stream",
         system_extra: str = "",
@@ -926,7 +1083,7 @@ class CodeAgent:
         default, so this doesn't change behavior for existing callers. See
         --agent-context-editing in cmd_code_agent / main.py.
         """
-        hooks  = hooks or HooksEngine()
+        hooks = hooks or HooksEngine()
         memory = MemoryManager()
 
         # Build system prompt
@@ -958,10 +1115,10 @@ class CodeAgent:
 
         while turn < max_turns:
             payload: dict = {
-                "model":      session.model or self.model,
+                "model": session.model or self.model,
                 "max_tokens": self.max_tokens,
-                "system":     system,
-                "messages":   session.messages(),
+                "system": system,
+                "messages": session.messages(),
             }
             if tool_defs and permission != "planMode":
                 payload["tools"] = tool_defs
@@ -970,6 +1127,7 @@ class CodeAgent:
             if context_management is not None:
                 payload["context_management"] = context_management
                 from claude_tools import CONTEXT_MANAGEMENT_BETA
+
                 betas.append(CONTEXT_MANAGEMENT_BETA)
 
             if output_mode == "stream":
@@ -980,11 +1138,11 @@ class CodeAgent:
                 return f"[ERROR] {data['error']}"
 
             stop_reason = data.get("stop_reason", "end_turn")
-            content     = data.get("content", [])
-            usage       = data.get("usage", {})
+            content = data.get("content", [])
+            usage = data.get("usage", {})
 
             # Extract text
-            text = "".join(b.get("text","") for b in content if b.get("type")=="text")
+            text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
             if text:
                 final_text = text
                 if output_mode == "stream":
@@ -1005,9 +1163,9 @@ class CodeAgent:
             for block in content:
                 if block.get("type") != "tool_use":
                     continue
-                tname  = block["name"]
+                tname = block["name"]
                 tinput = block.get("input", {})
-                tid    = block["id"]
+                tid = block["id"]
 
                 if output_mode in ("stream",):
                     print(f"  \033[90m→ {tname}({json.dumps(tinput)[:60]})\033[0m")
@@ -1016,14 +1174,15 @@ class CodeAgent:
                 if disallowed and tname in disallowed:
                     result = f"[DENIED] {tname} is in disallowed_tools"
                 else:
-                    result = self._execute_tool(tname, tinput, session,
-                                                hooks, permission, can_use_tool)
+                    result = self._execute_tool(tname, tinput, session, hooks, permission, can_use_tool)
 
-                tool_results.append({
-                    "type":        "tool_result",
-                    "tool_use_id": tid,
-                    "content":     str(result),
-                })
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tid,
+                        "content": str(result),
+                    }
+                )
 
             if tool_results:
                 session.add_turn("user", json.dumps(tool_results))
@@ -1031,12 +1190,14 @@ class CodeAgent:
             turn += 1
 
         if output_mode == "json":
-            return json.dumps({
-                "session_id": session.id,
-                "result":     final_text,
-                "turns":      turn,
-                "cost":       session.cost_summary(),
-            })
+            return json.dumps(
+                {
+                    "session_id": session.id,
+                    "result": final_text,
+                    "turns": turn,
+                    "cost": session.cost_summary(),
+                }
+            )
 
         return final_text
 
@@ -1045,14 +1206,14 @@ class CodeAgent:
 # STRUCTURED OUTPUTS from agent
 # ══════════════════════════════════════════════════════════════════════════
 
+
 class StructuredAgentOutput:
     """Get JSON-structured output from the agent loop."""
 
     def __init__(self, agent: CodeAgent):
         self.agent = agent
 
-    def query_json(self, prompt: str, schema: dict,
-                   session: CodeSession) -> dict:
+    def query_json(self, prompt: str, schema: dict, session: CodeSession) -> dict:
         """Run agent and parse structured JSON from the result."""
         full_prompt = (
             f"{prompt}\n\n"
@@ -1061,8 +1222,11 @@ class StructuredAgentOutput:
             f"No markdown, no explanation — pure JSON only."
         )
         result = self.agent.query(
-            full_prompt, session, tools="none",
-            permission="dontAsk", output_mode="text",
+            full_prompt,
+            session,
+            tools="none",
+            permission="dontAsk",
+            output_mode="text",
         )
         try:
             clean = result.strip()
@@ -1077,16 +1241,24 @@ class StructuredAgentOutput:
 # CLI ENTRY POINTS
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def cmd_code_agent(
-    prompt: str, api_key: str, model: str,
-    cwd: str = ".", tools: str = "all",
+    prompt: str,
+    api_key: str,
+    model: str,
+    cwd: str = ".",
+    tools: str = "all",
     permission: str = "askPermission",
-    session_id: str = None, system: str = None,
-    mcp_urls: list = None, output_mode: str = "stream",
-    hooks_file: str = None, checkpoint: bool = False,
+    session_id: str = None,
+    system: str = None,
+    mcp_urls: list = None,
+    output_mode: str = "stream",
+    hooks_file: str = None,
+    checkpoint: bool = False,
     output_file: str = None,
     output_style: str = None,
-    sandbox: bool = False, sandbox_allow_net: bool = False,
+    sandbox: bool = False,
+    sandbox_allow_net: bool = False,
     sandbox_roots: list = None,
     headless: bool = False,
     agent_context_editing: bool = False,
@@ -1110,16 +1282,21 @@ def cmd_code_agent(
             if not headless:
                 print(f"\033[90m  Resumed session: {session.id} ({len(session.turns)} turns)\033[0m\n")
         except FileNotFoundError:
-            session = CodeSession(session_id=session_id, cwd=cwd, model=model,
-                                  permission_mode=permission, system_prompt=system or "")
+            session = CodeSession(
+                session_id=session_id,
+                cwd=cwd,
+                model=model,
+                permission_mode=permission,
+                system_prompt=system or "",
+            )
     else:
-        session = CodeSession(cwd=cwd, model=model,
-                              permission_mode=permission, system_prompt=system or "")
+        session = CodeSession(cwd=cwd, model=model, permission_mode=permission, system_prompt=system or "")
 
     # Output style: append style instructions to the session's system prompt
     if output_style:
         try:
             from claude_output_styles import system_prompt_fragment
+
             fragment = system_prompt_fragment(output_style)
             if fragment:
                 session.system_prompt = (session.system_prompt + "\n\n" + fragment).strip()
@@ -1128,7 +1305,7 @@ def cmd_code_agent(
 
     # MCP (project .mcp.json + plugin-bundled servers + ad-hoc --code-agent-mcp URLs)
     mcp = McpConnector.from_json_file()
-    for url in (mcp_urls or []):
+    for url in mcp_urls or []:
         mcp.add_from_url(url)
 
     # Hooks: project/global settings hooks, merged with plugin-bundled hooks
@@ -1150,6 +1327,7 @@ def cmd_code_agent(
     # Plugin bin/ dirs onto PATH for the duration of this run
     try:
         from claude_plugins import plugin_bin_paths
+
         extra_bins = plugin_bin_paths()
         if extra_bins:
             os.environ["PATH"] = os.pathsep.join(extra_bins) + os.pathsep + os.environ.get("PATH", "")
@@ -1157,8 +1335,10 @@ def cmd_code_agent(
         pass
 
     # Skills / Agents (now plugin-aware via their own .load())
-    skills = SkillsRegistry(); skills.load()
-    agents = SubagentRegistry(); agents.load()
+    skills = SkillsRegistry()
+    skills.load()
+    agents = SubagentRegistry()
+    agents.load()
 
     # Checkpoint before run
     if checkpoint:
@@ -1176,15 +1356,18 @@ def cmd_code_agent(
     cm = None
     if agent_context_editing:
         from claude_tools import build_context_management
+
         cm = build_context_management(clear_tool_uses=True)
         if not headless:
-            print(f"\033[90m  ⚙ Context editing enabled (clear_tool_uses)\033[0m")
+            print("\033[90m  ⚙ Context editing enabled (clear_tool_uses)\033[0m")
 
     # Run
-    agent  = CodeAgent(api_key=api_key, model=model)
+    agent = CodeAgent(api_key=api_key, model=model)
     result = agent.query(
-        prompt=prompt, session=session,
-        tools=tools, permission=permission,
+        prompt=prompt,
+        session=session,
+        tools=tools,
+        permission=permission,
         hooks=hooks_engine,
         output_mode=effective_output_mode,
         context_management=cm,
@@ -1200,21 +1383,24 @@ def cmd_code_agent(
 
     if not headless:
         print(f"\n\033[90m{session.cost_summary()}\033[0m")
-        print(f"\033[90m  Resume: ai-coder --code-agent-session {session.id} -p \"...\"\033[0m")
+        print(f'\033[90m  Resume: ai-coder --code-agent-session {session.id} -p "..."\033[0m')
     return result
 
 
 def cmd_code_subagent(task: str, api_key: str, model: str, cwd: str = "."):
     """Spawn a focused subagent for a sub-task."""
-    print(f"\033[94mℹ Spawning subagent…\033[0m\n")
-    session = CodeSession(cwd=cwd, model=model, permission_mode="acceptEdits",
-                          system_prompt=(
-                              "You are a focused subagent. Complete ONLY the specific task. "
-                              "Be thorough. Return just the result."
-                          ))
-    agent  = CodeAgent(api_key=api_key, model=model)
-    result = agent.query(task, session, tools="safe",
-                         permission="acceptEdits", output_mode="stream")
+    print("\033[94mℹ Spawning subagent…\033[0m\n")
+    session = CodeSession(
+        cwd=cwd,
+        model=model,
+        permission_mode="acceptEdits",
+        system_prompt=(
+            "You are a focused subagent. Complete ONLY the specific task. "
+            "Be thorough. Return just the result."
+        ),
+    )
+    agent = CodeAgent(api_key=api_key, model=model)
+    result = agent.query(task, session, tools="safe", permission="acceptEdits", output_mode="stream")
     return result
 
 
@@ -1225,14 +1411,18 @@ def cmd_code_todo(prompt: str, api_key: str, model: str):
 
     # Ask Claude to decompose the prompt into todos
     session = CodeSession(model=model, permission_mode="dontAsk")
-    agent   = CodeAgent(api_key=api_key, model=model)
-    raw     = agent.query(
+    agent = CodeAgent(api_key=api_key, model=model)
+    raw = agent.query(
         f"Break this task into 5-8 concrete todo items (JSON array of strings):\n{prompt}",
-        session, tools="none", permission="dontAsk", output_mode="text",
+        session,
+        tools="none",
+        permission="dontAsk",
+        output_mode="text",
     )
     try:
         import re
-        m = re.search(r'\[.*?\]', raw, re.DOTALL)
+
+        m = re.search(r"\[.*?\]", raw, re.DOTALL)
         if m:
             items = json.loads(m.group(0))
             for item in items:
@@ -1242,8 +1432,7 @@ def cmd_code_todo(prompt: str, api_key: str, model: str):
         print(raw)
 
 
-def cmd_code_slash(command: str, api_key: str, model: str,
-                   cwd: str = ".", prompt: str = ""):
+def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", prompt: str = ""):
     """Handle slash commands."""
     cmd = command.lstrip("/").lower()
     full_cmd = SLASH_COMMAND_ALIASES.get(cmd, f"/{cmd}")
@@ -1272,8 +1461,18 @@ def cmd_code_slash(command: str, api_key: str, model: str,
         print("Session cost tracking (use --code-agent-cost for full summary)")
         return
 
-    if cmd in ("status", "model", "mcp", "agents", "skills", "memory", "doctor",
-               "plugin", "output-style", "statusline"):
+    if cmd in (
+        "status",
+        "model",
+        "mcp",
+        "agents",
+        "skills",
+        "memory",
+        "doctor",
+        "plugin",
+        "output-style",
+        "statusline",
+    ):
         # Route to appropriate command
         if cmd == "model":
             print(f"  Current model: {model}")
@@ -1286,12 +1485,14 @@ def cmd_code_slash(command: str, api_key: str, model: str,
             else:
                 print("  No MCP servers configured. Add to .mcp.json")
         elif cmd == "agents":
-            reg = SubagentRegistry(); reg.load()
+            reg = SubagentRegistry()
+            reg.load()
             for a in reg.list():
                 tag = f" [{a['plugin']}]" if a.get("plugin") else ""
                 print(f"  {a['name']}{tag}: {a['description']}")
         elif cmd == "skills":
-            reg = SkillsRegistry(); reg.load()
+            reg = SkillsRegistry()
+            reg.load()
             for s in reg.list():
                 print(f"  {s['name']} ({s['source']}): {s['description']}")
         elif cmd == "memory":
@@ -1302,12 +1503,15 @@ def cmd_code_slash(command: str, api_key: str, model: str,
             _run_doctor()
         elif cmd == "plugin":
             from claude_plugins import cmd_plugin_list
+
             cmd_plugin_list()
         elif cmd == "output-style":
             from claude_output_styles import cmd_list_output_styles
+
             cmd_list_output_styles()
         elif cmd == "statusline":
             from claude_settings import cmd_status_line
+
             cmd_status_line(model=model, cwd=cwd)
         return
 
@@ -1319,24 +1523,29 @@ def cmd_code_slash(command: str, api_key: str, model: str,
                     content = f.read_text()
                     print(f"\033[94mℹ Running custom command: /{cmd}\033[0m\n")
                     session = CodeSession(cwd=cwd, model=model)
-                    agent   = CodeAgent(api_key=api_key, model=model)
+                    agent = CodeAgent(api_key=api_key, model=model)
                     agent.query(
                         f"{content}\n\n{prompt}" if prompt else content,
-                        session, tools="code", permission="acceptEdits",
+                        session,
+                        tools="code",
+                        permission="acceptEdits",
                     )
                     return
 
     try:
         from claude_plugins import load_plugin_commands
+
         for entry in load_plugin_commands():
             if entry["name"] == cmd or entry["name"].split(":", 1)[-1] == cmd:
                 content = Path(entry["path"]).read_text()
                 print(f"\033[94mℹ Running plugin command: /{entry['name']}\033[0m\n")
                 session = CodeSession(cwd=cwd, model=model)
-                agent   = CodeAgent(api_key=api_key, model=model)
+                agent = CodeAgent(api_key=api_key, model=model)
                 agent.query(
                     f"{content}\n\n{prompt}" if prompt else content,
-                    session, tools="code", permission="acceptEdits",
+                    session,
+                    tools="code",
+                    permission="acceptEdits",
                 )
                 return
     except ImportError:
@@ -1359,7 +1568,9 @@ def cmd_code_cost(api_key: str):
             o = d.get("output_tokens", 0)
             c = d.get("cost_usd", 0.0)
             t = len(d.get("turns", [])) // 2
-            total_in += i; total_out += o; total_cost += c
+            total_in += i
+            total_out += o
+            total_cost += c
             print(f"{d['id'][:16]:<18}{t:<8}{i:,<12}{o:,<12}${c:.4f}")
         except Exception:
             pass
@@ -1386,14 +1597,21 @@ def cmd_code_list_sessions():
 def cmd_code_list_tools():
     print("\nBuilt-in tools:")
     descs = {
-        "Read":"Read file contents",      "Write":"Write a file",
-        "Edit":"Edit part of a file",      "MultiEdit":"Multi-location edit",
-        "Bash":"Run bash commands",         "Glob":"Find files by pattern",
-        "Grep":"Search file contents",      "LS":"List directory",
-        "WebSearch":"Search the web",       "WebFetch":"Fetch a URL",
-        "TodoRead":"Read todo list",         "TodoWrite":"Update todo list",
-        "NotebookRead":"Read Jupyter nb",   "NotebookEdit":"Edit Jupyter nb",
-        "Task":"Spawn a subagent task",
+        "Read": "Read file contents",
+        "Write": "Write a file",
+        "Edit": "Edit part of a file",
+        "MultiEdit": "Multi-location edit",
+        "Bash": "Run bash commands",
+        "Glob": "Find files by pattern",
+        "Grep": "Search file contents",
+        "LS": "List directory",
+        "WebSearch": "Search the web",
+        "WebFetch": "Fetch a URL",
+        "TodoRead": "Read todo list",
+        "TodoWrite": "Update todo list",
+        "NotebookRead": "Read Jupyter nb",
+        "NotebookEdit": "Edit Jupyter nb",
+        "Task": "Spawn a subagent task",
     }
     for name, desc in descs.items():
         print(f"  {name:<15} — {desc}")
@@ -1409,17 +1627,18 @@ def _run_doctor():
     """Diagnostics for Claude Code environment."""
     print("\n\033[94mℹ Claude Code Diagnostics\033[0m")
     checks = [
-        ("ANTHROPIC_API_KEY set",  bool(os.getenv("ANTHROPIC_API_KEY"))),
-        (".mcp.json exists",       MCP_JSON.exists()),
-        (".claude/settings.json",  SETTINGS_JSON.exists()),
+        ("ANTHROPIC_API_KEY set", bool(os.getenv("ANTHROPIC_API_KEY"))),
+        (".mcp.json exists", MCP_JSON.exists()),
+        (".claude/settings.json", SETTINGS_JSON.exists()),
         (".claude/agents/ exists", AGENTS_DIR.exists()),
         (".claude/skills/ exists", SKILLS_DIR.exists()),
-        ("CLAUDE.md exists",       MEMORY_FILE.exists() or Path("CLAUDE.md").exists()),
-        ("~/.claude/CLAUDE.md",    USER_MEMORY.exists()),
-        ("Sessions dir",           SESSIONS_DIR.exists()),
+        ("CLAUDE.md exists", MEMORY_FILE.exists() or Path("CLAUDE.md").exists()),
+        ("~/.claude/CLAUDE.md", USER_MEMORY.exists()),
+        ("Sessions dir", SESSIONS_DIR.exists()),
     ]
     try:
-        from claude_plugins import plugin_list, marketplace_list
+        from claude_plugins import marketplace_list, plugin_list
+
         checks.append(("Plugins installed", len(plugin_list()) > 0))
         checks.append(("Marketplaces registered", len(marketplace_list()) > 0))
     except ImportError:

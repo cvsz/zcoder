@@ -25,15 +25,15 @@ CLI flags:
   --status-line             Render the statusLine once for the current state
 """
 
-import os
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Optional
 
-USER_SETTINGS    = Path(os.path.expanduser("~/.claude/settings.json"))
+USER_SETTINGS = Path(os.path.expanduser("~/.claude/settings.json"))
 PROJECT_SETTINGS = Path(".claude/settings.json")
-LOCAL_SETTINGS   = Path(".claude/settings.local.json")
+LOCAL_SETTINGS = Path(".claude/settings.local.json")
 
 DEFAULT_STATUS_LINE_TEMPLATE = "[{model}] {cwd} · turns:{turns} · ${cost}"
 
@@ -113,6 +113,7 @@ def cmd_settings_show():
 # STATUS LINE
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def render_status_line(session_state: dict) -> str:
     """
     session_state keys used: model, cwd, turns, cost (all optional; missing
@@ -126,9 +127,12 @@ def render_status_line(session_state: dict) -> str:
     if isinstance(sl, dict) and sl.get("command"):
         try:
             r = subprocess.run(
-                sl["command"], shell=True,
+                sl["command"],
+                shell=True,
                 input=json.dumps(session_state),
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             line = r.stdout.strip()
             if line:
@@ -147,7 +151,12 @@ def render_status_line(session_state: dict) -> str:
 
 
 def cmd_status_line(model: str, cwd: str = ".", turns: int = 0, cost: float = 0.0):
-    line = render_status_line({
-        "model": model, "cwd": cwd, "turns": turns, "cost": f"{cost:.4f}",
-    })
+    line = render_status_line(
+        {
+            "model": model,
+            "cwd": cwd,
+            "turns": turns,
+            "cost": f"{cost:.4f}",
+        }
+    )
     print(line)

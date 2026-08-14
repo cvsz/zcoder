@@ -7,12 +7,9 @@ Verifies:
   4. Project Readiness Reporting & RAG Ingestion
   5. Zero-Paid-Calls Guarantee
 """
-import pytest
 
 from local_ai_stack import (
-    DetectedStack,
     ProjectBootstrapService,
-    ProjectReadinessReport,
 )
 
 

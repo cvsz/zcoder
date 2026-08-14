@@ -1,8 +1,7 @@
 """tests/test_worker_process.py — Tests for the production worker process."""
+
 import threading
 import time
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -13,6 +12,7 @@ from worker_process import Worker, WorkerState
 def sqlite_worker(tmp_path):
     """Create a worker with SQLite backend for unit testing."""
     from control_plane import ControlPlaneStore
+
     db_path = tmp_path / "test_control_plane.db"
     store = ControlPlaneStore(db_path=db_path)
 
@@ -35,6 +35,7 @@ def _insert_job(store, job_id: str, task: str = "test task", runtime: str = "fak
     """Helper to insert a test job."""
     import sqlite3
     import time
+
     with sqlite3.connect(store.db_path) as conn:
         conn.execute(
             """INSERT INTO jobs (id, task, runtime, status, workspace, created_at, updated_at, 
@@ -100,7 +101,6 @@ class TestWorkerShutdown:
 
     def test_shutdown_releases_claimed_jobs_on_timeout(self, sqlite_worker):
         """Jobs still active after shutdown_timeout must be released back to READY."""
-        from agent_runtime import JobStatus
         worker, store = sqlite_worker
         worker._state = WorkerState.RUNNING
         worker.shutdown_timeout = 0.01  # Very short timeout
@@ -144,7 +144,6 @@ class TestWorkerJobClaim:
         assert gen == 1
 
     def test_worker_execute_job_succeeds(self, sqlite_worker):
-        from agent_runtime import JobStatus
         worker, store = sqlite_worker
         _insert_job(store, "job_exec_test", runtime="fake")
 
@@ -157,6 +156,7 @@ class TestWorkerJobClaim:
 
         # Verify job is now SUCCEEDED
         import sqlite3
+
         with sqlite3.connect(store.db_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT status FROM jobs WHERE id = 'job_exec_test'")
@@ -166,6 +166,7 @@ class TestWorkerJobClaim:
 
     def test_fencing_rejected_for_stale_worker(self, sqlite_worker):
         from agent_runtime import JobStatus
+
         worker, store = sqlite_worker
         _insert_job(store, "job_fencing_test", runtime="fake")
 

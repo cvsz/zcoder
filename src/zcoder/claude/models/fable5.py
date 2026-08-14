@@ -62,8 +62,8 @@ CLI flags:
 """
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Optional
 
 from exceptions import AICoderError
@@ -114,8 +114,8 @@ FABLE_MYTHOS_INFO = {
         "has_safety_classifiers": True,
         "us_only_inference_multiplier": 1.1,
         "notes": "Refuses certain cybersecurity/biology/chemistry queries via stop_reason='refusal' "
-                "and can fall back to a less-restricted model server-side (beta `fallbacks` param) "
-                "or client-side (this module's call_with_fallback).",
+        "and can fall back to a less-restricted model server-side (beta `fallbacks` param) "
+        "or client-side (this module's call_with_fallback).",
     },
     MYTHOS5_MODEL_ID: {
         "display_name": "Claude Mythos 5",
@@ -129,15 +129,16 @@ FABLE_MYTHOS_INFO = {
         "has_safety_classifiers": False,
         "us_only_inference_multiplier": None,
         "notes": "Same underlying capability as Fable 5 without the safety classifiers. "
-                "Requires approved access via Project Glasswing — contact your Anthropic, "
-                "AWS, or Google Cloud account team. Most callers will not have this and "
-                "should use Fable 5 instead.",
+        "Requires approved access via Project Glasswing — contact your Anthropic, "
+        "AWS, or Google Cloud account team. Most callers will not have this and "
+        "should use Fable 5 instead.",
     },
 }
 
 
 class RefusalError(Exception):
     """Raised when a Fable 5 call is refused and fallback is disabled/exhausted."""
+
     def __init__(self, message: str, classifier: Optional[str] = None):
         super().__init__(message)
         self.classifier = classifier
@@ -148,9 +149,14 @@ class Fable5Client:
     following the same _post() pattern used throughout this project's other
     claude_*.py modules for consistency."""
 
-    def __init__(self, api_key: str, model: str = FABLE5_MODEL_ID,
-                 fallback_model: str = "claude-opus-4-8", max_tokens: int = 4096,
-                 fallback_chain=None):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = FABLE5_MODEL_ID,
+        fallback_model: str = "claude-opus-4-8",
+        max_tokens: int = 4096,
+        fallback_chain=None,
+    ):
         self.api_key = api_key
         self.model = model
         self.fallback_model = fallback_model
@@ -175,8 +181,10 @@ class Fable5Client:
         if extra_headers:
             headers.update(extra_headers)
         req = urllib.request.Request(
-            MESSAGES_ENDPOINT, data=json.dumps(payload).encode(),
-            headers=headers, method="POST",
+            MESSAGES_ENDPOINT,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
         )
         return urlopen_json(req, timeout=300)
 
@@ -189,12 +197,15 @@ class Fable5Client:
             return {"error": str(e)}
 
     def _extract_text(self, data: dict) -> str:
-        return "".join(
-            b.get("text", "") for b in data.get("content", []) if b.get("type") == "text"
-        )
+        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
-    def call(self, prompt: str, system: Optional[str] = None,
-             model: Optional[str] = None, is_fallback_retry: bool = False) -> dict:
+    def call(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        model: Optional[str] = None,
+        is_fallback_retry: bool = False,
+    ) -> dict:
         """One raw call. Returns the parsed response dict (caller inspects stop_reason).
 
         is_fallback_retry=True sends the fallback-credit beta header, per the
@@ -223,8 +234,9 @@ class Fable5Client:
             extra_headers = {"anthropic-beta": SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER}
         return self._post(payload, extra_headers=extra_headers)
 
-    def call_with_fallback(self, prompt: str, system: Optional[str] = None,
-                           allow_fallback: bool = True) -> dict:
+    def call_with_fallback(
+        self, prompt: str, system: Optional[str] = None, allow_fallback: bool = True
+    ) -> dict:
         """
         Call the configured model.
 
@@ -247,9 +259,17 @@ class Fable5Client:
         """
         data = self.call(prompt, system=system)
         if "error" in data:
-            return {"text": f"[ERROR] {data['error']}", "stop_reason": None,
-                   "refused": False, "fell_back": False, "served_by": None,
-                   "classifier": None, "category": None, "explanation": "", "raw": data}
+            return {
+                "text": f"[ERROR] {data['error']}",
+                "stop_reason": None,
+                "refused": False,
+                "fell_back": False,
+                "served_by": None,
+                "classifier": None,
+                "category": None,
+                "explanation": "",
+                "raw": data,
+            }
 
         stop_reason = data.get("stop_reason")
         refused = stop_reason == "refusal"
@@ -263,11 +283,17 @@ class Fable5Client:
             served_by = data.get("model", self.model)
             stop_details = (data.get("stop_details") or {}) if refused else {}
             category = stop_details.get("category")
-            return {"text": self._extract_text(data), "stop_reason": stop_reason,
-                   "refused": refused, "fell_back": served_by != self.model,
-                   "served_by": served_by, "classifier": category,
-                   "category": category, "explanation": stop_details.get("explanation", ""),
-                   "raw": data}
+            return {
+                "text": self._extract_text(data),
+                "stop_reason": stop_reason,
+                "refused": refused,
+                "fell_back": served_by != self.model,
+                "served_by": served_by,
+                "classifier": category,
+                "category": category,
+                "explanation": stop_details.get("explanation", ""),
+                "raw": data,
+            }
         # Was reading data["refusal"]["classifier"] — a field this project
         # invented rather than one the API documents. The documented shape
         # (per Refusals and fallback, checked 2026-07-04) is
@@ -283,30 +309,51 @@ class Fable5Client:
         if refused and allow_fallback:
             # is_fallback_retry=True sends the fallback-credit beta header so
             # this manual retry doesn't get billed twice for prompt caching.
-            fallback_data = self.call(prompt, system=system, model=self.fallback_model,
-                                      is_fallback_retry=True)
+            fallback_data = self.call(
+                prompt, system=system, model=self.fallback_model, is_fallback_retry=True
+            )
             if "error" in fallback_data:
-                return {"text": f"[ERROR on fallback] {fallback_data['error']}",
-                       "stop_reason": stop_reason, "refused": True, "fell_back": False,
-                       "served_by": None, "classifier": classifier, "category": category,
-                       "explanation": stop_details.get("explanation", ""), "raw": data}
-            return {"text": self._extract_text(fallback_data),
-                   "stop_reason": fallback_data.get("stop_reason"),
-                   "refused": True, "fell_back": True, "served_by": self.fallback_model,
-                   "classifier": classifier, "category": category,
-                   "explanation": stop_details.get("explanation", ""),
-                   "raw": fallback_data}
+                return {
+                    "text": f"[ERROR on fallback] {fallback_data['error']}",
+                    "stop_reason": stop_reason,
+                    "refused": True,
+                    "fell_back": False,
+                    "served_by": None,
+                    "classifier": classifier,
+                    "category": category,
+                    "explanation": stop_details.get("explanation", ""),
+                    "raw": data,
+                }
+            return {
+                "text": self._extract_text(fallback_data),
+                "stop_reason": fallback_data.get("stop_reason"),
+                "refused": True,
+                "fell_back": True,
+                "served_by": self.fallback_model,
+                "classifier": classifier,
+                "category": category,
+                "explanation": stop_details.get("explanation", ""),
+                "raw": fallback_data,
+            }
 
         if refused:
             raise RefusalError(
                 f"Claude Fable 5 declined this request (category: {category or 'unspecified'}). "
                 "Re-run with fallback enabled, or use claude-opus-4-8 directly.",
-                classifier=classifier
+                classifier=classifier,
             )
 
-        return {"text": self._extract_text(data), "stop_reason": stop_reason,
-               "refused": False, "fell_back": False, "served_by": self.model,
-               "classifier": None, "category": None, "explanation": "", "raw": data}
+        return {
+            "text": self._extract_text(data),
+            "stop_reason": stop_reason,
+            "refused": False,
+            "fell_back": False,
+            "served_by": self.model,
+            "classifier": None,
+            "category": None,
+            "explanation": "",
+            "raw": data,
+        }
 
 
 def estimate_cost_usd(model_id: str, input_tokens: int, output_tokens: int) -> Optional[float]:
@@ -314,8 +361,10 @@ def estimate_cost_usd(model_id: str, input_tokens: int, output_tokens: int) -> O
     info = FABLE_MYTHOS_INFO.get(model_id)
     if not info:
         return None
-    return (input_tokens / 1_000_000 * info["price_input_per_mtok_usd"] +
-            output_tokens / 1_000_000 * info["price_output_per_mtok_usd"])
+    return (
+        input_tokens / 1_000_000 * info["price_input_per_mtok_usd"]
+        + output_tokens / 1_000_000 * info["price_output_per_mtok_usd"]
+    )
 
 
 def cmd_fable5_info():
@@ -328,19 +377,27 @@ def cmd_fable5_info():
         print(f"    Class:            {info['class']}")
         print(f"    Context window:   {info['context_window']:,} tokens")
         print(f"    Max output:       {info['max_output_tokens']:,} tokens")
-        print(f"    Pricing:          ${info['price_input_per_mtok_usd']}/MTok in, "
-             f"${info['price_output_per_mtok_usd']}/MTok out")
+        print(
+            f"    Pricing:          ${info['price_input_per_mtok_usd']}/MTok in, "
+            f"${info['price_output_per_mtok_usd']}/MTok out"
+        )
         print(f"    Data retention:   {info['data_retention']}")
-        print(f"    Safety classifiers: {'yes (can refuse, see fallback)' if info['has_safety_classifiers'] else 'no'}")
+        print(
+            f"    Safety classifiers: {'yes (can refuse, see fallback)' if info['has_safety_classifiers'] else 'no'}"
+        )
         print(f"    Notes:            {info['notes']}")
         print()
 
 
-def cmd_fable5_call(prompt: str, api_key: str, fallback_model: str = "claude-opus-4-8",
-                    allow_fallback: bool = True, system: Optional[str] = None,
-                    fallback_chain: Optional[list] = None):
-    client = Fable5Client(api_key=api_key, fallback_model=fallback_model,
-                          fallback_chain=fallback_chain)
+def cmd_fable5_call(
+    prompt: str,
+    api_key: str,
+    fallback_model: str = "claude-opus-4-8",
+    allow_fallback: bool = True,
+    system: Optional[str] = None,
+    fallback_chain: Optional[list] = None,
+):
+    client = Fable5Client(api_key=api_key, fallback_model=fallback_model, fallback_chain=fallback_chain)
     try:
         result = client.call_with_fallback(prompt, system=system, allow_fallback=allow_fallback)
     except RefusalError as e:
@@ -350,8 +407,10 @@ def cmd_fable5_call(prompt: str, api_key: str, fallback_model: str = "claude-opu
     if result["fell_back"]:
         served_by = result.get("served_by") or fallback_model
         mode = "server-side fallbacks" if fallback_chain else "client-side manual retry"
-        print(f"\033[93mℹ Fable 5 declined this request (classifier: {result['classifier'] or 'unspecified'}); "
-             f"showing the {served_by} response instead ({mode}).\033[0m\n")
+        print(
+            f"\033[93mℹ Fable 5 declined this request (classifier: {result['classifier'] or 'unspecified'}); "
+            f"showing the {served_by} response instead ({mode}).\033[0m\n"
+        )
     print(result["text"])
     return result
 

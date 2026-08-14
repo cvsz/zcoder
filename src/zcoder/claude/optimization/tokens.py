@@ -12,9 +12,8 @@ CLI flags:
 """
 
 import json
-import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -30,10 +29,11 @@ class TokenCounter:
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
         self.api_key = api_key
-        self.model   = model
+        self.model = model
 
-    def count(self, prompt: str, system: Optional[str] = None,
-              tools: list[dict] = None, history: list[dict] = None) -> dict:
+    def count(
+        self, prompt: str, system: Optional[str] = None, tools: list[dict] = None, history: list[dict] = None
+    ) -> dict:
         messages = list(history or [])
         messages.append({"role": "user", "content": prompt})
 
@@ -44,8 +44,8 @@ class TokenCounter:
             payload["tools"] = tools
 
         headers = {
-            "Content-Type":      "application/json",
-            "x-api-key":         self.api_key,
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
         req = urllib.request.Request(
@@ -63,10 +63,9 @@ class TokenCounter:
     def _call(self, req: "urllib.request.Request") -> dict:
         return urlopen_json(req, timeout=30)
 
-    def count_file(self, file_path: str, prompt: str,
-                   system: Optional[str] = None) -> dict:
+    def count_file(self, file_path: str, prompt: str, system: Optional[str] = None) -> dict:
         content = Path(file_path).read_text()
-        full    = f"File:\n```\n{content}\n```\n\n{prompt}"
+        full = f"File:\n```\n{content}\n```\n\n{prompt}"
         return self.count(full, system=system)
 
     def estimate_cost(self, token_count: int, model: str = None) -> dict:
@@ -75,31 +74,31 @@ class TokenCounter:
         # MTok prices (input) — verified against platform.claude.com/docs
         # as of 2026-07-02. Re-verify before relying on this for billing.
         prices_per_mtok = {
-            "claude-opus-5":              5.0,
-            "claude-opus-4-8":            5.0,
-            "claude-sonnet-5":            2.0,
-            "claude-haiku-4-5-20251001":  1.0,
-            "claude-fable-5":            10.0,
-            "claude-mythos-5":           10.0,
-            "claude-opus-4-7":            5.0,
-            "claude-opus-4-6":            5.0,
-            "claude-opus-4-5":            5.0,
-            "claude-sonnet-4-6":          3.0,
-            "claude-sonnet-4-5":          3.0,
+            "claude-opus-5": 5.0,
+            "claude-opus-4-8": 5.0,
+            "claude-sonnet-5": 2.0,
+            "claude-haiku-4-5-20251001": 1.0,
+            "claude-fable-5": 10.0,
+            "claude-mythos-5": 10.0,
+            "claude-opus-4-7": 5.0,
+            "claude-opus-4-6": 5.0,
+            "claude-opus-4-5": 5.0,
+            "claude-sonnet-4-6": 3.0,
+            "claude-sonnet-4-5": 3.0,
         }
         price = prices_per_mtok.get(m, 3.0)
-        cost  = (token_count / 1_000_000) * price
+        cost = (token_count / 1_000_000) * price
         return {
-            "tokens":           token_count,
-            "model":            m,
-            "price_per_mtok":   price,
+            "tokens": token_count,
+            "model": m,
+            "price_per_mtok": price,
             "estimated_cost_usd": round(cost, 6),
         }
 
 
-def cmd_count_tokens(prompt: str, api_key: str, model: str,
-                     system: str = None, file_path: str = None,
-                     budget: int = None):
+def cmd_count_tokens(
+    prompt: str, api_key: str, model: str, system: str = None, file_path: str = None, budget: int = None
+):
     tc = TokenCounter(api_key=api_key, model=model)
     if file_path:
         result = tc.count_file(file_path, prompt, system=system)
@@ -107,7 +106,7 @@ def cmd_count_tokens(prompt: str, api_key: str, model: str,
         result = tc.count(prompt, system=system)
 
     tokens = result.get("input_tokens", 0)
-    est    = tc.estimate_cost(tokens, model)
+    est = tc.estimate_cost(tokens, model)
 
     print(f"\n  Model:            {model}")
     print(f"  Input tokens:     {tokens:,}")

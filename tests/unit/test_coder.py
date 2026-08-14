@@ -2,22 +2,25 @@
 
 No real network calls are made anywhere in this file.
 """
+
 import io
 import json
 import urllib.error
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from coder import Coder
 import resilience
+from coder import Coder
 
 
 @pytest.fixture(autouse=True)
 def fresh_breaker(monkeypatch):
     """Give every test its own circuit breaker so failures in one test
     don't trip the breaker for the next one."""
-    monkeypatch.setattr("coder._default_breaker", resilience.CircuitBreaker(failure_threshold=10, reset_timeout=0.01))
+    monkeypatch.setattr(
+        "coder._default_breaker", resilience.CircuitBreaker(failure_threshold=10, reset_timeout=0.01)
+    )
 
 
 def _fake_response(payload: dict):
@@ -38,9 +41,13 @@ def test_generate_returns_error_without_api_key():
 
 def test_generate_concatenates_multiple_text_blocks():
     c = Coder(api_key="sk-ant-test", model="claude-sonnet-5")
-    payload = {"content": [{"type": "thinking", "thinking": "..."},
-                            {"type": "text", "text": "Hello "},
-                            {"type": "text", "text": "world"}]}
+    payload = {
+        "content": [
+            {"type": "thinking", "thinking": "..."},
+            {"type": "text", "text": "Hello "},
+            {"type": "text", "text": "world"},
+        ]
+    }
     with patch("urllib.request.urlopen", return_value=_fake_response(payload)):
         result = c.generate("hi")
     assert result == "Hello world"
@@ -73,8 +80,9 @@ def test_generate_401_does_not_retry():
 
     def raise_401(req, timeout=None):
         call_count["n"] += 1
-        raise urllib.error.HTTPError(url="", code=401, msg="unauthorized",
-                                      hdrs=None, fp=io.BytesIO(b'{"error":"bad key"}'))
+        raise urllib.error.HTTPError(
+            url="", code=401, msg="unauthorized", hdrs=None, fp=io.BytesIO(b'{"error":"bad key"}')
+        )
 
     with patch("urllib.request.urlopen", side_effect=raise_401):
         result = c.generate("hi")
@@ -89,12 +97,10 @@ def test_generate_500_retries_then_succeeds():
     def flaky(req, timeout=None):
         call_count["n"] += 1
         if call_count["n"] < 3:
-            raise urllib.error.HTTPError(url="", code=503, msg="unavailable",
-                                          hdrs=None, fp=io.BytesIO(b"{}"))
+            raise urllib.error.HTTPError(url="", code=503, msg="unavailable", hdrs=None, fp=io.BytesIO(b"{}"))
         return _fake_response({"content": [{"type": "text", "text": "recovered"}]})
 
-    with patch("urllib.request.urlopen", side_effect=flaky), \
-         patch("time.sleep", return_value=None):
+    with patch("urllib.request.urlopen", side_effect=flaky), patch("time.sleep", return_value=None):
         result = c.generate("hi")
     assert result == "recovered"
     assert call_count["n"] == 3
@@ -104,11 +110,9 @@ def test_generate_429_exhausts_retries_returns_error():
     c = Coder(api_key="sk-ant-test", model="claude-sonnet-5")
 
     def always_429(req, timeout=None):
-        raise urllib.error.HTTPError(url="", code=429, msg="rate limited",
-                                      hdrs=None, fp=io.BytesIO(b"{}"))
+        raise urllib.error.HTTPError(url="", code=429, msg="rate limited", hdrs=None, fp=io.BytesIO(b"{}"))
 
-    with patch("urllib.request.urlopen", side_effect=always_429), \
-         patch("time.sleep", return_value=None):
+    with patch("urllib.request.urlopen", side_effect=always_429), patch("time.sleep", return_value=None):
         result = c.generate("hi")
     assert "[API ERROR 429]" in result
 
@@ -119,8 +123,7 @@ def test_generate_429_exhausts_retries_returns_error():
 def test_fast_mode_sends_speed_fast_on_supported_model():
     c = Coder(api_key="sk-ant-test", model="claude-opus-4-8", fast_mode=True)
     with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response(
-            {"content": [{"type": "text", "text": "hi"}]})
+        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
         c.generate("hello")
     sent_req = mock_urlopen.call_args[0][0]
     payload = json.loads(sent_req.data)
@@ -130,8 +133,7 @@ def test_fast_mode_sends_speed_fast_on_supported_model():
 def test_fast_mode_on_opus_5_sends_speed_fast():
     c = Coder(api_key="sk-ant-test", model="claude-opus-5", fast_mode=True)
     with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response(
-            {"content": [{"type": "text", "text": "hi"}]})
+        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
         c.generate("hello")
     sent_req = mock_urlopen.call_args[0][0]
     payload = json.loads(sent_req.data)
@@ -154,8 +156,7 @@ def test_fast_mode_on_opus_4_6_warns_but_still_calls_api():
     # back to standard speed server-side -- safe to send, just pointless.
     c = Coder(api_key="sk-ant-test", model="claude-opus-4-6", fast_mode=True)
     with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response(
-            {"content": [{"type": "text", "text": "hi"}]})
+        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
         c.generate("hello")
     sent_req = mock_urlopen.call_args[0][0]
     payload = json.loads(sent_req.data)
@@ -165,8 +166,7 @@ def test_fast_mode_on_opus_4_6_warns_but_still_calls_api():
 def test_fast_mode_off_never_sends_speed_field():
     c = Coder(api_key="sk-ant-test", model="claude-sonnet-5", fast_mode=False)
     with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response(
-            {"content": [{"type": "text", "text": "hi"}]})
+        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
         c.generate("hello")
     sent_req = mock_urlopen.call_args[0][0]
     payload = json.loads(sent_req.data)

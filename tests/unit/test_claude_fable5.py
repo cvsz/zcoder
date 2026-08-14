@@ -6,15 +6,16 @@ Covers both fallback patterns documented in claude_fable5.py:
   - legacy client-side manual retry (`fallback_chain` unset -> this
     module makes a second HTTP call itself on a refusal)
 """
+
 import pytest
 
 from claude_fable5 import (
+    FABLE5_MODEL_ID,
+    SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER,
     Fable5Client,
     RefusalError,
     estimate_cost_usd,
     parse_fallback_chain,
-    FABLE5_MODEL_ID,
-    SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER,
 )
 
 
@@ -35,8 +36,13 @@ def _response(text="ok", stop_reason="end_turn", model=None, category=None):
 
 def test_fallback_chain_no_refusal_reports_primary_served(monkeypatch):
     client = Fable5Client(api_key="k", fallback_chain=["claude-opus-4-8"])
-    monkeypatch.setattr(client, "_post", lambda payload, extra_headers=None: _response(
-        text="hello", stop_reason="end_turn", model=FABLE5_MODEL_ID))
+    monkeypatch.setattr(
+        client,
+        "_post",
+        lambda payload, extra_headers=None: _response(
+            text="hello", stop_reason="end_turn", model=FABLE5_MODEL_ID
+        ),
+    )
 
     result = client.call_with_fallback("hi")
 
@@ -53,8 +59,9 @@ def test_fallback_chain_refusal_served_by_fallback_model_single_call(monkeypatch
         calls.append(payload)
         # Platform handled the refusal+retry server-side; the response
         # reports the fallback model actually served the request.
-        return _response(text="handled by fallback", stop_reason="refusal",
-                         model="claude-opus-4-8", category="cyber")
+        return _response(
+            text="handled by fallback", stop_reason="refusal", model="claude-opus-4-8", category="cyber"
+        )
 
     client = Fable5Client(api_key="k", fallback_chain=["claude-opus-4-8"])
     monkeypatch.setattr(client, "_post", fake_post)
@@ -148,8 +155,11 @@ def test_manual_retry_falls_back_on_refusal_with_second_call(monkeypatch):
 
 def test_manual_retry_raises_refusal_error_when_fallback_disabled(monkeypatch):
     client = Fable5Client(api_key="k")
-    monkeypatch.setattr(client, "_post", lambda payload, extra_headers=None: _response(
-        stop_reason="refusal", category="frontier_llm"))
+    monkeypatch.setattr(
+        client,
+        "_post",
+        lambda payload, extra_headers=None: _response(stop_reason="refusal", category="frontier_llm"),
+    )
 
     with pytest.raises(RefusalError) as exc_info:
         client.call_with_fallback("prompt", allow_fallback=False)
@@ -160,8 +170,9 @@ def test_manual_retry_raises_refusal_error_when_fallback_disabled(monkeypatch):
 def test_manual_retry_raises_refusal_error_when_no_fallback_requested_and_category_null(monkeypatch):
     # category/explanation can legitimately be null even on a refusal.
     client = Fable5Client(api_key="k")
-    monkeypatch.setattr(client, "_post", lambda payload, extra_headers=None: _response(
-        stop_reason="refusal", category=None))
+    monkeypatch.setattr(
+        client, "_post", lambda payload, extra_headers=None: _response(stop_reason="refusal", category=None)
+    )
 
     with pytest.raises(RefusalError) as exc_info:
         client.call_with_fallback("prompt", allow_fallback=False)
@@ -203,7 +214,8 @@ def test_primary_call_transport_error_short_circuits():
 
 def test_parse_fallback_chain_splits_and_strips():
     assert parse_fallback_chain(" claude-opus-4-8 , claude-sonnet-5 ") == [
-        "claude-opus-4-8", "claude-sonnet-5"
+        "claude-opus-4-8",
+        "claude-sonnet-5",
     ]
 
 
@@ -226,11 +238,7 @@ def test_estimate_cost_usd_unknown_model():
     assert estimate_cost_usd("not-a-real-model", 100, 100) is None
 
 
-
 # -- v1.32.0: fallbacks "default" mode (added 2026-07-24) ----------------
-
-
-
 
 
 def test_fallback_default_mode_attached_to_call_payload():
@@ -238,8 +246,6 @@ def test_fallback_default_mode_attached_to_call_payload():
     client = Fable5Client(api_key="k", fallback_chain="default")
 
     captured = {}
-
-
 
     def fake_post(payload, extra_headers=None):
 
@@ -249,20 +255,13 @@ def test_fallback_default_mode_attached_to_call_payload():
 
         return _response()
 
-
-
     client._post = fake_post
 
     client.call("hi")
 
-
-
     assert captured["payload"]["fallbacks"] == "default"
 
     assert captured["headers"] == {"anthropic-beta": SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER}
-
-
-
 
 
 def test_fallback_default_mode_not_attached_on_explicit_model_override():
@@ -271,20 +270,15 @@ def test_fallback_default_mode_not_attached_on_explicit_model_override():
 
     captured = {}
 
-    client._post = lambda payload, extra_headers=None: (captured.update(payload=payload, headers=extra_headers) or _response())
-
-
+    client._post = lambda payload, extra_headers=None: (
+        captured.update(payload=payload, headers=extra_headers) or _response()
+    )
 
     client.call("hi", model="claude-sonnet-5")
-
-
 
     assert "fallbacks" not in captured["payload"]
 
     assert captured["headers"] is None
-
-
-
 
 
 def test_parse_fallback_chain_recognizes_default_case_insensitively():

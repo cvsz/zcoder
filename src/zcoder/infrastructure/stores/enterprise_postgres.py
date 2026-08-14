@@ -18,6 +18,7 @@ Features:
   • Enterprise Audit Log with immutable append-only semantics and JSONL export
   • RLS verification helpers for integration testing
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -25,8 +26,9 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg2
 import psycopg2.extras
@@ -35,19 +37,12 @@ import psycopg2.pool
 from agent_runtime import Job, JobStatus
 from tenant_models import (
     ApiKey,
-    CrossTenantViolationError,
     EnterpriseAuditEvent,
     EnterpriseRole,
-    Membership,
-    MembershipStatus,
     Organization,
     OrgStatus,
-    PermissionDeniedError,
     Project,
-    ProjectStatus,
-    Quota,
     RequestContext,
-    ServiceAccount,
     UsageEvent,
 )
 
@@ -283,6 +278,7 @@ CREATE POLICY tenant_isolation_enterprise_audit ON enterprise_audit
 -- cross-org operations by zcoder_admin for migrations.
 """
 
+
 class EnterprisePostgresStore:
     """PostgreSQL storage backend with hard tenant isolation."""
 
@@ -346,17 +342,26 @@ class EnterprisePostgresStore:
         """
         result: Dict[str, Dict[str, Any]] = {}
         tenant_tables = [
-            "projects", "memberships", "service_accounts", "api_keys",
-            "tenant_jobs", "usage_ledger", "tenant_quotas", "enterprise_audit",
+            "projects",
+            "memberships",
+            "service_accounts",
+            "api_keys",
+            "tenant_jobs",
+            "usage_ledger",
+            "tenant_quotas",
+            "enterprise_audit",
         ]
         with self._raw_conn() as conn:
             with conn.cursor() as cur:
                 # Check pg_class for RLS enabled/forced
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT relname, relrowsecurity, relforcerowsecurity
                     FROM pg_class
                     WHERE relname = ANY(%s) AND relkind = 'r'
-                """, (tenant_tables,))
+                """,
+                    (tenant_tables,),
+                )
                 for row in cur.fetchall():
                     result[row[0]] = {
                         "rls_enabled": row[1],
@@ -365,17 +370,18 @@ class EnterprisePostgresStore:
                     }
 
                 # Check pg_policies for actual policies
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT tablename, policyname, cmd, qual
                     FROM pg_policies
                     WHERE tablename = ANY(%s)
-                """, (tenant_tables,))
+                """,
+                    (tenant_tables,),
+                )
                 for row in cur.fetchall():
                     tbl = row[0]
                     if tbl in result:
-                        result[tbl]["policies"].append({
-                            "name": row[1], "cmd": row[2], "qual": row[3]
-                        })
+                        result[tbl]["policies"].append({"name": row[1], "cmd": row[2], "qual": row[3]})
         return result
 
     def verify_app_role_cannot_bypass_rls(self) -> Dict[str, bool]:
@@ -446,11 +452,16 @@ class EnterprisePostgresStore:
         ctx.require_permission("org.read")
         with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, name, slug, status, created_at, metadata FROM organizations WHERE id = %s", (org_id,))
+                cur.execute(
+                    "SELECT id, name, slug, status, created_at, metadata FROM organizations WHERE id = %s",
+                    (org_id,),
+                )
                 row = cur.fetchone()
         if not row:
             return None
-        return Organization(id=row[0], name=row[1], slug=row[2], status=OrgStatus(row[3]), created_at=row[4], metadata=row[5])
+        return Organization(
+            id=row[0], name=row[1], slug=row[2], status=OrgStatus(row[3]), created_at=row[4], metadata=row[5]
+        )
 
     def create_project(self, ctx: RequestContext, project: Project) -> Project:
         ctx.validate_tenant_access(project.organization_id)
@@ -463,7 +474,14 @@ class EnterprisePostgresStore:
                     VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status
                     """,
-                    (project.id, project.organization_id, project.name, project.slug, project.status.value, project.created_at),
+                    (
+                        project.id,
+                        project.organization_id,
+                        project.name,
+                        project.slug,
+                        project.status.value,
+                        project.created_at,
+                    ),
                 )
         return project
 
@@ -482,14 +500,26 @@ class EnterprisePostgresStore:
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
-                        job.id, ctx.organization_id, ctx.project_id, job.task, job.runtime,
-                        job.status.value, job.workspace, job.created_at, job.updated_at,
-                        job.model, job.budget_usd, job.cost_usd, json.dumps(job.metadata),
+                        job.id,
+                        ctx.organization_id,
+                        ctx.project_id,
+                        job.task,
+                        job.runtime,
+                        job.status.value,
+                        job.workspace,
+                        job.created_at,
+                        job.updated_at,
+                        job.model,
+                        job.budget_usd,
+                        job.cost_usd,
+                        json.dumps(job.metadata),
                     ),
                 )
         return job
 
-    def claim_job_scoped(self, ctx: RequestContext, worker_id: str, lease_duration: float = 120.0) -> Optional[Tuple[Job, int]]:
+    def claim_job_scoped(
+        self, ctx: RequestContext, worker_id: str, lease_duration: float = 120.0
+    ) -> Optional[Tuple[Job, int]]:
         """Atomically claim job strictly within the worker's assigned tenant scope."""
         now = time.time()
         expires_at = now + lease_duration
@@ -512,8 +542,7 @@ class EnterprisePostgresStore:
                 if not row:
                     return None
 
-                (job_id, task, runtime, status, workspace, c_at, u_at,
-                 model, budget, cost, gen, meta) = row
+                job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, gen, meta = row
 
                 new_gen = gen + 1
                 cur.execute(
@@ -528,13 +557,29 @@ class EnterprisePostgresStore:
 
         meta_dict = meta if isinstance(meta, dict) else json.loads(meta or "{}")
         job = Job(
-            id=job_id, task=task, runtime=runtime, status=JobStatus.RUNNING,
-            workspace=workspace, created_at=c_at, updated_at=now, model=model,
-            budget_usd=budget, cost_usd=cost, metadata=meta_dict,
+            id=job_id,
+            task=task,
+            runtime=runtime,
+            status=JobStatus.RUNNING,
+            workspace=workspace,
+            created_at=c_at,
+            updated_at=now,
+            model=model,
+            budget_usd=budget,
+            cost_usd=cost,
+            metadata=meta_dict,
         )
         return job, new_gen
 
-    def mutate_job_scoped(self, ctx: RequestContext, job_id: str, worker_id: str, fencing_token: int, status: JobStatus, cost_usd: float) -> bool:
+    def mutate_job_scoped(
+        self,
+        ctx: RequestContext,
+        job_id: str,
+        worker_id: str,
+        fencing_token: int,
+        status: JobStatus,
+        cost_usd: float,
+    ) -> bool:
         with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -543,7 +588,15 @@ class EnterprisePostgresStore:
                     SET status = %s, cost_usd = %s, updated_at = %s
                     WHERE id = %s AND organization_id = %s AND claimed_by = %s AND claim_generation = %s
                     """,
-                    (status.value, cost_usd, time.time(), job_id, ctx.organization_id, worker_id, fencing_token),
+                    (
+                        status.value,
+                        cost_usd,
+                        time.time(),
+                        job_id,
+                        ctx.organization_id,
+                        worker_id,
+                        fencing_token,
+                    ),
                 )
                 return cur.rowcount > 0
 
@@ -559,11 +612,26 @@ class EnterprisePostgresStore:
                     INSERT INTO api_keys (id, prefix, secret_hash, organization_id, project_id, principal_id, scopes, status, created_at, expires_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (key.id, key.prefix, key.secret_hash, key.organization_id, key.project_id, key.principal_id, json.dumps(key.scopes), key.status, key.created_at, key.expires_at),
+                    (
+                        key.id,
+                        key.prefix,
+                        key.secret_hash,
+                        key.organization_id,
+                        key.project_id,
+                        key.principal_id,
+                        json.dumps(key.scopes),
+                        key.status,
+                        key.created_at,
+                        key.expires_at,
+                    ),
                 )
 
     def authenticate_api_key(self, raw_key: str) -> Optional[RequestContext]:
-        prefix = raw_key.split("_")[0] + "_" + raw_key.split("_")[1] + "_" + raw_key.split("_")[2] if raw_key.count("_") >= 2 else ""
+        prefix = (
+            raw_key.split("_")[0] + "_" + raw_key.split("_")[1] + "_" + raw_key.split("_")[2]
+            if raw_key.count("_") >= 2
+            else ""
+        )
         secret_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         with self._raw_conn() as conn:
             with conn.cursor() as cur:
@@ -607,13 +675,27 @@ class EnterprisePostgresStore:
                         ON CONFLICT (dedup_key) DO NOTHING
                         RETURNING id
                         """,
-                        (event.id, event.organization_id, event.project_id, event.job_id, event.metric, event.quantity, event.unit, event.cost_usd, event.source, event.occurred_at, dedup),
+                        (
+                            event.id,
+                            event.organization_id,
+                            event.project_id,
+                            event.job_id,
+                            event.metric,
+                            event.quantity,
+                            event.unit,
+                            event.cost_usd,
+                            event.source,
+                            event.occurred_at,
+                            dedup,
+                        ),
                     )
                     return cur.fetchone() is not None
         except Exception:
             return False
 
-    def check_and_reserve_quota(self, ctx: RequestContext, metric: str, requested_amount: float, limit_value: float = 1000.0) -> bool:
+    def check_and_reserve_quota(
+        self, ctx: RequestContext, metric: str, requested_amount: float, limit_value: float = 1000.0
+    ) -> bool:
         """Atomically check quota and reserve capacity using row-level locking."""
         with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:
@@ -661,7 +743,20 @@ class EnterprisePostgresStore:
                     INSERT INTO enterprise_audit (event_id, organization_id, actor, actor_type, action, resource, result, timestamp, source_ip, request_id, metadata, schema_version)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (event.event_id, event.organization_id, event.actor, event.actor_type, event.action, event.resource, event.result, event.timestamp, event.source_ip, event.request_id, json.dumps(event.metadata), event.schema_version),
+                    (
+                        event.event_id,
+                        event.organization_id,
+                        event.actor,
+                        event.actor_type,
+                        event.action,
+                        event.resource,
+                        event.result,
+                        event.timestamp,
+                        event.source_ip,
+                        event.request_id,
+                        json.dumps(event.metadata),
+                        event.schema_version,
+                    ),
                 )
             conn.commit()
 
@@ -682,9 +777,16 @@ class EnterprisePostgresStore:
                 rows = cur.fetchall()
         return [
             {
-                "event_id": r[0], "organization_id": r[1], "actor": r[2], "actor_type": r[3],
-                "action": r[4], "resource": r[5], "result": r[6], "timestamp": r[7],
-                "metadata": r[8], "schema_version": r[9],
+                "event_id": r[0],
+                "organization_id": r[1],
+                "actor": r[2],
+                "actor_type": r[3],
+                "action": r[4],
+                "resource": r[5],
+                "result": r[6],
+                "timestamp": r[7],
+                "metadata": r[8],
+                "schema_version": r[9],
             }
             for r in rows
         ]

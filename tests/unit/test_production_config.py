@@ -1,20 +1,13 @@
 """tests/test_production_config.py — Tests for production configuration schema."""
-import json
-import os
-import tempfile
-from pathlib import Path
 
-import pytest
+import json
 
 from production_config import (
-    ConfigValidationError,
-    DatabaseConfig,
     ProductionConfig,
-    SecurityConfig,
+    _redact_dict,
     load_config,
     show_effective_config,
     validate_config,
-    _redact_dict,
 )
 
 

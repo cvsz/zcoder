@@ -7,16 +7,14 @@ Provides:
   • Webhook Verification & Deduplication
   • Atomic Worker Job Claiming & Leases
 """
+
 from __future__ import annotations
 
 import enum
 import hashlib
 import hmac
-import json
 import time
-import uuid
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_runtime import Job, JobStatus, JobStore
@@ -110,7 +108,7 @@ class FakeGitHubProvider:
             head_branch=head,
             base_branch=base,
             head_sha=self.branches.get(head, "sha_head_123"),
-            html_url=f"https://github.com/{repo}/pull/{self.next_pr_number}"
+            html_url=f"https://github.com/{repo}/pull/{self.next_pr_number}",
         )
         self.prs[self.next_pr_number] = pr
         self.next_pr_number += 1
@@ -165,7 +163,9 @@ class GitHubOrchestrator:
         self.store = store
         self.processed_webhooks: set = set()
 
-    def create_pull_request_for_job(self, job_id: str, repo: str, title: str, summary: str, branch: str) -> PullRequest:
+    def create_pull_request_for_job(
+        self, job_id: str, repo: str, title: str, summary: str, branch: str
+    ) -> PullRequest:
         job = self.store.get_job(job_id)
         if not job:
             raise ValueError(f"Job {job_id} not found")
@@ -180,7 +180,9 @@ class GitHubOrchestrator:
         self.store.add_event(job.id, "github.pr_created", {"pr_number": pr.number, "url": pr.html_url})
         return pr
 
-    def evaluate_merge_readiness(self, repo: str, pr_number: int, required_checks: List[str]) -> Tuple[bool, str]:
+    def evaluate_merge_readiness(
+        self, repo: str, pr_number: int, required_checks: List[str]
+    ) -> Tuple[bool, str]:
         pr = self.gh.get_pr(repo, pr_number)
         if not pr:
             return False, "PR not found"
@@ -224,9 +226,20 @@ class GitHubOrchestrator:
             # Simulate repair push with new head sha
             pr.head_sha = f"sha_repaired_{attempts}"
             # Reset checks to passing for repaired sha
-            self.gh.set_checks(pr.head_sha, [
-                CheckRun("c1", "test-suite", "completed", CheckConclusion.SUCCESS, "url", time.time(), time.time())
-            ])
+            self.gh.set_checks(
+                pr.head_sha,
+                [
+                    CheckRun(
+                        "c1",
+                        "test-suite",
+                        "completed",
+                        CheckConclusion.SUCCESS,
+                        "url",
+                        time.time(),
+                        time.time(),
+                    )
+                ],
+            )
 
         return False
 

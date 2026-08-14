@@ -37,8 +37,8 @@ CLI flags:
 import json
 import math
 import os
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import List, Optional
 
 from exceptions import AICoderError
@@ -54,7 +54,7 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # docs as of this check; voyage-code-3 is the recommended pick specifically
 # for code-retrieval workloads (this being a coder CLI, worth calling out).
 DEFAULT_MODEL = "voyage-3.5"
-CODE_MODEL    = "voyage-code-3"
+CODE_MODEL = "voyage-code-3"
 
 
 def _voyage_key(explicit: Optional[str] = None) -> str:
@@ -69,9 +69,12 @@ def _voyage_key(explicit: Optional[str] = None) -> str:
     return key
 
 
-def embed(texts: List[str], model: str = DEFAULT_MODEL,
-          input_type: Optional[str] = "document",
-          api_key: Optional[str] = None) -> List[List[float]]:
+def embed(
+    texts: List[str],
+    model: str = DEFAULT_MODEL,
+    input_type: Optional[str] = "document",
+    api_key: Optional[str] = None,
+) -> List[List[float]]:
     """Embed a list of strings, return one vector per input. input_type
     should be "document" when embedding things you'll search over, and
     "query" when embedding the search query itself — Voyage optimizes the
@@ -82,12 +85,14 @@ def embed(texts: List[str], model: str = DEFAULT_MODEL,
     if input_type:
         payload["input_type"] = input_type
     headers = {
-        "Content-Type":  "application/json",
+        "Content-Type": "application/json",
         "Authorization": f"Bearer {key}",
     }
     req = urllib.request.Request(
-        VOYAGE_ENDPOINT, data=json.dumps(payload).encode(),
-        headers=headers, method="POST",
+        VOYAGE_ENDPOINT,
+        data=json.dumps(payload).encode(),
+        headers=headers,
+        method="POST",
     )
     try:
         data = _call(req)
@@ -105,7 +110,7 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     """Voyage embeddings are normalized to length 1, so dot product equals
     cosine similarity and is cheaper — but this stays a true cosine
     similarity so it's correct even against non-Voyage vectors."""
-    dot   = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b))
     mag_a = math.sqrt(sum(x * x for x in a))
     mag_b = math.sqrt(sum(y * y for y in b))
     if mag_a == 0 or mag_b == 0:
@@ -121,18 +126,17 @@ class EmbeddingIndex:
     with) keyword scoring."""
 
     def __init__(self, model: str = DEFAULT_MODEL, api_key: Optional[str] = None):
-        self.model   = model
+        self.model = model
         self.api_key = api_key
-        self._ids:   List[str]         = []
-        self._texts: List[str]         = []
-        self._vecs:  List[List[float]] = []
+        self._ids: List[str] = []
+        self._texts: List[str] = []
+        self._vecs: List[List[float]] = []
 
     def add(self, ids: List[str], texts: List[str], batch_size: int = 128):
         for i in range(0, len(texts), batch_size):
-            batch_ids   = ids[i:i + batch_size]
-            batch_texts = texts[i:i + batch_size]
-            vecs = embed(batch_texts, model=self.model, input_type="document",
-                        api_key=self.api_key)
+            batch_ids = ids[i : i + batch_size]
+            batch_texts = texts[i : i + batch_size]
+            vecs = embed(batch_texts, model=self.model, input_type="document", api_key=self.api_key)
             self._ids.extend(batch_ids)
             self._texts.extend(batch_texts)
             self._vecs.extend(vecs)
@@ -150,6 +154,7 @@ class EmbeddingIndex:
 
 
 # ── CLI entry points ─────────────────────────────────────────────────────────
+
 
 def cmd_embed(text: str, model: str = DEFAULT_MODEL, input_type: str = "document"):
     print(f"\033[94mℹ Embedding via Voyage AI ({model})\033[0m\n")
@@ -185,7 +190,7 @@ def cmd_embed_similarity(text_a: str, text_b: str, model: str = DEFAULT_MODEL):
         print(f"[ERROR] {e}")
         return
     sim = cosine_similarity(vec_a, vec_b)
-    print(f"  \"{text_a[:50]}\"")
-    print(f"  \"{text_b[:50]}\"")
+    print(f'  "{text_a[:50]}"')
+    print(f'  "{text_b[:50]}"')
     print(f"  similarity: {sim:.4f}")
     return sim
