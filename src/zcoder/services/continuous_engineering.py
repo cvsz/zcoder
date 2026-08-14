@@ -548,9 +548,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             retry_blocked=args.retry_blocked,
         )
 
-    with pipeline:
+    try:
         report = pipeline.run(seed)
         output = json.dumps(_report_dict(report, pipeline.ledger), indent=2, sort_keys=True)
+    finally:
+        close = getattr(pipeline, "close", None)
+        if callable(close):
+            close()
     print(output)
     return 0 if report.state == LoopState.COMPLETED else 2
 

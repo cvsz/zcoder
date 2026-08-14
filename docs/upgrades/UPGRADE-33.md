@@ -46,7 +46,7 @@ JSON remains the default, and automatic push remains local-only unless explicitl
 
 `ContinuousEngineeringPipeline` now supports idempotent `close()` and context-manager usage. A closed pipeline cannot be run again. The PostgreSQL builder installs the store pool close operation as its cleanup callback and also closes the pool if builder construction fails after the store was opened.
 
-The CLI runs every backend inside the pipeline context manager so cleanup executes on success and exception paths.
+The CLI uses a `try/finally` cleanup boundary and calls `close()` when the returned pipeline exposes it, preserving compatibility with lightweight adapters while closing production PostgreSQL resources on success and exception paths.
 
 ## Verification
 

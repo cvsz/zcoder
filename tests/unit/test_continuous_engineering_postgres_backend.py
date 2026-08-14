@@ -12,13 +12,8 @@ class FakePipeline:
     def __init__(self):
         self.ledger = SimpleNamespace(terminal_counts=lambda: {"SUCCEEDED": 0, "BLOCKED": 0})
         self.closed = False
-        self.entered = False
 
-    def __enter__(self):
-        self.entered = True
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
+    def close(self):
         self.closed = True
 
     def run(self, seed):
@@ -44,9 +39,7 @@ def test_postgres_cli_requires_database_url(tmp_path, monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
     with pytest.raises(ValueError, match="DATABASE_URL must be set"):
-        continuous_engineering.main(
-            ["--repository", str(tmp_path), "--state-backend", "postgres"]
-        )
+        continuous_engineering.main(["--repository", str(tmp_path), "--state-backend", "postgres"])
 
 
 def test_postgres_cli_routes_environment_secret_without_printing_it(tmp_path, monkeypatch, capsys):
@@ -79,7 +72,6 @@ def test_postgres_cli_routes_environment_secret_without_printing_it(tmp_path, mo
     assert captured["repository_root"] == tmp_path.resolve()
     assert captured["database_url"] == secret
     assert captured["ledger_namespace"] == "fleet-prod"
-    assert pipeline.entered is True
     assert pipeline.closed is True
     assert secret not in output
     assert "secret-password" not in output
