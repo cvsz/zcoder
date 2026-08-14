@@ -67,3 +67,5 @@ class PolicyEngine:
 
 class AgentRuntimeProtocol(Protocol):
     def execute_task(self, task: EngineeringTask, store: EngineeringStore, validator: Optional[Callable[[], bool]] = None) -> bool: ...
+from legacy_job_models import (ApprovalRequest, FakeRuntime, Job, JobEvent, JobOrchestrator, JobStatus, JobStore)
+from legacy_job_models import (ApprovalRequest, FakeRuntime, Job, JobEvent, JobOrchestrator, JobStatus, JobStore, PolicyEngine, ToolPolicy)
