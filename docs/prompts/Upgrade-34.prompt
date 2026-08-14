@@ -1,0 +1,17 @@
+Implement Upgrade-34 as a bounded production maintenance-campaign slice for cvsz/zcoder.
+
+Objective: run Upgrade-23 maintenance recommendations through exactly one bounded ContinuousEngineeringPipeline invocation and produce a secret-free fleet summary without adding another daemon or scheduler loop.
+
+Requirements:
+- add MaintenanceCampaignService and MaintenanceCampaignReport;
+- generate Upgrade-23 recommendations once per campaign;
+- convert recommendations into stable work identities that do not include volatile UUID recommendation IDs in the UpgradeWorkItem fingerprint;
+- deduplicate equivalent recommendations before seeding the pipeline;
+- allow an empty campaign to invoke the pipeline so durable pending work can resume;
+- expose completed/blocked/pending counts, iterations, halt reason, terminal ledger counts, and timing without emitting recommendation evidence or credentials;
+- add optional JSON maintenance signal input using the existing MaintenanceSignal/SignalType domain types and fail closed on malformed input;
+- reuse json/sqlite/postgres continuous pipeline builders, keeping JSON default and DATABASE_URL environment-only for PostgreSQL;
+- guarantee deterministic pipeline cleanup and local-only push unless explicitly opted in;
+- add unit coverage for stable identity, dedupe, empty/resume, blocked reporting, parsing, defaults, secret non-disclosure, and cleanup;
+- add live hosted DATABASE_URL integration proving equivalent recommendations with different UUIDs execute only once across PostgreSQL-backed campaign restarts;
+- preserve Upgrade-20 execution authority, Upgrade-24 safety budgets, PostgreSQL fencing/exclusivity, and every existing CI/security gate.
