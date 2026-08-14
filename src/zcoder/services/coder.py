@@ -11,7 +11,7 @@ import urllib.request
 from config import Config
 from exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
 from logging_config import get_logger
-from resilience import CircuitBreaker, retry
+from resilience import CircuitBreaker, retry, safe_urlopen
 from utils import sampling_kwargs
 
 logger = get_logger("coder")
@@ -127,7 +127,7 @@ class Coder:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=120) as resp:
+                with safe_urlopen(req, timeout=120) as resp:
                     return json.loads(resp.read().decode())
             except urllib.error.HTTPError as e:
                 body = e.read().decode()

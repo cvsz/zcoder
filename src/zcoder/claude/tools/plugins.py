@@ -50,7 +50,7 @@ from pathlib import Path
 from typing import Optional
 
 from exceptions import AICoderError, TransientAPIError
-from resilience import retry
+from resilience import retry, safe_urlopen
 
 PLUGINS_ROOT = Path(os.path.expanduser("~/.claude/plugins"))
 MARKETPLACES_DIR = PLUGINS_ROOT / "marketplaces"
@@ -196,7 +196,7 @@ def _is_url(s: str) -> bool:
 @retry(max_attempts=2, base_delay=1.0, max_delay=5.0)
 def _fetch_marketplace_source(url: str) -> bytes:
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
+        with safe_urlopen(url, timeout=30) as resp:
             return resp.read()
     except urllib.error.URLError as e:
         raise TransientAPIError(f"could not fetch {url}: {e}") from e

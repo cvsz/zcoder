@@ -46,7 +46,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
 from exceptions import APIError
-from resilience import raise_for_http_error, retry
+from resilience import raise_for_http_error, retry, safe_urlopen
 
 MAX_PAGE_CHARS = 8000  # keep pages small enough to stay a cheap loop step
 
@@ -116,7 +116,7 @@ def fetch_page(url, timeout=15):
 def _fetch_retrying(url, timeout):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (zcoder-browse)"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with safe_urlopen(req, timeout=timeout) as r:
             return r.read().decode(r.headers.get_content_charset() or "utf-8", errors="replace")
     except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
         # Translates to the AICoderError hierarchy so retry() above can tell
