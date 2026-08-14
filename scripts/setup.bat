@@ -1,7 +1,6 @@
 @echo off
 setlocal
 cd /d "%~dp0.."
-
 python --version >nul 2>&1 || (echo ERROR: Python 3.9+ is required & exit /b 1)
 set "VENV=.venv"
 if not exist "%VENV%\Scripts\python.exe" python -m venv "%VENV%" || exit /b 1

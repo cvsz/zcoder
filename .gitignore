@@ -9,6 +9,8 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.build-venv/
+.web-venv/
 venv/
 env/
 
@@ -39,6 +41,8 @@ dist/
 # Local app state
 .ai-coder/
 .ai-coder-config.json
+.web.pid
+logs/
 
 # Editors / OS
 .vscode/
