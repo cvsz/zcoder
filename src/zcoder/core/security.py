@@ -54,7 +54,7 @@ def safe_resolve(path: str | os.PathLike, base_dir: str | os.PathLike) -> Path:
         raise SecurityError(
             "Path escapes the allowed base directory",
             details={"path": str(path), "base_dir": str(base)},
-        )
+        ) from None
     return candidate
 
 

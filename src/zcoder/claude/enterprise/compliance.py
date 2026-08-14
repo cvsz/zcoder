@@ -259,14 +259,14 @@ class ComplianceApiClient:
                     self._sleep(sleep_for)
                     attempt += 1
                     continue
-                raise ComplianceApiError.from_response(e.code, body, headers)
+                raise ComplianceApiError.from_response(e.code, body, headers) from e
             except urllib.error.URLError as e:
                 # Network-level failure (DNS, connection refused, etc.),
                 # not an HTTP error response — no status code to key
                 # retry behavior off of, so this doesn't auto-retry;
                 # callers doing a long backfill should catch this and
                 # decide their own retry policy same as any network call.
-                raise ComplianceApiError(status=0, error_type="connection_error", message=str(e))
+                raise ComplianceApiError(status=0, error_type="connection_error", message=str(e)) from e
 
     def _get(self, path: str, params: Optional[dict] = None) -> dict:
         return self._request("GET", path, params=params)

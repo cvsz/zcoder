@@ -1968,9 +1968,9 @@ def cmd_agent_memory_stores_list(api_key: str, include_archived: bool = False) -
     print(f"\n\033[94mMemory stores\033[0m{' (including archived)' if include_archived else ''}\n")
     for entry in entries:
         get = (
-            (lambda k, d="?": entry.get(k, d))
+            (lambda k, d="?", entry=entry: entry.get(k, d))
             if isinstance(entry, dict)
-            else (lambda k, d="?": getattr(entry, k, d))
+            else (lambda k, d="?", entry=entry: getattr(entry, k, d))
         )
         print(f"  {get('id')}  {get('name')}" f"{'  [archived]' if get('archived', False) else ''}")
     if not entries:

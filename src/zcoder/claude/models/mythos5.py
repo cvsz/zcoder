@@ -94,7 +94,7 @@ class Mythos5Client:
                     "requires approved Project Glasswing access; most accounts will "
                     "see this. Use claude-fable-5 instead unless you've confirmed "
                     f"access with Anthropic. Raw response: {body}"
-                )
+                ) from e
             return {"error": e.message, "status": e.status_code}
         except AICoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
