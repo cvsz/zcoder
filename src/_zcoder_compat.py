@@ -4,8 +4,8 @@ Internal code is being normalized to ``zcoder.*`` imports incrementally. These
 aliases preserve existing imports and third-party integrations during that
 transition without duplicating implementation code.
 """
-from importlib import import_module
 import sys
+from importlib import import_module
 
 
 def alias_module(legacy_name, target_name, namespace):

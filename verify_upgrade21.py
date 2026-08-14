@@ -1,6 +1,6 @@
 """Legacy Upgrade-21 integration verifier kept runnable from a source checkout."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 SRC = Path(__file__).resolve().parent / "src"
 if str(SRC) not in sys.path:

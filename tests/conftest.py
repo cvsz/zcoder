@@ -1,6 +1,8 @@
 """tests/conftest.py — shared fixtures"""
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -12,8 +14,6 @@ for path in (ROOT, SRC):
     if value in sys.path:
         sys.path.remove(value)
     sys.path.insert(0, value)
-
-import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -36,4 +36,5 @@ def no_real_api_key(monkeypatch):
 @pytest.fixture
 def fake_logger_setup():
     from logging_config import setup_logging
+
     setup_logging(level="DEBUG", fmt="text")

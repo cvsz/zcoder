@@ -5,8 +5,8 @@ The installed console entry point is ``zcoder.main:main``. This file remains
 only so existing ``python main.py`` workflows keep working during the src-layout
 migration.
 """
-from pathlib import Path
 import sys
+from pathlib import Path
 
 _SRC = Path(__file__).resolve().parent / "src"
 if str(_SRC) not in sys.path:
