@@ -1,8 +1,8 @@
-name: One-shot Ruff unsafe autofix
+name: CI fix branch structural remediation
 
 on:
   push:
-    branches: [main]
+    branches: [ci-fix-batch]
     paths:
       - '.github/workflows/lint-autofix-once.yml'
 
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  autofix:
+  remediate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,32 +23,97 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-      - name: Apply Ruff unsafe fixes
-        run: ruff check . --fix --unsafe-fixes || true
-      - name: Apply Black formatting
-        run: black .
-      - name: Collect residual Ruff diagnostics
+          pip install -e .
+      - name: Add explicit exception chaining and fix closure binding
         shell: bash
         run: |
-          ruff check . --output-format=json > ruff-after.json || true
-          ruff check . > ruff-after.txt 2>&1 || true
-      - name: Upload residual diagnostics
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          b904_files = [
+              'src/zcoder/claude/enterprise/compliance.py',
+              'src/zcoder/claude/models/mythos5.py',
+              'src/zcoder/claude/tools/plugins.py',
+              'src/zcoder/core/security.py',
+              'src/zcoder/infrastructure/auth/oidc.py',
+              'src/zcoder/services/coder.py',
+          ]
+
+          def raise_nodes_for_handler(handler):
+              found = []
+              def visit(node):
+                  if isinstance(node, ast.ExceptHandler) and node is not handler:
+                      return
+                  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                      return
+                  if isinstance(node, ast.Raise):
+                      if node.exc is not None and node.cause is None:
+                          found.append(node)
+                      return
+                  for child in ast.iter_child_nodes(node):
+                      visit(child)
+              for statement in handler.body:
+                  visit(statement)
+              return found
+
+          for filename in b904_files:
+              path = Path(filename)
+              source = path.read_text()
+              tree = ast.parse(source)
+              lines = source.splitlines(keepends=True)
+              insertions = []
+              for node in ast.walk(tree):
+                  if not isinstance(node, ast.ExceptHandler):
+                      continue
+                  cause = node.name or 'None'
+                  for raise_node in raise_nodes_for_handler(node):
+                      insertions.append((raise_node.end_lineno - 1, raise_node.end_col_offset, f' from {cause}'))
+              for line_index, col, suffix in sorted(insertions, reverse=True):
+                  line = lines[line_index]
+                  lines[line_index] = line[:col] + suffix + line[col:]
+              path.write_text(''.join(lines))
+
+          agents = Path('src/zcoder/claude/orchestration/agents_sdk.py')
+          text = agents.read_text()
+          text = text.replace(
+              '(lambda k, d="?": entry.get(k, d))',
+              '(lambda k, d="?", entry=entry: entry.get(k, d))',
+          )
+          text = text.replace(
+              '(lambda k, d="?": getattr(entry, k, d))',
+              '(lambda k, d="?", entry=entry: getattr(entry, k, d))',
+          )
+          agents.write_text(text)
+          PY
+      - name: Format
+        run: black .
+      - name: Collect Ruff result
+        shell: bash
+        run: |
+          ruff check . --output-format=json > ruff-structural.json || true
+          ruff check . > ruff-structural.txt 2>&1 || true
+      - name: Collect pytest result
+        shell: bash
+        run: pytest --cov --cov-report=term-missing > pytest-structural.txt 2>&1 || true
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ruff-after-unsafe
+          name: structural-remediation-diagnostics
           path: |
-            ruff-after.json
-            ruff-after.txt
-      - name: Commit autofix
+            ruff-structural.json
+            ruff-structural.txt
+            pytest-structural.txt
+      - name: Commit remediation
         shell: bash
         run: |
           if git diff --quiet; then
-            echo 'No unsafe autofix changes produced.'
+            echo 'No structural remediation changes produced.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'style: apply remaining Ruff autofixes [lint-autofix]'
-          git push origin HEAD:main
+          git commit -m 'fix: resolve residual Ruff structural violations [ci-fix]'
+          git push origin HEAD:ci-fix-batch
