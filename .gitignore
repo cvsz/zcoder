@@ -2,11 +2,15 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+*.egg
 *.egg-info/
 .eggs/
 
 # Virtual environments
 .venv/
+.build-venv/
+.web-venv/
 venv/
 env/
 
@@ -20,21 +24,30 @@ env/
 .coverage
 coverage.xml
 htmlcov/
+.tox/
 .mypy_cache/
 .ruff_cache/
 
-# PyInstaller build artifacts
+# Build artifacts
 build/
 dist/
 *.spec.bak
 
-# Local app state (mirrors what the CLI writes under the user's home;
-# harmless if it ever ends up in-repo during local testing)
+# Databases / test WAL artifacts
+*.db
+*.db-shm
+*.db-wal
+
+# Local app state
 .ai-coder/
 .ai-coder-config.json
+.web.pid
+logs/
 
 # Editors / OS
 .vscode/
 .idea/
 *.swp
+*.swo
 .DS_Store
+Thumbs.db
