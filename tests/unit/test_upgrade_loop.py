@@ -36,6 +36,21 @@ def test_runs_upgrade_update_and_feature_work_in_priority_order():
     assert all(record.outcome == "SUCCEEDED" for record in report.records)
 
 
+def test_exact_iteration_budget_completes_when_last_item_succeeds():
+    item = UpgradeWorkItem("single upgrade", WorkKind.UPGRADE)
+    loop = ContinuousUpgradeLoop(
+        discover=lambda: (),
+        implement=lambda work: None,
+        validate=lambda work, changed: ValidationResult(True),
+        policy=LoopPolicy(max_iterations=1),
+    )
+
+    report = loop.run([item])
+
+    assert report.state == LoopState.COMPLETED
+    assert report.halt_reason == ""
+
+
 def test_discovery_is_idempotent_by_content_fingerprint():
     discovered = UpgradeWorkItem("same update", WorkKind.UPDATE, payload={"package": "demo"})
     executions = []
@@ -75,6 +90,22 @@ def test_failed_validation_retries_then_succeeds():
     assert [record.outcome for record in report.records] == ["VALIDATION_RETRY", "SUCCEEDED"]
 
 
+def test_exhausted_item_halts_when_blocked_work_remains():
+    item = UpgradeWorkItem("blocked update", WorkKind.UPDATE, max_attempts=1)
+    loop = ContinuousUpgradeLoop(
+        discover=lambda: (),
+        implement=lambda work: None,
+        validate=lambda work, changed: ValidationResult(False, summary="still failing"),
+        policy=LoopPolicy(max_iterations=2),
+    )
+
+    report = loop.run([item])
+
+    assert report.state == LoopState.HALTED
+    assert report.halt_reason == "blocked_work_remaining"
+    assert report.blocked_item_ids == (item.item_id,)
+
+
 def test_regression_guard_rolls_back_and_halts():
     item = UpgradeWorkItem("risky update", WorkKind.UPDATE)
     rolled_back = []
@@ -98,6 +129,24 @@ def test_regression_guard_rolls_back_and_halts():
     assert rolled_back == [item.item_id]
 
 
+def test_regressions_halt_even_when_validator_marks_passed():
+    item = UpgradeWorkItem("inconsistent validator", WorkKind.REPAIR)
+    loop = ContinuousUpgradeLoop(
+        discover=lambda: (),
+        implement=lambda work: None,
+        validate=lambda work, changed: ValidationResult(
+            True,
+            summary="validator passed but delta found a regression",
+            regressions=("test_new_regression",),
+        ),
+    )
+
+    report = loop.run([item])
+
+    assert report.state == LoopState.HALTED
+    assert report.halt_reason == "regression_guard"
+
+
 def test_no_progress_budget_halts_repeated_executor_failures():
     item = UpgradeWorkItem("broken implementation", WorkKind.REPAIR, max_attempts=10)
 
@@ -116,6 +165,25 @@ def test_no_progress_budget_halts_repeated_executor_failures():
     assert report.state == LoopState.HALTED
     assert report.halt_reason == "no_progress_budget_exhausted"
     assert item.attempts == 2
+
+
+def test_discovery_failure_halts_without_executing_work():
+    item = UpgradeWorkItem("queued feature", WorkKind.IMPLEMENT_FEATURE)
+
+    def fail_discovery():
+        raise ConnectionError("source unavailable")
+
+    loop = ContinuousUpgradeLoop(
+        discover=fail_discovery,
+        implement=lambda work: None,
+        validate=lambda work, changed: ValidationResult(True),
+    )
+
+    report = loop.run([item])
+
+    assert report.state == LoopState.HALTED
+    assert report.halt_reason == "discovery_error:ConnectionError"
+    assert report.pending_item_ids == (item.item_id,)
 
 
 def test_checkpoints_capture_final_state_and_pending_work():
