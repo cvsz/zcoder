@@ -1,0 +1,14 @@
+Implement Upgrade-31 as a bounded production-fleet safety slice for cvsz/zcoder.
+
+Objective: add monotonic PostgreSQL fencing so stale continuous-engineering runners cannot persist upgrade ledger state after ownership moves to a newer runner.
+
+Requirements:
+- reuse the existing engineering_tasks table and zcoder_upgrade_ledger control metadata envelope;
+- acquire a monotonically increasing fence_generation under SELECT ... FOR UPDATE;
+- return a typed token carrying namespace, control row identity, and generation;
+- validate the exact generation under the same row lock and transaction as each fenced task upsert;
+- reject stale, missing, malformed, wrong-namespace, or invalid-generation tokens fail closed;
+- preserve fence_generation when checkpoint/control metadata is written;
+- add live DATABASE_URL integration coverage proving a stale generation cannot persist a task after a newer generation exists;
+- keep PostgreSQL backend/CLI exposure disabled until Upgrade-28 ledger, Upgrade-30 advisory lease, and Upgrade-31 fencing are composed end to end;
+- preserve Upgrade-20 execution authority, Upgrade-24 budgets, JSON/SQLite behavior, local-only push default, and all existing CI/security gates.
