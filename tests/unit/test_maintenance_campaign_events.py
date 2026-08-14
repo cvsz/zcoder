@@ -1,5 +1,6 @@
 """Focused Upgrade-35 lifecycle-event and scheduler-contract coverage."""
 
+import logging
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -111,8 +112,17 @@ def test_completed_campaign_scheduler_contract_returns_zero():
 
 def test_observer_failure_is_best_effort_and_counted_without_changing_engineering_result(caplog):
     sink = FailingSink()
+    logger = logging.getLogger("zcoder.services.maintenance_campaign")
 
-    report = MaintenanceCampaignService(Pipeline(), Intelligence(), event_sink=sink).run()
+    # The production logging setup deliberately disables propagation on the
+    # zcoder logger. Attach pytest's capture handler to the exact child logger
+    # so this regression assertion is stable across Python logging versions
+    # without changing production logging or security behavior.
+    logger.addHandler(caplog.handler)
+    try:
+        report = MaintenanceCampaignService(Pipeline(), Intelligence(), event_sink=sink).run()
+    finally:
+        logger.removeHandler(caplog.handler)
 
     assert report.state == LoopState.COMPLETED.value
     assert report.completed_count == 1
