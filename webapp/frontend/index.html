@@ -1,125 +1,137 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ai-coder — web</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#07110d" />
+  <meta name="description" content="ZCoder full-stack AI engineering console — models, agents, skills, sessions, streaming and repository workflows." />
+  <title>ZCoder — AI Engineering Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-<div class="app">
-
-  <!-- ───────────────────────── sidebar ───────────────────────── -->
-  <aside class="sidebar">
-    <div class="brand">
-      <span class="brand-mark">▍</span>
-      <div class="brand-text">
-        <span class="brand-name">ai-coder</span>
-        <span class="brand-sub">web console</span>
+  <div class="noise"></div>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="ZCoder home">
+        <span class="brand-mark">Z</span>
+        <span><strong>ZCoder</strong><small>engineering console</small></span>
+      </a>
+      <nav class="topnav" aria-label="Primary navigation">
+        <a href="#workspace">Workspace</a>
+        <a href="#capabilities">Capabilities</a>
+        <a href="https://github.com/cvsz/zcoder" target="_blank" rel="noreferrer">GitHub ↗</a>
+      </nav>
+      <div class="top-actions">
+        <span class="connection-pill" id="connectionPill"><i></i><span id="connectionLabel">API offline</span></span>
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle theme">◐</button>
+        <button class="button compact" id="openConnectionBtn" type="button">Connect API</button>
       </div>
-      <span class="tl-spacer"></span>
-      <button id="themeToggle" class="theme-toggle" title="Toggle light/dark theme">☾</button>
-    </div>
+    </header>
 
-    <div class="side-section">
-      <label class="side-label">sessions</label>
-      <div id="sessionList" class="session-list">
-        <span class="session-list-empty">no sessions yet</span>
-      </div>
-    </div>
+    <main>
+      <section class="hero" id="capabilities">
+        <div class="hero-copy">
+          <div class="eyebrow">OPEN SOURCE · FULL STACK · AGENTIC</div>
+          <h1>Ship software with an<br /><span>engineering-grade AI loop.</span></h1>
+          <p>ZCoder unifies chat, agents, skills, repository context, streaming responses and durable engineering workflows behind one control surface.</p>
+          <div class="hero-actions">
+            <button class="button primary" id="heroConnectBtn" type="button">Connect backend <span>→</span></button>
+            <a class="button ghost" href="https://github.com/cvsz/zcoder" target="_blank" rel="noreferrer">View source</a>
+          </div>
+          <div class="metrics">
+            <div><strong id="modelMetric">—</strong><span>models</span></div>
+            <div><strong id="agentMetric">—</strong><span>agent roles</span></div>
+            <div><strong id="skillMetric">—</strong><span>skills</span></div>
+            <div><strong id="versionMetric">v—</strong><span>runtime</span></div>
+          </div>
+        </div>
+        <div class="hero-visual" aria-label="ZCoder engineering pipeline">
+          <div class="orb orb-a"></div><div class="orb orb-b"></div>
+          <div class="pipeline-card">
+            <div class="pipeline-head"><span>LIVE ENGINEERING LOOP</span><b id="pipelineState">DISCONNECTED</b></div>
+            <div class="pipeline-row active"><i>01</i><span><b>Discover</b><small>repository + maintenance signals</small></span><em>ready</em></div>
+            <div class="pipeline-row"><i>02</i><span><b>Plan</b><small>bounded vertical slice</small></span><em>policy</em></div>
+            <div class="pipeline-row"><i>03</i><span><b>Execute</b><small>agent + skill + model</small></span><em>guarded</em></div>
+            <div class="pipeline-row"><i>04</i><span><b>Validate</b><small>tests + security + CI</small></span><em>gated</em></div>
+            <div class="pipeline-row"><i>05</i><span><b>Deliver</b><small>commit + PR + review</small></span><em>audited</em></div>
+          </div>
+        </div>
+      </section>
 
-    <div class="side-section">
-      <label class="side-label" for="streamToggle">
-        <input type="checkbox" id="streamToggle" checked style="accent-color:var(--accent);vertical-align:-2px;" />
-        stream response
-      </label>
-    </div>
+      <section class="workspace-section" id="workspace">
+        <div class="section-heading">
+          <div><span>CONTROL PLANE</span><h2>Full-stack workspace</h2></div>
+          <p>The Pages app stays static and secret-free. Connect it to your deployed ZCoder FastAPI backend to activate live models, sessions and streaming.</p>
+        </div>
 
-    <div class="side-section">
-      <label class="side-label">status</label>
-      <div id="healthDot" class="health-row">
-        <span class="dot" id="healthPip"></span>
-        <span id="healthText">checking…</span>
-      </div>
-    </div>
+        <div class="workspace-grid">
+          <aside class="control-panel">
+            <div class="panel-title"><span>RUN CONFIGURATION</span><button id="newSessionBtn" type="button">+ New</button></div>
+            <label>Model<select id="modelSelect"><option>Connect API to load models</option></select></label>
+            <div class="two-col">
+              <label>Agent<select id="agentSelect"><option value="">None</option></select></label>
+              <label>Skill<select id="skillSelect"><option value="">None</option></select></label>
+            </div>
+            <label>Personality<select id="personalitySelect"><option value="">None</option></select></label>
+            <label>Temperature <span class="value" id="tempVal">0.30</span><input id="tempRange" type="range" min="0" max="1" step="0.05" value="0.3" /></label>
+            <label>System instructions<textarea id="systemPrompt" rows="4" placeholder="Optional instructions for this run…"></textarea></label>
+            <label>API key <span class="hint">memory only</span><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Optional runtime key" /></label>
+            <label class="toggle-row"><span><b>Streaming</b><small>Server-Sent Events</small></span><input id="streamToggle" type="checkbox" checked /></label>
+            <div class="session-block">
+              <div class="panel-title"><span>SESSIONS</span><b id="sessionCount">0</b></div>
+              <div id="sessionList" class="session-list"><div class="empty-state">No live sessions yet.</div></div>
+            </div>
+          </aside>
 
-    <div class="side-section">
-      <label class="side-label" for="modelSelect">model</label>
-      <select id="modelSelect"></select>
-    </div>
+          <section class="console-panel">
+            <div class="console-head">
+              <div><span class="terminal-dots"><i></i><i></i><i></i></span><b>zcoder / workspace</b></div>
+              <div class="runtime-meta"><span id="sessionIdTag">session:new</span><span id="healthText">backend unavailable</span></div>
+            </div>
+            <div class="transcript" id="transcript" aria-live="polite">
+              <div class="welcome-card">
+                <span class="mini-mark">Z</span>
+                <h3>Engineering console ready.</h3>
+                <p>Connect a backend, choose a model and send a task. The browser never needs repository credentials or provider secrets persisted in storage.</p>
+                <div class="starter-grid">
+                  <button class="starter" data-prompt="Review this repository for the highest-impact reliability improvement and propose one bounded vertical slice."><b>Review</b><span>Find the next reliability slice</span></button>
+                  <button class="starter" data-prompt="Inspect the current architecture and identify the most important security hardening opportunity."><b>Secure</b><span>Prioritize security hardening</span></button>
+                  <button class="starter" data-prompt="Plan and implement one production-ready feature improvement with tests and clear acceptance criteria."><b>Build</b><span>Implement a feature slice</span></button>
+                </div>
+              </div>
+            </div>
+            <form class="composer" id="chatForm">
+              <textarea id="promptInput" rows="2" placeholder="Describe the engineering task…"></textarea>
+              <div class="composer-foot"><span><kbd>Shift</kbd> + <kbd>Enter</kbd> newline</span><button class="button primary" id="sendBtn" type="submit">Run task →</button></div>
+            </form>
+          </section>
+        </div>
+      </section>
 
-    <div class="side-section">
-      <label class="side-label" for="personalitySelect">personality</label>
-      <select id="personalitySelect">
-        <option value="">none</option>
-      </select>
-    </div>
+      <section class="feature-strip">
+        <article><span>01</span><h3>Provider boundary</h3><p>Keep provider SDKs and secrets behind the server adapter.</p></article>
+        <article><span>02</span><h3>Streaming sessions</h3><p>Live token delivery with resumable process-local conversations.</p></article>
+        <article><span>03</span><h3>Agent controls</h3><p>Compose model, role, skill, personality and system instructions.</p></article>
+        <article><span>04</span><h3>Security gates</h3><p>CodeQL, dependency review and CI remain part of delivery.</p></article>
+      </section>
+    </main>
 
-    <div class="side-section">
-      <label class="side-label" for="agentSelect">agent role</label>
-      <select id="agentSelect">
-        <option value="">none</option>
-      </select>
-    </div>
+    <footer><span>ZCoder · open-source AI engineering</span><span>Pages frontend · FastAPI backend · <a href="https://github.com/cvsz/zcoder">source</a></span></footer>
+  </div>
 
-    <div class="side-section">
-      <label class="side-label" for="skillSelect">skill focus</label>
-      <select id="skillSelect">
-        <option value="">none</option>
-      </select>
-    </div>
-
-    <div class="side-section">
-      <label class="side-label" for="tempRange">temperature <span id="tempVal">0.3</span></label>
-      <input type="range" id="tempRange" min="0" max="1" step="0.05" value="0.3" />
-    </div>
-
-    <div class="side-section grow">
-      <label class="side-label" for="systemPrompt">system prompt</label>
-      <textarea id="systemPrompt" rows="4" placeholder="optional — extra instructions prepended to every request"></textarea>
-    </div>
-
-    <div class="side-section">
-      <label class="side-label" for="apiKeyInput">api key <span class="hint">(session only)</span></label>
-      <input type="password" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off" />
-      <button id="saveKeyBtn" class="btn-ghost">save to server config</button>
-    </div>
-
-    <div class="side-footer">
-      <button id="newSessionBtn" class="btn-ghost">＋ new session</button>
-      <span id="versionTag" class="version-tag">v…</span>
-    </div>
-  </aside>
-
-  <!-- ───────────────────────── terminal window ───────────────────────── -->
-  <main class="terminal">
-    <div class="titlebar">
-      <div class="tl-dots"><span></span><span></span><span></span></div>
-      <div class="tl-title">ai-coder@web — session <span id="sessionIdTag">new</span></div>
-      <div class="tl-spacer"></div>
-    </div>
-
-    <div class="transcript" id="transcript">
-      <div class="welcome">
-        <p><span class="prompt-sym">&gt;</span> ai-coder web console ready.</p>
-        <p class="dim">Pick a model, personality, agent role or skill focus on the left, then type below.
-        Everything here calls the exact same <code>Coder</code> class the CLI uses — no behaviour is duplicated.</p>
-      </div>
-    </div>
-
-    <form class="inputbar" id="chatForm">
-      <span class="prompt-sym">$</span>
-      <textarea id="promptInput" rows="1" placeholder="Ask ai-coder anything…  (Shift+Enter for newline)"></textarea>
-      <span class="cursor-blink" id="cursorBlink">▍</span>
-      <button type="submit" id="sendBtn">run</button>
+  <dialog id="connectionDialog" class="connection-dialog">
+    <form method="dialog" id="connectionForm">
+      <div class="dialog-head"><div><span>BACKEND CONNECTION</span><h3>Connect ZCoder API</h3></div><button class="icon-btn" value="cancel" aria-label="Close">×</button></div>
+      <p>GitHub Pages hosts the frontend only. Enter the HTTPS origin of your deployed ZCoder FastAPI service. Localhost HTTP is allowed for local development.</p>
+      <label>API base URL<input id="apiBaseInput" type="url" placeholder="https://api.example.com" /></label>
+      <div class="security-note"><b>Security boundary</b><span>Provider keys are sent only with chat requests when supplied. The API base URL may be stored locally; API keys are never persisted by this frontend.</span></div>
+      <div class="dialog-actions"><button class="button ghost" id="clearApiBtn" type="button">Use same origin</button><button class="button primary" id="saveApiBtn" type="submit" value="default">Save & connect</button></div>
     </form>
-  </main>
+  </dialog>
 
-</div>
-
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
