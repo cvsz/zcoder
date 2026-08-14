@@ -6,7 +6,7 @@ import enum
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 
 class SignalType(str, enum.Enum):
@@ -22,7 +22,7 @@ class MaintenanceSignal:
     type: SignalType = SignalType.CI_FAILURE
     severity: str = "medium"
     source: str = ""
-    evidence: Dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
     detected_at: float = field(default_factory=time.time)
 
 
@@ -34,5 +34,5 @@ class MaintenanceRecommendation:
     priority: int = 1
     risk: str = "low"
     reason: str = ""
-    evidence: List[MaintenanceSignal] = field(default_factory=list)
+    evidence: list[MaintenanceSignal] = field(default_factory=list)
     status: str = "NEW"

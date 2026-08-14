@@ -28,7 +28,7 @@ import time
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -335,12 +335,12 @@ class EnterprisePostgresStore:
 
     # ─── RLS Verification Helpers (for integration tests) ────────────────────
 
-    def verify_rls_policies(self) -> Dict[str, Dict[str, Any]]:
+    def verify_rls_policies(self) -> dict[str, dict[str, Any]]:
         """Query pg_policies to confirm actual RLS policies exist on tenant tables.
 
         Returns dict: {table_name: {rls_enabled, force_rls, policy_count}}
         """
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
         tenant_tables = [
             "projects",
             "memberships",
@@ -384,7 +384,7 @@ class EnterprisePostgresStore:
                         result[tbl]["policies"].append({"name": row[1], "cmd": row[2], "qual": row[3]})
         return result
 
-    def verify_app_role_cannot_bypass_rls(self) -> Dict[str, bool]:
+    def verify_app_role_cannot_bypass_rls(self) -> dict[str, bool]:
         """Query pg_roles to confirm zcoder_app role does not have BYPASSRLS or superuser.
 
         Returns: {"exists": bool, "bypassrls": bool, "superuser": bool}
@@ -402,7 +402,7 @@ class EnterprisePostgresStore:
             return {"exists": False, "superuser": False, "bypassrls": False}
         return {"exists": True, "superuser": row[0], "bypassrls": row[2]}
 
-    def verify_table_rls_enabled(self, table_name: str) -> Tuple[bool, bool]:
+    def verify_table_rls_enabled(self, table_name: str) -> tuple[bool, bool]:
         """Return (rls_enabled, force_rls) for a single table from pg_class."""
         with self._raw_conn() as conn:
             with conn.cursor() as cur:
@@ -447,7 +447,7 @@ class EnterprisePostgresStore:
             conn.commit()
         return org
 
-    def get_organization(self, ctx: RequestContext, org_id: str) -> Optional[Organization]:
+    def get_organization(self, ctx: RequestContext, org_id: str) -> Organization | None:
         ctx.validate_tenant_access(org_id)
         ctx.require_permission("org.read")
         with self.scoped_conn(ctx) as conn:
@@ -519,7 +519,7 @@ class EnterprisePostgresStore:
 
     def claim_job_scoped(
         self, ctx: RequestContext, worker_id: str, lease_duration: float = 120.0
-    ) -> Optional[Tuple[Job, int]]:
+    ) -> tuple[Job, int] | None:
         """Atomically claim job strictly within the worker's assigned tenant scope."""
         now = time.time()
         expires_at = now + lease_duration
@@ -626,8 +626,8 @@ class EnterprisePostgresStore:
                     ),
                 )
 
-    def authenticate_api_key(self, raw_key: str) -> Optional[RequestContext]:
-        prefix = (
+    def authenticate_api_key(self, raw_key: str) -> RequestContext | None:
+        (
             raw_key.split("_")[0] + "_" + raw_key.split("_")[1] + "_" + raw_key.split("_")[2]
             if raw_key.count("_") >= 2
             else ""
@@ -651,7 +651,7 @@ class EnterprisePostgresStore:
         if expires_at and time.time() > expires_at:
             return None
 
-        scopes_list = scopes if isinstance(scopes, list) else json.loads(scopes)
+        scopes if isinstance(scopes, list) else json.loads(scopes)
         return RequestContext(
             principal_id=principal_id,
             organization_id=org_id,
@@ -760,7 +760,7 @@ class EnterprisePostgresStore:
                 )
             conn.commit()
 
-    def export_audit_log(self, ctx: RequestContext, limit: int = 100) -> List[Dict[str, Any]]:
+    def export_audit_log(self, ctx: RequestContext, limit: int = 100) -> list[dict[str, Any]]:
         ctx.require_permission("audit.export")
         with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:

@@ -23,7 +23,7 @@ import hashlib
 import json
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from product_models import EntitlementService
 from tenant_models import RequestContext
@@ -37,7 +37,7 @@ class APIError(Exception):
         self.details = details
         super().__init__(message)
 
-    def to_dict(self, request_id: str) -> Dict[str, Any]:
+    def to_dict(self, request_id: str) -> dict[str, Any]:
         return {
             "error": {
                 "code": self.code,
@@ -51,10 +51,10 @@ class APIError(Exception):
 class PublicAPIV1Router:
     """Dispatches public customer REST API calls with strict tenant authentication, rate limits, and idempotency."""
 
-    def __init__(self, entitlement_service: Optional[EntitlementService] = None):
+    def __init__(self, entitlement_service: EntitlementService | None = None):
         self.entitlements = entitlement_service or EntitlementService()
-        self.idempotency_store: Dict[str, Dict[str, Any]] = {}
-        self.rate_limit_tracker: Dict[str, List[float]] = {}
+        self.idempotency_store: dict[str, dict[str, Any]] = {}
+        self.rate_limit_tracker: dict[str, list[float]] = {}
 
     def _check_rate_limit(
         self, principal_id: str, max_requests: int = 120, window_seconds: float = 60.0
@@ -75,11 +75,11 @@ class PublicAPIV1Router:
         method: str,
         path: str,
         ctx: RequestContext,
-        payload: Optional[Dict[str, Any]] = None,
-        query_params: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        request_id: Optional[str] = None,
-    ) -> Tuple[int, Dict[str, Any]]:
+        payload: dict[str, Any] | None = None,
+        query_params: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        request_id: str | None = None,
+    ) -> tuple[int, dict[str, Any]]:
         """Main dispatcher implementing standard API envelope, idempotency, and error formatting."""
         req_id = request_id or f"req_{uuid.uuid4().hex[:12]}"
         query_params = query_params or {}
@@ -129,10 +129,10 @@ class PublicAPIV1Router:
         method: str,
         path: str,
         ctx: RequestContext,
-        payload: Dict[str, Any],
-        query: Dict[str, Any],
+        payload: dict[str, Any],
+        query: dict[str, Any],
         req_id: str,
-    ) -> Tuple[int, Dict[str, Any]]:
+    ) -> tuple[int, dict[str, Any]]:
         # Normalize path
         p = path.rstrip("/")
 

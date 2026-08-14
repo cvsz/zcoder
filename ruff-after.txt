@@ -1,0 +1,593 @@
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/capabilities/code.py:542:30
+    |
+540 |             return {}, content
+541 |         lines = content.split("\n")
+542 |         end = next((i for i, l in enumerate(lines[1:], 1) if l.strip() == "---"), None)
+    |                              ^
+543 |         if end is None:
+544 |             return {}, content
+    |
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/capabilities/code.py:607:33
+    |
+605 |                         (
+606 |                             l.lstrip("# ").strip()
+607 |                             for l in content.splitlines()
+    |                                 ^
+608 |                             if l.strip() and not l.startswith("---")
+609 |                         ),
+    |
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/capabilities/code.py:633:29
+    |
+631 |                     (
+632 |                         l.lstrip("# ").strip()
+633 |                         for l in content.splitlines()
+    |                             ^
+634 |                         if l.strip() and not l.startswith("---")
+635 |                     ),
+    |
+
+E402 Module level import not at top of file
+   --> src/zcoder/claude/capabilities/code.py:746:1
+    |
+744 | # ══════════════════════════════════════════════════════════════════════════
+745 |
+746 | import urllib.error
+    | ^^^^^^^^^^^^^^^^^^^
+747 | import urllib.request
+    |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+   --> src/zcoder/claude/capabilities/code.py:747:1
+    |
+746 | import urllib.error
+747 | import urllib.request
+    | ^^^^^^^^^^^^^^^^^^^^^
+748 |
+749 | from exceptions import AICoderError
+    |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+   --> src/zcoder/claude/capabilities/code.py:749:1
+    |
+747 | import urllib.request
+748 |
+749 | from exceptions import AICoderError
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+750 | from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
+    |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+   --> src/zcoder/claude/capabilities/code.py:750:1
+    |
+749 | from exceptions import AICoderError
+750 | from resilience import CircuitBreaker, raise_for_http_error, retry, urlopen_json
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+751 |
+752 | MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
+    |
+help: Move module level imports to top of file
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/capabilities/embeddings.py:173:32
+    |
+171 | def cmd_embed_file(path: str, model: str = DEFAULT_MODEL, input_type: str = "document"):
+172 |     with open(path) as f:
+173 |         lines = [l.strip() for l in f if l.strip()]
+    |                                ^
+174 |     print(f"\033[94mℹ Embedding {len(lines)} lines from {path} via Voyage AI ({model})\033[0m\n")
+175 |     try:
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/claude/enterprise/compliance.py:262:17
+    |
+260 |                     attempt += 1
+261 |                     continue
+262 |                 raise ComplianceApiError.from_response(e.code, body, headers)
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+263 |             except urllib.error.URLError as e:
+264 |                 # Network-level failure (DNS, connection refused, etc.),
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/claude/enterprise/compliance.py:269:17
+    |
+267 |                 # callers doing a long backfill should catch this and
+268 |                 # decide their own retry policy same as any network call.
+269 |                 raise ComplianceApiError(status=0, error_type="connection_error", message=str(e))
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+270 |
+271 |     def _get(self, path: str, params: Optional[dict] = None) -> dict:
+    |
+
+E402 Module level import not at top of file
+   --> src/zcoder/claude/enterprise/hooks_perms.py:248:1
+    |
+246 | # ═══════════════════════════════════════════════════════════════════════
+247 |
+248 | import anthropic as _anthropic
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: Move module level imports to top of file
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/enterprise/hooks_perms.py:300:50
+    |
+298 |             descs = json.loads(cleaned)
+299 |         except Exception:
+300 |             descs = [l.lstrip("-· ").strip() for l in raw.splitlines() if l.strip()]
+    |                                                  ^
+301 |         return Plan(task=task, steps=[PlanStep(number=i + 1, description=d) for i, d in enumerate(descs)])
+    |
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/integrations/github.py:119:56
+    |
+117 |         return f"Unexpected response: {str(issues_raw)[:200]}"
+118 |     issues_text = "\n".join(
+119 |         f"#{i.get('number')} [{', '.join(l['name'] for l in i.get('labels', []))}] "
+    |                                                        ^
+120 |         f"{i.get('title', '')} — {(i.get('body') or '')[:200]}"
+121 |         for i in issues_raw
+    |
+
+F401 `pptx.util.Pt` imported but unused; consider using `importlib.util.find_spec` to test for availability
+  --> src/zcoder/claude/integrations/powerpoint.py:40:35
+   |
+38 | try:
+39 |     from pptx import Presentation
+40 |     from pptx.util import Inches, Pt
+   |                                   ^^
+41 | except ImportError:
+42 |     Presentation = None
+   |
+help: Remove unused import: `pptx.util.Pt`
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+  --> src/zcoder/claude/models/mythos5.py:91:17
+   |
+89 |               if e.status_code in (403, 404):
+90 |                   body = e.details.get("body", "")
+91 | /                 raise MythosAccessError(
+92 | |                     f"HTTP {e.status_code} calling claude-mythos-5 — this looks like an "
+93 | |                     "access-gate rejection rather than a normal API error. Mythos 5 "
+94 | |                     "requires approved Project Glasswing access; most accounts will "
+95 | |                     "see this. Use claude-fable-5 instead unless you've confirmed "
+96 | |                     f"access with Anthropic. Raw response: {body}"
+97 | |                 )
+   | |_________________^
+98 |               return {"error": e.message, "status": e.status_code}
+99 |           except AICoderError as e:
+   |
+
+E402 Module level import not at top of file
+  --> src/zcoder/claude/optimization/prompt.py:20:1
+   |
+18 | """
+19 |
+20 | import json
+   | ^^^^^^^^^^^
+21 | import os
+22 | import time
+   |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+  --> src/zcoder/claude/optimization/prompt.py:21:1
+   |
+20 | import json
+21 | import os
+   | ^^^^^^^^^
+22 | import time
+23 | from pathlib import Path
+   |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+  --> src/zcoder/claude/optimization/prompt.py:22:1
+   |
+20 | import json
+21 | import os
+22 | import time
+   | ^^^^^^^^^^^
+23 | from pathlib import Path
+24 | from typing import Optional
+   |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+  --> src/zcoder/claude/optimization/prompt.py:23:1
+   |
+21 | import os
+22 | import time
+23 | from pathlib import Path
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+24 | from typing import Optional
+   |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+  --> src/zcoder/claude/optimization/prompt.py:24:1
+   |
+22 | import time
+23 | from pathlib import Path
+24 | from typing import Optional
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25 |
+26 | import anthropic
+   |
+help: Move module level imports to top of file
+
+E402 Module level import not at top of file
+  --> src/zcoder/claude/optimization/prompt.py:26:1
+   |
+24 | from typing import Optional
+25 |
+26 | import anthropic
+   | ^^^^^^^^^^^^^^^^
+27 |
+28 | PROMPT_LIB_PATH = Path(os.path.expanduser("~/.ai-coder/prompt_library.json"))
+   |
+help: Move module level imports to top of file
+
+B005 Using `.strip()` with multi-character strings is misleading
+  --> src/zcoder/claude/optimization/prompt.py:61:19
+   |
+59 |     raw = _call(client, model, system, f"Prompt to score:\n{prompt}", max_tokens=512)
+60 |     try:
+61 |         cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+62 |         return json.loads(cleaned)
+63 |     except json.JSONDecodeError:
+   |
+
+B005 Using `.strip()` with multi-character strings is misleading
+  --> src/zcoder/claude/optimization/prompt.py:61:19
+   |
+59 |     raw = _call(client, model, system, f"Prompt to score:\n{prompt}", max_tokens=512)
+60 |     try:
+61 |         cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+62 |         return json.loads(cleaned)
+63 |     except json.JSONDecodeError:
+   |
+
+B005 Using `.strip()` with multi-character strings is misleading
+  --> src/zcoder/claude/optimization/prompt.py:61:19
+   |
+59 |     raw = _call(client, model, system, f"Prompt to score:\n{prompt}", max_tokens=512)
+60 |     try:
+61 |         cleaned = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+62 |         return json.loads(cleaned)
+63 |     except json.JSONDecodeError:
+   |
+
+B005 Using `.strip()` with multi-character strings is misleading
+  --> src/zcoder/claude/optimization/prompt.py:93:19
+   |
+91 |     )
+92 |     try:
+93 |         cleaned = judge_raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+94 |         judgment = json.loads(cleaned)
+95 |     except json.JSONDecodeError:
+   |
+
+B005 Using `.strip()` with multi-character strings is misleading
+  --> src/zcoder/claude/optimization/prompt.py:93:19
+   |
+91 |     )
+92 |     try:
+93 |         cleaned = judge_raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+94 |         judgment = json.loads(cleaned)
+95 |     except json.JSONDecodeError:
+   |
+
+B005 Using `.strip()` with multi-character strings is misleading
+  --> src/zcoder/claude/optimization/prompt.py:93:19
+   |
+91 |     )
+92 |     try:
+93 |         cleaned = judge_raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+94 |         judgment = json.loads(cleaned)
+95 |     except json.JSONDecodeError:
+   |
+
+B023 Function definition does not bind loop variable `entry`
+    --> src/zcoder/claude/orchestration/agents_sdk.py:1971:31
+     |
+1969 |     for entry in entries:
+1970 |         get = (
+1971 |             (lambda k, d="?": entry.get(k, d))
+     |                               ^^^^^
+1972 |             if isinstance(entry, dict)
+1973 |             else (lambda k, d="?": getattr(entry, k, d))
+     |
+
+B023 Function definition does not bind loop variable `entry`
+    --> src/zcoder/claude/orchestration/agents_sdk.py:1973:44
+     |
+1971 |             (lambda k, d="?": entry.get(k, d))
+1972 |             if isinstance(entry, dict)
+1973 |             else (lambda k, d="?": getattr(entry, k, d))
+     |                                            ^^^^^
+1974 |         )
+1975 |         print(f"  {get('id')}  {get('name')}" f"{'  [archived]' if get('archived', False) else ''}")
+     |
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/orchestration/sessions.py:224:26
+    |
+222 |             timeout=5,
+223 |         )
+224 |         commits = [l for l in r.stdout.splitlines() if l.strip()]
+    |                          ^
+225 |     except Exception:
+226 |         pass
+    |
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/rag/research.py:102:47
+    |
+100 |             qs = json.loads(cleaned)
+101 |         except json.JSONDecodeError:
+102 |             qs = [l.lstrip("-· ").strip() for l in raw.splitlines() if l.strip()][:depth]
+    |                                               ^
+103 |         return [SubQ(question=q) for q in qs[:depth]]
+    |
+
+E741 Ambiguous variable name: `l`
+   --> src/zcoder/claude/rag/research.py:123:52
+    |
+121 |             + "Return 3–6 concise bullet-point findings.",
+122 |         )
+123 |         sq.findings = [l.lstrip("-· ").strip() for l in raw.splitlines() if l.strip()]
+    |                                                    ^
+124 |         sq.answered = True
+125 |         return sq
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/claude/tools/plugins.py:114:13
+    |
+112 |             data = json.loads(manifest_path.read_text())
+113 |         except Exception as e:
+114 |             raise ValueError(f"invalid plugin.json: {e}")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+115 |         merged = {**DEFAULT_MANIFEST_FIELDS, **data}
+116 |         if not merged["name"]:
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+  --> src/zcoder/core/security.py:54:9
+   |
+52 |           candidate.relative_to(base)
+53 |       except ValueError:
+54 | /         raise SecurityError(
+55 | |             "Path escapes the allowed base directory",
+56 | |             details={"path": str(path), "base_dir": str(base)},
+57 | |         )
+   | |_________^
+58 |       return candidate
+   |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/infrastructure/auth/oidc.py:207:13
+    |
+206 |         except jwt.ExpiredSignatureError:
+207 |             raise TokenExpiredError("JWT token has expired")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+208 |         except jwt.InvalidTokenError as e:
+209 |             raise TokenInvalidError(f"JWT validation failed: {e}")
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/infrastructure/auth/oidc.py:209:13
+    |
+207 |             raise TokenExpiredError("JWT token has expired")
+208 |         except jwt.InvalidTokenError as e:
+209 |             raise TokenInvalidError(f"JWT validation failed: {e}")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+210 |         except Exception as e:
+211 |             raise AuthError(f"Authentication failed: {e}")
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/infrastructure/auth/oidc.py:211:13
+    |
+209 |             raise TokenInvalidError(f"JWT validation failed: {e}")
+210 |         except Exception as e:
+211 |             raise AuthError(f"Authentication failed: {e}")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+212 |
+213 |         # Map role
+    |
+
+F401 `opentelemetry.metrics` imported but unused; consider using `importlib.util.find_spec` to test for availability
+  --> src/zcoder/infrastructure/observability/otel.py:25:31
+   |
+24 | try:
+25 |     from opentelemetry import metrics, trace
+   |                               ^^^^^^^
+26 |     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+27 |     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+   |
+help: Remove unused import
+
+F401 `opentelemetry.trace` imported but unused; consider using `importlib.util.find_spec` to test for availability
+  --> src/zcoder/infrastructure/observability/otel.py:25:40
+   |
+24 | try:
+25 |     from opentelemetry import metrics, trace
+   |                                        ^^^^^
+26 |     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+27 |     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+   |
+help: Remove unused import
+
+F401 `psycopg` imported but unused; consider using `importlib.util.find_spec` to test for availability
+  --> src/zcoder/infrastructure/stores/postgres.py:51:16
+   |
+49 | if not _PSYCOPG2_AVAILABLE:
+50 |     try:
+51 |         import psycopg  # type: ignore[import]
+   |                ^^^^^^^
+52 |
+53 |         _PSYCOPG3_AVAILABLE = True
+   |
+help: Remove unused import: `psycopg`
+
+F401 `textual.worker.Worker` imported but unused; consider using `importlib.util.find_spec` to test for availability
+  --> src/zcoder/interfaces/cli/tui.py:44:32
+   |
+42 |         Switch,
+43 |     )
+44 |     from textual.worker import Worker, get_current_worker
+   |                                ^^^^^^
+45 | except ImportError as e:  # pragma: no cover - exercised only w/o textual installed
+46 |     raise ImportError(
+   |
+help: Remove unused import
+
+F401 `textual.worker.get_current_worker` imported but unused; consider using `importlib.util.find_spec` to test for availability
+  --> src/zcoder/interfaces/cli/tui.py:44:40
+   |
+42 |         Switch,
+43 |     )
+44 |     from textual.worker import Worker, get_current_worker
+   |                                        ^^^^^^^^^^^^^^^^^^
+45 | except ImportError as e:  # pragma: no cover - exercised only w/o textual installed
+46 |     raise ImportError(
+   |
+help: Remove unused import
+
+E402 Module level import not at top of file
+  --> src/zcoder/services/agent_runtime.py:72:1
+   |
+72 | from legacy_job_models import ToolPolicy
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: Move module level imports to top of file
+
+F811 Redefinition of unused `ToolPolicy` from line 35
+  --> src/zcoder/services/agent_runtime.py:72:31
+   |
+72 | from legacy_job_models import ToolPolicy
+   |                               ^^^^^^^^^^ `ToolPolicy` redefined here
+   |
+  ::: src/zcoder/services/agent_runtime.py:35:7
+   |
+35 | class ToolPolicy(str, enum.Enum):
+   |       ---------- previous definition of `ToolPolicy` here
+36 |     ALLOW = "ALLOW"
+37 |     DENY = "DENY"
+   |
+help: Remove definition: `ToolPolicy`
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/services/coder.py:135:21
+    |
+133 |                 body = e.read().decode()
+134 |                 if e.code == 401:
+135 |                     raise AuthenticationError("API key rejected (401)", details={"body": body[:300]})
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+136 |                 if e.code == 429:
+137 |                     retry_after = None
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/services/coder.py:142:21
+    |
+140 |                       except (TypeError, ValueError):
+141 |                           pass
+142 | /                     raise RateLimitError(
+143 | |                         "Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}
+144 | |                     )
+    | |_____________________^
+145 |                   if e.code >= 500:
+146 |                       raise TransientAPIError(f"Server error ({e.code})", details={"body": body[:300]})
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/services/coder.py:146:21
+    |
+144 |                     )
+145 |                 if e.code >= 500:
+146 |                     raise TransientAPIError(f"Server error ({e.code})", details={"body": body[:300]})
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+147 |                 raise APIError(
+148 |                     f"Request rejected ({e.code})", status_code=e.code, details={"body": body[:300]}
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/services/coder.py:147:17
+    |
+145 |                   if e.code >= 500:
+146 |                       raise TransientAPIError(f"Server error ({e.code})", details={"body": body[:300]})
+147 | /                 raise APIError(
+148 | |                     f"Request rejected ({e.code})", status_code=e.code, details={"body": body[:300]}
+149 | |                 )
+    | |_________________^
+150 |               except (TimeoutError, ConnectionError, OSError) as e:
+151 |                   # Covers socket timeouts and connection resets from urllib,
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/zcoder/services/coder.py:154:17
+    |
+152 |                 # which surface as plain OSError/ConnectionError subclasses,
+153 |                 # not HTTPError. These are transient/retryable by nature.
+154 |                 raise TransientAPIError(f"Network error: {e}")
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+155 |
+156 |         try:
+    |
+
+F821 Undefined name `List`
+  --> src/zcoder/services/portfolio_scheduler.py:16:63
+   |
+14 |         self.eng_store = eng_store
+15 |
+16 |     def plan_campaign(self, campaign: EngineeringCampaign) -> List[str]:
+   |                                                               ^^^^
+17 |         task_ids = []
+18 |         for repo_id in campaign.repositories:
+   |
+
+B017 Do not assert blind exception: `Exception`
+   --> tests/integration/test_auth_oidc.py:232:14
+    |
+230 |             jwks_uri="https://issuer.example.com/.well-known/jwks.json",
+231 |         )
+232 |         with pytest.raises(Exception):  # TokenInvalidError or AuthError depending on deps
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+233 |             validator.validate_token("not.a.real.jwt.token")
+    |
+
+E402 Module level import not at top of file
+  --> tests/unit/test_claude_models_deprecation.py:18:1
+   |
+16 |       sys.path.insert(0, str(ROOT))
+17 |
+18 | / from claude_models import (
+19 | |     DEPRECATED_MODELS,
+20 | |     RETIRED_MODELS,
+21 | |     _upgrade_source_ids,
+22 | |     check_deprecated,
+23 | |     check_retired,
+24 | |     cmd_check_deprecated,
+25 | |     cmd_model_info,
+26 | | )
+   | |_^
+help: Move module level imports to top of file
+
+Found 52 errors.

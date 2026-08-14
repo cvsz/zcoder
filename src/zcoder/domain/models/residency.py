@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import Dict, Optional, Set
 
 
 class RegionStatus(str, enum.Enum):
@@ -35,10 +34,10 @@ class RegionStatus(str, enum.Enum):
 class OrganizationResidencyPolicy:
     organization_id: str
     home_region: str
-    allowed_worker_regions: Set[str] = dataclasses.field(default_factory=lambda: {"us-east", "us-west"})
-    allowed_artifact_regions: Set[str] = dataclasses.field(default_factory=lambda: {"us-east", "us-west"})
-    allowed_backup_regions: Set[str] = dataclasses.field(default_factory=lambda: {"us-east", "us-west"})
-    allowed_provider_inference_regions: Set[str] = dataclasses.field(default_factory=lambda: {"us", "global"})
+    allowed_worker_regions: set[str] = dataclasses.field(default_factory=lambda: {"us-east", "us-west"})
+    allowed_artifact_regions: set[str] = dataclasses.field(default_factory=lambda: {"us-east", "us-west"})
+    allowed_backup_regions: set[str] = dataclasses.field(default_factory=lambda: {"us-east", "us-west"})
+    allowed_provider_inference_regions: set[str] = dataclasses.field(default_factory=lambda: {"us", "global"})
     cross_region_transfer_allowed: bool = False
 
 
@@ -46,7 +45,7 @@ class OrganizationResidencyPolicy:
 class RegionTopology:
     control_plane_region: str = "us-east-1"
     database_region: str = "us-east-1"
-    worker_regions: Dict[str, RegionStatus] = dataclasses.field(
+    worker_regions: dict[str, RegionStatus] = dataclasses.field(
         default_factory=lambda: {
             "us-east-1": RegionStatus.AVAILABLE,
             "eu-west-1": RegionStatus.AVAILABLE,
@@ -58,9 +57,9 @@ class RegionTopology:
 class ResidencyScheduler:
     """Evaluates and enforces data residency policies before job dispatch and during failover."""
 
-    def __init__(self, topology: Optional[RegionTopology] = None):
+    def __init__(self, topology: RegionTopology | None = None):
         self.topology = topology or RegionTopology()
-        self.policies: Dict[str, OrganizationResidencyPolicy] = {}
+        self.policies: dict[str, OrganizationResidencyPolicy] = {}
 
     def set_policy(self, policy: OrganizationResidencyPolicy) -> None:
         self.policies[policy.organization_id] = policy
@@ -102,7 +101,7 @@ class ResidencyScheduler:
         self,
         organization_id: str,
         failed_worker_region: str,
-    ) -> tuple[Optional[str], str]:
+    ) -> tuple[str | None, str]:
         """Select alternate worker region during outage strictly respecting tenant residency policy."""
         policy = self.policies.get(organization_id)
         allowed = policy.allowed_worker_regions if policy else set(self.topology.worker_regions.keys())

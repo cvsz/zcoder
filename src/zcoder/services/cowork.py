@@ -385,7 +385,7 @@ class CoworkAgent:
         if file_content:
             first += f"\n\nATTACHED:{file_content}"
 
-        for i, user_msg in enumerate([first] + follow_ups):
+        for _i, user_msg in enumerate([first] + follow_ups):
             messages.append({"role": "user", "content": user_msg})
             payload = {
                 "model": self.model,

@@ -26,7 +26,6 @@ claude_excel.py / claude_powerpoint.py for their own optional deps.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 try:
     from textual import work
@@ -149,7 +148,7 @@ class ZCoderTUI(App):
         ("ctrl+t", "toggle_dark", "Toggle theme"),
     ]
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         super().__init__()
         self.api_key = api_key or Config().get("api_key")
         self.history: list = []
@@ -212,7 +211,7 @@ class ZCoderTUI(App):
             t = 0.3
         return max(0.0, min(1.0, t))
 
-    def _build_system_prompt(self) -> Optional[str]:
+    def _build_system_prompt(self) -> str | None:
         parts = []
         agent = self._selected("agent_select")
         if agent:
@@ -310,7 +309,7 @@ class ZCoderTUI(App):
         return full_text
 
 
-def run_tui(api_key: Optional[str] = None) -> None:
+def run_tui(api_key: str | None = None) -> None:
     """Entry point used by main.py's --tui flag."""
     ZCoderTUI(api_key=api_key).run()
 

@@ -19,7 +19,7 @@ import hashlib
 import pathlib
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # 1. Cost Classification & Policy
@@ -51,10 +51,10 @@ class ModelSpec:
     supports_thinking: bool = False
     price_input_per_million: float = 0.0
     price_output_per_million: float = 0.0
-    local_endpoint: Optional[str] = None
+    local_endpoint: str | None = None
 
 
-LOCAL_MODEL_CATALOG: Dict[str, ModelSpec] = {
+LOCAL_MODEL_CATALOG: dict[str, ModelSpec] = {
     "local:qwen2.5-coder": ModelSpec(
         id="local:qwen2.5-coder",
         name="Qwen 2.5 Coder (Local Ollama / vLLM)",
@@ -92,7 +92,7 @@ class CostOptimizer:
     Evaluates rules deterministically without requiring an LLM or paid external call.
     """
 
-    def __init__(self, catalog: Optional[Dict[str, ModelSpec]] = None):
+    def __init__(self, catalog: dict[str, ModelSpec] | None = None):
         self.catalog = catalog or LOCAL_MODEL_CATALOG
 
     def recommend(
@@ -101,7 +101,7 @@ class CostOptimizer:
         policy: CostPolicy = CostPolicy.ZERO_COST_ONLY,
         max_cost_usd: float = 0.0,
         requires_thinking: bool = False,
-    ) -> Tuple[str, str, CostClass]:
+    ) -> tuple[str, str, CostClass]:
         """Select best candidate model satisfying budget constraints."""
         # 1. Zero cost only filter
         if policy == CostPolicy.ZERO_COST_ONLY or max_cost_usd == 0.0:
@@ -192,8 +192,8 @@ class InAppNotification:
     title: str
     message: str
     severity: NotificationSeverity = NotificationSeverity.INFO
-    resource_id: Optional[str] = None
-    read_at: Optional[float] = None
+    resource_id: str | None = None
+    read_at: float | None = None
     created_at: float = dataclasses.field(default_factory=time.time)
 
 
@@ -201,8 +201,8 @@ class NotificationCenter:
     """Zero-cost in-app notification manager with deduplication and delivery."""
 
     def __init__(self):
-        self.notifications: Dict[str, List[InAppNotification]] = {}
-        self.dedup_keys: Set[str] = set()
+        self.notifications: dict[str, list[InAppNotification]] = {}
+        self.dedup_keys: set[str] = set()
 
     def notify(
         self,
@@ -211,8 +211,8 @@ class NotificationCenter:
         title: str,
         message: str,
         severity: NotificationSeverity = NotificationSeverity.INFO,
-        dedup_key: Optional[str] = None,
-    ) -> Optional[InAppNotification]:
+        dedup_key: str | None = None,
+    ) -> InAppNotification | None:
         if dedup_key:
             if dedup_key in self.dedup_keys:
                 return None  # Deduplicated
@@ -229,7 +229,7 @@ class NotificationCenter:
         self.notifications.setdefault(organization_id, []).append(notif)
         return notif
 
-    def get_unread(self, organization_id: str, principal_id: str) -> List[InAppNotification]:
+    def get_unread(self, organization_id: str, principal_id: str) -> list[InAppNotification]:
         all_notifs = self.notifications.get(organization_id, [])
         return [n for n in all_notifs if n.principal_id == principal_id and n.read_at is None]
 
@@ -251,11 +251,9 @@ class LocalAnalyticsEngine:
     """In-memory, 100% offline product metrics aggregator requiring zero external services."""
 
     def __init__(self):
-        self.events: List[Dict[str, Any]] = []
+        self.events: list[dict[str, Any]] = []
 
-    def track(
-        self, event_name: str, organization_id: str, properties: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def track(self, event_name: str, organization_id: str, properties: dict[str, Any] | None = None) -> None:
         self.events.append(
             {
                 "event": event_name,
@@ -265,7 +263,7 @@ class LocalAnalyticsEngine:
             }
         )
 
-    def get_aggregate_stats(self, organization_id: str) -> Dict[str, Any]:
+    def get_aggregate_stats(self, organization_id: str) -> dict[str, Any]:
         org_events = [e for e in self.events if e["organization_id"] == organization_id]
         total_jobs = sum(1 for e in org_events if e["event"] == "job.completed")
         failed_jobs = sum(1 for e in org_events if e["event"] == "job.failed")
@@ -287,7 +285,7 @@ class WorkflowStep:
     id: str
     name: str
     action_type: str  # "agent" | "command" | "validation" | "approval"
-    parameters: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    parameters: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
@@ -297,12 +295,12 @@ class WorkflowDefinition:
     organization_id: str
     version: str = "1.0"
     trigger: str = "manual"  # "manual" | "git.pr" | "schedule"
-    steps: List[WorkflowStep] = dataclasses.field(default_factory=list)
+    steps: list[WorkflowStep] = dataclasses.field(default_factory=list)
     max_budget_usd: float = 0.0  # default zero-cost
     created_at: float = dataclasses.field(default_factory=time.time)
 
 
-WORKFLOW_TEMPLATES: Dict[str, WorkflowDefinition] = {
+WORKFLOW_TEMPLATES: dict[str, WorkflowDefinition] = {
     "fix_failing_tests": WorkflowDefinition(
         id="tmpl_fix_failing_tests",
         name="Fix Failing Tests",
@@ -347,8 +345,8 @@ WORKFLOW_TEMPLATES: Dict[str, WorkflowDefinition] = {
 class WorkflowEngine:
     """Executes versioned multi-step workflows with strict step validation."""
 
-    def __init__(self, templates: Optional[Dict[str, WorkflowDefinition]] = None):
-        self.workflows: Dict[str, WorkflowDefinition] = {}
+    def __init__(self, templates: dict[str, WorkflowDefinition] | None = None):
+        self.workflows: dict[str, WorkflowDefinition] = {}
         if templates:
             self.workflows.update(templates)
         else:
@@ -358,7 +356,7 @@ class WorkflowEngine:
     def register_workflow(self, workflow: WorkflowDefinition) -> None:
         self.workflows[workflow.id] = workflow
 
-    def execute_workflow_dry_run(self, workflow_id: str) -> List[str]:
+    def execute_workflow_dry_run(self, workflow_id: str) -> list[str]:
         wf = self.workflows.get(workflow_id)
         if not wf:
             raise ValueError(f"Workflow '{workflow_id}' not found")

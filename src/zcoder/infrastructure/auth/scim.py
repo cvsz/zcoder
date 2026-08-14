@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from tenant_models import EnterpriseRole, RequestContext
 
@@ -22,13 +22,13 @@ class ScimUser:
     id: str
     userName: str
     displayName: str
-    emails: List[Dict[str, str]]
+    emails: list[dict[str, str]]
     active: bool = True
     organization_id: str = ""
-    externalId: Optional[str] = None
+    externalId: str | None = None
     created_at: float = dataclasses.field(default_factory=time.time)
 
-    def to_scim_json(self) -> Dict[str, Any]:
+    def to_scim_json(self) -> dict[str, Any]:
         return {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
             "id": self.id,
@@ -47,11 +47,11 @@ class ScimUser:
 class ScimGroup:
     id: str
     displayName: str
-    members: List[Dict[str, str]]
+    members: list[dict[str, str]]
     organization_id: str = ""
     mapped_role: EnterpriseRole = EnterpriseRole.DEVELOPER
 
-    def to_scim_json(self) -> Dict[str, Any]:
+    def to_scim_json(self) -> dict[str, Any]:
         return {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "id": self.id,
@@ -66,10 +66,10 @@ class ScimProvisioningService:
 
     def __init__(self, organization_id: str):
         self.organization_id = organization_id
-        self.users: Dict[str, ScimUser] = {}
-        self.groups: Dict[str, ScimGroup] = {}
+        self.users: dict[str, ScimUser] = {}
+        self.groups: dict[str, ScimGroup] = {}
 
-    def create_user(self, ctx: RequestContext, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def create_user(self, ctx: RequestContext, payload: dict[str, Any]) -> dict[str, Any]:
         ctx.validate_tenant_access(self.organization_id)
         ctx.require_permission("scim.manage")
 
@@ -91,7 +91,7 @@ class ScimProvisioningService:
         self.users[user_id] = scim_user
         return scim_user.to_scim_json()
 
-    def update_user_status(self, ctx: RequestContext, user_id: str, active: bool) -> Optional[Dict[str, Any]]:
+    def update_user_status(self, ctx: RequestContext, user_id: str, active: bool) -> dict[str, Any] | None:
         ctx.validate_tenant_access(self.organization_id)
         ctx.require_permission("scim.manage")
 
@@ -103,14 +103,14 @@ class ScimProvisioningService:
         user.active = active
         return user.to_scim_json()
 
-    def get_user(self, ctx: RequestContext, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_user(self, ctx: RequestContext, user_id: str) -> dict[str, Any] | None:
         ctx.validate_tenant_access(self.organization_id)
         user = self.users.get(user_id)
         if not user or user.organization_id != self.organization_id:
             return None
         return user.to_scim_json()
 
-    def create_group(self, ctx: RequestContext, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def create_group(self, ctx: RequestContext, payload: dict[str, Any]) -> dict[str, Any]:
         ctx.validate_tenant_access(self.organization_id)
         ctx.require_permission("scim.manage")
 

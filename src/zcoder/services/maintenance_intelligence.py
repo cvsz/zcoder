@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from intelligence_models import MaintenanceRecommendation, MaintenanceSignal, SignalType
 
 
 class MaintenanceIntelligenceService:
     def __init__(self):
-        self.signals: List[MaintenanceSignal] = []
+        self.signals: list[MaintenanceSignal] = []
 
     def add_signal(self, signal: MaintenanceSignal):
         self.signals.append(signal)
 
-    def generate_recommendations(self) -> List[MaintenanceRecommendation]:
+    def generate_recommendations(self) -> list[MaintenanceRecommendation]:
         recommendations = []
         # Basic deterministic rules
         for signal in self.signals:

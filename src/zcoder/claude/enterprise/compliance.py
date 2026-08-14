@@ -344,8 +344,7 @@ class ComplianceApiClient:
                 created_at_lte=created_at_lte,
                 created_at_lt=created_at_lt,
             )
-            for item in page.get("data", []):
-                yield item
+            yield from page.get("data", [])
             if not page.get("has_more"):
                 return
             cursor = page.get("last_id")
@@ -400,8 +399,7 @@ class ComplianceApiClient:
         cursor = filters.pop("after_id", None)
         while True:
             page = self.list_chats(user_ids, limit=page_size, after_id=cursor, **filters)
-            for item in page.get("data", []):
-                yield item
+            yield from page.get("data", [])
             if not page.get("has_more"):
                 return
             cursor = page.get("last_id")

@@ -12,7 +12,6 @@ from __future__ import annotations
 import sqlite3
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
 
 from control_plane import ControlPlaneStore
 
@@ -32,7 +31,7 @@ class ServiceHealth:
 class BackupArchive:
     archive_id: str
     created_at: float
-    record_counts: Dict[str, int]
+    record_counts: dict[str, int]
     data_dump: str
 
 
@@ -91,7 +90,7 @@ class DeploymentEngine:
             conn.executescript(archive.data_dump)
         return True
 
-    def simulate_worker_crash_and_reclaim(self, worker_id: str, job_id: str) -> Tuple[bool, Optional[str]]:
+    def simulate_worker_crash_and_reclaim(self, worker_id: str, job_id: str) -> tuple[bool, str | None]:
         """Simulate worker death -> lease expiry -> reclaim by another worker."""
         # 1. Manually expire lease in store
         with sqlite3.connect(self.store.db_path) as conn:

@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from agent_runtime import Job, JobStatus
 
@@ -34,12 +34,12 @@ class StorageCapabilities:
 class OutboxMessage:
     id: str
     action: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     status: str = "PENDING"  # PENDING, PROCESSING, DELIVERED, DEAD
     attempts: int = 0
     created_at: float = field(default_factory=time.time)
-    delivered_at: Optional[float] = None
-    error: Optional[str] = None
+    delivered_at: float | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -65,7 +65,7 @@ class FleetRepository:
 class ControlPlaneStore:
     """Unified Control Plane Persistence supporting SQLite and PostgreSQL protocols."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or (Path.home() / ".zcoder" / "control_plane.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.capabilities = StorageCapabilities(
@@ -133,9 +133,7 @@ class ControlPlaneStore:
                 )
             """)
 
-    def claim_job_with_fencing(
-        self, worker_id: str, lease_duration: float = 60.0
-    ) -> Optional[Tuple[Job, int]]:
+    def claim_job_with_fencing(self, worker_id: str, lease_duration: float = 60.0) -> tuple[Job, int] | None:
         """Atomic claim using transaction with monotonic fencing token."""
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
@@ -199,7 +197,7 @@ class ControlPlaneStore:
             )
             return conn.total_changes > 0
 
-    def enqueue_outbox(self, action: str, payload: Dict[str, Any]) -> OutboxMessage:
+    def enqueue_outbox(self, action: str, payload: dict[str, Any]) -> OutboxMessage:
         msg = OutboxMessage(id=f"out_{uuid.uuid4().hex[:8]}", action=action, payload=payload)
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -226,7 +224,7 @@ class ControlPlaneStore:
             cur = conn.cursor()
             cur.execute("SELECT id, action, payload, attempts FROM outbox WHERE status = 'PENDING'")
             rows = cur.fetchall()
-            for r_id, action, payload_str, attempts in rows:
+            for r_id, action, payload_str, _attempts in rows:
                 payload = json.loads(payload_str)
                 try:
                     handler(action, payload)

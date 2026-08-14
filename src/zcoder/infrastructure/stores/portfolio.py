@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from portfolio_models import EngineeringCampaign, ManagedRepository
 
 
 class PortfolioStore:
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or (Path.home() / ".zcoder" / "portfolio.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()

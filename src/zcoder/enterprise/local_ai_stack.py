@@ -32,7 +32,7 @@ import re
 import subprocess
 import time
 import urllib.request
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable
 
 # ---------------------------------------------------------------------------
 # 1. Hardware Profiler & Model Fit Estimator
@@ -54,7 +54,7 @@ class HardwareProfile:
     ram_total_gb: float
     ram_available_gb: float
     gpu_vendor: str  # "NVIDIA" | "AMD" | "APPLE" | "CPU_ONLY"
-    gpu_device: Optional[str] = None
+    gpu_device: str | None = None
     vram_gb: float = 0.0
     detected_at: float = dataclasses.field(default_factory=time.time)
 
@@ -191,8 +191,8 @@ class LocalModelArtifact:
     quantization: str
     state: ModelState = ModelState.CATALOG
     is_gated: bool = False
-    downloaded_at: Optional[float] = None
-    verified_at: Optional[float] = None
+    downloaded_at: float | None = None
+    verified_at: float | None = None
 
 
 class ModelRegistry:
@@ -200,7 +200,7 @@ class ModelRegistry:
 
     def __init__(self, cache_dir: str = "/tmp/zcoder_models"):
         self.cache_dir = cache_dir
-        self.artifacts: Dict[str, LocalModelArtifact] = {}
+        self.artifacts: dict[str, LocalModelArtifact] = {}
         self._init_default_catalog()
 
     def _init_default_catalog(self):
@@ -243,20 +243,20 @@ class ModelRegistry:
     def register_artifact(self, artifact: LocalModelArtifact):
         self.artifacts[artifact.id] = artifact
 
-    def get_artifact(self, artifact_id: str) -> Optional[LocalModelArtifact]:
+    def get_artifact(self, artifact_id: str) -> LocalModelArtifact | None:
         return self.artifacts.get(artifact_id)
 
-    def list_installed_models(self) -> List[LocalModelArtifact]:
+    def list_installed_models(self) -> list[LocalModelArtifact]:
         return [
             a
             for a in self.artifacts.values()
             if a.state in (ModelState.VERIFIED, ModelState.LOADABLE, ModelState.LOADED)
         ]
 
-    def list_catalog_models(self) -> List[LocalModelArtifact]:
+    def list_catalog_models(self) -> list[LocalModelArtifact]:
         return list(self.artifacts.values())
 
-    def plan_download(self, artifact_id: str) -> Dict[str, Any]:
+    def plan_download(self, artifact_id: str) -> dict[str, Any]:
         artifact = self.get_artifact(artifact_id)
         if not artifact:
             raise ValueError(f"Unknown model: {artifact_id}")
@@ -292,10 +292,10 @@ class ModelRegistry:
 class LocalModelProvider:
     """Abstract interface for local model execution."""
 
-    def list_models(self) -> List[LocalModelMetadata]:
+    def list_models(self) -> list[LocalModelMetadata]:
         raise NotImplementedError
 
-    def chat_complete(self, model_id: str, prompt: str, tools: Optional[List[Dict[str, Any]]] = None) -> str:
+    def chat_complete(self, model_id: str, prompt: str, tools: list[dict[str, Any]] | None = None) -> str:
         raise NotImplementedError
 
 
@@ -305,8 +305,8 @@ class LlamaCppRuntime(LocalModelProvider):
     def __init__(self, executable_path: str = "llama-server", base_url: str = "http://127.0.0.1:8080"):
         self.executable_path = executable_path
         self.base_url = base_url.rstrip("/")
-        self.managed_pid: Optional[int] = None
-        self.loaded_model: Optional[str] = None
+        self.managed_pid: int | None = None
+        self.loaded_model: str | None = None
 
     def is_running(self) -> bool:
         try:
@@ -316,7 +316,7 @@ class LlamaCppRuntime(LocalModelProvider):
         except Exception:
             return False
 
-    def list_models(self) -> List[LocalModelMetadata]:
+    def list_models(self) -> list[LocalModelMetadata]:
         if not self.is_running():
             return [
                 LocalModelMetadata(
@@ -339,7 +339,7 @@ class LlamaCppRuntime(LocalModelProvider):
         except Exception:
             return []
 
-    def chat_complete(self, model_id: str, prompt: str, tools: Optional[List[Dict[str, Any]]] = None) -> str:
+    def chat_complete(self, model_id: str, prompt: str, tools: list[dict[str, Any]] | None = None) -> str:
         if not self.is_running():
             return f"[LOCAL_LLAMACPP:{model_id}] Simulated execution for: {prompt[:35]}"
         try:
@@ -425,10 +425,10 @@ class TournamentScore:
 class ModelTournament:
     """Executes multi-dimensional benchmark tournaments across candidate models."""
 
-    def __init__(self, candidates: List[str]):
+    def __init__(self, candidates: list[str]):
         self.candidates = candidates
 
-    def run_tournament(self) -> List[TournamentScore]:
+    def run_tournament(self) -> list[TournamentScore]:
         scores = []
         for model in self.candidates:
             # Deterministic benchmark proxy
@@ -472,7 +472,7 @@ class OllamaAdapter(LocalModelProvider):
         except Exception:
             return False
 
-    def list_models(self) -> List[LocalModelMetadata]:
+    def list_models(self) -> list[LocalModelMetadata]:
         if not self.is_available():
             # Return discovered default offline definitions
             return [
@@ -499,7 +499,7 @@ class OllamaAdapter(LocalModelProvider):
         except Exception:
             return []
 
-    def chat_complete(self, model_id: str, prompt: str, tools: Optional[List[Dict[str, Any]]] = None) -> str:
+    def chat_complete(self, model_id: str, prompt: str, tools: list[dict[str, Any]] | None = None) -> str:
         if not self.is_available():
             return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
         try:
@@ -529,10 +529,10 @@ class LocalRepositoryIndexer:
     SECRET_PATTERN = re.compile(r"(api[_-]?key|secret|password|token|bearer|private_key)", re.IGNORECASE)
 
     def __init__(self):
-        self.doc_index: Dict[str, Dict[str, float]] = {}  # filepath -> term frequency vector
-        self.doc_contents: Dict[str, str] = {}
+        self.doc_index: dict[str, dict[str, float]] = {}  # filepath -> term frequency vector
+        self.doc_contents: dict[str, str] = {}
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         return re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b", text.lower())
 
     def index_file(self, filepath: str, content: str) -> bool:
@@ -552,7 +552,7 @@ class LocalRepositoryIndexer:
             return False
 
         # Compute term frequency
-        tf: Dict[str, float] = {}
+        tf: dict[str, float] = {}
         for tok in tokens:
             tf[tok] = tf.get(tok, 0.0) + 1.0
         total = float(len(tokens))
@@ -563,12 +563,12 @@ class LocalRepositoryIndexer:
         self.doc_contents[filepath] = clean_content
         return True
 
-    def search(self, query: str, top_k: int = 3) -> List[Tuple[str, float, str]]:
+    def search(self, query: str, top_k: int = 3) -> list[tuple[str, float, str]]:
         q_tokens = self._tokenize(query)
         if not q_tokens:
             return []
 
-        scores: List[Tuple[str, float, str]] = []
+        scores: list[tuple[str, float, str]] = []
         for path, tf in self.doc_index.items():
             score = sum(tf.get(tok, 0.0) for tok in q_tokens)
             if score > 0.0:
@@ -587,8 +587,8 @@ class LocalRepositoryIndexer:
 class MCPToolDefinition:
     name: str
     description: str
-    input_schema: Dict[str, Any]
-    handler: Callable[[Dict[str, Any]], Dict[str, Any]]
+    input_schema: dict[str, Any]
+    handler: Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class LocalMCPServer:
@@ -597,12 +597,12 @@ class LocalMCPServer:
     def __init__(self, server_name: str = "zcoder-local-mcp", version: str = "2026-07-28"):
         self.server_name = server_name
         self.version = version
-        self.tools: Dict[str, MCPToolDefinition] = {}
+        self.tools: dict[str, MCPToolDefinition] = {}
 
     def register_tool(self, tool: MCPToolDefinition) -> None:
         self.tools[tool.name] = tool
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         return [
             {
                 "name": t.name,
@@ -612,7 +612,7 @@ class LocalMCPServer:
             for t in self.tools.values()
         ]
 
-    def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         tool = self.tools.get(name)
         if not tool:
             return {"error": f"Tool '{name}' not found", "isError": True}
@@ -632,8 +632,8 @@ class TransportCallMonitor:
     """Monitors all outbound network calls during task execution to mathematically prove ZERO paid API calls."""
 
     def __init__(self):
-        self.paid_transport_calls: List[str] = []
-        self.local_transport_calls: List[str] = []
+        self.paid_transport_calls: list[str] = []
+        self.local_transport_calls: list[str] = []
 
     def record_call(self, destination: str, is_paid: bool = False) -> None:
         if is_paid:
@@ -654,16 +654,16 @@ class AutonomousLocalCodingPipeline:
 
     def __init__(
         self,
-        local_provider: Optional[LocalModelProvider] = None,
-        indexer: Optional[LocalRepositoryIndexer] = None,
-        mcp_server: Optional[LocalMCPServer] = None,
+        local_provider: LocalModelProvider | None = None,
+        indexer: LocalRepositoryIndexer | None = None,
+        mcp_server: LocalMCPServer | None = None,
     ):
         self.provider = local_provider or OllamaAdapter()
         self.indexer = indexer or LocalRepositoryIndexer()
         self.mcp = mcp_server or LocalMCPServer()
         self.monitor = TransportCallMonitor()
 
-    def run_task(self, task_prompt: str, codebase_files: Dict[str, str]) -> Dict[str, Any]:
+    def run_task(self, task_prompt: str, codebase_files: dict[str, str]) -> dict[str, Any]:
         # 1. Index local files
         for path, content in codebase_files.items():
             self.indexer.index_file(path, content)
@@ -723,23 +723,23 @@ class RuntimeInstance:
     runtime_type: str  # "llama.cpp" | "ollama" | "vllm"
     owner: RuntimeOwner
     endpoint: str
-    pid: Optional[int]
+    pid: int | None
     state: RuntimeState = RuntimeState.READY
     restart_count: int = 0
     max_restarts: int = 3
-    loaded_models: List[str] = dataclasses.field(default_factory=list)
+    loaded_models: list[str] = dataclasses.field(default_factory=list)
 
 
 class LocalRuntimeManager:
     """Production supervisor for local inference runtimes with bounded crash recovery and reconciliation."""
 
     def __init__(self):
-        self.runtimes: Dict[str, RuntimeInstance] = {}
+        self.runtimes: dict[str, RuntimeInstance] = {}
 
     def register_runtime(self, instance: RuntimeInstance) -> None:
         self.runtimes[instance.instance_id] = instance
 
-    def get_runtime(self, instance_id: str) -> Optional[RuntimeInstance]:
+    def get_runtime(self, instance_id: str) -> RuntimeInstance | None:
         return self.runtimes.get(instance_id)
 
     def recover_runtime(self, instance_id: str) -> bool:
@@ -782,9 +782,9 @@ class MemoryAdmissionController:
 class ModelPoolManager:
     """Manages warm/hot/cold model residency, eviction, and shared model concurrency."""
 
-    def __init__(self, admission_controller: Optional[MemoryAdmissionController] = None):
+    def __init__(self, admission_controller: MemoryAdmissionController | None = None):
         self.admission = admission_controller or MemoryAdmissionController()
-        self.resident_models: Dict[str, ResidentModelEntry] = {}
+        self.resident_models: dict[str, ResidentModelEntry] = {}
 
     def load_model(self, model_id: str, ram_gb: float, available_ram_gb: float) -> bool:
         if not self.admission.can_admit(ram_gb, available_ram_gb):
@@ -812,7 +812,7 @@ class ModelPoolManager:
             if not e.is_pinned and e.residency != ModelResidency.HOT
         ]
         candidates.sort(key=lambda x: x[1].last_used)
-        for m_id, entry in candidates:
+        for m_id, _entry in candidates:
             del self.resident_models[m_id]
             return True
         return False
@@ -837,7 +837,7 @@ class LocalInferenceScheduler:
 
     def __init__(self, max_queue_depth: int = 100):
         self.max_queue_depth = max_queue_depth
-        self.queue: List[ScheduledInferenceRequest] = []
+        self.queue: list[ScheduledInferenceRequest] = []
 
     def enqueue(self, req: ScheduledInferenceRequest) -> bool:
         if len(self.queue) >= self.max_queue_depth:
@@ -851,7 +851,7 @@ class LocalInferenceScheduler:
         self.queue = [r for r in self.queue if r.request_id != request_id]
         return len(self.queue) < initial_len
 
-    def pop_next(self) -> Optional[ScheduledInferenceRequest]:
+    def pop_next(self) -> ScheduledInferenceRequest | None:
         if self.queue:
             return self.queue.pop(0)
         return None
@@ -889,7 +889,7 @@ class QualityProfile:
     language: str
     minimum_quality: float = 0.85
     security_gate_strict: bool = True
-    required_validators: List[str] = dataclasses.field(
+    required_validators: list[str] = dataclasses.field(
         default_factory=lambda: ["pytest", "ast_lint", "security_audit"]
     )
 
@@ -915,10 +915,10 @@ class QualityEngineeringService:
     """Evaluates, scores, promotes, and quarantines models based on objective project quality benchmarks."""
 
     def __init__(self):
-        self.profiles: Dict[str, QualityProfile] = {}
-        self.fixtures: Dict[str, QualityBenchmarkFixture] = {}
-        self.model_states: Dict[str, ModelQualityState] = {}
-        self.baselines: Dict[str, QualityOutcome] = {}  # project_id -> best outcome
+        self.profiles: dict[str, QualityProfile] = {}
+        self.fixtures: dict[str, QualityBenchmarkFixture] = {}
+        self.model_states: dict[str, ModelQualityState] = {}
+        self.baselines: dict[str, QualityOutcome] = {}  # project_id -> best outcome
 
     def register_profile(self, profile: QualityProfile) -> None:
         self.profiles[profile.project_id] = profile
@@ -966,7 +966,7 @@ class QualityEngineeringService:
     def get_model_state(self, model_id: str) -> ModelQualityState:
         return self.model_states.get(model_id, ModelQualityState.CANDIDATE)
 
-    def route_for_project(self, project_id: str, candidate_models: List[str]) -> Tuple[str, str]:
+    def route_for_project(self, project_id: str, candidate_models: list[str]) -> tuple[str, str]:
         """Quality-first routing: selects preferred model meeting quality baseline over raw speed."""
         valid_candidates = [
             m
@@ -992,12 +992,12 @@ class QualityEngineeringService:
 
 @dataclasses.dataclass
 class DetectedStack:
-    languages: List[str]
-    frameworks: List[str]
-    package_managers: List[str]
-    build_tools: List[str]
-    test_frameworks: List[str]
-    linters: List[str]
+    languages: list[str]
+    frameworks: list[str]
+    package_managers: list[str]
+    build_tools: list[str]
+    test_frameworks: list[str]
+    linters: list[str]
 
 
 @dataclasses.dataclass
@@ -1005,12 +1005,12 @@ class ProjectReadinessReport:
     project_name: str
     is_ready: bool
     detected_stack: DetectedStack
-    validation_commands: List[str]
+    validation_commands: list[str]
     recommended_model: str
     rag_indexed_files: int
     mcp_tools_discovered: int
     baseline_tests_passing: bool
-    blockers: List[str] = dataclasses.field(default_factory=list)
+    blockers: list[str] = dataclasses.field(default_factory=list)
 
 
 class ProjectBootstrapService:
@@ -1018,15 +1018,15 @@ class ProjectBootstrapService:
 
     def __init__(
         self,
-        indexer: Optional[LocalRepositoryIndexer] = None,
-        registry: Optional[ModelRegistry] = None,
-        quality_svc: Optional[QualityEngineeringService] = None,
+        indexer: LocalRepositoryIndexer | None = None,
+        registry: ModelRegistry | None = None,
+        quality_svc: QualityEngineeringService | None = None,
     ):
         self.indexer = indexer or LocalRepositoryIndexer()
         self.registry = registry or ModelRegistry()
         self.quality = quality_svc or QualityEngineeringService()
 
-    def detect_stack(self, file_paths: List[str]) -> DetectedStack:
+    def detect_stack(self, file_paths: list[str]) -> DetectedStack:
         languages = set()
         frameworks = set()
         pkg_managers = set()
@@ -1066,7 +1066,7 @@ class ProjectBootstrapService:
             linters=sorted(list(linters or ["standard-linter"])),
         )
 
-    def generate_agents_md(self, stack: DetectedStack, test_cmds: List[str]) -> str:
+    def generate_agents_md(self, stack: DetectedStack, test_cmds: list[str]) -> str:
         cmds_str = "\n".join(f"- `{c}`" for c in test_cmds)
         return (
             "# Project AGENTS.md — Autonomous Coding Guidelines\n\n"
@@ -1080,7 +1080,7 @@ class ProjectBootstrapService:
             "- Respect tenant RLS and security isolation boundaries.\n"
         )
 
-    def plan_bootstrap(self, file_paths: List[str]) -> Dict[str, Any]:
+    def plan_bootstrap(self, file_paths: list[str]) -> dict[str, Any]:
         stack = self.detect_stack(file_paths)
         test_cmds = ["pytest -q"] if "python" in stack.languages else ["npm test"]
         agents_md = self.generate_agents_md(stack, test_cmds)
@@ -1093,7 +1093,7 @@ class ProjectBootstrapService:
             "dry_run": True,
         }
 
-    def execute_bootstrap(self, project_name: str, codebase: Dict[str, str]) -> ProjectReadinessReport:
+    def execute_bootstrap(self, project_name: str, codebase: dict[str, str]) -> ProjectReadinessReport:
         stack = self.detect_stack(list(codebase.keys()))
         test_cmds = ["pytest -q"] if "python" in stack.languages else ["npm test"]
 
@@ -1187,7 +1187,7 @@ class EngineeringTask:
     description: str = ""
     priority: int = 5
     risk: TaskRisk = TaskRisk.LOW
-    constraints: List[str] = dataclasses.field(default_factory=list)
+    constraints: list[str] = dataclasses.field(default_factory=list)
     status: TaskStatus = TaskStatus.CREATED
     created_at: float = dataclasses.field(default_factory=time.time)
     # Task source content is UNTRUSTED — cannot override security/cost policy (§6)
@@ -1216,7 +1216,7 @@ class ExecutionAttempt:
 class PlanStep:
     step_id: str
     description: str
-    files_targeted: List[str] = dataclasses.field(default_factory=list)
+    files_targeted: list[str] = dataclasses.field(default_factory=list)
     tool: str = ""
 
 
@@ -1229,9 +1229,9 @@ class EngineeringPlan:
     attempt_id: str
     revision: int
     goal: str
-    assumptions: List[str]
-    steps: List[PlanStep]
-    validators: List[str]
+    assumptions: list[str]
+    steps: list[PlanStep]
+    validators: list[str]
     risk: TaskRisk
     approval_required: bool
     completion_criteria: str
@@ -1257,7 +1257,7 @@ class ValidationCommand:
     source: str  # e.g. "pyproject.toml", "package.json"
     confidence: str  # LOW / MEDIUM / HIGH
     state: ValidationState = ValidationState.DISCOVERED
-    exit_code: Optional[int] = None
+    exit_code: int | None = None
     output_summary: str = ""
     duration_seconds: float = 0.0
 
@@ -1267,8 +1267,8 @@ class ValidationProfile:
     """Project-specific validation pipeline derived from bootstrap (§43)."""
 
     project_id: str
-    required_validators: List[ValidationCommand]
-    optional_validators: List[ValidationCommand]
+    required_validators: list[ValidationCommand]
+    optional_validators: list[ValidationCommand]
 
 
 @dataclasses.dataclass
@@ -1287,19 +1287,19 @@ class ValidationFailure:
 class ValidationDelta:
     """Tracks baseline vs post-edit failures (§45)."""
 
-    baseline_failures: List[str]
-    post_edit_failures: List[str]
+    baseline_failures: list[str]
+    post_edit_failures: list[str]
 
     @property
-    def fixed(self) -> List[str]:
+    def fixed(self) -> list[str]:
         return [f for f in self.baseline_failures if f not in self.post_edit_failures]
 
     @property
-    def new_regressions(self) -> List[str]:
+    def new_regressions(self) -> list[str]:
         return [f for f in self.post_edit_failures if f not in self.baseline_failures]
 
     @property
-    def unchanged_failures(self) -> List[str]:
+    def unchanged_failures(self) -> list[str]:
         return [f for f in self.post_edit_failures if f in self.baseline_failures]
 
 
@@ -1330,7 +1330,7 @@ class WorktreeManager:
     def __init__(self, base_worktree_dir: str = "/tmp/zcoder_worktrees"):
         self._validate_base_dir(base_worktree_dir)
         self.base_dir = base_worktree_dir
-        self.active_worktrees: Dict[str, WorktreeContext] = {}
+        self.active_worktrees: dict[str, WorktreeContext] = {}
 
     @staticmethod
     def _validate_base_dir(path: str) -> None:
@@ -1381,7 +1381,7 @@ class WorktreeManager:
         self.active_worktrees[task_id] = ctx
         return ctx
 
-    def get_worktree(self, task_id: str) -> Optional[WorktreeContext]:
+    def get_worktree(self, task_id: str) -> WorktreeContext | None:
         return self.active_worktrees.get(task_id)
 
     def cleanup_worktree(self, task_id: str) -> bool:
@@ -1411,9 +1411,9 @@ class EngineeringContextBuilder:
         self,
         project_instructions: str = "",
         relevant_source: str = "",
-        baseline_failures: Optional[List[ValidationFailure]] = None,
-        rag_snippets: Optional[List[str]] = None,
-        recent_tool_results: Optional[str] = None,
+        baseline_failures: list[ValidationFailure] | None = None,
+        rag_snippets: list[str] | None = None,
+        recent_tool_results: str | None = None,
     ) -> str:
         parts = [
             f"TASK: {self.task.title or self.task.description}",
@@ -1444,8 +1444,8 @@ class NoProgressDetector:
     """Detects same-patch / same-failure oscillation to stop infinite repair loops (§53)."""
 
     def __init__(self):
-        self._seen_failures: List[str] = []
-        self._seen_patches: List[str] = []
+        self._seen_failures: list[str] = []
+        self._seen_patches: list[str] = []
 
     def record(self, failure_fingerprint: str, patch_fingerprint: str) -> None:
         self._seen_failures.append(failure_fingerprint)
@@ -1495,7 +1495,7 @@ class StaticReviewFinding:
     severity: ReviewSeverity
     category: ReviewCategory
     file: str
-    line: Optional[int]
+    line: int | None
     message: str
     blocking: bool
 
@@ -1531,8 +1531,8 @@ class StaticReviewer:
         "pass  # TODO",
     ]
 
-    def review(self, diff_lines: List[str], task: EngineeringTask) -> List[StaticReviewFinding]:
-        findings: List[StaticReviewFinding] = []
+    def review(self, diff_lines: list[str], task: EngineeringTask) -> list[StaticReviewFinding]:
+        findings: list[StaticReviewFinding] = []
         for i, line in enumerate(diff_lines):
             if not line.startswith("+"):
                 continue
@@ -1565,7 +1565,7 @@ class StaticReviewer:
                     )
         return findings
 
-    def has_blocking_findings(self, findings: List[StaticReviewFinding]) -> bool:
+    def has_blocking_findings(self, findings: list[StaticReviewFinding]) -> bool:
         return any(f.blocking for f in findings)
 
 
@@ -1583,7 +1583,7 @@ class SecurityGateResult(str, enum.Enum):
 @dataclasses.dataclass
 class SecurityGateReport:
     result: SecurityGateResult
-    findings: List[StaticReviewFinding]
+    findings: list[StaticReviewFinding]
     blocking: bool
 
     @property
@@ -1594,10 +1594,10 @@ class SecurityGateReport:
 class SecurityGate:
     """Hard-fail security checks — cannot be averaged away with quality scores (§70, §71)."""
 
-    def __init__(self, reviewer: Optional[StaticReviewer] = None):
+    def __init__(self, reviewer: StaticReviewer | None = None):
         self.reviewer = reviewer or StaticReviewer()
 
-    def check(self, diff_lines: List[str], task: EngineeringTask) -> SecurityGateReport:
+    def check(self, diff_lines: list[str], task: EngineeringTask) -> SecurityGateReport:
         findings = self.reviewer.review(diff_lines, task)
         blocking_findings = [f for f in findings if f.blocking]
         if blocking_findings:
@@ -1652,7 +1652,7 @@ class Checkpoint:
     task_id: str
     attempt_id: str
     phase: str  # BASELINE | PLAN | EDIT | VALIDATION | REVIEW | COMMIT | PR
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     created_at: float = dataclasses.field(default_factory=time.time)
 
 
@@ -1660,15 +1660,15 @@ class CheckpointStore:
     """In-memory checkpoint store; production would use durable storage."""
 
     def __init__(self):
-        self._store: Dict[str, Checkpoint] = {}
+        self._store: dict[str, Checkpoint] = {}
 
     def save(self, checkpoint: Checkpoint) -> None:
         self._store[checkpoint.checkpoint_id] = checkpoint
 
-    def load(self, checkpoint_id: str) -> Optional[Checkpoint]:
+    def load(self, checkpoint_id: str) -> Checkpoint | None:
         return self._store.get(checkpoint_id)
 
-    def latest_for_task(self, task_id: str) -> Optional[Checkpoint]:
+    def latest_for_task(self, task_id: str) -> Checkpoint | None:
         candidates = [c for c in self._store.values() if c.task_id == task_id]
         if not candidates:
             return None
@@ -1689,11 +1689,11 @@ class AutonomousEngineeringLoop:
 
     def __init__(
         self,
-        worktree_mgr: Optional[WorktreeManager] = None,
-        indexer: Optional[LocalRepositoryIndexer] = None,
-        provider: Optional[LocalModelProvider] = None,
-        security_gate: Optional[SecurityGate] = None,
-        checkpoint_store: Optional[CheckpointStore] = None,
+        worktree_mgr: WorktreeManager | None = None,
+        indexer: LocalRepositoryIndexer | None = None,
+        provider: LocalModelProvider | None = None,
+        security_gate: SecurityGate | None = None,
+        checkpoint_store: CheckpointStore | None = None,
         push_policy: PushPolicy = PushPolicy.AUTO_LOCAL_ONLY,
         max_repair_attempts: int = 3,
     ):
@@ -1707,9 +1707,9 @@ class AutonomousEngineeringLoop:
         self.monitor = TransportCallMonitor()
         self._no_progress = NoProgressDetector()
         # Task / attempt registry
-        self._tasks: Dict[str, EngineeringTask] = {}
-        self._attempts: Dict[str, List[ExecutionAttempt]] = {}
-        self._plans: Dict[str, List[EngineeringPlan]] = {}
+        self._tasks: dict[str, EngineeringTask] = {}
+        self._attempts: dict[str, list[ExecutionAttempt]] = {}
+        self._plans: dict[str, list[EngineeringPlan]] = {}
 
     # ── Public API ──────────────────────────────────────────────────────────
 
@@ -1741,9 +1741,9 @@ class AutonomousEngineeringLoop:
         task_id: str,
         project_id: str,
         issue_prompt: str,
-        codebase: Dict[str, str],
+        codebase: dict[str, str],
         failing_initially: bool = True,
-        diff_lines: Optional[List[str]] = None,
+        diff_lines: list[str] | None = None,
     ) -> EngineeringTask:
         """Execute full autonomous engineering loop from task to commit."""
         task = self._tasks.get(task_id) or self.create_task(
@@ -1763,7 +1763,7 @@ class AutonomousEngineeringLoop:
 
         # 1. ANALYZING / BASELINE ──────────────────────────────────────────
         task.status = TaskStatus.ANALYZING
-        baseline_failures: List[ValidationFailure] = []
+        baseline_failures: list[ValidationFailure] = []
         if failing_initially:
             baseline_failures.append(
                 ValidationFailure(
@@ -1826,7 +1826,7 @@ class AutonomousEngineeringLoop:
         # 4. EDIT & BOUNDED REPAIR LOOP ────────────────────────────────────
         task.status = TaskStatus.RUNNING
         validation_state = ValidationState.DISCOVERED
-        post_failures: List[ValidationFailure] = []
+        post_failures: list[ValidationFailure] = []
 
         for rep in range(1, self.max_repair_attempts + 1):
             # Generate fix via zero-cost local model
@@ -1866,7 +1866,7 @@ class AutonomousEngineeringLoop:
         # 5. STATIC REVIEW ─────────────────────────────────────────────────
         task.status = TaskStatus.REVIEWING
         sample_diff = diff_lines or ["+# patch applied"]
-        review_findings = self.security_gate.reviewer.review(sample_diff, task)
+        self.security_gate.reviewer.review(sample_diff, task)
 
         # 6. SECURITY GATE ─────────────────────────────────────────────────
         security_report = self.security_gate.check(sample_diff, task)
@@ -1927,12 +1927,12 @@ class AutonomousEngineeringLoop:
             return True
         return False
 
-    def resume_task(self, task_id: str) -> Optional[Checkpoint]:
+    def resume_task(self, task_id: str) -> Checkpoint | None:
         """Idempotent resume — finds latest checkpoint without recreating artifacts (§57)."""
         return self.checkpoints.latest_for_task(task_id)
 
-    def get_task_attempts(self, task_id: str) -> List[ExecutionAttempt]:
+    def get_task_attempts(self, task_id: str) -> list[ExecutionAttempt]:
         return self._attempts.get(task_id, [])
 
-    def get_task_plans(self, task_id: str) -> List[EngineeringPlan]:
+    def get_task_plans(self, task_id: str) -> list[EngineeringPlan]:
         return self._plans.get(task_id, [])

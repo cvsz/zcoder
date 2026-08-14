@@ -15,7 +15,7 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class _Counter:
 
     _value: float = 0.0
 
-    def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         self._value += amount
 
     def get(self) -> float:
@@ -56,13 +56,13 @@ class _Counter:
 class _Gauge:
     _value: float = 0.0
 
-    def set(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def set(self, value: float, labels: dict[str, str] | None = None) -> None:
         self._value = value
 
-    def inc(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def inc(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         self._value += amount
 
-    def dec(self, amount: float = 1.0, labels: Optional[Dict[str, str]] = None) -> None:
+    def dec(self, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
         self._value -= amount
 
     def get(self) -> float:
@@ -73,7 +73,7 @@ class _Gauge:
 class _Histogram:
     _observations: list = field(default_factory=list)
 
-    def observe(self, value: float, labels: Optional[Dict[str, str]] = None) -> None:
+    def observe(self, value: float, labels: dict[str, str] | None = None) -> None:
         self._observations.append(value)
 
     def count(self) -> int:
@@ -234,7 +234,7 @@ class ZCoderMetrics:
 
 # ─── Global registry ─────────────────────────────────────────────────────────
 
-_metrics_registry: Optional[ZCoderMetrics] = None
+_metrics_registry: ZCoderMetrics | None = None
 
 
 def get_metrics() -> ZCoderMetrics:
@@ -246,7 +246,7 @@ def get_metrics() -> ZCoderMetrics:
 
 # ─── Tracing ─────────────────────────────────────────────────────────────────
 
-_tracer: Optional[Any] = None
+_tracer: Any | None = None
 
 
 def get_tracer(name: str = "zcoder") -> Any:

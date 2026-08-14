@@ -408,7 +408,7 @@ def test_cmd_compliance_local_session_info(capsys, monkeypatch):
             return {"id": session_id, "app_type": "claude_code", "user_id": "usr_2"}
 
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
-    res = cmd_compliance_local_session_info("sk-ant-api01-test", "loc_sess_2")
+    cmd_compliance_local_session_info("sk-ant-api01-test", "loc_sess_2")
     out = capsys.readouterr().out
     assert "loc_sess_2" in out
     assert "claude_code" in out
@@ -438,7 +438,7 @@ def test_cmd_compliance_local_session_messages(capsys, monkeypatch):
             }
 
     monkeypatch.setattr("claude_compliance_api.ComplianceApiClient", FakeClient)
-    res = cmd_compliance_local_session_messages("sk-ant-api01-test", "loc_sess_1")
+    cmd_compliance_local_session_messages("sk-ant-api01-test", "loc_sess_1")
     out = capsys.readouterr().out
     assert "Transcript for Local Session loc_sess_1" in out
     assert "build test" in out
