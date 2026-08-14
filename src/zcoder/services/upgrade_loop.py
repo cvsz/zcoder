@@ -64,6 +64,12 @@ class UpgradeWorkItem:
     attempts: int = 0
     last_error: str = ""
 
+    def __post_init__(self) -> None:
+        if not self.title.strip():
+            raise ValueError("title must not be empty")
+        if self.max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
+
     @property
     def fingerprint(self) -> str:
         """Stable content fingerprint used to deduplicate discovered work."""
@@ -144,7 +150,7 @@ class ContinuousUpgradeLoop:
     or requested features can enter the queue without duplicating already-seen work.
     The implementation and validation callbacks are intentionally injected; this service
     can therefore sit above the existing AutonomousEngineeringLoop, GitHub orchestrator,
-    local-only runtime, or tests without coupling the domain loop to a provider.
+    local-only runtime, or tests without coupling the application layer to a provider.
     """
 
     def __init__(
@@ -190,13 +196,22 @@ class ContinuousUpgradeLoop:
 
         for iteration in range(1, self.policy.max_iterations + 1):
             iterations = iteration
-            for discovered in self.discover():
-                self.add_work(discovered)
+            try:
+                discovered_items = self.discover()
+                for discovered in discovered_items:
+                    self.add_work(discovered)
+            except Exception as exc:  # discovery is an external application boundary
+                final_state = LoopState.HALTED
+                halt_reason = f"discovery_error:{type(exc).__name__}"
+                break
 
             item = self._next_pending()
             if item is None:
-                final_state = LoopState.COMPLETED
-                self._emit_checkpoint(iteration, final_state, None, completed, blocked)
+                if blocked:
+                    final_state = LoopState.HALTED
+                    halt_reason = "blocked_work_remaining"
+                else:
+                    final_state = LoopState.COMPLETED
                 break
 
             item.state = WorkState.RUNNING
@@ -233,12 +248,32 @@ class ContinuousUpgradeLoop:
                 continue
 
             regressions = tuple(validation.regressions)
-            if not validation.passed:
+            regression_halt = bool(regressions) and self.policy.stop_on_regression
+            if not validation.passed or regression_halt:
                 if self.rollback is not None:
-                    self.rollback(item, changed)
+                    try:
+                        self.rollback(item, changed)
+                    except Exception as exc:
+                        item.state = WorkState.BLOCKED
+                        blocked.append(item.item_id)
+                        item.last_error = f"rollback failed: {type(exc).__name__}: {exc}"
+                        records.append(
+                            IterationRecord(
+                                iteration=iteration,
+                                item_id=item.item_id,
+                                title=item.title,
+                                kind=item.kind,
+                                attempt=item.attempts,
+                                outcome="ROLLBACK_FAILED",
+                                validation_summary=item.last_error,
+                                regressions=regressions,
+                            )
+                        )
+                        final_state = LoopState.HALTED
+                        halt_reason = "rollback_failed"
+                        break
 
                 exhausted = item.attempts >= item.max_attempts
-                regression_halt = bool(regressions) and self.policy.stop_on_regression
                 item.state = WorkState.BLOCKED if exhausted or regression_halt else WorkState.PENDING
                 if item.state == WorkState.BLOCKED:
                     blocked.append(item.item_id)
@@ -283,19 +318,18 @@ class ContinuousUpgradeLoop:
                 )
             )
             self._emit_checkpoint(iteration, LoopState.RUNNING, item.item_id, completed, blocked)
-        else:
-            final_state = LoopState.BUDGET_EXHAUSTED
-            halt_reason = "iteration_budget_exhausted"
 
+        pending = self._pending_ids()
         if final_state == LoopState.RUNNING:
-            final_state = LoopState.BUDGET_EXHAUSTED
-            halt_reason = "iteration_budget_exhausted"
+            if pending:
+                final_state = LoopState.BUDGET_EXHAUSTED
+                halt_reason = "iteration_budget_exhausted"
+            elif blocked:
+                final_state = LoopState.HALTED
+                halt_reason = "blocked_work_remaining"
+            else:
+                final_state = LoopState.COMPLETED
 
-        pending = [
-            item.item_id
-            for item in self._items.values()
-            if item.state in {WorkState.PENDING, WorkState.RUNNING, WorkState.VALIDATING}
-        ]
         self._emit_checkpoint(iterations, final_state, None, completed, blocked)
         return LoopReport(
             state=final_state,
@@ -313,6 +347,13 @@ class ContinuousUpgradeLoop:
             return None
         return sorted(pending, key=lambda item: (-item.priority, item.item_id))[0]
 
+    def _pending_ids(self) -> list[str]:
+        return [
+            item.item_id
+            for item in self._items.values()
+            if item.state in {WorkState.PENDING, WorkState.RUNNING, WorkState.VALIDATING}
+        ]
+
     def _emit_checkpoint(
         self,
         iteration: int,
@@ -323,11 +364,6 @@ class ContinuousUpgradeLoop:
     ) -> None:
         if self.checkpoint is None:
             return
-        pending = [
-            item.item_id
-            for item in self._items.values()
-            if item.state in {WorkState.PENDING, WorkState.RUNNING, WorkState.VALIDATING}
-        ]
         self.checkpoint(
             LoopCheckpoint(
                 iteration=iteration,
@@ -335,7 +371,7 @@ class ContinuousUpgradeLoop:
                 active_item_id=active_item_id,
                 completed_item_ids=tuple(completed),
                 blocked_item_ids=tuple(dict.fromkeys(blocked)),
-                pending_item_ids=tuple(pending),
+                pending_item_ids=tuple(self._pending_ids()),
             )
         )
 
@@ -366,8 +402,6 @@ def work_from_maintenance_recommendation(recommendation: Any) -> UpgradeWorkItem
 def feature_work(title: str, description: str, *, priority: int = 50, risk: str = "medium") -> UpgradeWorkItem:
     """Convenience constructor for feature implementation work."""
 
-    if not title.strip():
-        raise ValueError("title must not be empty")
     return UpgradeWorkItem(
         title=title.strip(),
         kind=WorkKind.IMPLEMENT_FEATURE,
