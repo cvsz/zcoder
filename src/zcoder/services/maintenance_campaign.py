@@ -8,9 +8,10 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from zcoder.domain.models.intelligence import MaintenanceSignal, SignalType
 from zcoder.services.continuous_engineering import (
