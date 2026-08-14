@@ -52,8 +52,15 @@ class UpgradeRunLease:
             try:
                 fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 try:
-                    os.write(fd, payload.encode("utf-8"))
-                    os.fsync(fd)
+                    try:
+                        os.write(fd, payload.encode("utf-8"))
+                        os.fsync(fd)
+                    except OSError:
+                        try:
+                            self.path.unlink()
+                        except OSError:
+                            pass
+                        raise
                 finally:
                     os.close(fd)
                 self._acquired = True
