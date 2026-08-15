@@ -172,6 +172,17 @@ class ZCoderMetrics:
         # Cost metrics
         self.cost_usd_total = _Counter()
 
+        # Maintenance campaign metrics (bounded cardinality; no campaign IDs as labels)
+        self.maintenance_campaigns_total = _Counter()
+        self.maintenance_campaigns_noncompleted_total = _Counter()
+        self.maintenance_recommendations_total = _Counter()
+        self.maintenance_work_seeded_total = _Counter()
+        self.maintenance_completed_items_total = _Counter()
+        self.maintenance_blocked_items_total = _Counter()
+        self.maintenance_pending_items_total = _Counter()
+        self.maintenance_observer_errors_total = _Counter()
+        self.maintenance_campaign_duration_seconds = _Histogram()
+
     def prometheus_exposition(self) -> str:
         """Render metrics in Prometheus text format."""
         lines: list[str] = []
@@ -228,6 +239,47 @@ class ZCoderMetrics:
         c("zcoder_api_errors", "API errors total", self.api_errors_total)
         h("zcoder_api_duration_seconds", "API request duration", self.api_duration_seconds)
         c("zcoder_cost_usd", "Total cost in USD", self.cost_usd_total)
+        c("zcoder_maintenance_campaigns", "Maintenance campaigns started", self.maintenance_campaigns_total)
+        c(
+            "zcoder_maintenance_campaigns_noncompleted",
+            "Maintenance campaigns that ended non-completed",
+            self.maintenance_campaigns_noncompleted_total,
+        )
+        c(
+            "zcoder_maintenance_recommendations",
+            "Maintenance recommendations discovered",
+            self.maintenance_recommendations_total,
+        )
+        c(
+            "zcoder_maintenance_work_seeded",
+            "Unique maintenance work seeded",
+            self.maintenance_work_seeded_total,
+        )
+        c(
+            "zcoder_maintenance_completed_items",
+            "Maintenance work items completed",
+            self.maintenance_completed_items_total,
+        )
+        c(
+            "zcoder_maintenance_blocked_items",
+            "Maintenance work items blocked",
+            self.maintenance_blocked_items_total,
+        )
+        c(
+            "zcoder_maintenance_pending_items",
+            "Maintenance work items pending",
+            self.maintenance_pending_items_total,
+        )
+        c(
+            "zcoder_maintenance_observer_errors",
+            "Maintenance campaign observer delivery errors",
+            self.maintenance_observer_errors_total,
+        )
+        h(
+            "zcoder_maintenance_campaign_duration_seconds",
+            "Maintenance campaign execution duration",
+            self.maintenance_campaign_duration_seconds,
+        )
 
         return "\n".join(lines) + "\n"
 
