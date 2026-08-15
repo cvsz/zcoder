@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runtime import Job, JobStatus
+from zcoder.domain.services.outbox_policy import transition_after_failure
 
 
 @dataclass
@@ -218,15 +219,19 @@ class ControlPlaneStore:
             )
         return msg
 
-    def process_outbox(self, handler, max_messages: int | None = None) -> int:
-        """Process pending messages once, optionally bounded by a finite batch size.
+    def process_outbox(
+        self, handler, max_messages: int | None = None, max_attempts: int | None = None
+    ) -> int:
+        """Process pending messages once with optional finite work/failure budgets.
 
-        ``max_messages=None`` preserves the historical all-pending behavior for
-        existing callers. New worker/scheduler entrypoints should pass an explicit
-        positive budget so one invocation cannot expand with backlog size.
+        ``None`` preserves historical behavior for existing callers. New external
+        worker entrypoints should pass explicit positive budgets. Failure handling
+        persists exactly one attempt per invocation; retry cadence stays external.
         """
         if max_messages is not None and max_messages < 1:
             raise ValueError("max_messages must be >= 1")
+        if max_attempts is not None and max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
 
         processed = 0
         with sqlite3.connect(self.db_path) as conn:
@@ -238,7 +243,7 @@ class ControlPlaneStore:
                 params = (max_messages,)
             cur.execute(query, params)
             rows = cur.fetchall()
-            for r_id, action, payload_str, _attempts in rows:
+            for r_id, action, payload_str, attempts in rows:
                 payload = json.loads(payload_str)
                 try:
                     handler(action, payload)
@@ -248,9 +253,17 @@ class ControlPlaneStore:
                     )
                     processed += 1
                 except Exception as e:
-                    conn.execute(
-                        "UPDATE outbox SET attempts = attempts + 1, error = ? WHERE id = ?", (str(e), r_id)
-                    )
+                    if max_attempts is None:
+                        conn.execute(
+                            "UPDATE outbox SET attempts = attempts + 1, error = ? WHERE id = ?",
+                            (str(e), r_id),
+                        )
+                    else:
+                        transition = transition_after_failure(attempts, max_attempts)
+                        conn.execute(
+                            "UPDATE outbox SET attempts = ?, status = ?, error = ? WHERE id = ?",
+                            (transition.attempts, transition.status, str(e), r_id),
+                        )
         return processed
 
     def record_webhook_delivery_atomic(self, delivery_id: str, event_type: str) -> bool:
