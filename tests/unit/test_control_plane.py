@@ -65,6 +65,27 @@ def test_durable_outbox_transaction_and_processing(cp_store):
     assert delivered[0][0] == "github.create_pr"
 
 
+def test_outbox_processing_respects_finite_batch_budget(cp_store):
+    for index in range(3):
+        cp_store.enqueue_outbox("maintenance.campaign.summary", {"index": index})
+
+    delivered = []
+
+    def dummy_handler(action, payload):
+        delivered.append((action, payload))
+
+    assert cp_store.process_outbox(dummy_handler, max_messages=2) == 2
+    assert [payload["index"] for _, payload in delivered] == [0, 1]
+
+    assert cp_store.process_outbox(dummy_handler, max_messages=2) == 1
+    assert [payload["index"] for _, payload in delivered] == [0, 1, 2]
+
+
+def test_outbox_processing_rejects_non_positive_batch_budget(cp_store):
+    with pytest.raises(ValueError, match="max_messages must be >= 1"):
+        cp_store.process_outbox(lambda _action, _payload: None, max_messages=0)
+
+
 def test_db_enforced_webhook_deduplication(cp_store):
     assert cp_store.record_webhook_delivery_atomic("del_unique_100", "push") is True
     # Duplicate delivery rejected at database constraint level
