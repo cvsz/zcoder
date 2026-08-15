@@ -98,9 +98,7 @@ def test_delivery_rejects_boolean_exit_code():
     payload = _payload()
     payload["exit_code"] = True
 
-    with pytest.raises(
-        MaintenanceCampaignDeliveryError, match="exit_code must be an integer"
-    ):
+    with pytest.raises(MaintenanceCampaignDeliveryError, match="exit_code must be an integer"):
         deliver_maintenance_campaign_summary_once(
             MAINTENANCE_CAMPAIGN_SUMMARY_ACTION, payload, lambda *_: None
         )
