@@ -74,9 +74,7 @@ class FailingSink:
 
 def test_completed_campaign_emits_finite_ordered_lifecycle_events():
     sink = RecordingSink()
-    report = MaintenanceCampaignService(
-        Pipeline(), Intelligence(), event_sink=sink
-    ).run()
+    report = MaintenanceCampaignService(Pipeline(), Intelligence(), event_sink=sink).run()
 
     assert [event.event_type for event in sink.events] == [
         MaintenanceCampaignEventType.STARTED,
@@ -128,9 +126,7 @@ def test_observer_failure_is_best_effort_and_counted_without_changing_engineerin
     # without changing production logging or security behavior.
     logger.addHandler(caplog.handler)
     try:
-        report = MaintenanceCampaignService(
-            Pipeline(), Intelligence(), event_sink=sink
-        ).run()
+        report = MaintenanceCampaignService(Pipeline(), Intelligence(), event_sink=sink).run()
     finally:
         logger.removeHandler(caplog.handler)
 
@@ -146,9 +142,7 @@ def test_empty_campaign_events_are_still_finite_and_resume_pipeline():
     sink = RecordingSink()
     pipeline = Pipeline()
 
-    report = MaintenanceCampaignService(
-        pipeline, Intelligence([]), event_sink=sink
-    ).run()
+    report = MaintenanceCampaignService(pipeline, Intelligence([]), event_sink=sink).run()
 
     assert pipeline.seed == []
     assert report.recommendations_discovered == 0
