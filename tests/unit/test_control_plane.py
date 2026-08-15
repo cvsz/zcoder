@@ -86,6 +86,48 @@ def test_outbox_processing_rejects_non_positive_batch_budget(cp_store):
         cp_store.process_outbox(lambda _action, _payload: None, max_messages=0)
 
 
+def test_outbox_processing_persists_dead_state_after_finite_failure_budget(cp_store):
+    msg = cp_store.enqueue_outbox("maintenance.campaign.summary", {"campaign_id": "cmp_1"})
+    calls = 0
+
+    def failing_handler(_action, _payload):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("downstream unavailable")
+
+    assert cp_store.process_outbox(failing_handler, max_messages=1, max_attempts=2) == 0
+    with sqlite3_conn(cp_store.db_path) as conn:
+        row = conn.execute("SELECT status, attempts FROM outbox WHERE id = ?", (msg.id,)).fetchone()
+    assert row == ("PENDING", 1)
+
+    assert cp_store.process_outbox(failing_handler, max_messages=1, max_attempts=2) == 0
+    with sqlite3_conn(cp_store.db_path) as conn:
+        row = conn.execute("SELECT status, attempts FROM outbox WHERE id = ?", (msg.id,)).fetchone()
+    assert row == ("DEAD", 2)
+    assert calls == 2
+
+    # DEAD messages are terminal and cannot expand later invocations.
+    assert cp_store.process_outbox(failing_handler, max_messages=1, max_attempts=2) == 0
+    assert calls == 2
+
+
+def test_outbox_processing_preserves_legacy_failure_behavior_without_attempt_budget(cp_store):
+    msg = cp_store.enqueue_outbox("maintenance.campaign.summary", {"campaign_id": "cmp_legacy"})
+
+    def failing_handler(_action, _payload):
+        raise RuntimeError("downstream unavailable")
+
+    assert cp_store.process_outbox(failing_handler, max_messages=1) == 0
+    with sqlite3_conn(cp_store.db_path) as conn:
+        row = conn.execute("SELECT status, attempts FROM outbox WHERE id = ?", (msg.id,)).fetchone()
+    assert row == ("PENDING", 1)
+
+
+def test_outbox_processing_rejects_non_positive_attempt_budget(cp_store):
+    with pytest.raises(ValueError, match="max_attempts must be >= 1"):
+        cp_store.process_outbox(lambda _action, _payload: None, max_attempts=0)
+
+
 def test_db_enforced_webhook_deduplication(cp_store):
     assert cp_store.record_webhook_delivery_atomic("del_unique_100", "push") is True
     # Duplicate delivery rejected at database constraint level
