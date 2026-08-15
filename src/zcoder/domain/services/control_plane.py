@@ -218,11 +218,25 @@ class ControlPlaneStore:
             )
         return msg
 
-    def process_outbox(self, handler) -> int:
+    def process_outbox(self, handler, max_messages: int | None = None) -> int:
+        """Process pending messages once, optionally bounded by a finite batch size.
+
+        ``max_messages=None`` preserves the historical all-pending behavior for
+        existing callers. New worker/scheduler entrypoints should pass an explicit
+        positive budget so one invocation cannot expand with backlog size.
+        """
+        if max_messages is not None and max_messages < 1:
+            raise ValueError("max_messages must be >= 1")
+
         processed = 0
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
-            cur.execute("SELECT id, action, payload, attempts FROM outbox WHERE status = 'PENDING'")
+            query = "SELECT id, action, payload, attempts FROM outbox WHERE status = 'PENDING' ORDER BY created_at ASC"
+            params: tuple[int, ...] = ()
+            if max_messages is not None:
+                query += " LIMIT ?"
+                params = (max_messages,)
+            cur.execute(query, params)
             rows = cur.fetchall()
             for r_id, action, payload_str, _attempts in rows:
                 payload = json.loads(payload_str)
