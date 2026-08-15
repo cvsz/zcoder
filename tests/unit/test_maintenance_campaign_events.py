@@ -24,9 +24,7 @@ class Recommendation:
 
 class Intelligence:
     def __init__(self, recommendations=None):
-        self.recommendations = (
-            [Recommendation()] if recommendations is None else list(recommendations)
-        )
+        self.recommendations = [Recommendation()] if recommendations is None else list(recommendations)
 
     def generate_recommendations(self):
         return list(self.recommendations)
@@ -34,9 +32,7 @@ class Intelligence:
 
 class Pipeline:
     def __init__(self, state=LoopState.COMPLETED):
-        self.ledger = SimpleNamespace(
-            terminal_counts=lambda: {"SUCCEEDED": 1, "BLOCKED": 0}
-        )
+        self.ledger = SimpleNamespace(terminal_counts=lambda: {"SUCCEEDED": 1, "BLOCKED": 0})
         self.state = state
         self.seed = None
 
@@ -114,9 +110,7 @@ def test_completed_campaign_scheduler_contract_returns_zero():
     assert result.report.state == LoopState.COMPLETED.value
 
 
-def test_observer_failure_is_best_effort_and_counted_without_changing_engineering_result(
-    caplog,
-):
+def test_observer_failure_is_best_effort_and_counted_without_changing_engineering_result(caplog):
     sink = FailingSink()
     logger = logging.getLogger("zcoder.services.maintenance_campaign")
 
