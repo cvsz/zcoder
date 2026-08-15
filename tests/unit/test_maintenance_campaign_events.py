@@ -126,9 +126,7 @@ def test_observer_failure_is_best_effort_and_counted_without_changing_engineerin
     # without changing production logging or security behavior.
     logger.addHandler(caplog.handler)
     try:
-        report = MaintenanceCampaignService(
-            Pipeline(), Intelligence(), event_sink=sink
-        ).run()
+        report = MaintenanceCampaignService(Pipeline(), Intelligence(), event_sink=sink).run()
     finally:
         logger.removeHandler(caplog.handler)
 
