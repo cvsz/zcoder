@@ -21,11 +21,9 @@ class FakeCursor:
         self.conn.executed.append((normalized, params))
         if normalized.startswith("SELECT id, action, payload, attempts FROM outbox"):
             max_attempts, max_messages = params
-            self._rows = [
-                row
-                for row in self.conn.rows
-                if row[4] == "PENDING" and row[3] < max_attempts
-            ][:max_messages]
+            self._rows = [row for row in self.conn.rows if row[4] == "PENDING" and row[3] < max_attempts][
+                :max_messages
+            ]
         elif normalized.startswith("UPDATE outbox SET attempts"):
             attempts, status, error, message_id = params
             self.conn.failure_updates.append((message_id, attempts, status, error))
@@ -104,7 +102,10 @@ def test_process_postgres_outbox_once_persists_bounded_failure_transition():
     assert store.conn.failure_updates == [("out_1", 2, "DEAD", "downstream unavailable")]
 
 
-@pytest.mark.parametrize("kwargs", [{"max_messages": 0, "max_attempts": 1}, {"max_messages": 1, "max_attempts": 0}])
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"max_messages": 0, "max_attempts": 1}, {"max_messages": 1, "max_attempts": 0}],
+)
 def test_process_postgres_outbox_once_rejects_non_positive_budgets_before_io(kwargs):
     store = FakeStore([])
 
