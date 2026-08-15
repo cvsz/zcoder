@@ -24,7 +24,9 @@ def test_delivery_calls_sink_once_with_deterministic_idempotency_key():
     def sink(idempotency_key, payload):
         calls.append((idempotency_key, payload))
 
-    result = deliver_maintenance_campaign_summary_once(MAINTENANCE_CAMPAIGN_SUMMARY_ACTION, _payload(), sink)
+    result = deliver_maintenance_campaign_summary_once(
+        MAINTENANCE_CAMPAIGN_SUMMARY_ACTION, _payload(), sink
+    )
 
     assert result.delivered is True
     assert result.idempotency_key == "maintenance-campaign:camp-123"
@@ -35,7 +37,9 @@ def test_delivery_rejects_unknown_action_before_sink():
     calls = []
 
     with pytest.raises(MaintenanceCampaignDeliveryError, match="unsupported outbox action"):
-        deliver_maintenance_campaign_summary_once("github.create_pr", _payload(), lambda *args: calls.append(args))
+        deliver_maintenance_campaign_summary_once(
+            "github.create_pr", _payload(), lambda *args: calls.append(args)
+        )
 
     assert calls == []
 
@@ -45,7 +49,10 @@ def test_delivery_rejects_schema_mismatch_before_sink():
     payload["schema_version"] = 999
     calls = []
 
-    with pytest.raises(MaintenanceCampaignDeliveryError, match="unsupported maintenance campaign summary schema"):
+    with pytest.raises(
+        MaintenanceCampaignDeliveryError,
+        match="unsupported maintenance campaign summary schema",
+    ):
         deliver_maintenance_campaign_summary_once(
             MAINTENANCE_CAMPAIGN_SUMMARY_ACTION,
             payload,
@@ -91,5 +98,9 @@ def test_delivery_rejects_boolean_exit_code():
     payload = _payload()
     payload["exit_code"] = True
 
-    with pytest.raises(MaintenanceCampaignDeliveryError, match="exit_code must be an integer"):
-        deliver_maintenance_campaign_summary_once(MAINTENANCE_CAMPAIGN_SUMMARY_ACTION, payload, lambda *_: None)
+    with pytest.raises(
+        MaintenanceCampaignDeliveryError, match="exit_code must be an integer"
+    ):
+        deliver_maintenance_campaign_summary_once(
+            MAINTENANCE_CAMPAIGN_SUMMARY_ACTION, payload, lambda *_: None
+        )
