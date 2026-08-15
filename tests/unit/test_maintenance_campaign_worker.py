@@ -4,11 +4,11 @@ from dataclasses import dataclass
 
 import pytest
 
+from zcoder.services import maintenance_campaign_worker as worker
 from zcoder.services.maintenance_campaign import (
     MaintenanceCampaignReport,
     MaintenanceCampaignRunResult,
 )
-from zcoder.services import maintenance_campaign_worker as worker
 
 
 @dataclass
