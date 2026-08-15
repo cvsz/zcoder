@@ -5,11 +5,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 import time
 import uuid
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,12 @@ from zcoder.services.continuous_engineering import (
     build_sqlite_store_pipeline,
 )
 from zcoder.services.maintenance_intelligence import MaintenanceIntelligenceService
+from zcoder.services.maintenance_observability import (
+    MaintenanceCampaignEvent,
+    MaintenanceCampaignEventSink,
+    MaintenanceCampaignEventType,
+    OtelMaintenanceCampaignEventSink,
+)
 from zcoder.services.upgrade_loop import (
     LoopPolicy,
     LoopState,
@@ -43,6 +50,7 @@ class MaintenanceCampaignReport:
     pending_count: int
     halt_reason: str
     terminal_ledger_counts: dict[str, int]
+    observer_error_count: int
     started_at: float
     finished_at: float
 
@@ -92,22 +100,62 @@ def maintenance_campaign_work(recommendation: Any) -> UpgradeWorkItem:
 class MaintenanceCampaignService:
     """Run Upgrade-23 recommendations through one bounded pipeline invocation."""
 
-    def __init__(self, pipeline: ContinuousEngineeringPipeline, intelligence: Any) -> None:
+    def __init__(
+        self,
+        pipeline: ContinuousEngineeringPipeline,
+        intelligence: Any,
+        event_sink: MaintenanceCampaignEventSink | None = None,
+    ) -> None:
         self.pipeline = pipeline
         self.intelligence = intelligence
+        self.event_sink = event_sink
+        self._observer_error_count = 0
+
+    def _emit(self, event: MaintenanceCampaignEvent) -> None:
+        if self.event_sink is None:
+            return
+        try:
+            self.event_sink.emit(event)
+        except Exception as exc:
+            self._observer_error_count += 1
+            logging.getLogger(__name__).warning(
+                "maintenance campaign observer failed for %s: %s",
+                event.event_type.value,
+                type(exc).__name__,
+            )
 
     def run(self) -> MaintenanceCampaignReport:
         started_at = time.time()
+        campaign_id = f"maintenance-{uuid.uuid4().hex}"
+        self._emit(
+            MaintenanceCampaignEvent(
+                event_type=MaintenanceCampaignEventType.STARTED,
+                campaign_id=campaign_id,
+                timestamp=started_at,
+            )
+        )
+
         recommendations = list(self.intelligence.generate_recommendations())
         work_by_fingerprint: dict[str, UpgradeWorkItem] = {}
         for recommendation in recommendations:
             item = maintenance_campaign_work(recommendation)
             work_by_fingerprint.setdefault(item.fingerprint, item)
 
+        self._emit(
+            MaintenanceCampaignEvent(
+                event_type=MaintenanceCampaignEventType.RECOMMENDATIONS_DISCOVERED,
+                campaign_id=campaign_id,
+                timestamp=time.time(),
+                recommendations_discovered=len(recommendations),
+                work_seeded=len(work_by_fingerprint),
+                observer_error_count=self._observer_error_count,
+            )
+        )
+
         report = self.pipeline.run(work_by_fingerprint.values())
         finished_at = time.time()
-        return MaintenanceCampaignReport(
-            campaign_id=f"maintenance-{uuid.uuid4().hex}",
+        campaign = MaintenanceCampaignReport(
+            campaign_id=campaign_id,
             state=report.state.value,
             recommendations_discovered=len(recommendations),
             work_seeded=len(work_by_fingerprint),
@@ -117,9 +165,57 @@ class MaintenanceCampaignService:
             pending_count=len(report.pending_item_ids),
             halt_reason=report.halt_reason,
             terminal_ledger_counts=self.pipeline.ledger.terminal_counts(),
+            observer_error_count=self._observer_error_count,
             started_at=started_at,
             finished_at=finished_at,
         )
+        final_type = (
+            MaintenanceCampaignEventType.COMPLETED
+            if report.state == LoopState.COMPLETED
+            else MaintenanceCampaignEventType.HALTED
+        )
+        self._emit(
+            MaintenanceCampaignEvent(
+                event_type=final_type,
+                campaign_id=campaign_id,
+                timestamp=finished_at,
+                state=campaign.state,
+                recommendations_discovered=campaign.recommendations_discovered,
+                work_seeded=campaign.work_seeded,
+                iterations=campaign.iterations,
+                completed_count=campaign.completed_count,
+                blocked_count=campaign.blocked_count,
+                pending_count=campaign.pending_count,
+                halt_reason=campaign.halt_reason,
+                duration_seconds=campaign.duration_seconds,
+                observer_error_count=self._observer_error_count,
+            )
+        )
+        if campaign.observer_error_count != self._observer_error_count:
+            campaign = replace(campaign, observer_error_count=self._observer_error_count)
+        return campaign
+
+
+@dataclass(frozen=True)
+class MaintenanceCampaignRunResult:
+    """Scheduler-friendly result contract independent of CLI/stdout."""
+
+    report: MaintenanceCampaignReport
+    exit_code: int
+
+
+def run_maintenance_campaign_once(
+    pipeline: ContinuousEngineeringPipeline,
+    intelligence: Any,
+    event_sink: MaintenanceCampaignEventSink | None = None,
+) -> MaintenanceCampaignRunResult:
+    """Run exactly one campaign and return its structured report plus exit code."""
+
+    report = MaintenanceCampaignService(pipeline, intelligence, event_sink=event_sink).run()
+    return MaintenanceCampaignRunResult(
+        report=report,
+        exit_code=0 if report.state == LoopState.COMPLETED.value else 2,
+    )
 
 
 def load_signals_file(path: Path) -> list[MaintenanceSignal]:
@@ -217,14 +313,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     pipeline = _build_pipeline(args, repository_root)
     try:
-        campaign = MaintenanceCampaignService(pipeline, intelligence).run()
-        output = json.dumps(campaign.to_dict(), indent=2, sort_keys=True)
+        result = run_maintenance_campaign_once(
+            pipeline,
+            intelligence,
+            event_sink=OtelMaintenanceCampaignEventSink(),
+        )
+        output = json.dumps(result.report.to_dict(), indent=2, sort_keys=True)
     finally:
         close = getattr(pipeline, "close", None)
         if callable(close):
             close()
     print(output)
-    return 0 if campaign.state == LoopState.COMPLETED.value else 2
+    return result.exit_code
 
 
 if __name__ == "__main__":

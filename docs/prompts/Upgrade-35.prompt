@@ -1,0 +1,18 @@
+Implement Upgrade-35 as a bounded observability and scheduler-contract slice for cvsz/zcoder.
+
+Objective: make Upgrade-34 one-shot maintenance campaigns observable and directly consumable by workers/schedulers without adding a recurring loop or a second telemetry stack.
+
+Requirements:
+- define a typed, finite, secret-free maintenance campaign event contract;
+- emit started, recommendations-discovered, and exactly one completed-or-halted event per campaign;
+- add a scheduler-friendly run_maintenance_campaign_once() contract returning structured report plus deterministic exit code;
+- keep recurrence external to the campaign service;
+- make event delivery best-effort so telemetry failures cannot change engineering state;
+- count observer failures in the report while logging only exception type, not potentially sensitive exception messages;
+- reuse existing ZCoderMetrics/OpenTelemetry infrastructure;
+- add bounded-cardinality metrics for campaigns, recommendations, work seeded, completed/blocked/pending items, observer errors, and duration;
+- never use campaign IDs as Prometheus labels; correlation IDs may exist in trace attributes only;
+- include maintenance metrics in the existing Prometheus exposition;
+- keep existing JSON/SQLite/PostgreSQL campaign backend behavior and DATABASE_URL handling unchanged;
+- add focused unit tests for event ordering, scheduler exit codes, observer failure semantics, secret-free events, metrics, and Prometheus exposition;
+- preserve Upgrade-20 execution authority, Upgrade-24 safety budgets, Upgrade-33 PostgreSQL fencing/exclusivity, local-only push default, and every existing CI/security gate.
