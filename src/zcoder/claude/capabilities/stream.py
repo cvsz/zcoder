@@ -231,7 +231,8 @@ class StreamCoder:
                     if dtype == "text_delta":
                         text = getattr(delta, "text", "")
                         full_text += text
-                        print(text, end="", flush=True)
+                        if verbose:
+                            print(text, end="", flush=True)
                     elif dtype == "input_json_delta" and current is not None:
                         frag = getattr(delta, "partial_json", "")
                         current["json"] += frag
@@ -262,7 +263,8 @@ class StreamCoder:
                     if sd:
                         stop_details = sd
 
-        print()
+        if verbose:
+            print()
         if stop_reason == "refusal":
             refusal = handle_refusal({"stop_reason": stop_reason, "stop_details": stop_details or {}})
             if verbose and refusal:
