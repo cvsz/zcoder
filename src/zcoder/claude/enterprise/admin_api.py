@@ -637,7 +637,8 @@ def cmd_claude_code_usage_report(admin_api_key: str, starting_at: str, limit: in
         print("  (no Claude Code activity for this date)")
     for row in rows:
         actor = row.get("user_actor") or row.get("api_actor") or {}
-        actor_label = actor.get("email_address") or actor.get("api_key_name") or "?"
+        # Avoid clear-text user email / API-key-name output.
+        actor_label = actor.get("type") or ("user" if row.get("user_actor") else "api_key")
         core = row.get("core_metrics", {})
         num_sessions = core.get("num_sessions", "?")
         loc = core.get("lines_of_code", {})
