@@ -13,9 +13,9 @@ aren't available in every environment this CLI runs in). It enforces:
     allowed roots (default: the session cwd); writes outside are blocked
     pre-execution by static inspection of the command for common file-
     redirection / mutation patterns plus a post-hoc cwd jail via subprocess cwd.
-  • network: when network is disabled, common networking binaries/flags
-    are blocked before exec (curl, wget, nc, ssh, scp, http clients,
-    python -m http.server, pip/npm install which hit the network, etc.)
+  • network: when network is disabled, common networking binaries/flags,
+    direct interpreter eval entry points, shell TCP/UDP pseudo-devices, and
+    protocol URLs are blocked before exec.
 
 This is defense-in-depth for an agent that already passes every tool
 call through PreToolUse hooks and permission gating — it is not a
@@ -58,6 +58,23 @@ NETWORK_PIP_NPM_FLAGS = {
     "yarn": {"add", "install", "upgrade"},
     "git": {"clone", "fetch", "pull", "push"},
 }
+DYNAMIC_INTERPRETER_FLAGS = {
+    "python": {"-c"},
+    "python3": {"-c"},
+    "pypy": {"-c"},
+    "pypy3": {"-c"},
+    "node": {"-e", "--eval"},
+    "nodejs": {"-e", "--eval"},
+    "ruby": {"-e"},
+    "perl": {"-e"},
+    "php": {"-r"},
+    "lua": {"-e"},
+    "luajit": {"-e"},
+    "pwsh": {"-Command", "-c"},
+    "powershell": {"-Command", "-c"},
+}
+SHELL_NETWORK_PSEUDO_DEVICE = re.compile(r"/dev/(?:tcp|udp)/", re.IGNORECASE)
+PROTOCOL_URL = re.compile(r"https?://|ftp://|ssh://", re.IGNORECASE)
 
 
 class SandboxViolation(Exception):
@@ -72,7 +89,13 @@ def _tokenize(command: str) -> list:
 
 
 def check_network(command: str) -> Optional[str]:
-    """Return a violation message if the command looks like a network call, else None."""
+    """Return a violation message if the command looks like a network call, else None.
+
+    This is deliberately fail-closed for direct interpreter-eval entry points
+    while network access is disabled. Inline code passed to a general-purpose
+    interpreter can create sockets without mentioning a URL or a known network
+    binary, bypassing a simple executable deny-list.
+    """
     tokens = _tokenize(command)
     if not tokens:
         return None
@@ -86,13 +109,22 @@ def check_network(command: str) -> Optional[str]:
             rest = set(tokens[i + 1 : i + 2])
             if not sub_flags or rest & sub_flags:
                 return f"'{base}' network operation is blocked inside the sandbox"
+        if base in DYNAMIC_INTERPRETER_FLAGS:
+            rest = set(tokens[i + 1 :])
+            if rest & DYNAMIC_INTERPRETER_FLAGS[base]:
+                return f"dynamic '{base}' code execution is blocked while sandbox networking is disabled"
         if base == "python" or base == "python3":
             joined = " ".join(tokens[i : i + 3])
             if "http.server" in joined or "urllib" in joined:
                 return "python network access is blocked inside the sandbox"
 
-    # Catch protocol URLs anywhere in the command line as a backstop
-    if re.search(r"https?://|ftp://|ssh://", command):
+    # Shells such as bash can open sockets without a networking binary via
+    # /dev/tcp/host/port or /dev/udp/host/port.
+    if SHELL_NETWORK_PSEUDO_DEVICE.search(command):
+        return "shell TCP/UDP pseudo-device access is blocked inside the sandbox"
+
+    # Catch protocol URLs anywhere in the command line as a backstop.
+    if PROTOCOL_URL.search(command):
         return "command contains a network URL, blocked inside the sandbox"
     return None
 
