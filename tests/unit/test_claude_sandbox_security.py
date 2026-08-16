@@ -2,7 +2,12 @@ import os
 
 import pytest
 
-from zcoder.claude.tools.sandbox import SandboxViolation, check_filesystem, check_network, enforce
+from zcoder.claude.tools.sandbox import (
+    SandboxViolation,
+    check_filesystem,
+    check_network,
+    enforce,
+)
 
 
 def test_relative_redirection_cannot_escape_sandbox(tmp_path):
@@ -56,7 +61,9 @@ def test_redirection_through_symlink_outside_root_is_blocked(tmp_path):
 
 
 def test_python_inline_socket_bypass_is_blocked():
-    violation = check_network("python -c 'import socket; socket.create_connection((\"example.com\", 80))'")
+    violation = check_network(
+        "python -c 'import socket; socket.create_connection((\"example.com\", 80))'"
+    )
 
     assert violation is not None
     assert "dynamic 'python' code execution" in violation
@@ -70,7 +77,9 @@ def test_node_inline_socket_bypass_is_blocked():
 
 
 def test_shell_tcp_pseudo_device_bypass_is_blocked():
-    violation = check_network("printf 'GET / HTTP/1.0\\r\\n\\r\\n' > /dev/tcp/example.com/80")
+    violation = check_network(
+        "printf 'GET / HTTP/1.0\\r\\n\\r\\n' > /dev/tcp/example.com/80"
+    )
 
     assert violation is not None
     assert "TCP/UDP pseudo-device" in violation
