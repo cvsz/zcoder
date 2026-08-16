@@ -2,12 +2,7 @@ import os
 
 import pytest
 
-from zcoder.claude.tools.sandbox import (
-    SandboxViolation,
-    check_filesystem,
-    check_network,
-    enforce,
-)
+from zcoder.claude.tools.sandbox import SandboxViolation, check_filesystem, check_network, enforce
 
 
 def test_relative_redirection_cannot_escape_sandbox(tmp_path):
@@ -89,8 +84,4 @@ def test_allow_net_bypasses_network_static_policy(tmp_path):
     root = tmp_path / "workspace"
     root.mkdir()
 
-    enforce(
-        "python -c 'import socket'",
-        cwd=str(root),
-        allow_net=True,
-    )
+    enforce("python -c 'import socket'", cwd=str(root), allow_net=True)
