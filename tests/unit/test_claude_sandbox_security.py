@@ -56,14 +56,16 @@ def test_redirection_through_symlink_outside_root_is_blocked(tmp_path):
 
 
 def test_python_inline_socket_bypass_is_blocked():
-    violation = check_network("python -c 'import socket; socket.create_connection((\"example.com\", 80))'")
+    command = """python -c 'import socket; socket.create_connection(("example.com", 80))'"""
+    violation = check_network(command)
 
     assert violation is not None
     assert "dynamic 'python' code execution" in violation
 
 
 def test_node_inline_socket_bypass_is_blocked():
-    violation = check_network("node -e 'require(\"net\").connect(80, \"example.com\")'")
+    command = """node -e 'require("net").connect(80, "example.com")'"""
+    violation = check_network(command)
 
     assert violation is not None
     assert "dynamic 'node' code execution" in violation
