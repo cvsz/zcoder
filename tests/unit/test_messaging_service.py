@@ -47,6 +47,15 @@ def test_messaging_turn_delegates_exactly_once_and_preserves_result():
     assert result.stop_details == {"reason": "bounded"}
 
 
+def test_messaging_turn_forwards_explicit_verbose_mode_without_extra_calls():
+    capability = FakeCapability({"text": "hello", "tool_calls": [], "stop_reason": "end_turn"})
+
+    result = run_messaging_turn_once(capability, "request", verbose=True)
+
+    assert capability.calls == [("request", [], None, {"verbose": True})]
+    assert result.text == "hello"
+
+
 def test_messaging_turn_does_not_execute_returned_tool_calls():
     executed = []
     tool_call = {"name": "dangerous", "input": {"command": "echo no"}}
