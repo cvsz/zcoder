@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from zcoder.claude.tools.sandbox import SandboxViolation, check_filesystem, enforce
+from zcoder.claude.tools.sandbox import SandboxViolation, check_filesystem, check_network, enforce
 
 
 def test_relative_redirection_cannot_escape_sandbox(tmp_path):
@@ -53,3 +53,37 @@ def test_redirection_through_symlink_outside_root_is_blocked(tmp_path):
 
     assert violation is not None
     assert "outside the sandbox" in violation
+
+
+def test_python_inline_socket_bypass_is_blocked():
+    command = """python -c 'import socket; socket.create_connection(("example.com", 80))'"""
+    violation = check_network(command)
+
+    assert violation is not None
+    assert "dynamic 'python' code execution" in violation
+
+
+def test_node_inline_socket_bypass_is_blocked():
+    command = """node -e 'require("net").connect(80, "example.com")'"""
+    violation = check_network(command)
+
+    assert violation is not None
+    assert "dynamic 'node' code execution" in violation
+
+
+def test_shell_tcp_pseudo_device_bypass_is_blocked():
+    violation = check_network("printf 'GET / HTTP/1.0\\r\\n\\r\\n' > /dev/tcp/example.com/80")
+
+    assert violation is not None
+    assert "TCP/UDP pseudo-device" in violation
+
+
+def test_normal_offline_python_script_remains_allowed():
+    assert check_network("python scripts/check_format.py") is None
+
+
+def test_allow_net_bypasses_network_static_policy(tmp_path):
+    root = tmp_path / "workspace"
+    root.mkdir()
+
+    enforce("python -c 'import socket'", cwd=str(root), allow_net=True)
