@@ -14,8 +14,9 @@ from typing import Optional
 
 import anthropic
 
-from resilience import raise_for_http_error, retry, safe_urlopen
+from resilience import raise_for_http_error, retry
 from utils import sampling_kwargs
+from zcoder.core.outbound_security import safe_external_urlopen
 
 SYS_PLAN = "You are a research planning assistant. Output only valid JSON."
 SYS_ANAL = "You are a careful research analyst. Be precise. Flag uncertainty."
@@ -82,7 +83,7 @@ class DeepResearchAgent:
     def _fetch_retrying(self, url: str) -> str:
         req = urllib.request.Request(url, headers={"User-Agent": "ai-coder-research/1.0"})
         try:
-            with safe_urlopen(req, timeout=15) as resp:
+            with safe_external_urlopen(req, timeout=15) as resp:
                 return resp.read().decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
