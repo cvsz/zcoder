@@ -517,7 +517,8 @@ def test_cmd_claude_code_usage_report_handles_missing_optional_fields(monkeypatc
 
     assert result is not None
     out = capsys.readouterr().out
-    assert "ci-key" in out
+    assert "ci-key" not in out
+    assert "api_key" in out
 
 
 def test_cmd_claude_code_usage_report_prints_named_user_and_metrics(monkeypatch, capsys):
@@ -547,7 +548,8 @@ def test_cmd_claude_code_usage_report_prints_named_user_and_metrics(monkeypatch,
     cmd_claude_code_usage_report("admin-k", "2026-07-08")
 
     out = capsys.readouterr().out
-    assert "[email protected]" in out
+    assert "[email protected]" not in out
+    assert "user" in out
     assert "sessions=5" in out
     assert "cost=1025" in out
 

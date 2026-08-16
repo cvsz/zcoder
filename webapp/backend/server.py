@@ -323,9 +323,9 @@ def chat_stream(req: ChatRequest, request: Request):
                             text = getattr(delta, "text", "")
                             full_text += text
                             yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
-        except Exception as e:
+        except Exception:
             logger.exception("stream_chat_failed", extra={"model": req.model})
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Upstream provider request failed'})}\n\n"
             return
 
         new_history = history + [
