@@ -99,28 +99,41 @@ def check_network(command: str) -> Optional[str]:
 
 def check_filesystem(command: str, allowed_roots: list) -> Optional[str]:
     """
-    Best-effort static check: flag absolute paths or '..' traversal outside
+    Best-effort static check: reject filesystem targets that resolve outside
     the allowed roots when they appear as redirection targets or common
-    mutation-command arguments. Not a full parser — defense in depth only.
+    mutation-command arguments. Relative paths are resolved from the sandbox
+    cwd (the first allowed root), not from the host process cwd.
     """
-    allowed = [Path(r).resolve() for r in allowed_roots]
+    allowed = [Path(r).expanduser().resolve() for r in allowed_roots]
+    if not allowed:
+        return "sandbox requires at least one allowed filesystem root"
+    sandbox_cwd = allowed[0]
 
     def _is_allowed(p: str) -> bool:
         try:
-            resolved = Path(p).expanduser().resolve()
+            candidate = Path(p).expanduser()
+            if not candidate.is_absolute():
+                candidate = sandbox_cwd / candidate
+            resolved = candidate.resolve()
         except Exception:
-            return True  # don't block on unparseable paths
+            return False
         return any(resolved == root or root in resolved.parents for root in allowed)
 
-    # Redirection targets: > file, >> file
+    # Redirection targets: > file, >> file. Check relative targets too so
+    # '../outside' cannot escape the sandbox cwd.
     for m in re.finditer(r"(?:>>?)\s*([^\s|&;]+)", command):
         target = m.group(1)
-        if (target.startswith("/") or target.startswith("~")) and not _is_allowed(target):
+        if not _is_allowed(target):
             return f"redirect target '{target}' is outside the sandbox root(s)"
 
-    # rm -rf / mv / cp targeting absolute paths outside roots
+    # rm / mv / cp path arguments. Shell options are ignored; every explicit
+    # path operand is resolved against the sandbox cwd and must stay inside an
+    # allowed root. This also catches '../' traversal and symlink escapes.
     for m in re.finditer(r"\b(rm|mv|cp)\b[^|;&]*", command):
-        for path_tok in re.findall(r"(?:^|\s)(/[^\s]+|~[^\s]*)", m.group(0)):
+        tokens = _tokenize(m.group(0))
+        for path_tok in tokens[1:]:
+            if path_tok.startswith("-"):
+                continue
             if not _is_allowed(path_tok):
                 return f"'{m.group(1)}' targets '{path_tok}' outside the sandbox root(s)"
 
