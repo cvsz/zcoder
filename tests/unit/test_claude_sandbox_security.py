@@ -46,7 +46,9 @@ def test_enforce_blocks_relative_traversal_before_execution(tmp_path):
         enforce("printf x > ../outside.txt", cwd=str(root), allow_net=True)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="symlink creation is not consistently available on Windows CI")
+@pytest.mark.skipif(
+    os.name == "nt", reason="symlink creation is not consistently available on Windows CI"
+)
 def test_redirection_through_symlink_outside_root_is_blocked(tmp_path):
     root = tmp_path / "workspace"
     outside = tmp_path / "outside"
