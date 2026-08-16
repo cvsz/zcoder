@@ -40,6 +40,7 @@ def run_messaging_turn_once(
     *,
     tools: list[dict[str, Any]] | None = None,
     system: str | None = None,
+    verbose: bool = False,
 ) -> MessagingTurnResult:
     """Run exactly one provider messaging turn.
 
@@ -47,13 +48,18 @@ def run_messaging_turn_once(
     retries a provider call, sleeps, polls, or schedules follow-up work.  Raw
     malformed streamed tool input remains owned by the provider capability and
     is preserved in the returned tool-call dictionaries for caller validation.
+
+    ``verbose`` is forwarded exactly once to the injected capability.  The
+    default remains quiet for application-service callers; an existing
+    interactive caller may explicitly request provider streaming output without
+    bypassing this bounded service boundary.
     """
 
     response = capability.stream_with_tools(
         prompt,
         tools=list(tools or []),
         system=system,
-        verbose=False,
+        verbose=verbose,
     )
     return MessagingTurnResult(
         text=str(response.get("text", "")),
