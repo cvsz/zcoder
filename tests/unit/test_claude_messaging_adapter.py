@@ -54,6 +54,26 @@ def test_claude_messaging_adapter_constructs_once_and_delegates_once():
     assert result.stop_reason == "end_turn"
 
 
+def test_claude_messaging_adapter_forwards_explicit_verbose_mode_once():
+    capability = FakeCapability(
+        response={
+            "text": "streamed",
+            "tool_calls": [],
+            "stop_reason": "end_turn",
+        }
+    )
+
+    result = run_claude_messaging_turn_once(
+        "secret",
+        "hello",
+        verbose=True,
+        capability_factory=lambda **_kwargs: capability,
+    )
+
+    assert capability.calls == [("hello", [], None, {"verbose": True})]
+    assert result.text == "streamed"
+
+
 def test_claude_messaging_adapter_returns_tool_calls_without_executing_them():
     executed = []
     tool_call = {
