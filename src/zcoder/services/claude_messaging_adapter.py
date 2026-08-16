@@ -23,14 +23,18 @@ def run_claude_messaging_turn_once(
     max_tokens: int = 4096,
     tools: list[dict[str, Any]] | None = None,
     system: str | None = None,
+    verbose: bool = False,
     capability_factory: Callable[..., StreamCoder] = StreamCoder,
 ) -> MessagingTurnResult:
     """Run one bounded Claude messaging turn through the service boundary.
 
     The existing ``StreamCoder.stream_with_tools`` entry point remains intact.
     Tool calls are returned as data by ``run_messaging_turn_once`` and are not
-    executed here.  ``capability_factory`` is injectable solely for deterministic
-    regression tests; production callers use the existing ``StreamCoder`` class.
+    executed here.  ``verbose`` defaults to the existing quiet application
+    boundary but may be enabled explicitly by an interactive caller that must
+    preserve provider streaming output.  ``capability_factory`` is injectable
+    solely for deterministic regression tests; production callers use the
+    existing ``StreamCoder`` class.
     """
 
     capability = capability_factory(api_key=api_key, model=model, max_tokens=max_tokens)
@@ -39,4 +43,5 @@ def run_claude_messaging_turn_once(
         prompt,
         tools=list(tools or []),
         system=system,
+        verbose=verbose,
     )
