@@ -31,6 +31,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from legacy_job_models import Job, JobStatus
+from zcoder.infrastructure.stores.postgres_outbox_store import process_postgres_store_outbox
 
 logger = logging.getLogger(__name__)
 
@@ -501,46 +502,13 @@ class PostgresControlPlaneStore:
         max_attempts: int = 5,
         backoff_base: float = 2.0,
     ) -> int:
-        """Process pending outbox messages with retry and exponential backoff."""
-        processed = 0
-        time.time()
-
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT id, action, payload, attempts
-                    FROM outbox
-                    WHERE status = 'PENDING' AND attempts < %s
-                    ORDER BY created_at ASC
-                    FOR UPDATE SKIP LOCKED
-                    LIMIT 50
-                    """,
-                    (max_attempts,),
-                )
-                rows = cur.fetchall()
-
-            for r_id, action, payload_raw, attempts in rows:
-                payload = payload_raw if isinstance(payload_raw, dict) else json.loads(payload_raw)
-                try:
-                    handler(action, payload)
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            "UPDATE outbox SET status = 'DELIVERED', delivered_at = %s WHERE id = %s",
-                            (time.time(), r_id),
-                        )
-                    processed += 1
-                except Exception as e:
-                    new_attempts = attempts + 1
-                    new_status = "DEAD" if new_attempts >= max_attempts else "PENDING"
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            "UPDATE outbox SET attempts = %s, error = %s, status = %s WHERE id = %s",
-                            (new_attempts, str(e), new_status, r_id),
-                        )
-                    logger.warning(f"Outbox message {r_id} failed (attempt {new_attempts}): {e}")
-
-        return processed
+        """Process one bounded outbox batch through the Upgrade-42 adapter."""
+        return process_postgres_store_outbox(
+            self,
+            handler,
+            max_attempts=max_attempts,
+            backoff_base=backoff_base,
+        )
 
     # ── Webhook deduplication ─────────────────────────────────────────────
 
@@ -607,7 +575,7 @@ class PostgresControlPlaneStore:
                     (repo_id, installation_id, owner, name, default_branch, automation_enabled, trust_level),
                 )
 
-    # ── Worker registry ───────────────────────────────────────────────────
+    # ── Worker registry ────────────────────────────────────────────────────
 
     def register_worker(
         self, worker_id: str, pool_type: str = "standard", hostname: str = "", pid: int = 0
