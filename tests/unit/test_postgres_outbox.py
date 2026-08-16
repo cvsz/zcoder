@@ -21,7 +21,11 @@ class FakeCursor:
         self.conn.executed.append((normalized, params))
         if normalized.startswith("SELECT id, action, payload, attempts FROM outbox"):
             max_attempts, max_messages = params
-            eligible = [row for row in self.conn.rows if row[4] == "PENDING" and row[3] < max_attempts]
+            eligible = [
+                row
+                for row in self.conn.rows
+                if row[4] == "PENDING" and row[3] < max_attempts
+            ]
             self._rows = eligible[:max_messages]
         elif normalized.startswith("UPDATE outbox SET attempts"):
             attempts, status, error, message_id = params
