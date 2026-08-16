@@ -81,7 +81,7 @@ def test_process_postgres_outbox_once_honors_batch_budget_and_order():
 
 
 def test_process_postgres_outbox_once_persists_bounded_failure_transition():
-    store = FakeStore([("out_1", "a", "{\"n\": 1}", 1, "PENDING")])
+    store = FakeStore([("out_1", "a", '{"n": 1}', 1, "PENDING")])
     calls = 0
 
     def fail_once(_action, _payload):
