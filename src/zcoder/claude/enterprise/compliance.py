@@ -636,13 +636,8 @@ def cmd_compliance_activities(
 
 def _print_activity(a: dict):
     actor = a.get("actor", {})
-    who = (
-        actor.get("email_address")
-        or actor.get("api_key_id")
-        or actor.get("admin_api_key_id")
-        or actor.get("unauthenticated_email_address")
-        or actor.get("type", "?")
-    )
+    # Avoid clear-text PII / credential-adjacent identifiers in terminal output.
+    who = actor.get("type", "?")
     print(f"  {a.get('created_at', '?'):<25} {a.get('type', '?'):<30} {who}")
 
 
