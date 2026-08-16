@@ -64,8 +64,7 @@ def test_concurrent_outbox_workers_do_not_duplicate_delivery():
         delivered = manager.list()
         errors = manager.list()
         workers = [
-            multiprocessing.Process(target=_process_outbox_once, args=(delivered, errors))
-            for _ in range(3)
+            multiprocessing.Process(target=_process_outbox_once, args=(delivered, errors)) for _ in range(3)
         ]
         for worker in workers:
             worker.start()
