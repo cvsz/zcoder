@@ -46,9 +46,7 @@ def test_enforce_blocks_relative_traversal_before_execution(tmp_path):
         enforce("printf x > ../outside.txt", cwd=str(root), allow_net=True)
 
 
-@pytest.mark.skipif(
-    os.name == "nt", reason="symlink creation is not consistently available on Windows CI"
-)
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation is not consistently available on Windows CI")
 def test_redirection_through_symlink_outside_root_is_blocked(tmp_path):
     root = tmp_path / "workspace"
     outside = tmp_path / "outside"
@@ -63,9 +61,7 @@ def test_redirection_through_symlink_outside_root_is_blocked(tmp_path):
 
 
 def test_python_inline_socket_bypass_is_blocked():
-    violation = check_network(
-        "python -c 'import socket; socket.create_connection((\"example.com\", 80))'"
-    )
+    violation = check_network("python -c 'import socket; socket.create_connection((\"example.com\", 80))'")
 
     assert violation is not None
     assert "dynamic 'python' code execution" in violation
@@ -79,9 +75,7 @@ def test_node_inline_socket_bypass_is_blocked():
 
 
 def test_shell_tcp_pseudo_device_bypass_is_blocked():
-    violation = check_network(
-        "printf 'GET / HTTP/1.0\\r\\n\\r\\n' > /dev/tcp/example.com/80"
-    )
+    violation = check_network("printf 'GET / HTTP/1.0\\r\\n\\r\\n' > /dev/tcp/example.com/80")
 
     assert violation is not None
     assert "TCP/UDP pseudo-device" in violation
