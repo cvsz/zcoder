@@ -36,7 +36,9 @@ def test_claude_messaging_adapter_constructs_once_and_delegates_once():
         capability_factory=factory,
     )
 
-    assert constructed == [{"api_key": "secret", "model": "claude-test", "max_tokens": 123}]
+    assert constructed == [
+        {"api_key": "secret", "model": "claude-test", "max_tokens": 123}
+    ]
     assert capability.calls == [
         ("hello", [{"name": "read_file"}], "system", {"verbose": False})
     ]
