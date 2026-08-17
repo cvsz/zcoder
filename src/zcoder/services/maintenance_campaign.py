@@ -26,7 +26,6 @@ from zcoder.services.maintenance_observability import (
     MaintenanceCampaignEvent,
     MaintenanceCampaignEventSink,
     MaintenanceCampaignEventType,
-    OtelMaintenanceCampaignEventSink,
 )
 from zcoder.services.upgrade_loop import (
     LoopPolicy,
@@ -303,7 +302,13 @@ def _build_pipeline(args: argparse.Namespace, repository_root: Path) -> Continuo
     )
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    event_sink: MaintenanceCampaignEventSink | None = None,
+) -> int:
+    """Run one CLI campaign with an optional externally composed event sink."""
+
     args = build_parser().parse_args(argv)
     repository_root = Path(args.repository).resolve()
     intelligence = MaintenanceIntelligenceService()
@@ -316,7 +321,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = run_maintenance_campaign_once(
             pipeline,
             intelligence,
-            event_sink=OtelMaintenanceCampaignEventSink(),
+            event_sink=event_sink,
         )
         output = json.dumps(result.report.to_dict(), indent=2, sort_keys=True)
     finally:
