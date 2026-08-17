@@ -18,11 +18,11 @@ def _module_paths() -> dict[str, Path]:
     return {_module_name(path): path for path in sorted(SRC_ROOT.rglob("*.py"))}
 
 
-def _resolve_from_import(module: str, node: ast.ImportFrom) -> list[str]:
+def _resolve_from_import(module: str, path: Path, node: ast.ImportFrom) -> list[str]:
     if node.level == 0:
         base = node.module or ""
     else:
-        package = module if module.endswith(".__init__") else module.rpartition(".")[0]
+        package = module if path.name == "__init__.py" else module.rpartition(".")[0]
         parts = package.split(".") if package else []
         keep = max(0, len(parts) - (node.level - 1))
         prefix = parts[:keep]
@@ -46,7 +46,7 @@ def _dependency_graph() -> dict[str, set[str]]:
             if isinstance(node, ast.Import):
                 candidates.extend(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom):
-                candidates.extend(_resolve_from_import(module, node))
+                candidates.extend(_resolve_from_import(module, path, node))
 
             for candidate in candidates:
                 if candidate in modules and candidate != module:
