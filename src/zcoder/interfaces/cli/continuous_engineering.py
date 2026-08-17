@@ -7,14 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
-from zcoder.services.continuous_engineering import (
-    ContinuousEngineeringPipeline,
-    WorkSource,
-    _build_upgrade20_executor,
-)
+from zcoder.services.continuous_engineering import ContinuousEngineeringPipeline, WorkSource
+from zcoder.services.engineering_store_pipeline import build_engineering_store_pipeline
 from zcoder.services.upgrade_lease import UpgradeRunLease
 from zcoder.services.upgrade_loop import LoopPolicy, LoopReport, UpgradeWorkItem
-from zcoder.services.upgrade_store_ledger import EngineeringStoreUpgradeLedger
 
 
 def build_sqlite_store_pipeline(
@@ -35,21 +31,19 @@ def build_sqlite_store_pipeline(
 
     db = Path(db_path)
     lease = Path(lease_path) if lease_path is not None else db.with_name(f"{db.name}.upgrade-loop.lock")
-    executor = _build_upgrade20_executor(
+    store = SQLiteEngineeringStore(db_path=db)
+    return build_engineering_store_pipeline(
         repository_root,
+        store,
+        ledger_namespace=ledger_namespace,
+        run_lease=UpgradeRunLease(lease),
         project_id=project_id,
         allow_push=allow_push,
-        github_orchestrator=github_orchestrator,
-        max_ci_repairs=max_ci_repairs,
-    )
-    ledger = EngineeringStoreUpgradeLedger(SQLiteEngineeringStore(db_path=db), namespace=ledger_namespace)
-    return ContinuousEngineeringPipeline(
-        executor,
-        ledger,
-        work_sources=work_sources,
         policy=policy,
         retry_blocked=retry_blocked,
-        run_lease=UpgradeRunLease(lease),
+        work_sources=work_sources,
+        github_orchestrator=github_orchestrator,
+        max_ci_repairs=max_ci_repairs,
     )
 
 
