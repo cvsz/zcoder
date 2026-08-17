@@ -32,6 +32,9 @@ def test_sqlite_composition_builds_one_store_and_preserves_bounded_inputs(monkey
         calls.pipeline.append((actual_executor, actual_ledger, kwargs))
         return pipeline
 
+    def work_source():
+        return ()
+
     monkeypatch.setattr(composition, "SQLiteEngineeringStore", fake_store)
     monkeypatch.setattr(composition, "_build_upgrade20_executor", fake_executor)
     monkeypatch.setattr(composition, "EngineeringStoreUpgradeLedger", fake_ledger)
@@ -39,7 +42,6 @@ def test_sqlite_composition_builds_one_store_and_preserves_bounded_inputs(monkey
     monkeypatch.setattr(composition, "ContinuousEngineeringPipeline", fake_pipeline)
 
     db_path = tmp_path / "engineering.db"
-    work_source = lambda: ()
     policy = object()
     github = object()
 
