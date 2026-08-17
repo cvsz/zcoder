@@ -11,18 +11,34 @@ Advance one bounded `ROADMAP-NEXT.md` P2.1 architecture item by making the appli
 - fail deterministically when a service imports `zcoder.infrastructure` or a submodule below it;
 - reuse the same guard already protecting `domain` and `core` rather than introducing a second architecture-test framework.
 
+The strict guard exposed three pre-existing violations. Upgrade-53 repairs them one dependency boundary at a time instead of allowlisting them.
+
+### Maintenance observability repair
+
+The first repair moves the concrete OpenTelemetry maintenance-event sink out of `services` and into `infrastructure.observability`, while retaining `MaintenanceCampaignEvent` and `MaintenanceCampaignEventSink` as service-owned contracts. The service-level CLI now accepts an injected event sink, and `interfaces.cli.maintenance_campaign` is the composition root that constructs the OTEL sink and passes it inward exactly once.
+
+This preserves the one-shot campaign execution contract and prevents the service layer from knowing about OpenTelemetry metrics/tracer implementations.
+
 ## Upgrade-20/24 boundedness
 
-This slice is test/documentation only. It adds no runtime/provider execution, polling, retries, sleeps, scheduler or daemon behavior, recursive execution, automatic tool execution, concurrency-budget expansion, authentication change, authorization change, or persistence change.
+The architecture rule and each repair remain bounded. They add no polling, retries, sleeps, scheduler or daemon behavior, recursive execution, automatic tool execution, concurrency-budget expansion, authentication change, authorization change, or persistence semantics change.
 
-It does not weaken Ruff, Black, pytest, coverage, Bandit, CodeQL, dependency review, Release Gate, Helm, or SDK/TypeScript checks. No architecture violation is allowlisted or excluded.
+They do not weaken Ruff, Black, pytest, coverage, Bandit, CodeQL, dependency review, Release Gate, Helm, or SDK/TypeScript checks. No architecture violation is allowlisted, dynamically hidden, skipped, or excluded.
+
+## Remaining violations
+
+After the maintenance-observability repair, the strict guard is expected to continue exposing the two concrete store dependencies in `services/continuous_engineering.py`:
+
+- `zcoder.infrastructure.stores.sqlite_engineering`
+- `zcoder.infrastructure.stores.postgres_engineering`
+
+Those remain separate bounded repair slices and keep PR #47 blocked until repaired.
 
 ## Deliberately out of scope
 
 - interface-layer dependency rules;
 - compatibility-module cleanup;
-- infrastructure refactors;
-- runtime dependency injection changes;
+- repairing both continuous-engineering store dependencies in the same slice;
 - broader service/package restructuring.
 
 ## Verification contract
@@ -31,4 +47,4 @@ Merge only after the architecture guard and all fresh required hosted checks pas
 
 ## Next boundary
 
-After this rule is green and merged, add exactly one remaining P2.1 dependency-direction invariant—preferably an interface-layer rule—without bundling a broader runtime refactor into the same slice.
+Repair one continuous-engineering store dependency boundary next, preserving the strict architecture guard. Only after Upgrade-53 is fully green and merged should another P2.1 dependency-direction invariant be added.
