@@ -19,6 +19,12 @@ The first repair moves the concrete OpenTelemetry maintenance-event sink out of 
 
 This preserves the one-shot campaign execution contract and prevents the service layer from knowing about OpenTelemetry metrics/tracer implementations.
 
+### SQLite composition boundary preparation
+
+The next bounded slice introduces `interfaces.cli.continuous_engineering.build_sqlite_store_pipeline()` as the outward composition root for the concrete `SQLiteEngineeringStore`. It preserves the existing same-host lease path convention, ledger namespace, Upgrade-20 executor construction, loop policy, retry-blocked flag, work sources, GitHub orchestrator, and bounded CI-repair budget. Focused unit coverage proves one store construction and exact argument forwarding, including an explicit lease path.
+
+This slice deliberately does not yet remove the legacy SQLite construction from `services.continuous_engineering`; the strict architecture guard therefore continues to expose that dependency until the following isolated routing/removal slice. The PostgreSQL dependency is also intentionally untouched.
+
 ## Upgrade-20/24 boundedness
 
 The architecture rule and each repair remain bounded. They add no polling, retries, sleeps, scheduler or daemon behavior, recursive execution, automatic tool execution, concurrency-budget expansion, authentication change, authorization change, or persistence semantics change.
@@ -27,7 +33,7 @@ They do not weaken Ruff, Black, pytest, coverage, Bandit, CodeQL, dependency rev
 
 ## Remaining violations
 
-After the maintenance-observability repair, the strict guard is expected to continue exposing the two concrete store dependencies in `services/continuous_engineering.py`:
+After the maintenance-observability repair and SQLite composition-root preparation, the strict guard is expected to continue exposing the two concrete store dependencies in `services/continuous_engineering.py`:
 
 - `zcoder.infrastructure.stores.sqlite_engineering`
 - `zcoder.infrastructure.stores.postgres_engineering`
@@ -38,7 +44,8 @@ Those remain separate bounded repair slices and keep PR #47 blocked until repair
 
 - interface-layer dependency rules;
 - compatibility-module cleanup;
-- repairing both continuous-engineering store dependencies in the same slice;
+- removing the legacy SQLite service import in the same preparation slice;
+- repairing the PostgreSQL boundary in this slice;
 - broader service/package restructuring.
 
 ## Verification contract
@@ -47,4 +54,4 @@ Merge only after the architecture guard and all fresh required hosted checks pas
 
 ## Next boundary
 
-Repair one continuous-engineering store dependency boundary next, preserving the strict architecture guard. Only after Upgrade-53 is fully green and merged should another P2.1 dependency-direction invariant be added.
+Route the existing SQLite continuous-engineering caller through the new interface composition root and remove the legacy `services -> infrastructure.stores.sqlite_engineering` import while preserving CLI behavior and same-host lease semantics. Keep the PostgreSQL dependency visible for the following bounded slice.
