@@ -301,13 +301,13 @@ def cmd_stream(
 
 def cmd_stream_tools(prompt: str, tools: list[dict], api_key: str, model: str, system: str = None):
     """Stream one CLI tool turn through the bounded messaging service."""
-    from zcoder.services.claude_messaging_adapter import run_claude_messaging_turn_once
+    from zcoder.services.messaging_service import run_messaging_turn_once
 
     print("\033[94mℹ Streaming with fine-grained tool input…\033[0m\n")
-    result = run_claude_messaging_turn_once(
-        api_key=api_key,
-        prompt=prompt,
-        model=model,
+    capability = StreamCoder(api_key=api_key, model=model)
+    result = run_messaging_turn_once(
+        capability,
+        prompt,
         tools=tools,
         system=system,
         verbose=True,
