@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 _REMOVED_MIGRATION_PATHS = (
     ".github/workflows/apply-repository-hardening.yml",
     "scripts/apply_repository_hardening.py",
