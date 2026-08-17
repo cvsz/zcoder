@@ -28,13 +28,9 @@ def _assert_no_infrastructure_dependency(layer: str) -> None:
     violations: list[str] = []
     for path in _python_files(layer):
         for imported in _imports(path):
-            if imported == "zcoder.infrastructure" or imported.startswith(
-                "zcoder.infrastructure."
-            ):
+            if imported == "zcoder.infrastructure" or imported.startswith("zcoder.infrastructure."):
                 violations.append(f"{path}: {imported}")
-    assert not violations, "forbidden infrastructure dependency:\n" + "\n".join(
-        violations
-    )
+    assert not violations, "forbidden infrastructure dependency:\n" + "\n".join(violations)
 
 
 def test_domain_does_not_import_infrastructure():
