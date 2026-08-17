@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +13,7 @@ from zcoder.services.continuous_engineering import (
     _build_upgrade20_executor,
 )
 from zcoder.services.upgrade_lease import UpgradeRunLease
-from zcoder.services.upgrade_loop import LoopPolicy
+from zcoder.services.upgrade_loop import LoopPolicy, LoopReport, UpgradeWorkItem
 from zcoder.services.upgrade_store_ledger import EngineeringStoreUpgradeLedger
 
 
@@ -51,3 +51,18 @@ def build_sqlite_store_pipeline(
         retry_blocked=retry_blocked,
         run_lease=UpgradeRunLease(lease),
     )
+
+
+def run_sqlite_store_pipeline_once(
+    repository_root: str | Path,
+    db_path: str | Path,
+    seed_items: Iterable[UpgradeWorkItem] = (),
+    **pipeline_kwargs: Any,
+) -> LoopReport:
+    """Compose, execute, and close exactly one bounded SQLite pipeline run."""
+
+    pipeline = build_sqlite_store_pipeline(repository_root, db_path, **pipeline_kwargs)
+    try:
+        return pipeline.run(seed_items)
+    finally:
+        pipeline.close()
