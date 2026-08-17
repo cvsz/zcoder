@@ -300,12 +300,25 @@ def cmd_stream(
 
 
 def cmd_stream_tools(prompt: str, tools: list[dict], api_key: str, model: str, system: str = None):
-    """Stream a turn with fine-grained tool input streaming on."""
+    """Stream one CLI tool turn through the bounded messaging service."""
+    from zcoder.services.claude_messaging_adapter import run_claude_messaging_turn_once
+
     print("\033[94mℹ Streaming with fine-grained tool input…\033[0m\n")
-    sc = StreamCoder(api_key=api_key, model=model)
-    result = sc.stream_with_tools(prompt, tools, system=system)
-    if result["tool_calls"]:
-        print(f"\n\033[90m── {len(result['tool_calls'])} tool call(s) ─────\033[0m")
-        for tc in result["tool_calls"]:
+    result = run_claude_messaging_turn_once(
+        api_key=api_key,
+        prompt=prompt,
+        model=model,
+        tools=tools,
+        system=system,
+        verbose=True,
+    )
+    if result.tool_calls:
+        print(f"\n\033[90m── {len(result.tool_calls)} tool call(s) ─────\033[0m")
+        for tc in result.tool_calls:
             print(f"  {tc['name']}: {tc['input'] if tc['input'] is not None else tc['input_raw'][:120]}")
-    return result
+    return {
+        "text": result.text,
+        "tool_calls": list(result.tool_calls),
+        "stop_reason": result.stop_reason,
+        "stop_details": result.stop_details,
+    }
