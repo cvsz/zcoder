@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import psycopg2
 import pytest
 
-import zcoder.services.continuous_engineering as continuous_engineering
+import zcoder.interfaces.cli.continuous_engineering as continuous_engineering
 from zcoder.services.upgrade_loop import LoopPolicy, LoopState, ValidationResult, feature_work
 from zcoder.services.upgrade_postgres_lease import PostgresUpgradeRunLeaseError
 
