@@ -1,10 +1,10 @@
 """Unit coverage for Upgrade-35 maintenance campaign observability."""
 
+from zcoder.infrastructure.observability.maintenance import OtelMaintenanceCampaignEventSink
 from zcoder.infrastructure.observability.otel import ZCoderMetrics
 from zcoder.services.maintenance_observability import (
     MaintenanceCampaignEvent,
     MaintenanceCampaignEventType,
-    OtelMaintenanceCampaignEventSink,
 )
 
 
