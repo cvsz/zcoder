@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from zcoder.domain.models.intelligence import MaintenanceSignal, SignalType
+from zcoder.interfaces.cli.continuous_engineering import build_sqlite_store_pipeline
 from zcoder.services.continuous_engineering import (
     ContinuousEngineeringPipeline,
     build_local_pipeline,
     build_postgres_store_pipeline,
-    build_sqlite_store_pipeline,
 )
 from zcoder.services.maintenance_intelligence import MaintenanceIntelligenceService
 from zcoder.services.maintenance_observability import (
