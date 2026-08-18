@@ -24,7 +24,7 @@ from zcoder.services.upgrade_loop import (
     work_from_maintenance_recommendation,
 )
 from zcoder.services.upgrade_state import JsonUpgradeLedger, RepositorySnapshotter
-from zcoder.services.upgrade_store_ledger import EngineeringStoreUpgradeLedger, UpgradeLedger
+from zcoder.services.upgrade_store_ledger import UpgradeLedger
 
 
 @dataclasses.dataclass(frozen=True)
@@ -338,13 +338,15 @@ def build_postgres_store_pipeline(
     github_orchestrator: Any = None,
     max_ci_repairs: int = 3,
 ) -> ContinuousEngineeringPipeline:
-    """Compatibility seam delegating PostgreSQL composition outward."""
+    """Compatibility seam for a composer registered by the outward interface."""
 
-    from zcoder.interfaces.cli.continuous_engineering import (
-        build_postgres_store_pipeline as compose_postgres_store_pipeline,
-    )
-
-    return compose_postgres_store_pipeline(
+    composer = getattr(build_postgres_store_pipeline, "_outward_composer", None)
+    if composer is None:
+        raise RuntimeError(
+            "PostgreSQL composition belongs to zcoder.interfaces.cli.continuous_engineering; "
+            "import the outward interface or call its build_postgres_store_pipeline directly"
+        )
+    return composer(
         repository_root,
         database_url,
         ledger_namespace=ledger_namespace,
