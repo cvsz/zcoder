@@ -11,6 +11,7 @@ from typing import Any
 
 from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
 from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
+import zcoder.services.continuous_engineering as continuous_engineering_service
 from zcoder.services.continuous_engineering import (
     ContinuousEngineeringPipeline,
     WorkSource,
@@ -129,6 +130,9 @@ def build_postgres_store_pipeline(
     except Exception:
         store.close()
         raise
+
+
+continuous_engineering_service.build_postgres_store_pipeline._outward_composer = build_postgres_store_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
