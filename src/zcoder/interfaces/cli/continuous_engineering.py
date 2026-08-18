@@ -9,9 +9,9 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
+import zcoder.services.continuous_engineering as continuous_engineering_service
 from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
 from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
-import zcoder.services.continuous_engineering as continuous_engineering_service
 from zcoder.services.continuous_engineering import (
     ContinuousEngineeringPipeline,
     WorkSource,
