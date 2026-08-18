@@ -1,6 +1,6 @@
 """
 claude_tokens.py — Token Counting
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Count tokens BEFORE sending a request (no API cost incurred).
 Uses the /v1/messages/count_tokens endpoint.
@@ -17,7 +17,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
@@ -56,7 +56,7 @@ class TokenCounter:
         )
         try:
             return self._call(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"Token count failed: {e.message}") from e
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
@@ -116,6 +116,6 @@ def cmd_count_tokens(
         bar = "█" * int(pct // 5) + "░" * (20 - int(pct // 5))
         print(f"  Budget usage:     [{bar}] {pct:.1f}% of {budget:,}")
         if tokens > budget:
-            print(f"\033[91m  ⚠ EXCEEDS BUDGET by {tokens-budget:,} tokens\033[0m")
+            print(f"\033[91m  ⚠ EXCEEDS BUDGET by {tokens - budget:,} tokens\033[0m")
         else:
-            print(f"\033[92m  ✓ Within budget ({budget-tokens:,} tokens remaining)\033[0m")
+            print(f"\033[92m  ✓ Within budget ({budget - tokens:,} tokens remaining)\033[0m")

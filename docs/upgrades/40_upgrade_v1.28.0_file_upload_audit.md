@@ -78,7 +78,7 @@ fail fast with the same message shape the API would have returned,
 before reading the file into memory or opening a connection.
 
 **Priority: 🟠 P1** — not a correctness bug (the API's own errors were
-already surfaced via `AICoderError`), but wasted I/O and worse UX for the
+already surfaced via `ZCoderError`), but wasted I/O and worse UX for the
 common case of a garbage path or an oversized file.
 
 ## Finding 4 — `download()` always round-tripped instead of failing fast on undownloadable files (🟡 P2)

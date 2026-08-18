@@ -1,6 +1,6 @@
 """
 claude_output_styles.py — Output Styles
-AI Model Coder CLI v1.9.0
+ZCoder CLI v1.9.0
 
 Output styles change how the agent formats and frames its responses,
 without changing what tools it can use. Modelled on Claude Code's

@@ -2,7 +2,7 @@
 claude_sessions.py — Persistent conversation sessions with resume,
 checkpoints (named rewind points), and an "away summary" that shows
 what changed in the project directory while you were away.
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 """
 
 import json
@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-SESSIONS_DIR = Path.home() / ".ai-coder" / "sessions"
-CHECKPOINTS_DIR = Path.home() / ".ai-coder" / "checkpoints"
+SESSIONS_DIR = Path.home() / ".zcoder" / "sessions"
+CHECKPOINTS_DIR = Path.home() / ".zcoder" / "checkpoints"
 SKIP_DIRS = {".git", "node_modules", "__pycache__", "venv", ".venv", "dist", "build"}
 
 
@@ -82,7 +82,7 @@ class Session:
         lines = [f"Session [{self.sid}] — {len(self.turns)} turns, {self.mode}"]
         for t in self.turns[-n:]:
             preview = t.content[:100].replace("\n", " ")
-            lines.append(f"  {t.role}: {preview}{'…' if len(t.content)>100 else ''}")
+            lines.append(f"  {t.role}: {preview}{'…' if len(t.content) > 100 else ''}")
         return "\n".join(lines)
 
 

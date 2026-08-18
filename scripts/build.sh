@@ -8,9 +8,9 @@ BUILD_VENV="${ZCODER_BUILD_VENV:-.build-venv}"
 [ -x "$BUILD_VENV/bin/python" ] || python3 -m venv "$BUILD_VENV"
 "$BUILD_VENV/bin/python" -m pip install --upgrade pip
 "$BUILD_VENV/bin/python" -m pip install -e . pyinstaller
-rm -rf build/pyinstaller dist/ai-coder
-"$BUILD_VENV/bin/python" -m PyInstaller --noconfirm --clean --distpath dist --workpath build/pyinstaller spec/ai-coder.spec
+rm -rf build/pyinstaller dist/zcoder
+"$BUILD_VENV/bin/python" -m PyInstaller --noconfirm --clean --distpath dist --workpath build/pyinstaller spec/zcoder.spec
 
-test -x dist/ai-coder || { echo "ERROR: dist/ai-coder was not produced" >&2; exit 1; }
-dist/ai-coder --version
-echo "Built: $ROOT_DIR/dist/ai-coder"
+test -x dist/zcoder || { echo "ERROR: dist/zcoder was not produced" >&2; exit 1; }
+dist/zcoder --version
+echo "Built: $ROOT_DIR/dist/zcoder"

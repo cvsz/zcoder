@@ -2,7 +2,7 @@
 claude_hooks.py — Lifecycle hooks (pre/post tool-use, session start/end).
 claude_permissions.py — Fine-grained allow/deny/ask ACL for tool names.
 claude_plan_mode.py — Propose a numbered plan, approve, then execute.
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 """
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -20,8 +20,8 @@ from typing import Any, Callable, Optional
 
 from resilience import shell_command_argv
 
-HOOKS_FILE = Path.home() / ".ai-coder" / "hooks.json"
-PERMS_FILE = Path.home() / ".ai-coder" / "permissions.json"
+HOOKS_FILE = Path.home() / ".zcoder" / "hooks.json"
+PERMS_FILE = Path.home() / ".zcoder" / "permissions.json"
 
 
 class HookEvent(Enum):
@@ -95,8 +95,8 @@ class HookManager:
     def fire(self, event: HookEvent, tool_name: Optional[str] = None) -> list[HookResult]:
         env = {**os.environ}
         if tool_name:
-            env["AI_CODER_TOOL_NAME"] = tool_name
-        env["AI_CODER_HOOK_EVENT"] = event.value
+            env["ZCODER_TOOL_NAME"] = tool_name
+        env["ZCODER_HOOK_EVENT"] = event.value
         results = []
         for h in [h for h in self.hooks if h.event == event]:
             if h.tool_match and tool_name and h.tool_match not in tool_name:

@@ -149,7 +149,7 @@ Bring `zcoder` from the current hardening branch to a reproducible, security-rev
 - [ ] Build wheel and sdist.
 - [ ] Install built wheel in a clean environment.
 - [ ] `python -m zcoder.main --health-check` passes from installed artifact.
-- [ ] `zcoder --help` and `ai-coder --help` resolve correctly.
+- [ ] `zcoder --help` resolves correctly.
 - [ ] Docker image builds.
 - [ ] Container health check succeeds.
 

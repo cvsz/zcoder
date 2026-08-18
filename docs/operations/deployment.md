@@ -3,12 +3,14 @@
 ## Configuration
 
 All configuration is via environment variables (preferred for production)
-or `~/.ai-coder-config.json` (fine for local dev; see `SECURITY.md` for
+or `~/.zcoder-config.json` (fine for local dev; see `SECURITY.md` for
 why env vars are preferred).
 
 | Variable                    | Required | Default | Purpose |
 |------------------------------|----------|---------|---------|
-| `ANTHROPIC_API_KEY`          | yes      | —       | Anthropic API key |
+| `ANTHROPIC_API_KEY`          | yes*     | —       | Anthropic API key (*not needed in `ZCODER_LOCAL_MODE`) |
+| `ZCODER_LOCAL_MODE`          | no       | —       | `1`/`true`/`yes` switches generation/git/live/prompt-optimization to deterministic offline synthesis with no network I/O |
+| `DATABASE_URL`               | no       | —       | PostgreSQL DSN for the control-plane/engineering stores; Prisma-style params (`?schema=public`) are stripped automatically before `psycopg2` connects |
 | `GITHUB_TOKEN`                | no       | —       | `claude_github.py` integration |
 | `VOYAGE_API_KEY`              | no       | —       | `claude_embeddings.py` |
 | `ZCODER_LOG_LEVEL`            | no       | `INFO`  | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
@@ -107,6 +109,8 @@ within a major version (flat JSON files, no schema migrations as of
 | Symptom | Likely cause | First step |
 |---|---|---|
 | `--health-check` exits 1, `api_key_configured: false` | Env var not propagated to container | Check `docker inspect` env, secrets manager wiring |
+| Every call returns a `[zCoder local offline response]` | `ZCODER_LOCAL_MODE` accidentally set in the environment | `unset ZCODER_LOCAL_MODE`; check systemd/CI/shell rc files |
 | Every call returns `[API ERROR 429]` | Rate limited, retries exhausted | Check `retry_after` in logs; consider `--service-tier auto` if you have a Priority Tier commitment |
 | Every call returns `[API ERROR 401]` | Key rotated/revoked | Rotate key in secrets manager, redeploy |
+| PostgreSQL connect fails with `invalid dsn: invalid URI query parameter: "schema"` | DSN carries a Prisma-style `?schema=...` param | DSNs are sanitized automatically since the v1.40.0 post-pass; upgrade the installed build, or drop `?schema=` from `DATABASE_URL` |
 | Circuit breaker open (`circuit_breaker_open` in logs) | Sustained upstream errors | Check Anthropic status page before assuming a local bug |

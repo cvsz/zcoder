@@ -12,7 +12,7 @@ SKILLS = [
     {"name": "file_management", "description": "Organise and process files"},
     {
         "name": "spreadsheet_analysis",
-        "description": "Build financial models, clean messy data, " "and create tables/charts (see --excel)",
+        "description": "Build financial models, clean messy data, and create tables/charts (see --excel)",
     },
     {"name": "api_design", "description": "Design clean REST/GraphQL APIs"},
     {"name": "voice", "description": "Generate voice/TTS scripts (gTTS/ElevenLabs)"},

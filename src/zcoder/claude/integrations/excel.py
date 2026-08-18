@@ -1,6 +1,6 @@
 """
 claude_excel.py — Conversational spreadsheet / data-analysis assistant
-AI Model Coder CLI v1.14.0
+ZCoder CLI v1.14.0
 
 A chat loop purpose-built for spreadsheet work: describe what you want in
 plain English — clean up messy data, build a financial model, summarize a
@@ -129,7 +129,7 @@ class ExcelSession:
         for name, df in self.sheets.items():
             cols = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns[:30])
             parts.append(
-                f"Sheet {name!r}: {df.shape[0]} rows x {df.shape[1]} cols. " f"Columns: {cols or '(empty)'}"
+                f"Sheet {name!r}: {df.shape[0]} rows x {df.shape[1]} cols. Columns: {cols or '(empty)'}"
             )
             if not df.empty:
                 parts.append(f"First rows of {name!r}:\n{df.head(5).to_string()}")
@@ -272,7 +272,7 @@ def cmd_excel_chat(
 
     if pd is None:
         print(
-            "[ERROR] pandas is required for --excel. Install with: " "pip install pandas openpyxl",
+            "[ERROR] pandas is required for --excel. Install with: pip install pandas openpyxl",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -291,7 +291,7 @@ def cmd_excel_chat(
 
     c = Coder(api_key=api_key, model=model, temperature=temperature, max_tokens=max_tokens)
 
-    print(f"\033[94mAI Model Coder — Excel chat\033[0m  (model: {c.model})")
+    print(f"\033[94mZCoder — Excel chat\033[0m  (model: {c.model})")
     print(f"Workbook: {output_path}  (saved after every applied change)")
     print("Type /help for commands, /exit to quit.\n")
 
@@ -389,7 +389,7 @@ def _cmd_excel_chat_native(api_key, model, input_path=None, output_path=None, ma
             sys.exit(1)
         pending_file_ids = [fid]
 
-    print(f"\033[94mAI Model Coder — Excel chat (native Skills API)\033[0m  (model: {model})")
+    print(f"\033[94mZCoder — Excel chat (native Skills API)\033[0m  (model: {model})")
     print(f"Workbook: {output_path}  (saved after every turn that produces one)")
     print("Type /exit to quit. (/sheets, /show, /undo aren't available in --excel-native.)\n")
 

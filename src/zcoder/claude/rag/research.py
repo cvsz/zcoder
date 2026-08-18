@@ -2,7 +2,7 @@
 claude_research.py — Deep Research: plan sub-questions, gather
 findings (grounded in URLs via the http_get tool when provided),
 then synthesize into a cited Markdown report.
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 """
 
 import json
@@ -81,7 +81,7 @@ class DeepResearchAgent:
     # links and start short-circuiting fetches to sites that are fine.
     @retry(max_attempts=2, base_delay=1.0, max_delay=5.0)
     def _fetch_retrying(self, url: str) -> str:
-        req = urllib.request.Request(url, headers={"User-Agent": "ai-coder-research/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "zcoder-research/1.0"})
         try:
             with safe_external_urlopen(req, timeout=15) as resp:
                 return resp.read().decode("utf-8", errors="replace")[:4000]

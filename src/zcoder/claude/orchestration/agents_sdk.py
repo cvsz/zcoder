@@ -1,6 +1,6 @@
 """
 claude_agents.py — Claude Agent SDK / Managed Agents
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Implements the Claude Agent SDK patterns:
   • Stateful sessions with persistent event history
@@ -143,10 +143,10 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
-SESSIONS_DIR = Path(os.path.expanduser("~/.ai-coder/agent_sessions"))
+SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/agent_sessions"))
 ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
@@ -288,7 +288,7 @@ class McpTunnel:
         )
         try:
             data = self._call(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -311,7 +311,7 @@ class McpTunnel:
         )
         try:
             return self._call_delete(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -402,7 +402,7 @@ class ManagedAgent:
     def _post(self, payload: dict, beta: str = "") -> dict:
         try:
             return self._call(payload, beta)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -1279,7 +1279,7 @@ class ManagedAgentsClient:
             kwargs["vault_ids"] = vault_ids
         if initial_events:
             if len(initial_events) > 50:
-                raise ValueError(f"initial_events supports at most 50 events " f"(got {len(initial_events)})")
+                raise ValueError(f"initial_events supports at most 50 events (got {len(initial_events)})")
             kwargs["initial_events"] = initial_events
         budget = None
         if budget_usd_cents is not None:
@@ -1403,7 +1403,7 @@ class ManagedAgentsClient:
         returned by the API, and must never appear in any exception
         message raised from this method."""
         if injection_location is not None and credential_type != "environment_variable":
-            raise ValueError("injection_location is only valid for credential_type=" "'environment_variable'")
+            raise ValueError("injection_location is only valid for credential_type='environment_variable'")
         if injection_location is not None and injection_location not in self.VALID_INJECTION_LOCATIONS:
             raise ValueError(
                 f"injection_location must be one of {self.VALID_INJECTION_LOCATIONS}, "
@@ -1712,7 +1712,7 @@ class ManagedAgentsClient:
         by id across many outcome-oriented sessions) must be given."""
         if bool(rubric_text) == bool(rubric_file_id):
             raise ValueError(
-                "define_outcome requires exactly one of rubric_text or " "rubric_file_id, not both or neither"
+                "define_outcome requires exactly one of rubric_text or rubric_file_id, not both or neither"
             )
         if rubric_file_id:
             rubric = {"type": "file", "file_id": rubric_file_id}
@@ -1878,8 +1878,8 @@ def cmd_managed_agent_run(
     pre-v1.39.0 unbudgeted path."""
     mac = ManagedAgentsClient(api_key)
     print("\033[94mℹ Creating Managed Agent, environment, and session…\033[0m")
-    agent = mac.create_agent(name=f"ai-coder-task-{uuid.uuid4().hex[:8]}", model=model)
-    env = mac.create_environment(name=f"ai-coder-env-{uuid.uuid4().hex[:8]}")
+    agent = mac.create_agent(name=f"zcoder-task-{uuid.uuid4().hex[:8]}", model=model)
+    env = mac.create_environment(name=f"zcoder-env-{uuid.uuid4().hex[:8]}")
     store_id = None
     if memory_store:
         store = mac.create_memory_store(name=memory_store)
@@ -1972,7 +1972,7 @@ def cmd_agent_memory_stores_list(api_key: str, include_archived: bool = False) -
             if isinstance(entry, dict)
             else (lambda k, d="?", entry=entry: getattr(entry, k, d))
         )
-        print(f"  {get('id')}  {get('name')}" f"{'  [archived]' if get('archived', False) else ''}")
+        print(f"  {get('id')}  {get('name')}{'  [archived]' if get('archived', False) else ''}")
     if not entries:
         print("  (no memory stores found)")
     print()
@@ -2074,7 +2074,7 @@ def cmd_agent_vault_create(display_name: str, api_key: str, external_user_id: Op
     vault = mac.create_vault(display_name=display_name, external_user_id=external_user_id)
     print(f"\033[92m✓ vault created\033[0m  id={vault['id']}  display_name={display_name}")
     print(
-        f"  Add a credential: ai-coder --agent-vault-add-credential {vault['id']} "
+        f"  Add a credential: zcoder --agent-vault-add-credential {vault['id']} "
         f"--agent-vault-cred-type static_bearer --agent-vault-mcp-url URL --agent-vault-secret TOKEN"
     )
     return vault
@@ -2103,9 +2103,7 @@ def cmd_agent_vault_add_credential(
         allowed_domains=allowed_domains,
         injection_location=injection_location,
     )
-    print(
-        f"\033[92m✓ credential added\033[0m  id={cred['id']}  vault_id={vault_id}  " f"type={credential_type}"
-    )
+    print(f"\033[92m✓ credential added\033[0m  id={cred['id']}  vault_id={vault_id}  type={credential_type}")
     return cred
 
 
@@ -2141,7 +2139,7 @@ def cmd_agent_dream(
     mac = ManagedAgentsClient(api_key)
     dream = mac.create_dream(store_id, session_ids=session_ids, model=model, instructions=instructions)
     print(f"\033[92m✓ dream started\033[0m  id={dream['id']}  status={dream['status']}")
-    print(f"\033[90m  Poll: ai-coder --agent-dream-get {dream['id']}\033[0m")
+    print(f"\033[90m  Poll: zcoder --agent-dream-get {dream['id']}\033[0m")
     return dream
 
 
@@ -2259,7 +2257,7 @@ def cmd_agent_env_self_hosted_create(name: str, api_key: str) -> dict:
     env = mac.create_environment(name=name, env_type="self_hosted")
     print(f"\033[92m✓ self-hosted environment created\033[0m  id={env['id']}")
     print("  Next steps (not done by this command):")
-    print(f"    1. In the Console, open environment {env['id']} and click " f"'Generate environment key'")
+    print(f"    1. In the Console, open environment {env['id']} and click 'Generate environment key'")
     print(
         f"    2. Run a worker with ANTHROPIC_ENVIRONMENT_ID={env['id']} and "
         f"ANTHROPIC_ENVIRONMENT_KEY set — e.g. `ant beta:worker poll` or the "
@@ -2376,9 +2374,7 @@ def cmd_agent_review_multiagent(
     independent Messages API calls with no shared filesystem)."""
     unknown = [s for s in specialists if s not in REVIEW_SPECIALIST_PRESETS]
     if unknown:
-        raise ValueError(
-            f"Unknown specialist(s) {unknown}: choose from " f"{sorted(REVIEW_SPECIALIST_PRESETS)}"
-        )
+        raise ValueError(f"Unknown specialist(s) {unknown}: choose from {sorted(REVIEW_SPECIALIST_PRESETS)}")
     mac = ManagedAgentsClient(api_key)
     print(f"\033[94mℹ Creating {len(specialists)} specialist agent(s)…\033[0m")
     specialist_ids = []
@@ -2404,7 +2400,7 @@ def cmd_agent_review_multiagent(
         system=coordinator_system,
         multiagent=build_multiagent_config(specialist_ids),
     )
-    env = mac.create_environment(name=f"ai-coder-review-env-{uuid.uuid4().hex[:8]}")
+    env = mac.create_environment(name=f"zcoder-review-env-{uuid.uuid4().hex[:8]}")
     sess = mac.create_session(coordinator["id"], env["id"], title=f"multiagent review: {path}"[:60])
     print(f"\033[92m✓ session {sess['id']}\033[0m — running review…\n")
 
@@ -2431,7 +2427,7 @@ def cmd_agent_outcome_rubric_upload(file_path: str, api_key: str, model: str) ->
     result = fa.upload(file_path)
     print(f"\033[92m✓ rubric uploaded\033[0m  file_id={result['id']}")
     print(
-        f'  Reuse with: ai-coder --agent-managed-run "..." --agent-outcome "..." '
+        f'  Reuse with: zcoder --agent-managed-run "..." --agent-outcome "..." '
         f"--agent-outcome-rubric-file {result['id']}"
     )
     return result["id"]
@@ -2455,8 +2451,8 @@ def cmd_agent_chat(prompt: str, api_key: str, model: str, session_id: str = None
     agent = ManagedAgent(api_key=api_key, model=model)
     result = agent.chat(prompt, session)
     print(result)
-    print(f"\n\033[90m[session: {session.id}  turns: {len(session.history)//2}]\033[0m")
-    print(f'\033[90m  Resume: ai-coder --agent-session {session.id} -p "follow-up"\033[0m')
+    print(f"\n\033[90m[session: {session.id}  turns: {len(session.history) // 2}]\033[0m")
+    print(f'\033[90m  Resume: zcoder --agent-session {session.id} -p "follow-up"\033[0m')
     return result
 
 
@@ -2481,7 +2477,7 @@ def cmd_agent_list_sessions():
         try:
             d = json.loads(sf.read_text())
             turns = len(d.get("history", [])) // 2
-            print(f"{d['id']:<16}{d.get('name','')[:24]:<25}{turns:<8}{d.get('updated_at','')[:10]}")
+            print(f"{d['id']:<16}{d.get('name', '')[:24]:<25}{turns:<8}{d.get('updated_at', '')[:10]}")
         except Exception:
             pass
 

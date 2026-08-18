@@ -1,8 +1,8 @@
 """
 claude_memory.py — Persistent cross-session memory
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 
-Stores facts, preferences, events and tasks in ~/.ai-coder/memory/.
+Stores facts, preferences, events and tasks in ~/.zcoder/memory/.
 Recall uses keyword + importance scoring; swap in embeddings for
 larger stores. Memory is namespaced so multi-user gateway setups
 stay isolated.
@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-MEMORY_DIR = Path.home() / ".ai-coder" / "memory"
+MEMORY_DIR = Path.home() / ".zcoder" / "memory"
 
 
 class MemType(Enum):

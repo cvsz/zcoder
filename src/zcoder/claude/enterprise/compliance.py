@@ -1,6 +1,6 @@
 """
 claude_compliance_api.py — Compliance API (Activity Feed, content, directory)
-AI Model Coder CLI v1.16.0
+ZCoder CLI v1.16.0
 
 Confirmed against platform.claude.com/docs/en/manage-claude/compliance-api*
 (checked 2026-07-04). This closes the gap `ROADMAP.md` had flagged as "no

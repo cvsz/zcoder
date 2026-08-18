@@ -10,7 +10,7 @@ and modules `main.py` already uses:
     skills.py                -> SkillManager
     claude_models.py         -> MODEL_CATALOG (dropdown list)
     main.py                  -> VERSION, AGENT_SYSTEM_PROMPTS
-    config.py                -> Config (persisted to ~/.ai-coder-config.json)
+    config.py                -> Config (persisted to ~/.zcoder-config.json)
     health.py                -> run_health_check (used for Docker/orchestrator
                                  probes and the CLI's --health-check flag)
 

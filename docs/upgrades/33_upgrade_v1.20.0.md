@@ -62,8 +62,9 @@ individual entries one at a time.
 **What changed:** Added to `claude_agents_sdk.py`:
 
 ```python
-ManagedAgentsClient.create_dream(memory_store_id, session_ids=None,
-                                  model="claude-opus-4-8", instructions=None)
+ManagedAgentsClient.create_dream(
+    memory_store_id, session_ids=None, model="claude-opus-4-8", instructions=None
+)
 ManagedAgentsClient.get_dream(dream_id)
 ManagedAgentsClient.list_dreams(include_archived=False)
 ManagedAgentsClient.cancel_dream(dream_id)
@@ -104,8 +105,7 @@ constructed a `user.define_outcome` event.
 **What changed:** Added:
 
 ```python
-ManagedAgentsClient.define_outcome(session_id, description, rubric_text,
-                                    max_iterations=3)
+ManagedAgentsClient.define_outcome(session_id, description, rubric_text, max_iterations=3)
 ManagedAgentsClient.wait_for_outcome(session_id)
 ```
 

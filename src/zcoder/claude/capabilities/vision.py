@@ -1,6 +1,6 @@
 """
 claude_vision.py — Vision & Multimodal (Images + PDFs)
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Send images and PDFs to Claude for analysis, OCR, review, or code generation.
 

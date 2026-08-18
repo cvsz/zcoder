@@ -1,6 +1,6 @@
 """
 claude_settings.py — Settings precedence & statusLine
-AI Model Coder CLI v1.9.0
+ZCoder CLI v1.9.0
 
 Models Claude Code's layered settings.json (docs.claude.com):
 

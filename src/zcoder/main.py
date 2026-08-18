@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-main.py — AI Model Coder CLI
+main.py — ZCoder CLI
 Version 1.30.0 | Gap-audit finding: --thinking always sent manual
 thinking.type="enabled"+budget_tokens, which is a 400 error on every
 current-generation model (Opus 4.7/4.8, Sonnet 5, Fable 5, Mythos 5,
@@ -25,7 +25,7 @@ from pathlib import Path
 from personalities import PERSONALITIES
 
 VERSION = "1.40.0"
-BANNER = f"\033[94mAI Model Coder CLI v{VERSION}\033[0m"
+BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 # Named agent roles. Previously these seven names only existed as a
 # print-only list under --list-agents (main.py:447 in v1.11.1) with no
@@ -52,6 +52,8 @@ AGENT_SYSTEM_PROMPTS = {
 
 
 def _api_key(args):
+    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
+        return os.getenv("ANTHROPIC_API_KEY", "local-mode-no-key-required")
     k = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
     if not k:
         print("[ERROR] ANTHROPIC_API_KEY not set.", file=sys.stderr)
@@ -75,8 +77,8 @@ def build_parser():
     from claude_models import UPGRADE_TARGETS
 
     p = argparse.ArgumentParser(
-        prog="ai-coder",
-        description=f"AI Model Coder CLI v{VERSION}",
+        prog="zcoder",
+        description=f"ZCoder CLI v{VERSION}",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
@@ -356,9 +358,9 @@ def build_parser():
     )
     tu.add_argument(
         "--memory-dir",
-        default="~/.ai-coder/memory",
+        default="~/.zcoder/memory",
         dest="memory_dir",
-        help="Local directory backing --memory-agent (default: ~/.ai-coder/memory)",
+        help="Local directory backing --memory-agent (default: ~/.zcoder/memory)",
     )
     tu.add_argument(
         "--context-management",
@@ -411,7 +413,7 @@ def build_parser():
         "--advisor",
         metavar="PROMPT",
         dest="advisor",
-        help="Run PROMPT with an advisor model consulted mid-generation " "(advisor_20260301 beta)",
+        help="Run PROMPT with an advisor model consulted mid-generation (advisor_20260301 beta)",
     )
     adv.add_argument(
         "--advisor-model",
@@ -525,8 +527,7 @@ def build_parser():
         choices=sorted(UPGRADE_TARGETS),
         default="fable5",
         dest="upgrade_target",
-        help="Target for --upgrade-all: fable5 (claude-fable-5) or opus "
-        "(claude-opus-4-8). Default: fable5",
+        help="Target for --upgrade-all: fable5 (claude-fable-5) or opus (claude-opus-4-8). Default: fable5",
     )
     mo.add_argument(
         "--upgrade-yes",
@@ -755,7 +756,7 @@ def build_parser():
         "--spend-limits-list",
         action="store_true",
         dest="spend_limits_list",
-        help="List every member's resolved effective spend limit (v1.23.0, " "Claude Enterprise only)",
+        help="List every member's resolved effective spend limit (v1.23.0, Claude Enterprise only)",
     )
     ad.add_argument(
         "--spend-limit-set",
@@ -866,7 +867,7 @@ def build_parser():
         metavar=("USER_ID", "ROLE"),
         nargs=2,
         dest="member_role_set",
-        help='Set a member\'s role to "user" or "managed" ' "(administrative roles are Console-only)",
+        help='Set a member\'s role to "user" or "managed" (administrative roles are Console-only)',
     )
     ce.add_argument(
         "--member-remove",
@@ -879,14 +880,14 @@ def build_parser():
         metavar=("EMAIL", "ROLE"),
         nargs=2,
         dest="invite_create",
-        help="Invite someone by email with role " '"user" or "managed"',
+        help='Invite someone by email with role "user" or "managed"',
     )
     ce.add_argument(
         "--invite-rbac-groups",
         metavar="ID,ID",
         dest="invite_rbac_groups",
         default="",
-        help="Comma-separated rbac_group_ids to assign on " "--invite-create acceptance",
+        help="Comma-separated rbac_group_ids to assign on --invite-create acceptance",
     )
     ce.add_argument(
         "--invites-list",
@@ -945,7 +946,7 @@ def build_parser():
         "--wif-exchange-token",
         action="store_true",
         dest="wif_exchange_token",
-        help="Exchange the JWT found via env vars for a short-lived Claude " "API access token",
+        help="Exchange the JWT found via env vars for a short-lived Claude API access token",
     )
     wf.add_argument(
         "--wif-status",
@@ -1205,7 +1206,7 @@ def build_parser():
         metavar="PREFIX",
         dest="agent_memory_path_prefix",
         default="",
-        help="With --agent-memory-list: filter to entries under this path " "prefix (must end with '/')",
+        help="With --agent-memory-list: filter to entries under this path prefix (must end with '/')",
     )
     ag.add_argument(
         "--agent-memory-depth",
@@ -1249,13 +1250,13 @@ def build_parser():
         "--agent-memory-get",
         metavar="MEMORY_STORE_ID",
         dest="agent_memory_get",
-        help="Retrieve a memory's full content (v1.27.0); pair with " "--agent-memory-id",
+        help="Retrieve a memory's full content (v1.27.0); pair with --agent-memory-id",
     )
     ag.add_argument(
         "--agent-memory-create",
         metavar="MEMORY_STORE_ID",
         dest="agent_memory_create",
-        help="Create a memory (v1.27.0); pair with --agent-memory-path " "and --agent-memory-content",
+        help="Create a memory (v1.27.0); pair with --agent-memory-path and --agent-memory-content",
     )
     ag.add_argument(
         "--agent-memory-update",
@@ -1315,7 +1316,7 @@ def build_parser():
         metavar="IDS",
         dest="agent_dream_sessions",
         default="",
-        help="Comma-separated session IDs to fold into " "--agent-dream, alongside the memory store",
+        help="Comma-separated session IDs to fold into --agent-dream, alongside the memory store",
     )
     ag.add_argument(
         "--agent-dream-instructions",
@@ -1398,14 +1399,14 @@ def build_parser():
         "--agent-webhook-register",
         metavar="URL",
         dest="agent_webhook_register",
-        help="Register a webhook URL for Managed Agents session/outcome/" "dream events (public beta)",
+        help="Register a webhook URL for Managed Agents session/outcome/dream events (public beta)",
     )
     ag.add_argument(
         "--agent-webhook-events",
         metavar="LIST",
         dest="agent_webhook_events",
         default="",
-        help="Comma-separated event types for " "--agent-webhook-register (default: all supported types)",
+        help="Comma-separated event types for --agent-webhook-register (default: all supported types)",
     )
 
     ag.add_argument(
@@ -1579,7 +1580,7 @@ def build_parser():
         metavar="LIST",
         dest="agent_review_specialists",
         default="security,style,test-coverage",
-        help="Comma-separated specialists for --agent-review-multiagent " "(security, style, test-coverage)",
+        help="Comma-separated specialists for --agent-review-multiagent (security, style, test-coverage)",
     )
 
     ag.add_argument(
@@ -1636,7 +1637,7 @@ def build_parser():
         metavar="LEVEL",
         dest="agent_effort",
         default="",
-        help="Effort level for --agent-create/--agent-update " "(v1.38.0, public beta)",
+        help="Effort level for --agent-create/--agent-update (v1.38.0, public beta)",
     )
     ag.add_argument(
         "--agent-get",
@@ -1751,7 +1752,7 @@ def build_parser():
         "--excel-output",
         metavar="FILE",
         dest="excel_output",
-        help="Workbook path to write after every turn " "(default: <input>.xlsx or excel_session.xlsx)",
+        help="Workbook path to write after every turn (default: <input>.xlsx or excel_session.xlsx)",
     )
     xl.add_argument(
         "--excel-sheet",
@@ -1785,7 +1786,7 @@ def build_parser():
         "--pptx-output",
         metavar="FILE",
         dest="pptx_output",
-        help="Deck path to write after every turn " "(default: <input>.pptx or pptx_session.pptx)",
+        help="Deck path to write after every turn (default: <input>.pptx or pptx_session.pptx)",
     )
     pp.add_argument(
         "--pptx-native",
@@ -1841,8 +1842,7 @@ def build_parser():
         type=int,
         metavar="PORT",
         dest="code_agent_mcp_tunnel",
-        help="Open an MCP tunnel to a local MCP server on PORT and print "
-        "its public URL (research preview)",
+        help="Open an MCP tunnel to a local MCP server on PORT and print its public URL (research preview)",
     )
     cc.add_argument("--code-agent-list-sessions", action="store_true", dest="code_agent_list_sessions")
     cc.add_argument("--code-agent-list-tools", action="store_true", dest="code_agent_list_tools")
@@ -1935,7 +1935,7 @@ def build_parser():
     ses.add_argument("--checkpoint-list", metavar="SESSION_ID", dest="checkpoint_list")
     ses.add_argument("--away-summary", metavar="SESSION_ID", dest="away_summary")
 
-    lv = p.add_argument_group("zai-live")
+    lv = p.add_argument_group("zcoder-live")
     lv.add_argument("--live", action="store_true", dest="live")
 
     rs = p.add_argument_group("Deep Research")
@@ -2010,7 +2010,7 @@ def build_parser():
         type=int,
         default=20,
         dest="gh_max_items",
-        help="Max issues/commits to process for --gh-triage-issues / " "--gh-summarise-commits (default: 20)",
+        help="Max issues/commits to process for --gh-triage-issues / --gh-summarise-commits (default: 20)",
     )
 
     ro = p.add_argument_group("Multi-Agent Router")
@@ -2056,7 +2056,7 @@ def build_parser():
         "--ab-test",
         action="store_true",
         dest="ab_test",
-        help="With --prompt and --ab-prompt-b: A/B test two prompt variants " "against --ab-task",
+        help="With --prompt and --ab-prompt-b: A/B test two prompt variants against --ab-task",
     )
     po.add_argument(
         "--ab-prompt-b",
@@ -2339,8 +2339,7 @@ def main():
             return
         if not admin_key:
             print(
-                "[ERROR] This requires an Admin API key: pass --admin-api-key or set "
-                "ANTHROPIC_ADMIN_API_KEY",
+                "[ERROR] This requires an Admin API key: pass --admin-api-key or set ANTHROPIC_ADMIN_API_KEY",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -2456,8 +2455,7 @@ def main():
         admin_key = args.admin_api_key or os.environ.get("ANTHROPIC_ADMIN_API_KEY")
         if not admin_key:
             print(
-                "[ERROR] This requires an Admin API key: pass --admin-api-key or set "
-                "ANTHROPIC_ADMIN_API_KEY",
+                "[ERROR] This requires an Admin API key: pass --admin-api-key or set ANTHROPIC_ADMIN_API_KEY",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -3325,7 +3323,7 @@ def main():
         from claude_prompt_optimizer import cmd_ab_test
 
         if not (args.prompt and args.ab_prompt_b):
-            print("\033[91m--ab-test requires --prompt (variant A) and --ab-prompt-b " "(variant B)\033[0m")
+            print("\033[91m--ab-test requires --prompt (variant A) and --ab-prompt-b (variant B)\033[0m")
             return
         cmd_ab_test(args.prompt, args.ab_prompt_b, args.ab_task, key, model)
         return
@@ -3752,9 +3750,7 @@ def main():
         from claude_agents_sdk import cmd_agent_schedule_create
 
         if not args.agent_schedule_env or not args.agent_schedule_cron:
-            print(
-                "[ERROR] --agent-schedule-create requires --agent-schedule-env " "and --agent-schedule-cron"
-            )
+            print("[ERROR] --agent-schedule-create requires --agent-schedule-env and --agent-schedule-cron")
             sys.exit(1)
         cmd_agent_schedule_create(
             args.agent_schedule_create,
@@ -3883,7 +3879,7 @@ def main():
         from claude_agents_sdk import cmd_agent_session_budget_set
 
         if not args.agent_session_budget_usd:
-            print("[ERROR] --agent-session-budget-set requires " "--agent-session-budget-usd DOLLARS")
+            print("[ERROR] --agent-session-budget-set requires --agent-session-budget-usd DOLLARS")
             sys.exit(1)
         cmd_agent_session_budget_set(
             args.agent_session_budget_set, key, round(args.agent_session_budget_usd * 100)
@@ -3939,7 +3935,7 @@ def main():
         from claude_agents_sdk import cmd_agent_memory_create
 
         if not args.agent_memory_path or not args.agent_memory_content:
-            print("[ERROR] --agent-memory-create requires --agent-memory-path " "and --agent-memory-content")
+            print("[ERROR] --agent-memory-create requires --agent-memory-path and --agent-memory-content")
             sys.exit(1)
         cmd_agent_memory_create(
             args.agent_memory_create, args.agent_memory_path, args.agent_memory_content, key

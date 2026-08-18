@@ -1,6 +1,6 @@
 """
 claude_haiku45.py — Claude Haiku 4.5 support (deep, model-specific module)
-AI Model Coder CLI v1.33.0
+ZCoder CLI v1.33.0
 
 Why this module exists: MODEL_CATALOG's claude-haiku-4-5-20251001 row is
 the one current-tier model whose thinking mode is "extended" rather than
@@ -36,7 +36,7 @@ import urllib.request
 from typing import Optional
 
 from claude_models import FAST_MODE_SUPPORTED, INFERENCE_GEO_SUPPORTED, SERVICE_TIER_UNSUPPORTED
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -138,7 +138,7 @@ class Haiku45Client:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

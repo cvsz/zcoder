@@ -1,6 +1,6 @@
 """
 claude_search.py — Web Search & Web Fetch (Anthropic server tools)
-AI Model Coder CLI v1.24.0
+ZCoder CLI v1.24.0
 
 Enables Claude to search the web and fetch URLs in real-time.
 
@@ -151,13 +151,13 @@ def cmd_web_search(
     )
     print(result["response"])
     if show_citations and result["citations"]:
-        print(f"\n\033[90m── Sources ({'─'*30})\033[0m")
+        print(f"\n\033[90m── Sources ({'─' * 30})\033[0m")
         for i, c in enumerate(result["citations"], 1):
             print(f"\033[90m[{i}] {c['title']}\n    {c['url']}\033[0m")
     u = result.get("usage", {})
     searches = result.get("searches", 0)
     print(
-        f"\n\033[90m[searches={searches}  input={u.get('input_tokens',0)}  output={u.get('output_tokens',0)}]\033[0m"
+        f"\n\033[90m[searches={searches}  input={u.get('input_tokens', 0)}  output={u.get('output_tokens', 0)}]\033[0m"
     )
     return result["response"]
 

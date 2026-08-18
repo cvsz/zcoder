@@ -2,7 +2,7 @@
 claude_eval.py — Evaluation harness for prompts, agents, and skills.
 Run a test suite of (input, expected) pairs, score responses, and
 compare two model/prompt configurations head-to-head.
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 """
 
 import json
@@ -16,7 +16,7 @@ import anthropic
 
 from utils import sampling_kwargs
 
-EVALS_DIR = Path.home() / ".ai-coder" / "evals"
+EVALS_DIR = Path.home() / ".zcoder" / "evals"
 
 
 @dataclass
@@ -144,9 +144,7 @@ class EvalRunner:
                     reason=reason,
                 )
             )
-            print(
-                f"  {'✓' if score >= self.threshold else '✗'} {case.case_id} " f"score={score:.2f} ({ms}ms)"
-            )
+            print(f"  {'✓' if score >= self.threshold else '✗'} {case.case_id} score={score:.2f} ({ms}ms)")
 
         passed = sum(1 for r in results if r.passed)
         avg_score = sum(r.score for r in results) / len(results) if results else 0

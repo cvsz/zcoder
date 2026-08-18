@@ -510,11 +510,11 @@ class OllamaAdapter(LocalModelProvider):
             req = urllib.request.Request(
                 f"{self.base_url}/api/generate", data=body, headers={"Content-Type": "application/json"}
             )
-            with safe_urlopen(req, timeout=30) as resp:
+            with safe_urlopen(req, timeout=120) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("response", "")
-        except Exception:
-            return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
+        except Exception as e:
+            return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]} (Error: {e})"
 
 
 # ---------------------------------------------------------------------------

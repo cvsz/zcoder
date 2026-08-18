@@ -1,6 +1,6 @@
 """
 claude_thinking.py — Extended Thinking & Adaptive Thinking
-AI Model Coder CLI v1.30.0
+ZCoder CLI v1.30.0
 
 Wraps the Anthropic SDK to expose:
   • Adaptive thinking  (thinking.type="adaptive" + top-level
@@ -363,8 +363,8 @@ def cmd_thinking(
         if usage:
             thinking_tokens = usage.get("output_tokens_details", {}).get("thinking_tokens", 0)
             print(
-                f"\n\033[90m[tokens] input={usage.get('input_tokens',0)}  "
-                f"output={usage.get('output_tokens',0)}  "
+                f"\n\033[90m[tokens] input={usage.get('input_tokens', 0)}  "
+                f"output={usage.get('output_tokens', 0)}  "
                 f"thinking={thinking_tokens}\033[0m"
             )
         return result["response"]

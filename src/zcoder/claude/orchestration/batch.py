@@ -1,6 +1,6 @@
 """
 claude_batch.py — Messages Batch API
-AI Model Coder CLI v1.11.1
+ZCoder CLI v1.11.1
 
 Process large numbers of requests asynchronously at 50% cost discount.
 Ideal for bulk code review, batch documentation, mass refactoring.
@@ -31,7 +31,7 @@ from pathlib import Path
 
 import anthropic
 
-BATCH_STORE = Path(os.path.expanduser("~/.ai-coder/batches"))
+BATCH_STORE = Path(os.path.expanduser("~/.zcoder/batches"))
 
 # 300k output tokens on the Message Batches API. Per platform.claude.com/docs
 # (checked 2026-07-02): "On the Message Batches API, Claude Opus 4.8, Opus
@@ -216,7 +216,7 @@ class BatchCoder:
             st = s.get("status", "")
             print(
                 f"\r\033[94mℹ [{batch_id}] {st}  "
-                f"counts={s.get('request_counts',{})}  "
+                f"counts={s.get('request_counts', {})}  "
                 f"(waited {waited}s)\033[0m",
                 end="",
                 flush=True,
@@ -245,8 +245,8 @@ def cmd_batch_submit(
     print(f"\033[94mℹ Submitting batch from {jsonl_path}…\033[0m")
     bid = bc.submit_from_jsonl(jsonl_path, system=system)
     print(f"\033[92m✓ Batch submitted: {bid}\033[0m")
-    print(f"  Check status:   ai-coder --batch-status {bid}")
-    print(f"  Get results:    ai-coder --batch-results {bid}")
+    print(f"  Check status:   zcoder --batch-status {bid}")
+    print(f"  Get results:    zcoder --batch-results {bid}")
     return bid
 
 
@@ -300,7 +300,7 @@ def cmd_batch_generate(
     prompt_template: str, n: int, api_key: str, model: str, system: str = None, wait: bool = False
 ):
     """Generate N variants of a prompt and batch-submit them."""
-    prompts = [f"{prompt_template} (variant {i+1} of {n})" for i in range(n)]
+    prompts = [f"{prompt_template} (variant {i + 1} of {n})" for i in range(n)]
     bc = BatchCoder(api_key=api_key, model=model)
     bid = bc.submit_prompts(prompts, system=system)
     print(f"\033[92m✓ Batch of {n} submitted: {bid}\033[0m")

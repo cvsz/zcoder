@@ -53,3 +53,31 @@ When `--zero-cost` or `CostPolicy.ZERO_COST_ONLY` is enabled:
 - Network calls to `api.anthropic.com` or other commercial providers are strictly blocked.
 - Any task requesting a paid model will automatically route to the best matching local model or fail fast.
 - Billing meters remain inactive and report zero charges.
+
+---
+
+## 5. Offline Synthesis Mode (`ZCODER_LOCAL_MODE`)
+
+Separate from the local-model tier above, `ZCODER_LOCAL_MODE=1` (or
+`true`/`yes`) enables a **pure offline synthesis tier with no model
+engine at all**:
+
+| Dimension | Local-Model Tier (Ollama/vLLM) | Offline Synthesis Tier |
+| :--- | :--- | :--- |
+| **Model engine** | Required (downloaded weights) | None — deterministic in-process synthesis |
+| **Network** | None | None |
+| **API key** | Not required | Not required (`zcoder.main._api_key` returns a placeholder) |
+| **Generation** | Real local inference | `[zCoder local offline response]` stub |
+| **Git helpers** | Real local inference | Deterministic commit-message/PR/review stubs |
+| **Live mode** | Real local inference | Streamed echo fallback |
+| **Prompt optimize/score** | Real local inference | Rule-based enhancement / heuristic scoring |
+| **Missing-key behavior** | Error outside local mode | Works only when `ZCODER_LOCAL_MODE` is set |
+
+Notes:
+- Outside local mode a missing `ANTHROPIC_API_KEY` is a hard error — the
+  CLI never silently pretends to generate.
+- A network/auth failure in the git helper synthesizes an offline reply
+  for that one call only; it does **not** flip the process into local
+  mode for every later call.
+- Purpose: trying the CLI, running the test suite, air-gapped smoke
+  tests, and deterministic CI fixtures.
