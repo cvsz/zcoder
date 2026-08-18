@@ -8,11 +8,11 @@ import os
 import urllib.error
 import urllib.request
 
-from config import Config
-from exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
-from logging_config import get_logger
-from resilience import CircuitBreaker, retry, safe_urlopen
-from utils import sampling_kwargs
+from zcoder.config.logging import get_logger
+from zcoder.config.settings import Config
+from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
+from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen
+from zcoder.core.utils import sampling_kwargs
 
 logger = get_logger("coder")
 
@@ -76,7 +76,7 @@ class Coder:
 
         if self.personality_style:
             try:
-                from personalities import PersonalityManager
+                from zcoder.claude.personalities import PersonalityManager
 
                 pm = PersonalityManager()
                 addition = pm.build_prompt_addition(self.personality_style)
@@ -105,7 +105,7 @@ class Coder:
         if self.inference_geo:
             payload["inference_geo"] = self.inference_geo
         if self.fast_mode:
-            from claude_models import FAST_MODE_REMOVED_ERROR, validate_fast_mode
+            from zcoder.claude.models.registry import FAST_MODE_REMOVED_ERROR, validate_fast_mode
 
             reason = validate_fast_mode(self.model)
             if self.model in FAST_MODE_REMOVED_ERROR:

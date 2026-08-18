@@ -13,7 +13,7 @@ import dataclasses
 import hashlib
 from typing import Any
 
-from tenant_models import RequestContext
+from zcoder.domain.models.tenant import RequestContext
 
 
 @dataclasses.dataclass

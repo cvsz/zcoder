@@ -4,11 +4,11 @@
 
 This document describes the canonical repository and runtime architecture after execution of the restructuring plan in `Artifacts-zcoder.md` on 2026-08-14.
 
-**Canonical Python implementation code lives under `src/zcoder/`.** Repository-root launchers and top-level modules under `src/` exist only for backward compatibility. New code must use the package namespace and the dependency rules below.
+**Canonical Python implementation code lives under `src/zcoder/`.** Root `main.py` exists only as a source-checkout launcher. New code must use the package namespace and the dependency rules below.
 
 ## Goals
 
-The restructuring converts the former flat Python module layout into a package-oriented architecture that is easier to navigate, package, test, secure, and evolve without changing the v1.40.0 public CLI/import contracts in one flag day.
+The restructuring converts the former flat Python module layout into a package-oriented architecture that is easier to navigate, package, test, secure, and evolve. The migration is complete: all code imports through `zcoder.*`, and the transitional flat modules have been removed.
 
 The design combines Clean Architecture boundaries with pragmatic domain-driven grouping:
 
@@ -44,7 +44,6 @@ zcoder/
 │   │   ├── interfaces/
 │   │   ├── enterprise/
 │   │   └── worker/
-│   └── *.py                    # transitional legacy import aliases
 ├── tests/
 │   ├── conftest.py
 │   ├── unit/
@@ -67,8 +66,7 @@ zcoder/
 ├── scripts/
 │   ├── build.sh / build.bat
 │   ├── setup.sh / setup.bat
-│   ├── release_gate.py
-│   └── migrate_src_layout.py
+│   └── release_gate.py
 ├── spec/
 │   ├── zcoder.spec
 │   └── anthropic-conformance.yaml
@@ -164,11 +162,9 @@ zcoder   -> zcoder.main:main
 
 ### Source checkout compatibility
 
-`python main.py` remains supported. Root `main.py` inserts `src/` and delegates to `zcoder.main`; it contains no business implementation.
+`python main.py` remains supported. Root `main.py` inserts `src/` and delegates to `zcoder.main`; it contains no business implementation. Tests asserting launcher parity import root `main.py` directly.
 
-Historical imports such as `import coder`, `import config`, and `import claude_models` remain available through thin aliases under `src/`. These aliases bind callers to the same canonical module objects so monkeypatching and module-level state do not split between old and new names.
-
-New internal imports must use `zcoder.*`. Compatibility aliases may be removed only in a future breaking/deprecation cycle after downstream users have migrated.
+The former flat modules under `src/` (`coder`, `config`, `claude_models`, ...) were removed in this cycle: every import across the repository now uses the canonical `zcoder.*` namespace, and `pyproject.toml` no longer ships `py-modules` shims. Any code still importing a flat name is importing stale or external code.
 
 ### Container
 
@@ -276,4 +272,4 @@ For future changes:
 5. Place docs in the taxonomy defined above.
 6. Do not commit generated build/database/cache artifacts.
 7. Keep CLI, container, web, SDK, and worker surfaces delegating to shared application code rather than duplicating behavior.
-8. Any removal of legacy import/launcher compatibility requires an explicit deprecation plan and release note.
+8. Any future removal of launcher compatibility (root `main.py`) requires an explicit deprecation plan and release note.

@@ -22,33 +22,10 @@ from pathlib import Path
 # so importing them eagerly to build argparse `choices=` is cheap and keeps
 # the CLI's advertised choices in sync with the actual data instead of a
 # second hardcoded list drifting from it.
-from personalities import PERSONALITIES
+from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PERSONALITIES
 
 VERSION = "1.40.0"
 BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
-
-# Named agent roles. Previously these seven names only existed as a
-# print-only list under --list-agents (main.py:447 in v1.11.1) with no
-# backing data anyone could actually use — --agent accepted a value that
-# was silently discarded. One-line system-prompt per role, in the same
-# spirit as personalities.py's PERSONALITIES table.
-AGENT_SYSTEM_PROMPTS = {
-    "code_generator": "You are a full-project code generation agent. Produce complete, "
-    "runnable code for the request, not a partial sketch.",
-    "code_reviewer": "You are a code review agent. Focus on correctness, readability, "
-    "and maintainability; call out concrete issues with line-level detail.",
-    "testing_agent": "You are a testing agent. Produce comprehensive test suites, "
-    "covering edge cases and failure modes, not just the happy path.",
-    "documentation_agent": "You are a documentation agent. Write clear docs, READMEs, and API "
-    "references aimed at a reader new to this codebase.",
-    "optimizer": "You are a performance optimization agent. Identify concrete "
-    "bottlenecks and propose measurable improvements.",
-    "security_auditor": "You are a security audit agent. Review for vulnerabilities "
-    "(injection, auth, secrets handling, unsafe deserialization, etc.) "
-    "and rate severity for each finding.",
-    "full_stack": "You are a full-stack engineering agent. Consider frontend, backend, "
-    "and data-layer concerns together when responding.",
-}
 
 
 def _api_key(args):
@@ -74,7 +51,7 @@ def _read_file(path):
 
 
 def build_parser():
-    from claude_models import UPGRADE_TARGETS
+    from zcoder.claude.models.registry import UPGRADE_TARGETS
 
     p = argparse.ArgumentParser(
         prog="zcoder",
@@ -2150,7 +2127,7 @@ def build_parser():
 
 
 def main():
-    from logging_config import new_correlation_id, setup_logging
+    from zcoder.config.logging import new_correlation_id, setup_logging
 
     setup_logging()
     new_correlation_id()
@@ -2165,7 +2142,7 @@ def main():
     if getattr(args, "health_check", False):
         import json as _json
 
-        from health import run_health_check
+        from zcoder.core.health import run_health_check
 
         report = run_health_check(deep=getattr(args, "health_check_deep", False))
         print(_json.dumps(report.to_dict(), indent=2))
@@ -2173,7 +2150,7 @@ def main():
 
     # ── No-key listing ──
     if args.list_skills:
-        from skills import SkillManager
+        from zcoder.services.skills import SkillManager
 
         for s in SkillManager().list_skills():
             print(f"  {s['name']:<25} — {s['description']}")
@@ -2186,7 +2163,7 @@ def main():
             print(f"  {n:<25} — {sys_prompt}")
         return
     if args.list_personalities:
-        from personalities import PersonalityManager
+        from zcoder.claude.personalities import PersonalityManager
 
         for p_ in PersonalityManager().list_personalities():
             print(f"  {p_['name']:<12} — {p_['description']}")
@@ -2194,121 +2171,121 @@ def main():
 
     # ── Plugins & Marketplaces (no API key required) ──
     if args.plugin_marketplace_add:
-        from claude_plugins import cmd_plugin_marketplace_add
+        from zcoder.claude.tools.plugins import cmd_plugin_marketplace_add
 
         cmd_plugin_marketplace_add(args.plugin_marketplace_add, args.plugin_marketplace_name)
         return
     if args.plugin_marketplace_list:
-        from claude_plugins import cmd_plugin_marketplace_list
+        from zcoder.claude.tools.plugins import cmd_plugin_marketplace_list
 
         cmd_plugin_marketplace_list()
         return
     if args.plugin_marketplace_remove:
-        from claude_plugins import cmd_plugin_marketplace_remove
+        from zcoder.claude.tools.plugins import cmd_plugin_marketplace_remove
 
         cmd_plugin_marketplace_remove(args.plugin_marketplace_remove)
         return
     if args.plugin_install:
-        from claude_plugins import cmd_plugin_install
+        from zcoder.claude.tools.plugins import cmd_plugin_install
 
         cmd_plugin_install(args.plugin_install)
         return
     if args.plugin_dir:
-        from claude_plugins import cmd_plugin_install_dir
+        from zcoder.claude.tools.plugins import cmd_plugin_install_dir
 
         cmd_plugin_install_dir(args.plugin_dir)
         return
     if args.plugin_uninstall:
-        from claude_plugins import cmd_plugin_uninstall
+        from zcoder.claude.tools.plugins import cmd_plugin_uninstall
 
         cmd_plugin_uninstall(args.plugin_uninstall)
         return
     if args.plugin_list:
-        from claude_plugins import cmd_plugin_list
+        from zcoder.claude.tools.plugins import cmd_plugin_list
 
         cmd_plugin_list()
         return
     if args.plugin_info:
-        from claude_plugins import cmd_plugin_info
+        from zcoder.claude.tools.plugins import cmd_plugin_info
 
         cmd_plugin_info(args.plugin_info)
         return
     if args.plugin_enable:
-        from claude_plugins import cmd_plugin_enable
+        from zcoder.claude.tools.plugins import cmd_plugin_enable
 
         cmd_plugin_enable(args.plugin_enable)
         return
     if args.plugin_disable:
-        from claude_plugins import cmd_plugin_disable
+        from zcoder.claude.tools.plugins import cmd_plugin_disable
 
         cmd_plugin_disable(args.plugin_disable)
         return
     if args.plugin_validate:
-        from claude_plugins import cmd_plugin_validate
+        from zcoder.claude.tools.plugins import cmd_plugin_validate
 
         cmd_plugin_validate(args.plugin_validate)
         return
 
     # ── Settings (no API key required) ──
     if args.settings_show:
-        from claude_settings import cmd_settings_show
+        from zcoder.claude.enterprise.settings import cmd_settings_show
 
         cmd_settings_show()
         return
     if args.status_line:
-        from claude_settings import cmd_status_line
+        from zcoder.claude.enterprise.settings import cmd_status_line
 
         cmd_status_line(model=args.model or "claude-sonnet-5", cwd=args.code_agent_cwd)
         return
     if args.list_output_styles:
-        from claude_output_styles import cmd_list_output_styles
+        from zcoder.claude.eval.output_styles import cmd_list_output_styles
 
         cmd_list_output_styles()
         return
 
     if args.fable5_info:
-        from claude_fable5 import cmd_fable5_info
+        from zcoder.claude.models.fable5 import cmd_fable5_info
 
         cmd_fable5_info()
         return
 
     if args.mythos5_info:
-        from claude_mythos5 import cmd_mythos5_info
+        from zcoder.claude.models.mythos5 import cmd_mythos5_info
 
         cmd_mythos5_info()
         return
 
     if args.opus5_info:
-        from claude_opus5 import cmd_opus5_info
+        from zcoder.claude.models.opus5 import cmd_opus5_info
 
         cmd_opus5_info()
         return
 
     if args.sonnet5_info:
-        from claude_sonnet5 import cmd_sonnet5_info
+        from zcoder.claude.models.sonnet5 import cmd_sonnet5_info
 
         cmd_sonnet5_info()
         return
 
     if args.sonnet5_cost:
-        from claude_sonnet5 import cmd_sonnet5_cost
+        from zcoder.claude.models.sonnet5 import cmd_sonnet5_cost
 
         cmd_sonnet5_cost(args.sonnet5_cost)
         return
 
     if args.haiku45_info:
-        from claude_haiku45 import cmd_haiku45_info
+        from zcoder.claude.models.haiku45 import cmd_haiku45_info
 
         cmd_haiku45_info()
         return
 
     if args.skills_list:
-        from claude_skills_api import cmd_skills_list
+        from zcoder.claude.enterprise.skills import cmd_skills_list
 
         cmd_skills_list()
         return
     if args.skills_info:
-        from claude_skills_api import cmd_skills_info
+        from zcoder.claude.enterprise.skills import cmd_skills_info
 
         cmd_skills_info(args.skills_info)
         return
@@ -2333,7 +2310,7 @@ def main():
     ):
         admin_key = args.admin_api_key or os.environ.get("ANTHROPIC_ADMIN_API_KEY")
         if args.admin_create_key:
-            from claude_admin_api import cmd_admin_create_key
+            from zcoder.claude.enterprise.admin_api import cmd_admin_create_key
 
             cmd_admin_create_key(args.admin_create_key)
             return
@@ -2344,7 +2321,7 @@ def main():
             )
             sys.exit(1)
         if args.usage_report:
-            from claude_admin_api import cmd_usage_report
+            from zcoder.claude.enterprise.admin_api import cmd_usage_report
 
             cmd_usage_report(
                 admin_key,
@@ -2354,7 +2331,7 @@ def main():
             )
             return
         if args.cost_report:
-            from claude_admin_api import cmd_cost_report
+            from zcoder.claude.enterprise.admin_api import cmd_cost_report
 
             cmd_cost_report(
                 admin_key,
@@ -2364,63 +2341,63 @@ def main():
             )
             return
         if args.admin_list_keys:
-            from claude_admin_api import cmd_admin_list_keys
+            from zcoder.claude.enterprise.admin_api import cmd_admin_list_keys
 
             cmd_admin_list_keys(admin_key)
             return
         if args.admin_revoke_key:
-            from claude_admin_api import cmd_admin_revoke_key
+            from zcoder.claude.enterprise.admin_api import cmd_admin_revoke_key
 
             cmd_admin_revoke_key(admin_key, args.admin_revoke_key)
             return
         if args.spend_limits_list:
-            from claude_admin_api import cmd_spend_limits_list
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limits_list
 
             cmd_spend_limits_list(admin_key)
             return
         if args.spend_limit_set:
-            from claude_admin_api import cmd_spend_limit_set
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_set
 
             user_id, amount = args.spend_limit_set
             cmd_spend_limit_set(user_id, amount, admin_key)
             return
         if args.spend_limit_get:
-            from claude_admin_api import cmd_spend_limit_get
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_get
 
             cmd_spend_limit_get(args.spend_limit_get, admin_key)
             return
         if args.spend_limit_delete:
-            from claude_admin_api import cmd_spend_limit_delete
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_delete
 
             cmd_spend_limit_delete(args.spend_limit_delete, admin_key)
             return
         if args.spend_limit_requests_list:
-            from claude_admin_api import cmd_spend_limit_requests_list
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_requests_list
 
             cmd_spend_limit_requests_list(admin_key, status=args.spend_limit_status or None)
             return
         if args.spend_limit_request_approve:
-            from claude_admin_api import cmd_spend_limit_request_approve
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_request_approve
 
             cmd_spend_limit_request_approve(args.spend_limit_request_approve, admin_key)
             return
         if args.spend_limit_request_deny:
-            from claude_admin_api import cmd_spend_limit_request_deny
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_request_deny
 
             cmd_spend_limit_request_deny(args.spend_limit_request_deny, admin_key)
             return
         if args.rate_limits_workspace:
-            from claude_admin_api import cmd_rate_limits_workspace
+            from zcoder.claude.enterprise.admin_api import cmd_rate_limits_workspace
 
             cmd_rate_limits_workspace(args.rate_limits_workspace, admin_key)
             return
         if args.rate_limits:
-            from claude_admin_api import cmd_rate_limits
+            from zcoder.claude.enterprise.admin_api import cmd_rate_limits
 
             cmd_rate_limits(admin_key, model=args.rate_limits_model or None)
             return
         if args.claude_code_usage_report:
-            from claude_admin_api import cmd_claude_code_usage_report
+            from zcoder.claude.enterprise.admin_api import cmd_claude_code_usage_report
 
             starting_at = args.claude_code_usage_report_start
             if not starting_at:
@@ -2430,7 +2407,7 @@ def main():
             cmd_claude_code_usage_report(admin_key, starting_at)
             return
         if args.cmek_list:
-            from claude_admin_api import cmd_cmek_list
+            from zcoder.claude.enterprise.admin_api import cmd_cmek_list
 
             cmd_cmek_list(admin_key, workspace_id=args.cmek_workspace or None)
             return
@@ -2460,28 +2437,28 @@ def main():
             )
             sys.exit(1)
         if args.members_list:
-            from claude_admin_api import cmd_members_list
+            from zcoder.claude.enterprise.admin_api import cmd_members_list
 
             cmd_members_list(admin_key, email=args.members_email or None)
             return
         if args.member_get:
-            from claude_admin_api import cmd_member_get
+            from zcoder.claude.enterprise.admin_api import cmd_member_get
 
             cmd_member_get(args.member_get, admin_key)
             return
         if args.member_role_set:
-            from claude_admin_api import cmd_member_role_set
+            from zcoder.claude.enterprise.admin_api import cmd_member_role_set
 
             user_id, role = args.member_role_set
             cmd_member_role_set(user_id, role, admin_key)
             return
         if args.member_remove:
-            from claude_admin_api import cmd_member_remove
+            from zcoder.claude.enterprise.admin_api import cmd_member_remove
 
             cmd_member_remove(args.member_remove, admin_key)
             return
         if args.invite_create:
-            from claude_admin_api import cmd_invite_create
+            from zcoder.claude.enterprise.admin_api import cmd_invite_create
 
             email, role = args.invite_create
             rbac_group_ids = (
@@ -2492,54 +2469,54 @@ def main():
             cmd_invite_create(email, role, admin_key, rbac_group_ids=rbac_group_ids)
             return
         if args.invites_list:
-            from claude_admin_api import cmd_invites_list
+            from zcoder.claude.enterprise.admin_api import cmd_invites_list
 
             cmd_invites_list(admin_key)
             return
         if args.invite_withdraw:
-            from claude_admin_api import cmd_invite_withdraw
+            from zcoder.claude.enterprise.admin_api import cmd_invite_withdraw
 
             cmd_invite_withdraw(args.invite_withdraw, admin_key)
             return
         if args.groups_list:
-            from claude_admin_api import cmd_groups_list
+            from zcoder.claude.enterprise.admin_api import cmd_groups_list
 
             cmd_groups_list(admin_key)
             return
         if args.group_create:
-            from claude_admin_api import cmd_group_create
+            from zcoder.claude.enterprise.admin_api import cmd_group_create
 
             cmd_group_create(args.group_create, admin_key)
             return
         if args.group_delete:
-            from claude_admin_api import cmd_group_delete
+            from zcoder.claude.enterprise.admin_api import cmd_group_delete
 
             cmd_group_delete(args.group_delete, admin_key)
             return
         if args.group_members_list:
-            from claude_admin_api import cmd_group_members_list
+            from zcoder.claude.enterprise.admin_api import cmd_group_members_list
 
             cmd_group_members_list(args.group_members_list, admin_key)
             return
         if args.group_member_add:
-            from claude_admin_api import cmd_group_member_add
+            from zcoder.claude.enterprise.admin_api import cmd_group_member_add
 
             group_id, user_id = args.group_member_add
             cmd_group_member_add(group_id, user_id, admin_key)
             return
         if args.group_member_remove:
-            from claude_admin_api import cmd_group_member_remove
+            from zcoder.claude.enterprise.admin_api import cmd_group_member_remove
 
             group_id, user_id = args.group_member_remove
             cmd_group_member_remove(group_id, user_id, admin_key)
             return
         if args.roles_list:
-            from claude_admin_api import cmd_roles_list
+            from zcoder.claude.enterprise.admin_api import cmd_roles_list
 
             cmd_roles_list(admin_key)
             return
         if args.role_permissions:
-            from claude_admin_api import cmd_role_permissions_list
+            from zcoder.claude.enterprise.admin_api import cmd_role_permissions_list
 
             cmd_role_permissions_list(args.role_permissions, admin_key)
             return
@@ -2555,12 +2532,12 @@ def main():
         or args.wif_list_rules
     ):
         if args.wif_status:
-            from claude_wif import cmd_wif_status
+            from zcoder.claude.integrations.wif import cmd_wif_status
 
             cmd_wif_status()
             return
         if args.wif_exchange_token:
-            from claude_wif import cmd_wif_exchange_token
+            from zcoder.claude.integrations.wif import cmd_wif_exchange_token
 
             cmd_wif_exchange_token()
             return
@@ -2573,17 +2550,17 @@ def main():
             )
             sys.exit(1)
         if args.wif_create_service_account:
-            from claude_wif import cmd_wif_create_service_account
+            from zcoder.claude.integrations.wif import cmd_wif_create_service_account
 
             cmd_wif_create_service_account(args.wif_create_service_account, org_admin_token)
             return
         if args.wif_list_service_accounts:
-            from claude_wif import cmd_wif_list_service_accounts
+            from zcoder.claude.integrations.wif import cmd_wif_list_service_accounts
 
             cmd_wif_list_service_accounts(org_admin_token)
             return
         if args.wif_create_issuer:
-            from claude_wif import cmd_wif_create_issuer
+            from zcoder.claude.integrations.wif import cmd_wif_create_issuer
 
             if not args.wif_issuer_url:
                 print("[ERROR] --wif-create-issuer requires --wif-issuer-url")
@@ -2591,12 +2568,12 @@ def main():
             cmd_wif_create_issuer(args.wif_create_issuer, args.wif_issuer_url, org_admin_token)
             return
         if args.wif_list_issuers:
-            from claude_wif import cmd_wif_list_issuers
+            from zcoder.claude.integrations.wif import cmd_wif_list_issuers
 
             cmd_wif_list_issuers(org_admin_token)
             return
         if args.wif_create_rule:
-            from claude_wif import cmd_wif_create_rule
+            from zcoder.claude.integrations.wif import cmd_wif_create_rule
 
             if not (args.wif_rule_issuer and args.wif_rule_service_account and args.wif_rule_subject_prefix):
                 print(
@@ -2613,7 +2590,7 @@ def main():
             )
             return
         if args.wif_list_rules:
-            from claude_wif import cmd_wif_list_rules
+            from zcoder.claude.integrations.wif import cmd_wif_list_rules
 
             cmd_wif_list_rules(org_admin_token)
             return
@@ -2658,7 +2635,7 @@ def main():
         user_ids = args.compliance_user_ids.split(",") if args.compliance_user_ids else None
 
         if args.compliance_activities:
-            from claude_compliance_api import cmd_compliance_activities
+            from zcoder.claude.enterprise.compliance import cmd_compliance_activities
 
             cmd_compliance_activities(
                 compliance_key,
@@ -2670,7 +2647,7 @@ def main():
             )
             return
         if args.compliance_chats_list:
-            from claude_compliance_api import cmd_compliance_chats_list
+            from zcoder.claude.enterprise.compliance import cmd_compliance_chats_list
 
             if not user_ids:
                 print("[ERROR] --compliance-chats-list requires --compliance-user-ids", file=sys.stderr)
@@ -2678,102 +2655,102 @@ def main():
             cmd_compliance_chats_list(compliance_key, user_ids)
             return
         if args.compliance_chat_messages:
-            from claude_compliance_api import cmd_compliance_chat_messages
+            from zcoder.claude.enterprise.compliance import cmd_compliance_chat_messages
 
             cmd_compliance_chat_messages(compliance_key, args.compliance_chat_messages)
             return
         if args.compliance_chat_delete:
-            from claude_compliance_api import cmd_compliance_chat_delete
+            from zcoder.claude.enterprise.compliance import cmd_compliance_chat_delete
 
             cmd_compliance_chat_delete(compliance_key, args.compliance_chat_delete, yes=args.compliance_yes)
             return
         if args.compliance_file_download:
-            from claude_compliance_api import cmd_compliance_file_download
+            from zcoder.claude.enterprise.compliance import cmd_compliance_file_download
 
             cmd_compliance_file_download(
                 compliance_key, args.compliance_file_download, output_path=args.compliance_output
             )
             return
         if args.compliance_file_delete:
-            from claude_compliance_api import cmd_compliance_file_delete
+            from zcoder.claude.enterprise.compliance import cmd_compliance_file_delete
 
             cmd_compliance_file_delete(compliance_key, args.compliance_file_delete, yes=args.compliance_yes)
             return
         if args.compliance_projects_list:
-            from claude_compliance_api import cmd_compliance_projects_list
+            from zcoder.claude.enterprise.compliance import cmd_compliance_projects_list
 
             cmd_compliance_projects_list(compliance_key)
             return
         if args.compliance_project_info:
-            from claude_compliance_api import cmd_compliance_project_info
+            from zcoder.claude.enterprise.compliance import cmd_compliance_project_info
 
             cmd_compliance_project_info(compliance_key, args.compliance_project_info)
             return
         if args.compliance_project_attachments:
-            from claude_compliance_api import cmd_compliance_project_attachments
+            from zcoder.claude.enterprise.compliance import cmd_compliance_project_attachments
 
             cmd_compliance_project_attachments(compliance_key, args.compliance_project_attachments)
             return
         if args.compliance_project_delete:
-            from claude_compliance_api import cmd_compliance_project_delete
+            from zcoder.claude.enterprise.compliance import cmd_compliance_project_delete
 
             cmd_compliance_project_delete(
                 compliance_key, args.compliance_project_delete, yes=args.compliance_yes
             )
             return
         if args.compliance_orgs_list:
-            from claude_compliance_api import cmd_compliance_orgs_list
+            from zcoder.claude.enterprise.compliance import cmd_compliance_orgs_list
 
             cmd_compliance_orgs_list(compliance_key)
             return
         if args.compliance_org_users:
-            from claude_compliance_api import cmd_compliance_org_users
+            from zcoder.claude.enterprise.compliance import cmd_compliance_org_users
 
             cmd_compliance_org_users(compliance_key, args.compliance_org_users)
             return
         if args.compliance_org_roles:
-            from claude_compliance_api import cmd_compliance_org_roles
+            from zcoder.claude.enterprise.compliance import cmd_compliance_org_roles
 
             cmd_compliance_org_roles(compliance_key, args.compliance_org_roles)
             return
         if args.compliance_org_settings:
-            from claude_compliance_api import cmd_compliance_org_settings
+            from zcoder.claude.enterprise.compliance import cmd_compliance_org_settings
 
             cmd_compliance_org_settings(compliance_key, args.compliance_org_settings)
             return
         if args.compliance_groups_list:
-            from claude_compliance_api import cmd_compliance_groups_list
+            from zcoder.claude.enterprise.compliance import cmd_compliance_groups_list
 
             cmd_compliance_groups_list(compliance_key)
             return
         if args.compliance_group_members:
-            from claude_compliance_api import cmd_compliance_group_members
+            from zcoder.claude.enterprise.compliance import cmd_compliance_group_members
 
             cmd_compliance_group_members(compliance_key, args.compliance_group_members)
             return
         if args.compliance_local_sessions_list:
-            from claude_compliance_api import cmd_compliance_local_sessions_list
+            from zcoder.claude.enterprise.compliance import cmd_compliance_local_sessions_list
 
             cmd_compliance_local_sessions_list(compliance_key, user_ids=user_ids)
             return
         if args.compliance_local_session_info:
-            from claude_compliance_api import cmd_compliance_local_session_info
+            from zcoder.claude.enterprise.compliance import cmd_compliance_local_session_info
 
             cmd_compliance_local_session_info(compliance_key, args.compliance_local_session_info)
             return
         if args.compliance_local_session_messages:
-            from claude_compliance_api import cmd_compliance_local_session_messages
+            from zcoder.claude.enterprise.compliance import cmd_compliance_local_session_messages
 
             cmd_compliance_local_session_messages(compliance_key, args.compliance_local_session_messages)
             return
 
     if args.check_deprecated:
-        from claude_models import cmd_check_deprecated
+        from zcoder.claude.models.registry import cmd_check_deprecated
 
         cmd_check_deprecated(args.check_deprecated)
         return
     if args.upgrade_all:
-        from claude_models import cmd_upgrade_all
+        from zcoder.claude.models.registry import cmd_upgrade_all
 
         cmd_upgrade_all(
             args.upgrade_all,
@@ -2784,39 +2761,39 @@ def main():
         return
 
     if args.project_list:
-        from projects import cmd_project_list
+        from zcoder.services.projects import cmd_project_list
 
         cmd_project_list()
         return
     if args.project_templates:
-        from projects import cmd_project_templates
+        from zcoder.services.projects import cmd_project_templates
 
         cmd_project_templates()
         return
     if args.project_show:
-        from projects import cmd_project_show
+        from zcoder.services.projects import cmd_project_show
 
         cmd_project_show(args.project_show)
         return
     if args.project_delete:
-        from projects import ProjectManager
+        from zcoder.services.projects import ProjectManager
 
         ProjectManager().delete_project(args.project_delete)
         print("✓ Deleted.")
         return
     if args.project_archive:
-        from projects import ProjectManager
+        from zcoder.services.projects import ProjectManager
 
         ProjectManager().archive_project(args.project_archive)
         print("✓ Archived.")
         return
     if args.project_create:
-        from projects import cmd_project_create
+        from zcoder.services.projects import cmd_project_create
 
         cmd_project_create(args.project_create, args.project_desc, args.project_template)
         return
     if args.project_add_task:
-        from projects import cmd_project_add_task
+        from zcoder.services.projects import cmd_project_add_task
 
         cmd_project_add_task(
             args.project_add_task,
@@ -2827,12 +2804,12 @@ def main():
         )
         return
     if args.artifact_types:
-        from artifacts import cmd_artifact_types
+        from zcoder.infrastructure.artifacts import cmd_artifact_types
 
         cmd_artifact_types()
         return
     if args.artifact_list:
-        from artifacts import cmd_artifact_list
+        from zcoder.infrastructure.artifacts import cmd_artifact_list
 
         cmd_artifact_list(
             query=args.artifact_query,
@@ -2842,48 +2819,48 @@ def main():
         )
         return
     if args.artifact_show:
-        from artifacts import cmd_artifact_show
+        from zcoder.infrastructure.artifacts import cmd_artifact_show
 
         cmd_artifact_show(args.artifact_show, args.artifact_version)
         return
     if args.artifact_export:
-        from artifacts import cmd_artifact_export
+        from zcoder.infrastructure.artifacts import cmd_artifact_export
 
         cmd_artifact_export(args.artifact_export, args.output or "", args.artifact_version)
         return
     if args.artifact_export_all:
-        from artifacts import cmd_artifact_export_all
+        from zcoder.infrastructure.artifacts import cmd_artifact_export_all
 
         cmd_artifact_export_all(args.artifact_export_all, args.artifact_output_dir)
         return
     if args.artifact_diff:
-        from artifacts import cmd_artifact_diff
+        from zcoder.infrastructure.artifacts import cmd_artifact_diff
 
         cmd_artifact_diff(args.artifact_diff, args.v1, args.v2)
         return
     if args.artifact_delete:
-        from artifacts import cmd_artifact_delete
+        from zcoder.infrastructure.artifacts import cmd_artifact_delete
 
         cmd_artifact_delete(args.artifact_delete)
         return
     if args.artifact_tag:
-        from artifacts import cmd_artifact_tag
+        from zcoder.infrastructure.artifacts import cmd_artifact_tag
 
         cmd_artifact_tag(args.artifact_tag, args.tag)
         return
     if args.artifact_attach:
-        from artifacts import cmd_artifact_attach
+        from zcoder.infrastructure.artifacts import cmd_artifact_attach
 
         cmd_artifact_attach(args.artifact_attach, args.to_project)
         return
     if args.list_server_tools:
-        from claude_tools import cmd_list_server_tools
+        from zcoder.claude.tools.registry import cmd_list_server_tools
 
         cmd_list_server_tools()
         return
 
     if args.mid_conv_tool_check:
-        from claude_tools import (
+        from zcoder.claude.tools.registry import (
             MID_CONVERSATION_TOOL_CHANGES_SUPPORTED,
             validate_mid_conversation_tool_change,
         )
@@ -2900,172 +2877,172 @@ def main():
             print(f"  Supported models: {', '.join(sorted(MID_CONVERSATION_TOOL_CHANGES_SUPPORTED))}")
         return
     if args.cowork_list:
-        from cowork import cmd_cowork_list
+        from zcoder.services.cowork import cmd_cowork_list
 
         cmd_cowork_list()
         return
     if args.agent_list_sessions:
-        from claude_agents_sdk import cmd_agent_list_sessions
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_list_sessions
 
         cmd_agent_list_sessions()
         return
     if args.list_tool_presets:
-        from claude_agents_sdk import cmd_list_tool_presets
+        from zcoder.claude.orchestration.agents_sdk import cmd_list_tool_presets
 
         cmd_list_tool_presets()
         return
     if args.code_agent_list_sessions:
-        from claude_code import cmd_code_list_sessions
+        from zcoder.claude.capabilities.code import cmd_code_list_sessions
 
         cmd_code_list_sessions()
         return
     if args.code_agent_list_tools:
-        from claude_code import cmd_code_list_tools
+        from zcoder.claude.capabilities.code import cmd_code_list_tools
 
         cmd_code_list_tools()
         return
 
     # ── New in v1.10.0 — no API key required ──
     if args.memory_add:
-        from claude_memory import cmd_memory_add
+        from zcoder.claude.memory.memory import cmd_memory_add
 
         cmd_memory_add(
             args.memory_add, args.memory_type, args.memory_tags, args.memory_importance, args.memory_ns
         )
         return
     if args.memory_recall:
-        from claude_memory import cmd_memory_recall
+        from zcoder.claude.memory.memory import cmd_memory_recall
 
         cmd_memory_recall(args.memory_recall, args.memory_ns)
         return
     if args.memory_forget:
-        from claude_memory import cmd_memory_forget
+        from zcoder.claude.memory.memory import cmd_memory_forget
 
         cmd_memory_forget(args.memory_forget, args.memory_ns)
         return
     if args.memory_stats:
-        from claude_memory import cmd_memory_stats
+        from zcoder.claude.memory.memory import cmd_memory_stats
 
         cmd_memory_stats(args.memory_ns)
         return
     if args.memory_retention:
-        from claude_memory import cmd_memory_retention
+        from zcoder.claude.memory.memory import cmd_memory_retention
 
         cmd_memory_retention(args.memory_ns)
         return
     if args.sessions_list:
-        from claude_sessions import cmd_sessions_list
+        from zcoder.claude.orchestration.sessions import cmd_sessions_list
 
         cmd_sessions_list()
         return
     if args.session_show:
-        from claude_sessions import cmd_session_show
+        from zcoder.claude.orchestration.sessions import cmd_session_show
 
         cmd_session_show(args.session_show)
         return
     if args.checkpoint_list:
-        from claude_sessions import cmd_checkpoint_list
+        from zcoder.claude.orchestration.sessions import cmd_checkpoint_list
 
         cmd_checkpoint_list(args.checkpoint_list)
         return
     if args.away_summary:
-        from claude_sessions import cmd_away_summary
+        from zcoder.claude.orchestration.sessions import cmd_away_summary
 
         cmd_away_summary(args.away_summary)
         return
     if args.rag_index and args.rag_folder:
-        from claude_rag import cmd_rag_index
+        from zcoder.claude.rag.engine import cmd_rag_index
 
         cmd_rag_index(args.rag_index, args.rag_folder)
         return
     if args.rag_list:
-        from claude_rag import cmd_rag_list
+        from zcoder.claude.rag.engine import cmd_rag_list
 
         cmd_rag_list()
         return
     if args.eval_list:
-        from claude_eval import cmd_eval_list
+        from zcoder.claude.eval.eval import cmd_eval_list
 
         cmd_eval_list()
         return
     if args.eval_scaffold:
-        from claude_eval import cmd_eval_scaffold
+        from zcoder.claude.eval.eval import cmd_eval_scaffold
 
         cmd_eval_scaffold(args.eval_scaffold)
         return
     if args.cost_summary:
-        from claude_cost_optimizer import cmd_cost_summary
+        from zcoder.claude.optimization.cost import cmd_cost_summary
 
         cmd_cost_summary()
         return
     if args.cost_reset:
-        from claude_cost_optimizer import cmd_cost_reset
+        from zcoder.claude.optimization.cost import cmd_cost_reset
 
         cmd_cost_reset()
         return
     if args.metrics_show:
-        from claude_metrics import cmd_metrics_show
+        from zcoder.claude.enterprise.metrics import cmd_metrics_show
 
         cmd_metrics_show(today_only=args.metrics_today, model_filter=args.metrics_model or None)
         return
     if args.metrics_clear:
-        from claude_metrics import cmd_metrics_clear
+        from zcoder.claude.enterprise.metrics import cmd_metrics_clear
 
         cmd_metrics_clear()
         return
     if args.metrics_export:
-        from claude_metrics import cmd_metrics_export
+        from zcoder.claude.enterprise.metrics import cmd_metrics_export
 
         cmd_metrics_export(args.metrics_export, today_only=args.metrics_today)
         return
     if args.obs_latency:
-        from claude_observability import cmd_obs_latency
+        from zcoder.claude.observability import cmd_obs_latency
 
         cmd_obs_latency(args.obs_hours)
         return
     if args.obs_tail is not None:
-        from claude_observability import cmd_obs_tail
+        from zcoder.claude.observability import cmd_obs_tail
 
         cmd_obs_tail(args.obs_tail)
         return
     if args.obs_clear:
-        from claude_observability import cmd_obs_clear
+        from zcoder.claude.observability import cmd_obs_clear
 
         cmd_obs_clear()
         return
     if args.workflow_scaffold:
-        from claude_workflow import cmd_workflow_scaffold
+        from zcoder.claude.orchestration.workflow import cmd_workflow_scaffold
 
         cmd_workflow_scaffold(args.workflow_scaffold)
         return
     if args.hooks_add:
-        from claude_hooks_perms_plan import cmd_hooks_add
+        from zcoder.claude.enterprise.hooks_perms import cmd_hooks_add
 
         cmd_hooks_add(args.hooks_add[0], args.hooks_add[1], args.hook_tool_match)
         return
     if args.hooks_list:
-        from claude_hooks_perms_plan import cmd_hooks_list
+        from zcoder.claude.enterprise.hooks_perms import cmd_hooks_list
 
         cmd_hooks_list()
         return
     if args.hooks_remove is not None:
-        from claude_hooks_perms_plan import cmd_hooks_remove
+        from zcoder.claude.enterprise.hooks_perms import cmd_hooks_remove
 
         cmd_hooks_remove(args.hooks_remove)
         return
     if args.perms_list:
-        from claude_hooks_perms_plan import cmd_perms_list
+        from zcoder.claude.enterprise.hooks_perms import cmd_perms_list
 
         cmd_perms_list()
         return
     if args.perms_add:
-        from claude_hooks_perms_plan import cmd_perms_add
+        from zcoder.claude.enterprise.hooks_perms import cmd_perms_add
 
         cmd_perms_add(args.perms_add[0], args.perms_add[1], args.perms_reason)
         return
 
     if args.tui:
-        from tui import run_tui
+        from zcoder.interfaces.cli.tui import run_tui
 
         run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
         return
@@ -3075,7 +3052,7 @@ def main():
     model = _model(args)
 
     if args.interactive:
-        from claude_interactive import cmd_interactive
+        from zcoder.claude.orchestration.interactive import cmd_interactive
 
         cmd_interactive(
             key,
@@ -3088,7 +3065,7 @@ def main():
         return
 
     if args.excel is not None:
-        from claude_excel import cmd_excel_chat
+        from zcoder.claude.integrations.excel import cmd_excel_chat
 
         cmd_excel_chat(
             key,
@@ -3103,7 +3080,7 @@ def main():
         return
 
     if args.pptx is not None:
-        from claude_powerpoint import cmd_pptx_chat
+        from zcoder.claude.integrations.powerpoint import cmd_pptx_chat
 
         cmd_pptx_chat(
             key,
@@ -3120,7 +3097,7 @@ def main():
         if not args.browse_task:
             print("[ERROR] --browse requires --browse-task", file=sys.stderr)
             sys.exit(1)
-        from claude_chrome import cmd_browse
+        from zcoder.claude.integrations.chrome import cmd_browse
 
         cmd_browse(
             key,
@@ -3135,17 +3112,17 @@ def main():
         return
 
     if args.list_models:
-        from claude_models import cmd_list_models
+        from zcoder.claude.models.registry import cmd_list_models
 
         cmd_list_models(key, include_legacy=getattr(args, "list_models_legacy", False))
         return
     if args.model_info:
-        from claude_models import cmd_model_info
+        from zcoder.claude.models.registry import cmd_model_info
 
         cmd_model_info(args.model_info, key)
         return
     if args.fable5:
-        from claude_fable5 import cmd_fable5_call, parse_fallback_chain
+        from zcoder.claude.models.fable5 import cmd_fable5_call, parse_fallback_chain
 
         try:
             chain = parse_fallback_chain(getattr(args, "fable5_fallback_chain", None))
@@ -3161,12 +3138,12 @@ def main():
         )
         return
     if args.mythos5:
-        from claude_mythos5 import cmd_mythos5_call
+        from zcoder.claude.models.mythos5 import cmd_mythos5_call
 
         cmd_mythos5_call(args.mythos5, key)
         return
     if args.opus5:
-        from claude_opus5 import cmd_opus5_call
+        from zcoder.claude.models.opus5 import cmd_opus5_call
 
         cmd_opus5_call(
             args.opus5,
@@ -3178,19 +3155,19 @@ def main():
         )
         return
     if args.sonnet5:
-        from claude_sonnet5 import cmd_sonnet5_call
+        from zcoder.claude.models.sonnet5 import cmd_sonnet5_call
 
         cmd_sonnet5_call(args.sonnet5, key, use_geo=args.sonnet5_geo)
         return
     if args.haiku45:
-        from claude_haiku45 import cmd_haiku45_call
+        from zcoder.claude.models.haiku45 import cmd_haiku45_call
 
         cmd_haiku45_call(args.haiku45, key, thinking_budget=args.haiku45_thinking_budget)
         return
 
     # ── zai-live ──
     if args.live:
-        from claude_live import cmd_live
+        from zcoder.claude.orchestration.live import cmd_live
 
         # --temperature was accepted by the parser but never reached cmd_live,
         # so live mode always used LiveSession's 0.7 default regardless of the
@@ -3201,7 +3178,7 @@ def main():
 
     # ── Deep Research ──
     if args.research:
-        from claude_research import cmd_research
+        from zcoder.claude.rag.research import cmd_research
 
         cmd_research(
             args.research,
@@ -3215,19 +3192,19 @@ def main():
 
     # ── RAG (query needs the key for generation; index/list handled above) ──
     if args.rag_query:
-        from claude_rag import cmd_rag_query
+        from zcoder.claude.rag.engine import cmd_rag_query
 
         cmd_rag_query(args.rag_index_name, args.rag_query, key, model, k=args.rag_k)
         return
 
     # ── Evaluation (run/compare call the model; list/scaffold handled above) ──
     if args.eval_run:
-        from claude_eval import cmd_eval_run
+        from zcoder.claude.eval.eval import cmd_eval_run
 
         cmd_eval_run(args.eval_run, key, model, threshold=args.eval_threshold, output=args.output)
         return
     if args.eval_compare:
-        from claude_eval import cmd_eval_compare
+        from zcoder.claude.eval.eval import cmd_eval_compare
 
         cmd_eval_compare(
             args.eval_run or args.eval_scaffold or "", args.eval_compare[0], args.eval_compare[1], key
@@ -3236,27 +3213,27 @@ def main():
 
     # ── Git Integration ──
     if args.git_commit:
-        from claude_git import cmd_git_commit
+        from zcoder.claude.integrations.git import cmd_git_commit
 
         cmd_git_commit(key, model, style=args.git_commit_style, write=args.git_commit_write)
         return
     if args.git_pr:
-        from claude_git import cmd_git_pr
+        from zcoder.claude.integrations.git import cmd_git_pr
 
         cmd_git_pr(args.git_pr[0], args.git_pr[1], key, model)
         return
     if args.git_changelog:
-        from claude_git import cmd_git_changelog
+        from zcoder.claude.integrations.git import cmd_git_changelog
 
         cmd_git_changelog(args.git_changelog, key, model, output=args.output)
         return
     if args.git_review:
-        from claude_git import cmd_git_review
+        from zcoder.claude.integrations.git import cmd_git_review
 
         cmd_git_review(key, model)
         return
     if args.git_blame_explain:
-        from claude_git import cmd_git_blame_explain
+        from zcoder.claude.integrations.git import cmd_git_blame_explain
 
         f, s, e = args.git_blame_explain
         cmd_git_blame_explain(f, int(s), int(e), key, model)
@@ -3264,52 +3241,52 @@ def main():
 
     # ── GitHub Integration ──
     if args.gh_review_pr:
-        from claude_github import cmd_gh_review_pr
+        from zcoder.claude.integrations.github import cmd_gh_review_pr
 
         cmd_gh_review_pr(args.gh_review_pr, args.gh_token or None, key, model)
         return
     if args.gh_triage_issues:
-        from claude_github import cmd_gh_triage
+        from zcoder.claude.integrations.github import cmd_gh_triage
 
         cmd_gh_triage(args.gh_triage_issues, args.gh_max_items, args.gh_token or None, key, model)
         return
     if args.gh_summarise_commits:
-        from claude_github import cmd_gh_commits
+        from zcoder.claude.integrations.github import cmd_gh_commits
 
         cmd_gh_commits(args.gh_summarise_commits, args.gh_max_items, args.gh_token or None, key, model)
         return
     if args.gh_pr_description:
-        from claude_github import cmd_gh_pr_description
+        from zcoder.claude.integrations.github import cmd_gh_pr_description
 
         cmd_gh_pr_description(args.gh_pr_description, args.gh_token or None, key, model)
         return
 
     # ── Multi-Agent Router ──
     if args.route_list:
-        from claude_router import cmd_route_list
+        from zcoder.claude.orchestration.router import cmd_route_list
 
         cmd_route_list()
         return
     if args.route:
-        from claude_router import cmd_route
+        from zcoder.claude.orchestration.router import cmd_route
 
         cmd_route(args.route, key, model, explain=args.route_explain, parallel=args.route_parallel)
         return
 
     # ── Prompt Optimizer ──
     if args.prompt_lib_list:
-        from claude_prompt_optimizer import cmd_prompt_lib_list
+        from zcoder.claude.optimization.prompt import cmd_prompt_lib_list
 
         cmd_prompt_lib_list()
         return
     if args.prompt_lib_get:
-        from claude_prompt_optimizer import lib_get
+        from zcoder.claude.optimization.prompt import lib_get
 
         found = lib_get(args.prompt_lib_get)
         print(found if found is not None else f"No prompt saved under tag '{args.prompt_lib_get}'")
         return
     if args.prompt_lib_add:
-        from claude_prompt_optimizer import lib_add
+        from zcoder.claude.optimization.prompt import lib_add
 
         if not args.prompt:
             print("\033[91m--prompt-lib-add requires --prompt\033[0m")
@@ -3320,7 +3297,7 @@ def main():
         print(f"Saved to prompt library under tag '{tag}'")
         return
     if args.ab_test:
-        from claude_prompt_optimizer import cmd_ab_test
+        from zcoder.claude.optimization.prompt import cmd_ab_test
 
         if not (args.prompt and args.ab_prompt_b):
             print("\033[91m--ab-test requires --prompt (variant A) and --ab-prompt-b (variant B)\033[0m")
@@ -3328,40 +3305,40 @@ def main():
         cmd_ab_test(args.prompt, args.ab_prompt_b, args.ab_task, key, model)
         return
     if args.score_prompt:
-        from claude_prompt_optimizer import cmd_score
+        from zcoder.claude.optimization.prompt import cmd_score
 
         cmd_score(args.score_prompt, key, model)
         return
     if args.prompt_optimize:
-        from claude_prompt_optimizer import cmd_optimize
+        from zcoder.claude.optimization.prompt import cmd_optimize
 
         cmd_optimize(args.prompt_optimize, key, model)
         return
 
     # ── Cost Optimizer (optimized calls the model; summary/reset handled above) ──
     if args.optimized:
-        from claude_cost_optimizer import cmd_optimized
+        from zcoder.claude.optimization.cost import cmd_optimized
 
         cmd_optimized(args.optimized, key, verbose=True, force_model=args.force_model)
         return
 
     # ── Observability (errors needs the model for analysis; rest handled above) ──
     if args.obs_errors:
-        from claude_observability import cmd_obs_errors
+        from zcoder.claude.observability import cmd_obs_errors
 
         cmd_obs_errors(key, model, args.obs_hours)
         return
 
     # ── Workflows (run calls the model; scaffold handled above) ──
     if args.workflow_run:
-        from claude_workflow import cmd_workflow_run
+        from zcoder.claude.orchestration.workflow import cmd_workflow_run
 
         cmd_workflow_run(args.workflow_run, key, input_text=args.workflow_input, output=args.output)
         return
 
     # ── Plan Mode ──
     if args.plan:
-        from claude_hooks_perms_plan import cmd_plan
+        from zcoder.claude.enterprise.hooks_perms import cmd_plan
 
         cmd_plan(
             args.plan, key, model, context=args.plan_context, execute=args.plan_execute, output=args.output
@@ -3369,7 +3346,7 @@ def main():
         return
 
     if args.thinking or args.adaptive or args.effort_legacy_budget:
-        from claude_thinking import ThinkingModeError, cmd_thinking
+        from zcoder.claude.capabilities.thinking import ThinkingModeError, cmd_thinking
 
         prompt = args.prompt or (args.file and _read_file(args.file)) or ""
         try:
@@ -3390,7 +3367,7 @@ def main():
             sys.exit(1)
         return
     if args.stream:
-        from claude_stream import cmd_stream
+        from zcoder.claude.capabilities.stream import cmd_stream
 
         cmd_stream(
             args.prompt or "",
@@ -3401,7 +3378,7 @@ def main():
         )
         return
     if args.web_search or args.web_fetch:
-        from claude_search import cmd_web_search
+        from zcoder.claude.capabilities.search import cmd_web_search
 
         cmd_web_search(
             args.prompt or "",
@@ -3414,76 +3391,76 @@ def main():
         )
         return
     if args.fetch_url:
-        from claude_search import cmd_fetch_url
+        from zcoder.claude.capabilities.search import cmd_fetch_url
 
         cmd_fetch_url(args.fetch_url, args.prompt or "", key, model)
         return
     if args.vision:
-        from claude_vision import cmd_vision
+        from zcoder.claude.capabilities.vision import cmd_vision
 
         cmd_vision(
             args.vision, args.prompt or "", key, model, is_code=args.vision_code, language=args.vision_lang
         )
         return
     if args.vision_pdf:
-        from claude_vision import cmd_vision_pdf
+        from zcoder.claude.capabilities.vision import cmd_vision_pdf
 
         cmd_vision_pdf(args.vision_pdf, args.prompt or "", key, model)
         return
     if args.vision_url:
-        from claude_vision import cmd_vision_url
+        from zcoder.claude.capabilities.vision import cmd_vision_url
 
         cmd_vision_url(args.vision_url, args.prompt or "", key, model)
         return
     if args.vision_compare:
-        from claude_vision import cmd_vision_compare
+        from zcoder.claude.capabilities.vision import cmd_vision_compare
 
         cmd_vision_compare(args.vision_compare, args.prompt or "", key, model)
         return
     if args.vision_ocr:
-        from claude_vision import cmd_vision_ocr
+        from zcoder.claude.capabilities.vision import cmd_vision_ocr
 
         cmd_vision_ocr(args.vision_ocr, key, model)
         return
     if args.batch_submit:
-        from claude_batch import cmd_batch_submit
+        from zcoder.claude.orchestration.batch import cmd_batch_submit
 
         cmd_batch_submit(args.batch_submit, key, model, use_300k_output=args.batch_300k_output)
         return
     if args.batch_status:
-        from claude_batch import cmd_batch_status
+        from zcoder.claude.orchestration.batch import cmd_batch_status
 
         cmd_batch_status(args.batch_status, key)
         return
     if args.batch_results:
-        from claude_batch import cmd_batch_results
+        from zcoder.claude.orchestration.batch import cmd_batch_results
 
         cmd_batch_results(args.batch_results, key, save_to=args.output or None)
         return
     if args.batch_cancel:
-        from claude_batch import cmd_batch_cancel
+        from zcoder.claude.orchestration.batch import cmd_batch_cancel
 
         cmd_batch_cancel(args.batch_cancel, key)
         return
     if args.batch_list:
-        from claude_batch import cmd_batch_list
+        from zcoder.claude.orchestration.batch import cmd_batch_list
 
         cmd_batch_list(key)
         return
     if args.batch_generate > 0:
-        from claude_batch import cmd_batch_generate
+        from zcoder.claude.orchestration.batch import cmd_batch_generate
 
         cmd_batch_generate(args.prompt or "", args.batch_generate, key, model, wait=args.batch_wait)
         return
     if args.cache_warm:
-        from claude_cache import cmd_cache_warm
+        from zcoder.claude.memory.cache import cmd_cache_warm
 
         cmd_cache_warm(
             key, model, system=args.cache_system or None, doc_files=args.cache_docs or [], ttl=args.cache_ttl
         )
         return
     if args.cache_multi_turn:
-        from claude_cache import cmd_cache_multi_turn
+        from zcoder.claude.memory.cache import cmd_cache_multi_turn
 
         cmd_cache_multi_turn(
             args.cache_multi_turn,
@@ -3497,7 +3474,7 @@ def main():
         )
         return
     if args.cache:
-        from claude_cache import cmd_cache_generate
+        from zcoder.claude.memory.cache import cmd_cache_generate
 
         docs = [open(f).read() for f in (args.cache_docs or [])]
         cmd_cache_generate(
@@ -3512,12 +3489,12 @@ def main():
         )
         return
     if args.tool_agent:
-        from claude_tools import cmd_tool_agent
+        from zcoder.claude.tools.registry import cmd_tool_agent
 
         cmd_tool_agent(args.prompt or "", key, model, max_turns=args.max_turns)
         return
     if args.server_tool:
-        from claude_tools import cmd_server_tool
+        from zcoder.claude.tools.registry import cmd_server_tool
 
         extra_tool_defs = None
         if args.file:
@@ -3539,12 +3516,12 @@ def main():
         )
         return
     if args.memory_agent:
-        from claude_tools import cmd_memory_agent
+        from zcoder.claude.tools.registry import cmd_memory_agent
 
         cmd_memory_agent(args.memory_agent, key, model, memory_dir=args.memory_dir, max_turns=args.max_turns)
         return
     if args.advisor:
-        from claude_advisor import cmd_advisor
+        from zcoder.claude.capabilities.advisor import cmd_advisor
 
         cmd_advisor(
             args.advisor,
@@ -3556,24 +3533,24 @@ def main():
         )
         return
     if args.embed:
-        from claude_embeddings import cmd_embed
+        from zcoder.claude.capabilities.embeddings import cmd_embed
 
         cmd_embed(args.embed, model=args.embed_model, input_type=args.embed_input_type)
         return
     if args.embed_file:
-        from claude_embeddings import cmd_embed_file
+        from zcoder.claude.capabilities.embeddings import cmd_embed_file
 
         cmd_embed_file(args.embed_file, model=args.embed_model, input_type=args.embed_input_type)
         return
     if args.embed_similarity:
-        from claude_embeddings import cmd_embed_similarity
+        from zcoder.claude.capabilities.embeddings import cmd_embed_similarity
 
         cmd_embed_similarity(args.embed_similarity[0], args.embed_similarity[1], model=args.embed_model)
         return
     if args.stream_tools:
         import json as _json
 
-        from claude_stream import cmd_stream_tools
+        from zcoder.claude.capabilities.stream import cmd_stream_tools
 
         tool_defs = _json.loads(_read_file(args.file)) if args.file else []
         if isinstance(tool_defs, dict):
@@ -3581,51 +3558,51 @@ def main():
         cmd_stream_tools(args.stream_tools, tool_defs, key, model)
         return
     if args.structured:
-        from claude_structured import cmd_structured
+        from zcoder.claude.capabilities.structured import cmd_structured
 
         cmd_structured(
             args.prompt or "", key, model, schema_path=args.schema, schema_inline=args.schema_inline
         )
         return
     if args.structured_analyse:
-        from claude_structured import cmd_structured_analyse
+        from zcoder.claude.capabilities.structured import cmd_structured_analyse
 
         cmd_structured_analyse(args.structured_analyse, key, model)
         return
     if args.structured_extract:
-        from claude_structured import cmd_structured_extract
+        from zcoder.claude.capabilities.structured import cmd_structured_extract
 
         cmd_structured_extract(args.structured_extract, args.schema, key, model)
         return
     if args.file_upload:
-        from claude_files import cmd_file_upload
+        from zcoder.claude.integrations.files import cmd_file_upload
 
         cmd_file_upload(args.file_upload, key, model)
         return
     if args.file_list:
-        from claude_files import cmd_file_list
+        from zcoder.claude.integrations.files import cmd_file_list
 
         cmd_file_list(key, model)
         return
     if args.file_delete:
-        from claude_files import cmd_file_delete
+        from zcoder.claude.integrations.files import cmd_file_delete
 
         cmd_file_delete(args.file_delete, key)
         return
     if args.file_ask:
-        from claude_files import cmd_file_ask
+        from zcoder.claude.integrations.files import cmd_file_ask
 
         cmd_file_ask(args.file_ask, args.prompt or "Summarise.", key, model, media_type=args.file_media_type)
         return
     if args.file_download:
-        from claude_files import cmd_file_download
+        from zcoder.claude.integrations.files import cmd_file_download
 
         cmd_file_download(
             args.file_download, args.file_output or args.output or f"{args.file_download}.bin", key
         )
         return
     if args.code_exec:
-        from claude_code_exec import cmd_code_exec
+        from zcoder.claude.capabilities.code_exec import cmd_code_exec
 
         cmd_code_exec(
             args.prompt or "",
@@ -3636,37 +3613,37 @@ def main():
         )
         return
     if args.code_debug:
-        from claude_code_exec import cmd_code_debug
+        from zcoder.claude.capabilities.code_exec import cmd_code_debug
 
         cmd_code_debug(args.code_debug, key, model, code_exec_version=args.code_exec_version)
         return
     if args.count_tokens:
-        from claude_tokens import cmd_count_tokens
+        from zcoder.claude.optimization.tokens import cmd_count_tokens
 
         cmd_count_tokens(args.prompt or "", key, model, file_path=args.file, budget=args.count_budget or None)
         return
     if args.cite:
-        from claude_citations import cmd_cite
+        from zcoder.claude.capabilities.citations import cmd_cite
 
         cmd_cite(args.prompt or "", args.cite, key, model)
         return
     if args.rag:
-        from claude_citations import cmd_rag
+        from zcoder.claude.capabilities.citations import cmd_rag
 
         cmd_rag(args.prompt or "", args.rag, key, model, pattern=args.rag_pattern)
         return
     if args.computer_use:
-        from claude_models import cmd_computer_use
+        from zcoder.claude.models.registry import cmd_computer_use
 
         cmd_computer_use(args.computer_use, key, model)
         return
     if args.interleaved_thinking:
-        from claude_models import cmd_adaptive_thinking
+        from zcoder.claude.models.registry import cmd_adaptive_thinking
 
         cmd_adaptive_thinking(args.prompt or "", key, model, effort=args.effort or "medium")
         return
     if args.agent_session or args.agent_orchestrate:
-        from claude_agents_sdk import cmd_agent_chat, cmd_agent_orchestrate
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_chat, cmd_agent_orchestrate
 
         if args.agent_orchestrate:
             cmd_agent_orchestrate(args.prompt or "", key, model, session_id=args.agent_session)
@@ -3674,7 +3651,7 @@ def main():
             cmd_agent_chat(args.prompt or "", key, model, session_id=args.agent_session)
         return
     if args.agent_dream:
-        from claude_agents_sdk import cmd_agent_dream
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_dream
 
         sess_ids = [s.strip() for s in args.agent_dream_sessions.split(",") if s.strip()] or None
         cmd_agent_dream(
@@ -3686,22 +3663,22 @@ def main():
         )
         return
     if args.agent_dream_get:
-        from claude_agents_sdk import cmd_agent_dream_get
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_dream_get
 
         cmd_agent_dream_get(args.agent_dream_get, key)
         return
     if args.agent_dream_cancel:
-        from claude_agents_sdk import cmd_agent_dream_cancel
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_dream_cancel
 
         cmd_agent_dream_cancel(args.agent_dream_cancel, key)
         return
     if args.agent_dream_archive:
-        from claude_agents_sdk import cmd_agent_dream_archive
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_dream_archive
 
         cmd_agent_dream_archive(args.agent_dream_archive, key)
         return
     if args.agent_dream_list:
-        from claude_agents_sdk import cmd_agent_dream_list
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_dream_list
 
         cmd_agent_dream_list(
             key,
@@ -3711,20 +3688,20 @@ def main():
         )
         return
     if args.agent_webhook_register:
-        from claude_agents_sdk import cmd_agent_webhook_register
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_webhook_register
 
         events = [e.strip() for e in args.agent_webhook_events.split(",") if e.strip()] or None
         cmd_agent_webhook_register(args.agent_webhook_register, key, events=events)
         return
     if args.agent_vault_create:
-        from claude_agents_sdk import cmd_agent_vault_create
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_vault_create
 
         cmd_agent_vault_create(
             args.agent_vault_create, key, external_user_id=args.agent_vault_external_user or None
         )
         return
     if args.agent_vault_add_credential:
-        from claude_agents_sdk import cmd_agent_vault_add_credential
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_vault_add_credential
 
         if not args.agent_vault_cred_type:
             print("[ERROR] --agent-vault-add-credential requires --agent-vault-cred-type")
@@ -3742,12 +3719,12 @@ def main():
         )
         return
     if args.agent_vault_list:
-        from claude_agents_sdk import cmd_agent_vault_list
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_vault_list
 
         cmd_agent_vault_list(key)
         return
     if args.agent_schedule_create:
-        from claude_agents_sdk import cmd_agent_schedule_create
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_schedule_create
 
         if not args.agent_schedule_env or not args.agent_schedule_cron:
             print("[ERROR] --agent-schedule-create requires --agent-schedule-env and --agent-schedule-cron")
@@ -3762,33 +3739,33 @@ def main():
         )
         return
     if args.agent_schedule_list:
-        from claude_agents_sdk import cmd_agent_schedule_list
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_schedule_list
 
         cmd_agent_schedule_list(key)
         return
     if args.agent_schedule_cancel:
-        from claude_agents_sdk import cmd_agent_schedule_cancel
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_schedule_cancel
 
         cmd_agent_schedule_cancel(args.agent_schedule_cancel, key)
         return
     if args.agent_review_multiagent:
-        from claude_agents_sdk import cmd_agent_review_multiagent
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_review_multiagent
 
         specialists = [s.strip() for s in args.agent_review_specialists.split(",") if s.strip()]
         cmd_agent_review_multiagent(args.agent_review_multiagent, specialists, key, model=model)
         return
     if args.agent_outcome_rubric_upload:
-        from claude_agents_sdk import cmd_agent_outcome_rubric_upload
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_outcome_rubric_upload
 
         cmd_agent_outcome_rubric_upload(args.agent_outcome_rubric_upload, key, model)
         return
     if args.agent_env_self_hosted:
-        from claude_agents_sdk import cmd_agent_env_self_hosted_create
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_env_self_hosted_create
 
         cmd_agent_env_self_hosted_create(args.agent_env_self_hosted, key)
         return
     if args.agent_env_work_stats:
-        from claude_agents_sdk import cmd_agent_env_work_stats
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_env_work_stats
 
         cmd_agent_env_work_stats(args.agent_env_work_stats, key)
         return
@@ -3797,7 +3774,7 @@ def main():
         # /v1/sessions) — distinct from --agent-session above, which runs a
         # local agent loop over the plain Messages API. See
         # claude_agents_sdk.ManagedAgentsClient.
-        from claude_agents_sdk import cmd_managed_agent_run
+        from zcoder.claude.orchestration.agents_sdk import cmd_managed_agent_run
 
         outcome_rubric_text = None
         if args.agent_outcome_rubric:
@@ -3837,7 +3814,7 @@ def main():
         )
         return
     if args.agent_create:
-        from claude_agents_sdk import cmd_agent_create
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_create
 
         cmd_agent_create(
             args.agent_create,
@@ -3849,17 +3826,17 @@ def main():
         )
         return
     if args.agent_get:
-        from claude_agents_sdk import cmd_agent_get
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_get
 
         cmd_agent_get(args.agent_get, key, version=args.agent_get_version)
         return
     if args.agent_list:
-        from claude_agents_sdk import cmd_agent_list
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_list
 
         cmd_agent_list(key, limit=args.agent_list_limit)
         return
     if args.agent_update:
-        from claude_agents_sdk import cmd_agent_update
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_update
 
         cmd_agent_update(
             args.agent_update,
@@ -3871,12 +3848,12 @@ def main():
         )
         return
     if args.agent_session_get:
-        from claude_agents_sdk import cmd_agent_session_get
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_session_get
 
         cmd_agent_session_get(args.agent_session_get, key)
         return
     if args.agent_session_budget_set:
-        from claude_agents_sdk import cmd_agent_session_budget_set
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_session_budget_set
 
         if not args.agent_session_budget_usd:
             print("[ERROR] --agent-session-budget-set requires --agent-session-budget-usd DOLLARS")
@@ -3886,12 +3863,12 @@ def main():
         )
         return
     if args.agent_session_budget_remove:
-        from claude_agents_sdk import cmd_agent_session_budget_remove
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_session_budget_remove
 
         cmd_agent_session_budget_remove(args.agent_session_budget_remove, key)
         return
     if args.agent_memory_store_create:
-        from claude_agents_sdk import cmd_agent_memory_store_create
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_store_create
 
         if not args.agent_memory_store:
             print("[ERROR] --agent-memory-store-create requires --agent-memory-store NAME")
@@ -3899,7 +3876,7 @@ def main():
         cmd_agent_memory_store_create(args.agent_memory_store, key)
         return
     if args.agent_memory_list:
-        from claude_agents_sdk import cmd_agent_memory_list
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_list
 
         depth = int(args.agent_memory_depth) if args.agent_memory_depth else None
         cmd_agent_memory_list(
@@ -3907,24 +3884,24 @@ def main():
         )
         return
     if args.agent_memory_stores_list:
-        from claude_agents_sdk import cmd_agent_memory_stores_list
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_stores_list
 
         cmd_agent_memory_stores_list(key, include_archived=args.agent_memory_stores_include_archived)
         return
     if args.agent_memory_store_archive:
-        from claude_agents_sdk import cmd_agent_memory_store_archive
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_store_archive
 
         cmd_agent_memory_store_archive(args.agent_memory_store_archive, key)
         return
     if args.agent_memory_store_delete:
-        from claude_agents_sdk import cmd_agent_memory_store_delete
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_store_delete
 
         cmd_agent_memory_store_delete(
             args.agent_memory_store_delete, key, confirm=args.agent_memory_store_delete_yes
         )
         return
     if args.agent_memory_get:
-        from claude_agents_sdk import cmd_agent_memory_get
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_get
 
         if not args.agent_memory_id:
             print("[ERROR] --agent-memory-get requires --agent-memory-id")
@@ -3932,7 +3909,7 @@ def main():
         cmd_agent_memory_get(args.agent_memory_get, args.agent_memory_id, key)
         return
     if args.agent_memory_create:
-        from claude_agents_sdk import cmd_agent_memory_create
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_create
 
         if not args.agent_memory_path or not args.agent_memory_content:
             print("[ERROR] --agent-memory-create requires --agent-memory-path and --agent-memory-content")
@@ -3942,7 +3919,7 @@ def main():
         )
         return
     if args.agent_memory_update:
-        from claude_agents_sdk import cmd_agent_memory_update
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_update
 
         if not args.agent_memory_id:
             print("[ERROR] --agent-memory-update requires --agent-memory-id")
@@ -3956,7 +3933,7 @@ def main():
         )
         return
     if args.agent_memory_delete:
-        from claude_agents_sdk import cmd_agent_memory_delete
+        from zcoder.claude.orchestration.agents_sdk import cmd_agent_memory_delete
 
         if not args.agent_memory_id:
             print("[ERROR] --agent-memory-delete requires --agent-memory-id")
@@ -3966,7 +3943,7 @@ def main():
         )
         return
     if args.cowork:
-        from cowork import cmd_cowork
+        from zcoder.services.cowork import cmd_cowork
 
         prompt = args.cowork_prompt or args.prompt or ""
         if not prompt:
@@ -3986,12 +3963,12 @@ def main():
 
     # Claude Code commands
     if args.code_agent_mcp_tunnel:
-        from claude_agents_sdk import cmd_mcp_tunnel_open
+        from zcoder.claude.orchestration.agents_sdk import cmd_mcp_tunnel_open
 
         cmd_mcp_tunnel_open(key, args.code_agent_mcp_tunnel)
         return
     if args.code_agent or args.code_agent_session or args.code_agent_resume:
-        from claude_code import cmd_code_agent
+        from zcoder.claude.capabilities.code import cmd_code_agent
 
         prompt = args.prompt or ""
         if not prompt:
@@ -4020,41 +3997,41 @@ def main():
         )
         return
     if args.code_agent_subagent:
-        from claude_code import cmd_code_subagent
+        from zcoder.claude.capabilities.code import cmd_code_subagent
 
         cmd_code_subagent(args.code_agent_subagent, key, model, cwd=args.code_agent_cwd)
         return
     if args.code_agent_todo:
-        from claude_code import cmd_code_todo
+        from zcoder.claude.capabilities.code import cmd_code_todo
 
         cmd_code_todo(args.code_agent_todo, key, model)
         return
     if args.code_agent_slash:
-        from claude_code import cmd_code_slash
+        from zcoder.claude.capabilities.code import cmd_code_slash
 
         cmd_code_slash(args.code_agent_slash, key, model, cwd=args.code_agent_cwd, prompt=args.prompt or "")
         return
     if args.code_agent_cost:
-        from claude_code import cmd_code_cost
+        from zcoder.claude.capabilities.code import cmd_code_cost
 
         cmd_code_cost(key)
         return
 
     if args.project_plan:
-        from coder import Coder
-        from projects import cmd_project_plan
+        from zcoder.services.coder import Coder
+        from zcoder.services.projects import cmd_project_plan
 
         cmd_project_plan(args.project_plan, Coder(api_key=key, model=model))
         return
     if args.project_run:
-        from coder import Coder
-        from projects import cmd_project_run
+        from zcoder.services.coder import Coder
+        from zcoder.services.projects import cmd_project_run
 
         cmd_project_run(args.project_run, args.task or "all", Coder(api_key=key, model=model))
         return
     if args.artifact_create:
-        from artifacts import cmd_artifact_create
-        from coder import Coder
+        from zcoder.infrastructure.artifacts import cmd_artifact_create
+        from zcoder.services.coder import Coder
 
         if not args.prompt:
             print("[ERROR] --artifact-create requires -p")
@@ -4071,14 +4048,14 @@ def main():
         )
         return
     if args.artifact_iterate:
-        from artifacts import cmd_artifact_iterate
-        from coder import Coder
+        from zcoder.infrastructure.artifacts import cmd_artifact_iterate
+        from zcoder.services.coder import Coder
 
         cmd_artifact_iterate(args.artifact_iterate, args.prompt or "", Coder(api_key=key, model=model))
         return
 
     if args.prompt or args.file:
-        from coder import Coder
+        from zcoder.services.coder import Coder
 
         c = Coder(
             api_key=key,
@@ -4097,7 +4074,7 @@ def main():
         # and discarded.
         system_parts = []
         if args.skill:
-            from skills import SkillManager
+            from zcoder.services.skills import SkillManager
 
             skill = SkillManager().get_skill(args.skill)
             if skill:

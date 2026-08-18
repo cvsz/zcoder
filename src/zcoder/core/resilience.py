@@ -6,8 +6,8 @@ the PyInstaller-packaged binary the same as from source.
 
 Usage:
 
-    from resilience import retry, CircuitBreaker
-    from exceptions import TransientAPIError, RateLimitError
+    from zcoder.core.resilience import retry, CircuitBreaker
+    from zcoder.core.exceptions import TransientAPIError, RateLimitError
 
     breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
@@ -41,7 +41,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable, TypeVar
 
-from exceptions import (
+from zcoder.core.exceptions import (
     APIError,
     AuthenticationError,
     CircuitOpenError,

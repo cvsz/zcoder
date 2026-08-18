@@ -278,7 +278,7 @@ def _build_upgrade20_executor(
     github_orchestrator: Any,
     max_ci_repairs: int,
 ) -> Upgrade20EngineeringExecutor:
-    from local_ai_stack import AutonomousEngineeringLoop, PushPolicy, TaskRisk, TaskSource
+    from zcoder.enterprise.local_ai_stack import AutonomousEngineeringLoop, PushPolicy, TaskRisk, TaskSource
 
     push_policy = PushPolicy.AUTO_PUSH_ALLOWED if allow_push else PushPolicy.AUTO_LOCAL_ONLY
     return Upgrade20EngineeringExecutor(

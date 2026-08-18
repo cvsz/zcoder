@@ -9,7 +9,7 @@ Verifies:
   6. Zero-Paid-Calls Guarantee
 """
 
-from local_ai_stack import (
+from zcoder.enterprise.local_ai_stack import (
     HardwareAutoTuner,
     HardwareProfile,
     LlamaCppRuntime,

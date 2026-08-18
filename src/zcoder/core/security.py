@@ -28,7 +28,7 @@ import os
 import re
 from pathlib import Path
 
-from exceptions import SecurityError, ValidationError
+from zcoder.core.exceptions import SecurityError, ValidationError
 
 # ── Path safety ──────────────────────────────────────────────────────────
 

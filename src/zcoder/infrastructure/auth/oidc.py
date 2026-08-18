@@ -331,7 +331,7 @@ class RbacPolicy:
         "worker.list": ZCoderRole.VIEWER,
         "metrics.view": ZCoderRole.VIEWER,
         "health.view": ZCoderRole.VIEWER,
-        "config.view": ZCoderRole.VIEWER,
+        "zcoder.config.settings.view": ZCoderRole.VIEWER,
         # Operator-level: operations
         "job.submit": ZCoderRole.OPERATOR,
         "job.cancel": ZCoderRole.OPERATOR,
@@ -342,7 +342,7 @@ class RbacPolicy:
         "approval.deny": ZCoderRole.OPERATOR,
         "webhook.replay": ZCoderRole.OPERATOR,
         # Admin-level: configuration changes
-        "config.update": ZCoderRole.ADMIN,
+        "zcoder.config.settings.update": ZCoderRole.ADMIN,
         "github.update_installation": ZCoderRole.ADMIN,
         "role.change": ZCoderRole.ADMIN,
         "secret.rotate": ZCoderRole.ADMIN,

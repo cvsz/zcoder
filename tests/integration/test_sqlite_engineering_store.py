@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from engineering_models import Attempt, Checkpoint, EngineeringTask
-from sqlite_engineering_store import SQLiteEngineeringStore
+from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask
+from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 
 
 class TestSQLiteEngineeringStore(unittest.TestCase):

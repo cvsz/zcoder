@@ -27,7 +27,7 @@ Categories (as required by §186-197):
 
 import pytest
 
-from local_ai_stack import (
+from zcoder.enterprise.local_ai_stack import (
     # Loop
     AutonomousEngineeringLoop,
     # Checkpoint

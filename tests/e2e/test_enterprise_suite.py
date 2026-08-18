@@ -17,11 +17,7 @@ import os
 import psycopg2
 import pytest
 
-from agent_runtime import Job, JobStatus
-from enterprise_postgres_store import EnterprisePostgresStore
-from policy_engine import EnterprisePolicyEngine, PolicyObligation, PolicyRule
-from scim_service import ScimProvisioningService
-from tenant_models import (
+from zcoder.domain.models.tenant import (
     ApiKey,
     CrossTenantViolationError,
     EnterpriseAuditEvent,
@@ -31,6 +27,10 @@ from tenant_models import (
     RequestContext,
     UsageEvent,
 )
+from zcoder.domain.services.policy_engine import EnterprisePolicyEngine, PolicyObligation, PolicyRule
+from zcoder.infrastructure.auth.scim import ScimProvisioningService
+from zcoder.infrastructure.stores.enterprise_postgres import EnterprisePostgresStore
+from zcoder.services.agent_runtime import Job, JobStatus
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
 

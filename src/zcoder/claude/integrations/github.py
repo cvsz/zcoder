@@ -22,9 +22,9 @@ from typing import Optional
 
 import anthropic
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json, urlopen_text
-from utils import sampling_kwargs
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json, urlopen_text
+from zcoder.core.utils import sampling_kwargs
 
 GITHUB_API = "https://api.github.com"
 # Shared across all GitHub call sites in this module (issues, PRs, commits,

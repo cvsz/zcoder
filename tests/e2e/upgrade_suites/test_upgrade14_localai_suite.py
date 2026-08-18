@@ -8,7 +8,7 @@ Verifies:
   5. Autonomous Local Coding Pipeline (Inspect -> Plan -> Edit with ZERO paid calls proof)
 """
 
-from local_ai_stack import (
+from zcoder.enterprise.local_ai_stack import (
     AutonomousLocalCodingPipeline,
     HardwareProfiler,
     LocalMCPServer,

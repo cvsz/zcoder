@@ -7,7 +7,7 @@ file_id extraction helper, and the two info-only CLI commands.
 
 import pytest
 
-from claude_skills_api import (
+from zcoder.claude.enterprise.skills import (
     CODE_EXECUTION_BETA,
     FILES_API_BETA,
     PREBUILT_SKILLS,

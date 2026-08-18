@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent_runtime import Job, JobStatus, JobStore
+from zcoder.services.agent_runtime import Job, JobStatus, JobStore
 
 
 class CheckConclusion(str, enum.Enum):

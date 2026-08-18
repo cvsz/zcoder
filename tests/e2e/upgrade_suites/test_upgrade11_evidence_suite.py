@@ -15,10 +15,10 @@ import psycopg2
 import pytest
 
 import main
-from compliance_evidence import ComplianceCatalog, ControlStatus
-from enterprise_postgres_store import EnterprisePostgresStore
-from residency_models import OrganizationResidencyPolicy, ResidencyScheduler
-from tenant_models import CrossTenantViolationError, EnterpriseRole, RequestContext
+from zcoder.domain.models.residency import OrganizationResidencyPolicy, ResidencyScheduler
+from zcoder.domain.models.tenant import CrossTenantViolationError, EnterpriseRole, RequestContext
+from zcoder.infrastructure.stores.enterprise_postgres import EnterprisePostgresStore
+from zcoder.services.compliance_evidence import ComplianceCatalog, ControlStatus
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
 

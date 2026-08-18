@@ -1,6 +1,6 @@
 """tests/test_observability_otel.py — Tests for the observability/metrics layer."""
 
-from observability_otel import (
+from zcoder.infrastructure.observability.otel import (
     ZCoderMetrics,
     _Counter,
     _Gauge,

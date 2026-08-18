@@ -8,7 +8,7 @@ Verifies:
   5. Zero-Paid-Calls Guarantee
 """
 
-from local_ai_stack import (
+from zcoder.enterprise.local_ai_stack import (
     ProjectBootstrapService,
 )
 

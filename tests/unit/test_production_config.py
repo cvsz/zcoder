@@ -2,7 +2,7 @@
 
 import json
 
-from production_config import (
+from zcoder.config.production import (
     ProductionConfig,
     _redact_dict,
     load_config,

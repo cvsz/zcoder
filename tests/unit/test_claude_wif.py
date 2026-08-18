@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-import claude_wif as wif
+import zcoder.claude.integrations.wif as wif
 
 # ── resolve_wif_env() ─────────────────────────────────────────────────
 

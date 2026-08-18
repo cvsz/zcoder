@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from engineering_models import EngineeringTask
-from engineering_store_interface import EngineeringStore
-from portfolio_models import EngineeringCampaign
-from portfolio_store import PortfolioStore
+from zcoder.domain.interfaces.engineering_store import EngineeringStore
+from zcoder.domain.interfaces.portfolio_store import PortfolioStore
+from zcoder.domain.models.engineering import EngineeringTask
+from zcoder.domain.models.portfolio import EngineeringCampaign
 
 
 class PortfolioScheduler:

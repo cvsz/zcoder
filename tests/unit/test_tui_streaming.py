@@ -2,7 +2,7 @@
 
 import pytest
 
-from tui_streaming import StreamRenderGate
+from zcoder.interfaces.cli.streaming import StreamRenderGate
 
 
 def test_first_delta_renders_immediately():

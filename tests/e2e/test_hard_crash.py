@@ -5,7 +5,7 @@ import time
 import unittest
 from pathlib import Path
 
-from sqlite_engineering_store import SQLiteEngineeringStore
+from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 
 
 class TestHardCrash(unittest.TestCase):
@@ -23,8 +23,8 @@ class TestHardCrash(unittest.TestCase):
         # Script that writes 1000 times to stress concurrency and crash
         script = f"""
 import time
-from engineering_models import EngineeringTask
-from sqlite_engineering_store import SQLiteEngineeringStore
+from zcoder.domain.models.engineering import EngineeringTask
+from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 from pathlib import Path
 
 store = SQLiteEngineeringStore(db_path=Path('{self.db_path}'))

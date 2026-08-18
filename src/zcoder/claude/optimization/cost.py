@@ -30,7 +30,7 @@ from typing import Optional
 
 import anthropic
 
-from utils import sampling_kwargs
+from zcoder.core.utils import sampling_kwargs
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 

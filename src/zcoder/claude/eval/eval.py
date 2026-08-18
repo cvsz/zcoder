@@ -14,7 +14,7 @@ from typing import Optional
 
 import anthropic
 
-from utils import sampling_kwargs
+from zcoder.core.utils import sampling_kwargs
 
 EVALS_DIR = Path.home() / ".zcoder" / "evals"
 

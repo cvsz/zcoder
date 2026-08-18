@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 import anthropic
 
-from utils import sampling_kwargs
+from zcoder.core.utils import sampling_kwargs
 
 
 @dataclass

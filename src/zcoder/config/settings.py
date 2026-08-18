@@ -1,4 +1,4 @@
-"""config.py — Configuration management"""
+"""zcoder.config.settings.py — Configuration management"""
 
 import json
 import os

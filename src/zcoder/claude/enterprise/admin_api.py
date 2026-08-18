@@ -102,7 +102,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from resilience import safe_urlopen
+from zcoder.core.resilience import safe_urlopen
 
 ADMIN_BASE = "https://api.anthropic.com/v1/organizations"
 

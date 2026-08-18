@@ -37,7 +37,7 @@ def agents_sdk(monkeypatch):
     _install_fake_anthropic_module()
     import importlib
 
-    import claude_agents_sdk as mod
+    import zcoder.claude.orchestration.agents_sdk as mod
 
     importlib.reload(mod)
     return mod

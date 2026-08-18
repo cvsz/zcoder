@@ -4,11 +4,11 @@ import unittest
 import psycopg2
 import pytest
 
-from engineering_worker import EngineeringWorker
-from portfolio_models import EngineeringCampaign, ManagedRepository
-from portfolio_scheduler import PortfolioScheduler
-from portfolio_store import PortfolioStore
-from postgres_engineering_store import PostgresEngineeringStore
+from zcoder.domain.models.portfolio import EngineeringCampaign, ManagedRepository
+from zcoder.infrastructure.stores.portfolio import PortfolioStore
+from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
+from zcoder.services.engineering_worker import EngineeringWorker
+from zcoder.services.portfolio_scheduler import PortfolioScheduler
 
 
 def _pg_available() -> bool:

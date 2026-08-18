@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from public_api_v1 import PublicAPIV1Router
-from tenant_models import EnterpriseRole, RequestContext
+from zcoder.api.public.v1 import PublicAPIV1Router
+from zcoder.domain.models.tenant import EnterpriseRole, RequestContext
 
 
 class ZCoderSDKException(Exception):

@@ -32,8 +32,8 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
