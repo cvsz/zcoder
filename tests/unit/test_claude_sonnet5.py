@@ -2,7 +2,7 @@
 
 import pytest
 
-from claude_sonnet5 import (
+from zcoder.claude.models.sonnet5 import (
     PROMO_END_DATE,
     SONNET5_MODEL_ID,
     STANDARD_PRICE_IN_USD,
@@ -80,14 +80,14 @@ def test_call_attaches_service_tier_warning(monkeypatch):
 
 
 def test_validate_sampling_params_none_set_is_safe():
-    from claude_sonnet5 import validate_sampling_params
+    from zcoder.claude.models.sonnet5 import validate_sampling_params
 
     assert validate_sampling_params() is None
     assert validate_sampling_params(None, None, None) is None
 
 
 def test_validate_sampling_params_temperature_flagged():
-    from claude_sonnet5 import validate_sampling_params
+    from zcoder.claude.models.sonnet5 import validate_sampling_params
 
     warning = validate_sampling_params(temperature=0.5)
     assert warning is not None
@@ -95,7 +95,7 @@ def test_validate_sampling_params_temperature_flagged():
 
 
 def test_validate_sampling_params_multiple_flagged():
-    from claude_sonnet5 import validate_sampling_params
+    from zcoder.claude.models.sonnet5 import validate_sampling_params
 
     warning = validate_sampling_params(temperature=0.5, top_p=0.9, top_k=40)
     assert "temperature=0.5" in warning

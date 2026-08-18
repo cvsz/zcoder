@@ -39,9 +39,9 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from claude_fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
-from exceptions import APIError, ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.claude.models.fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
+from zcoder.core.exceptions import APIError, ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 

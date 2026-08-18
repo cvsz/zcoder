@@ -34,8 +34,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 
-from agent_runtime import Job, JobStatus
-from tenant_models import (
+from zcoder.domain.models.tenant import (
     ApiKey,
     EnterpriseAuditEvent,
     EnterpriseRole,
@@ -45,6 +44,7 @@ from tenant_models import (
     RequestContext,
     UsageEvent,
 )
+from zcoder.services.agent_runtime import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +283,7 @@ class EnterprisePostgresStore:
     """PostgreSQL storage backend with hard tenant isolation."""
 
     def __init__(self, dsn: str, min_conn: int = 1, max_conn: int = 10):
-        from utils import sanitize_dsn
+        from zcoder.core.utils import sanitize_dsn
 
         self.dsn = sanitize_dsn(dsn)
         self.pool = psycopg2.pool.ThreadedConnectionPool(min_conn, max_conn, self.dsn)

@@ -49,21 +49,16 @@ except ImportError as e:  # pragma: no cover - exercised only w/o textual instal
         "(or: pip install -r requirements.txt, it's an optional extra there)"
     ) from e
 
-from claude_models import MODEL_CATALOG
-from config import Config
-from personalities import PersonalityManager
-from skills import SkillManager
-from tui_streaming import StreamRenderGate
+from zcoder.claude.models.registry import MODEL_CATALOG
+from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
+from zcoder.config.settings import Config
+from zcoder.interfaces.cli.streaming import StreamRenderGate
+from zcoder.services.skills import SkillManager
 
 DEFAULT_MODEL = "claude-sonnet-5"
 
 
 def _agent_prompts() -> dict:
-    # Imported lazily (not at module scope) to avoid a circular import --
-    # main.py imports tui.py to wire up --tui, so tui.py can't import
-    # main.py at module load time.
-    from main import AGENT_SYSTEM_PROMPTS
-
     return AGENT_SYSTEM_PROMPTS
 
 
@@ -256,7 +251,7 @@ class ZCoderTUI(App):
                     prompt, model, system, temperature, history_snapshot, reply_widget
                 )
             else:
-                from coder import Coder
+                from zcoder.services.coder import Coder
 
                 coder = Coder(api_key=self.api_key, model=model, temperature=temperature)
                 full_text = coder.generate(prompt, system=system, history=history_snapshot)

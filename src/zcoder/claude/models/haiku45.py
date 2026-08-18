@@ -35,9 +35,13 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from claude_models import FAST_MODE_SUPPORTED, INFERENCE_GEO_SUPPORTED, SERVICE_TIER_UNSUPPORTED
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.claude.models.registry import (
+    FAST_MODE_SUPPORTED,
+    INFERENCE_GEO_SUPPORTED,
+    SERVICE_TIER_UNSUPPORTED,
+)
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -96,7 +100,7 @@ def validate_fast_mode(want_fast: bool) -> Optional[str]:
         return None
     return (
         'fast mode (speed:"fast") is restricted to Opus models per '
-        "claude_models.FAST_MODE_SUPPORTED — not available on Haiku 4.5."
+        "zcoder.claude.models.registry.FAST_MODE_SUPPORTED — not available on Haiku 4.5."
     )
 
 
@@ -107,7 +111,7 @@ def validate_inference_geo(use_geo: bool) -> Optional[str]:
         return None
     return (
         "inference_geo data residency is not supported on Haiku 4.5 per "
-        "claude_models.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
+        "zcoder.claude.models.registry.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
         "only as of the 2026-07-02 catalog check) — sending it will 400."
     )
 

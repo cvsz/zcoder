@@ -41,8 +41,8 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 VOYAGE_ENDPOINT = "https://api.voyageai.com/v1/embeddings"
 # Separate breaker from the Anthropic-API modules: Voyage is a distinct

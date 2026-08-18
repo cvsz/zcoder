@@ -143,8 +143,8 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
 SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/agent_sessions"))
 ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -2420,7 +2420,7 @@ def cmd_agent_outcome_rubric_upload(file_path: str, api_key: str, model: str) ->
     invocations with --agent-outcome-rubric-file FILE_ID instead of
     re-reading the local file into the request body every time (v1.21.0,
     the file_id form of define_outcome()'s rubric)."""
-    from claude_files import FilesAPI
+    from zcoder.claude.integrations.files import FilesAPI
 
     fa = FilesAPI(api_key=api_key, model=model)
     print(f"\033[94mℹ Uploading rubric {file_path}…\033[0m")

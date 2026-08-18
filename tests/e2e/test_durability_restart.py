@@ -4,7 +4,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from sqlite_engineering_store import SQLiteEngineeringStore
+from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 
 
 class TestDurabilityRestart(unittest.TestCase):
@@ -25,8 +25,8 @@ class TestDurabilityRestart(unittest.TestCase):
         # Spawn subprocess to write to DB
         script = f"""
 import sys
-from engineering_models import EngineeringTask
-from sqlite_engineering_store import SQLiteEngineeringStore
+from zcoder.domain.models.engineering import EngineeringTask
+from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 from pathlib import Path
 
 store = SQLiteEngineeringStore(db_path=Path('{self.db_path}'))

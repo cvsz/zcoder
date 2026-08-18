@@ -75,7 +75,7 @@ zcoder --version
 zcoder --help
 ```
 
-The legacy-compatible entry point also remains available:
+The source-checkout entry point also remains available:
 
 ```bash
 python main.py --help
@@ -343,7 +343,6 @@ zcoder/
 │   │   ├── services/         # application services
 │   │   ├── worker/           # worker/runtime processes
 │   │   └── main.py           # primary CLI entry point
-│   └── *.py                  # backward-compatible module aliases
 ├── tests/                    # unit/integration/e2e suites
 ├── webapp/                   # browser application
 ├── docs/                     # implementation, audit and upgrade docs

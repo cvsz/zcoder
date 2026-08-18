@@ -49,8 +49,8 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from exceptions import TransientAPIError, ZCoderError
-from resilience import retry, safe_urlopen
+from zcoder.core.exceptions import TransientAPIError, ZCoderError
+from zcoder.core.resilience import retry, safe_urlopen
 
 PLUGINS_ROOT = Path(os.path.expanduser("~/.claude/plugins"))
 MARKETPLACES_DIR = PLUGINS_ROOT / "marketplaces"

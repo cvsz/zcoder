@@ -2,7 +2,7 @@
 
 import pytest
 
-from claude_haiku45 import (
+from zcoder.claude.models.haiku45 import (
     HAIKU45_ALIAS,
     HAIKU45_MODEL_ID,
     MIN_THINKING_BUDGET,

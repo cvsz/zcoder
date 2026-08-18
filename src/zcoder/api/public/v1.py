@@ -25,8 +25,8 @@ import time
 import uuid
 from typing import Any
 
-from product_models import EntitlementService
-from tenant_models import RequestContext
+from zcoder.domain.models.product import EntitlementService
+from zcoder.domain.models.tenant import RequestContext
 
 
 class APIError(Exception):

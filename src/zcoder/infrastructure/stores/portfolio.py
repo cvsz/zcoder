@@ -6,10 +6,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from portfolio_models import EngineeringCampaign, ManagedRepository
+from zcoder.domain.interfaces.portfolio_store import PortfolioStore as PortfolioStoreProtocol
+from zcoder.domain.models.portfolio import EngineeringCampaign, ManagedRepository
 
 
-class PortfolioStore:
+class PortfolioStore(PortfolioStoreProtocol):
     def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or (Path.home() / ".zcoder" / "portfolio.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

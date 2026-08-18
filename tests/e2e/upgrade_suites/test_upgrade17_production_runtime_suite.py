@@ -8,7 +8,7 @@ Verifies:
   5. Zero-Paid-Calls Proof during continuous local operation
 """
 
-from local_ai_stack import (
+from zcoder.enterprise.local_ai_stack import (
     LocalInferenceScheduler,
     LocalRuntimeManager,
     MemoryAdmissionController,

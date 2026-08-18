@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import (
+from zcoder.domain.models.legacy_job import (
+    Job,
+    JobStatus,
+    JobStore,
+)
+from zcoder.services.agent_runtime import (
     FakeRuntime,
     JobOrchestrator,
     PolicyEngine,
     ToolPolicy,
-)
-from legacy_job_models import (
-    Job,
-    JobStatus,
-    JobStore,
 )
 
 

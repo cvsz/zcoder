@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from claude_models import (
+from zcoder.claude.models.registry import (
     DEPRECATED_MODELS,
     RETIRED_MODELS,
     _upgrade_source_ids,
@@ -56,7 +56,7 @@ def test_cmd_model_info_warns_on_retired_id(capsys, monkeypatch):
                 "created_at": "2025-08-05T00:00:00Z",
             }
 
-    monkeypatch.setattr("claude_models.ModelsAPI", _FakeModelsAPI)
+    monkeypatch.setattr("zcoder.claude.models.registry.ModelsAPI", _FakeModelsAPI)
     cmd_model_info("claude-opus-4-1-20250805", api_key="k")
     out = capsys.readouterr().out
     assert "retired" in out.lower()
@@ -65,7 +65,7 @@ def test_cmd_model_info_warns_on_retired_id(capsys, monkeypatch):
 
 
 def test_cmd_check_deprecated_reports_retired_hit(capsys, tmp_path):
-    f = tmp_path / "config.py"
+    f = tmp_path / "zcoder.config.settings.py"
     f.write_text('MODEL = "claude-opus-4-1-20250805"\n')
     cmd_check_deprecated(str(tmp_path))
     out = capsys.readouterr().out
@@ -74,7 +74,7 @@ def test_cmd_check_deprecated_reports_retired_hit(capsys, tmp_path):
 
 
 def test_cmd_check_deprecated_clean_tree(capsys, tmp_path):
-    f = tmp_path / "config.py"
+    f = tmp_path / "zcoder.config.settings.py"
     f.write_text('MODEL = "claude-opus-4-8"\n')
     cmd_check_deprecated(str(tmp_path))
     out = capsys.readouterr().out

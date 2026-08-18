@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from github_orchestrator import (
+from zcoder.domain.models.legacy_job import Job, JobStatus, JobStore
+from zcoder.services.github_orchestrator import (
     CheckConclusion,
     CheckRun,
     DistributedScheduler,
@@ -14,7 +15,6 @@ from github_orchestrator import (
     GitHubOrchestrator,
     ReviewState,
 )
-from legacy_job_models import Job, JobStatus, JobStore
 
 
 @pytest.fixture

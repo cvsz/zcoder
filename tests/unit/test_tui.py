@@ -11,7 +11,7 @@ import pytest
 
 textual = pytest.importorskip("textual", reason="optional dependency for --tui, see requirements.txt")
 
-import tui  # noqa: E402
+import zcoder.interfaces.cli.tui as tui  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -142,14 +142,9 @@ def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch):
 
 
 def _purge_tui_modules(modules):
-    """Remove both the legacy alias and canonical src-layout TUI module."""
+    """Remove the canonical src-layout TUI module."""
     for mod in list(modules):
-        if (
-            mod == "tui"
-            or mod.startswith("tui.")
-            or mod == "zcoder.interfaces.cli.tui"
-            or mod.startswith("zcoder.interfaces.cli.tui.")
-        ):
+        if mod == "zcoder.interfaces.cli.tui" or mod.startswith("zcoder.interfaces.cli.tui."):
             del modules[mod]
 
 
@@ -164,11 +159,11 @@ def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
     _purge_tui_modules(_sys.modules)
     try:
         with pytest.raises(ImportError, match="pip install textual"):
-            importlib.import_module("tui")
+            importlib.import_module("zcoder.interfaces.cli.tui")
     finally:
         if real_textual is not None:
             _sys.modules["textual"] = real_textual
         else:
             _sys.modules.pop("textual", None)
         _purge_tui_modules(_sys.modules)
-        importlib.import_module("tui")
+        importlib.import_module("zcoder.interfaces.cli.tui")

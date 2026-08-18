@@ -45,8 +45,8 @@ import urllib.request
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
-from exceptions import APIError
-from resilience import raise_for_http_error, retry, safe_urlopen
+from zcoder.core.exceptions import APIError
+from zcoder.core.resilience import raise_for_http_error, retry, safe_urlopen
 
 MAX_PAGE_CHARS = 8000  # keep pages small enough to stay a cheap loop step
 
@@ -153,7 +153,7 @@ paywall), use "answer" and say so plainly rather than guessing.
 def cmd_browse(
     api_key, model, start_url, task, max_steps=6, allowed_domains=None, temperature=0.0, max_tokens=1024
 ):
-    from coder import Coder
+    from zcoder.services.coder import Coder
 
     c = Coder(api_key=api_key, model=model, temperature=temperature, max_tokens=max_tokens)
     print(f"\033[94mZCoder — browse\033[0m  (model: {c.model})")

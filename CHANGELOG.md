@@ -43,6 +43,17 @@ this release; see "v1.12.0" below for exactly what came from where.
   `test_postgres_multiprocess.py`, `test_fleet_e2e.py`) now skip with the
   repo's `pg_is_available()` guard when no PostgreSQL instance is
   reachable.
+
+**Src-layout migration completed (breaking):**
+* All 593 import sites across `src/`, `tests/`, `webapp/` and `scripts/`
+  now use canonical `zcoder.*` paths; the 104 transitional flat modules
+  under `src/` (`coder`, `config`, `claude_models`, `exceptions`,
+  `resilience`, `utils`, ...) and `_zcoder_compat.py` were deleted.
+* `pyproject.toml` dropped the `py-modules` shim list; `spec/zcoder.spec`
+  no longer bundles or hidden-imports the compat layer. Root `main.py`
+  remains as the source-checkout launcher only.
+* `scripts/migrate_src_layout.py` removed — the migration is complete;
+  git history retains the mapping.
 * Full suite: 954 passed, 25 skipped (live-PostgreSQL tests), 0 failed;
   `ruff check` and `ruff format --check` clean.
 

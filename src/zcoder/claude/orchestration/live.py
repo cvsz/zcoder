@@ -16,7 +16,7 @@ from typing import Any
 
 import anthropic
 
-from utils import sampling_kwargs
+from zcoder.core.utils import sampling_kwargs
 
 LIVE_SYSTEM = (
     "You are an always-on assistant. Respond to the user's message directly. "

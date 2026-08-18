@@ -2,7 +2,7 @@
 
 import json
 
-from config import Config
+from zcoder.config.settings import Config
 
 
 def test_get_default_when_missing():

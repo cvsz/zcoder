@@ -5,13 +5,13 @@ import time
 
 import pytest
 
-from worker_process import Worker, WorkerState
+from zcoder.worker.process import Worker, WorkerState
 
 
 @pytest.fixture
 def sqlite_worker(tmp_path):
     """Create a worker with SQLite backend for unit testing."""
-    from control_plane import ControlPlaneStore
+    from zcoder.domain.services.control_plane import ControlPlaneStore
 
     db_path = tmp_path / "test_control_plane.db"
     store = ControlPlaneStore(db_path=db_path)
@@ -165,7 +165,7 @@ class TestWorkerJobClaim:
             assert row[0] == "SUCCEEDED"
 
     def test_fencing_rejected_for_stale_worker(self, sqlite_worker):
-        from agent_runtime import JobStatus
+        from zcoder.services.agent_runtime import JobStatus
 
         worker, store = sqlite_worker
         _insert_job(store, "job_fencing_test", runtime="fake")

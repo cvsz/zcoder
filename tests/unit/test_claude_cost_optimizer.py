@@ -2,7 +2,7 @@
 
 import pytest
 
-from claude_cost_optimizer import (
+from zcoder.claude.optimization.cost import (
     INFERENCE_GEO_MULTIPLIER,
     INFERENCE_GEO_SUPPORTED,
     PRICE,

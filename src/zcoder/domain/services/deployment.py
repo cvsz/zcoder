@@ -13,7 +13,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 
-from control_plane import ControlPlaneStore
+from zcoder.domain.services.control_plane import ControlPlaneStore
 
 
 @dataclass

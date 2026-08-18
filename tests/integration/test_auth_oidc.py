@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from auth_oidc import (
+from zcoder.infrastructure.auth.oidc import (
     AuthenticatedIdentity,
     BreakGlassAdmin,
     PermissionDeniedError,
@@ -92,11 +92,11 @@ class TestRbacPolicy:
     def test_operator_cannot_update_config(self):
         identity = self._identity(ZCoderRole.OPERATOR)
         with pytest.raises(PermissionDeniedError):
-            RbacPolicy.check(identity, "config.update")
+            RbacPolicy.check(identity, "zcoder.config.settings.update")
 
     def test_admin_can_update_config(self):
         identity = self._identity(ZCoderRole.ADMIN)
-        RbacPolicy.check(identity, "config.update")
+        RbacPolicy.check(identity, "zcoder.config.settings.update")
 
     def test_admin_can_trigger_deploy(self):
         identity = self._identity(ZCoderRole.ADMIN)
@@ -131,7 +131,12 @@ class TestRbacPolicy:
         operator = self._identity(ZCoderRole.OPERATOR)
         admin = self._identity(ZCoderRole.ADMIN)
 
-        dangerous_actions = ["config.update", "role.change", "secret.rotate", "deploy.trigger"]
+        dangerous_actions = [
+            "zcoder.config.settings.update",
+            "role.change",
+            "secret.rotate",
+            "deploy.trigger",
+        ]
         for action in dangerous_actions:
             with pytest.raises(PermissionDeniedError):
                 RbacPolicy.check(viewer, action)
@@ -222,7 +227,7 @@ class TestSecurityMiscellaneous:
 
     def test_oidc_invalid_token_raises_error(self):
         """Verify that malformed tokens are rejected."""
-        from auth_oidc import OidcValidator
+        from zcoder.infrastructure.auth.oidc import OidcValidator
 
         validator = OidcValidator(
             issuer="https://issuer.example.com",
@@ -245,18 +250,23 @@ class TestSecurityMiscellaneous:
         """Anonymous (no identity) must not be able to mutate state."""
         # Without an identity, RBAC should deny all mutation actions
         # This tests the invariant: you cannot call RbacPolicy.check with no identity
-        from auth_oidc import AuthenticatedIdentity, PermissionDeniedError, RbacPolicy, ZCoderRole
+        from zcoder.infrastructure.auth.oidc import (
+            AuthenticatedIdentity,
+            PermissionDeniedError,
+            RbacPolicy,
+            ZCoderRole,
+        )
 
         # Simulate anonymous user with VIEWER role (most restrictive assigned role)
         anon = AuthenticatedIdentity(sub="anonymous", role=ZCoderRole.VIEWER)
-        mutation_actions = ["job.submit", "job.cancel", "config.update", "deploy.trigger"]
+        mutation_actions = ["job.submit", "job.cancel", "zcoder.config.settings.update", "deploy.trigger"]
         for action in mutation_actions:
             with pytest.raises(PermissionDeniedError):
                 RbacPolicy.check(anon, action)
 
     def test_untrusted_proxy_headers_policy(self):
         """Verify configuration has trusted proxy CIDR list."""
-        from production_config import SecurityConfig
+        from zcoder.config.production import SecurityConfig
 
         cfg = SecurityConfig()
         # By default, trusted_proxy_cidrs should be empty — don't trust arbitrary proxies

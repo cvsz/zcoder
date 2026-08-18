@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from intelligence_models import MaintenanceRecommendation, MaintenanceSignal, SignalType
+from zcoder.domain.models.intelligence import MaintenanceRecommendation, MaintenanceSignal, SignalType
 
 
 class MaintenanceIntelligenceService:

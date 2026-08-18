@@ -18,7 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from resilience import shell_command_argv
+from zcoder.core.resilience import shell_command_argv
 
 HOOKS_FILE = Path.home() / ".zcoder" / "hooks.json"
 PERMS_FILE = Path.home() / ".zcoder" / "permissions.json"

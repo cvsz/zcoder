@@ -6,7 +6,7 @@ revoke (status -> inactive, no delete endpoint), and that
 --admin-create-key is a pure explanation with no network call.
 """
 
-from claude_admin_api import (
+from zcoder.claude.enterprise.admin_api import (
     AdminApiClient,
     _default_date_range,
     cmd_admin_create_key,
@@ -83,7 +83,7 @@ def test_default_date_range_is_30_days():
 def test_cmd_usage_report_prints_admin_key_hint_on_403(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="regular-looking-key")
     monkeypatch.setattr(
-        "claude_admin_api.AdminApiClient",
+        "zcoder.claude.enterprise.admin_api.AdminApiClient",
         lambda admin_api_key: client,
     )
     monkeypatch.setattr(
@@ -99,7 +99,7 @@ def test_cmd_usage_report_prints_admin_key_hint_on_403(monkeypatch, capsys):
 
 def test_cmd_cost_report_prints_rows(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="k")
-    monkeypatch.setattr("claude_admin_api.AdminApiClient", lambda admin_api_key: client)
+    monkeypatch.setattr("zcoder.claude.enterprise.admin_api.AdminApiClient", lambda admin_api_key: client)
     monkeypatch.setattr(
         client,
         "get_cost_report",
@@ -118,7 +118,7 @@ def test_cmd_cost_report_prints_rows(monkeypatch, capsys):
 
 def test_cmd_admin_list_keys_prints_each_key(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="k")
-    monkeypatch.setattr("claude_admin_api.AdminApiClient", lambda admin_api_key: client)
+    monkeypatch.setattr("zcoder.claude.enterprise.admin_api.AdminApiClient", lambda admin_api_key: client)
     monkeypatch.setattr(
         client,
         "list_api_keys",
@@ -134,7 +134,7 @@ def test_cmd_admin_list_keys_prints_each_key(monkeypatch, capsys):
 
 def test_cmd_admin_revoke_key_success_message(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="k")
-    monkeypatch.setattr("claude_admin_api.AdminApiClient", lambda admin_api_key: client)
+    monkeypatch.setattr("zcoder.claude.enterprise.admin_api.AdminApiClient", lambda admin_api_key: client)
     monkeypatch.setattr(client, "revoke_api_key", lambda key_id: {"id": key_id, "status": "inactive"})
 
     result = cmd_admin_revoke_key("k", "key_1")
@@ -146,7 +146,7 @@ def test_cmd_admin_revoke_key_success_message(monkeypatch, capsys):
 
 def test_cmd_admin_revoke_key_error(monkeypatch, capsys):
     client = AdminApiClient(admin_api_key="k")
-    monkeypatch.setattr("claude_admin_api.AdminApiClient", lambda admin_api_key: client)
+    monkeypatch.setattr("zcoder.claude.enterprise.admin_api.AdminApiClient", lambda admin_api_key: client)
     monkeypatch.setattr(client, "revoke_api_key", lambda key_id: {"error": "not found"})
 
     result = cmd_admin_revoke_key("k", "ghost")
@@ -163,7 +163,7 @@ def test_cmd_admin_create_key_makes_no_network_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("cmd_admin_create_key must not touch the network")
 
-    monkeypatch.setattr("claude_admin_api.AdminApiClient", boom)
+    monkeypatch.setattr("zcoder.claude.enterprise.admin_api.AdminApiClient", boom)
 
     result = cmd_admin_create_key("my-new-key")
 
@@ -358,7 +358,7 @@ def test_deny_spend_limit_increase_request_with_suppress(monkeypatch):
 
 
 def test_cmd_spend_limits_list_prints_rows(monkeypatch, capsys):
-    from claude_admin_api import cmd_spend_limits_list
+    from zcoder.claude.enterprise.admin_api import cmd_spend_limits_list
 
     monkeypatch.setattr(
         AdminApiClient,
@@ -377,7 +377,7 @@ def test_cmd_spend_limits_list_prints_rows(monkeypatch, capsys):
 
 
 def test_cmd_spend_limits_list_enterprise_hint_on_403(monkeypatch, capsys):
-    from claude_admin_api import cmd_spend_limits_list
+    from zcoder.claude.enterprise.admin_api import cmd_spend_limits_list
 
     monkeypatch.setattr(
         AdminApiClient,
@@ -392,7 +392,7 @@ def test_cmd_spend_limits_list_enterprise_hint_on_403(monkeypatch, capsys):
 
 
 def test_cmd_spend_limit_set_success_message(monkeypatch, capsys):
-    from claude_admin_api import cmd_spend_limit_set
+    from zcoder.claude.enterprise.admin_api import cmd_spend_limit_set
 
     monkeypatch.setattr(
         AdminApiClient,
@@ -407,7 +407,7 @@ def test_cmd_spend_limit_set_success_message(monkeypatch, capsys):
 
 
 def test_cmd_spend_limit_delete_success_message(monkeypatch, capsys):
-    from claude_admin_api import cmd_spend_limit_delete
+    from zcoder.claude.enterprise.admin_api import cmd_spend_limit_delete
 
     monkeypatch.setattr(AdminApiClient, "delete_spend_limit", lambda self, spend_limit_id: {"deleted": True})
 
@@ -417,7 +417,7 @@ def test_cmd_spend_limit_delete_success_message(monkeypatch, capsys):
 
 
 def test_cmd_spend_limit_requests_list_passes_single_status_filter(monkeypatch, capsys):
-    from claude_admin_api import cmd_spend_limit_requests_list
+    from zcoder.claude.enterprise.admin_api import cmd_spend_limit_requests_list
 
     captured = {}
     monkeypatch.setattr(
@@ -434,7 +434,10 @@ def test_cmd_spend_limit_requests_list_passes_single_status_filter(monkeypatch, 
 
 
 def test_cmd_spend_limit_request_approve_and_deny(monkeypatch, capsys):
-    from claude_admin_api import cmd_spend_limit_request_approve, cmd_spend_limit_request_deny
+    from zcoder.claude.enterprise.admin_api import (
+        cmd_spend_limit_request_approve,
+        cmd_spend_limit_request_deny,
+    )
 
     monkeypatch.setattr(
         AdminApiClient,
@@ -490,7 +493,7 @@ def test_cmd_claude_code_usage_report_prints_wrong_key_hint(monkeypatch, capsys)
         "get_claude_code_usage_report",
         lambda self, *a, **k: {"error": "forbidden", "status": 403},
     )
-    from claude_admin_api import cmd_claude_code_usage_report
+    from zcoder.claude.enterprise.admin_api import cmd_claude_code_usage_report
 
     result = cmd_claude_code_usage_report("regular-key", "2026-07-08")
 
@@ -509,7 +512,7 @@ def test_cmd_claude_code_usage_report_handles_missing_optional_fields(monkeypatc
             ]
         },
     )
-    from claude_admin_api import cmd_claude_code_usage_report
+    from zcoder.claude.enterprise.admin_api import cmd_claude_code_usage_report
 
     result = cmd_claude_code_usage_report("admin-k", "2026-07-08")
 
@@ -541,7 +544,7 @@ def test_cmd_claude_code_usage_report_prints_named_user_and_metrics(monkeypatch,
             ]
         },
     )
-    from claude_admin_api import cmd_claude_code_usage_report
+    from zcoder.claude.enterprise.admin_api import cmd_claude_code_usage_report
 
     cmd_claude_code_usage_report("admin-k", "2026-07-08")
 
@@ -667,7 +670,7 @@ def test_list_external_keys_with_workspace_filter(monkeypatch):
 
 
 def test_cmd_cmek_list_prints_wrong_key_hint(monkeypatch, capsys):
-    from claude_admin_api import cmd_cmek_list
+    from zcoder.claude.enterprise.admin_api import cmd_cmek_list
 
     monkeypatch.setattr(
         AdminApiClient,
@@ -682,7 +685,7 @@ def test_cmd_cmek_list_prints_wrong_key_hint(monkeypatch, capsys):
 
 
 def test_cmd_cmek_list_prints_keys(monkeypatch, capsys):
-    from claude_admin_api import cmd_cmek_list
+    from zcoder.claude.enterprise.admin_api import cmd_cmek_list
 
     monkeypatch.setattr(
         AdminApiClient,

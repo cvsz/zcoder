@@ -18,7 +18,7 @@ from typing import Optional
 
 import anthropic
 
-from utils import sampling_kwargs
+from zcoder.core.utils import sampling_kwargs
 
 INDEX_DIR = Path.home() / ".zcoder" / "rag_indexes"
 SUPPORTED_EXTS = {

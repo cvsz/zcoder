@@ -89,24 +89,24 @@ jobs:
               if 'urllib.request.urlopen' not in text:
                   continue
               text = text.replace('urllib.request.urlopen', 'safe_urlopen')
-              if 'from resilience import safe_urlopen' not in text:
+              if 'from zcoder.core.resilience import safe_urlopen' not in text:
                   # Add a standalone compatibility import; Black/Ruff will sort it.
                   if 'import urllib.request\n' in text:
-                      text = text.replace('import urllib.request\n', 'import urllib.request\n\nfrom resilience import safe_urlopen\n', 1)
+                      text = text.replace('import urllib.request\n', 'import urllib.request\n\nfrom zcoder.core.resilience import safe_urlopen\n', 1)
                   else:
                       # Fallback after future annotations or module docstring imports.
                       anchor = 'from __future__ import annotations\n'
                       if anchor in text:
-                          text = text.replace(anchor, anchor + '\nfrom resilience import safe_urlopen\n', 1)
+                          text = text.replace(anchor, anchor + '\nfrom zcoder.core.resilience import safe_urlopen\n', 1)
                       else:
-                          text = 'from resilience import safe_urlopen\n' + text
+                          text = 'from zcoder.core.resilience import safe_urlopen\n' + text
               p.write_text(text)
 
           # Explicit shell argv at intentional hook/Bash boundaries.
           code = Path('src/zcoder/claude/capabilities/code.py')
           text = code.read_text()
-          if 'from resilience import shell_command_argv' not in text:
-              text = text.replace('from resilience import safe_urlopen\n', 'from resilience import safe_urlopen, shell_command_argv\n')
+          if 'from zcoder.core.resilience import shell_command_argv' not in text:
+              text = text.replace('from zcoder.core.resilience import safe_urlopen\n', 'from zcoder.core.resilience import safe_urlopen, shell_command_argv\n')
           text = text.replace('                    cmd,\n                    shell=True,', '                    shell_command_argv(cmd),')
           text = text.replace('subprocess.run(cmd, shell=True, cwd=cwd,', 'subprocess.run(shell_command_argv(cmd), cwd=cwd,')
           code.write_text(text)
@@ -117,12 +117,12 @@ jobs:
           ]:
               p = Path(filename)
               text = p.read_text()
-              if 'from resilience import shell_command_argv' not in text:
+              if 'from zcoder.core.resilience import shell_command_argv' not in text:
                   # Place after stdlib imports; formatter/linter will normalize.
                   if 'import subprocess\n' in text:
-                      text = text.replace('import subprocess\n', 'import subprocess\n\nfrom resilience import shell_command_argv\n', 1)
+                      text = text.replace('import subprocess\n', 'import subprocess\n\nfrom zcoder.core.resilience import shell_command_argv\n', 1)
                   else:
-                      text = 'from resilience import shell_command_argv\n' + text
+                      text = 'from zcoder.core.resilience import shell_command_argv\n' + text
               if filename.endswith('hooks_perms.py'):
                   text = text.replace('subprocess.run(h.command, shell=True,', 'subprocess.run(shell_command_argv(h.command),')
               else:

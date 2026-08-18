@@ -7,8 +7,8 @@ import sqlite3
 import time
 from pathlib import Path
 
-from engineering_models import Attempt, Checkpoint, EngineeringTask, TaskStatus
-from engineering_store_interface import EngineeringStore
+from zcoder.domain.interfaces.engineering_store import EngineeringStore
+from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask, TaskStatus
 
 
 class SQLiteEngineeringStore(EngineeringStore):

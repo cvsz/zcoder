@@ -15,7 +15,7 @@ It is intentionally separate from control_plane.py so that the SQLite path
 has no dependency on PostgreSQL packages.
 
 Usage:
-    from postgres_store import PostgresControlPlaneStore
+    from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
     store = PostgresControlPlaneStore(dsn="postgresql://user:pass@host/db")
 """
 
@@ -30,8 +30,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
-from legacy_job_models import Job, JobStatus
 from zcoder.core.utils import sanitize_dsn
+from zcoder.domain.models.legacy_job import Job, JobStatus
 from zcoder.infrastructure.stores.postgres_outbox_store import process_postgres_store_outbox
 
 logger = logging.getLogger(__name__)

@@ -72,8 +72,8 @@ import urllib.error
 import urllib.request
 from typing import Callable, Optional
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
 

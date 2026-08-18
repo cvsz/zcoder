@@ -37,14 +37,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from claude_models import MODEL_CATALOG  # noqa: E402
-from coder import Coder  # noqa: E402
-from config import Config  # noqa: E402
-from health import run_health_check  # noqa: E402
-from logging_config import get_logger  # noqa: E402
-from main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
-from personalities import PersonalityManager  # noqa: E402
-from skills import SkillManager  # noqa: E402
+from zcoder.claude.models.registry import MODEL_CATALOG  # noqa: E402
+from zcoder.claude.personalities import PersonalityManager  # noqa: E402
+from zcoder.config.logging import get_logger  # noqa: E402
+from zcoder.config.settings import Config  # noqa: E402
+from zcoder.core.health import run_health_check  # noqa: E402
+from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
+from zcoder.services.coder import Coder  # noqa: E402
+from zcoder.services.skills import SkillManager  # noqa: E402
 
 logger = get_logger("webapp.server")
 

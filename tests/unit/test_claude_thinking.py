@@ -29,7 +29,7 @@ def thinking_mod(monkeypatch):
 
     import importlib
 
-    import claude_thinking as mod
+    import zcoder.claude.capabilities.thinking as mod
 
     importlib.reload(mod)
     return mod

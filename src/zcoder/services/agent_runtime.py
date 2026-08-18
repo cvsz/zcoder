@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import Callable, Protocol
 
-from engineering_models import EngineeringTask
-from engineering_store_interface import EngineeringStore
-from legacy_job_models import (
+from zcoder.domain.interfaces.engineering_store import EngineeringStore
+from zcoder.domain.models.engineering import EngineeringTask
+from zcoder.domain.models.legacy_job import (
     ApprovalRequest,
     FakeRuntime,
     Job,

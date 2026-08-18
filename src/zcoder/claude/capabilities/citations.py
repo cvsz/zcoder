@@ -18,8 +18,8 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 ENDPOINT = "https://api.anthropic.com/v1/messages"
 

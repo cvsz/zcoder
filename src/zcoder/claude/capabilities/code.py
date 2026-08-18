@@ -328,7 +328,7 @@ class HooksEngine:
     def with_plugins(cls, base: "HooksEngine") -> "HooksEngine":
         """Merge plugin-bundled hooks.json files into an existing engine's config."""
         try:
-            from claude_plugins import load_plugin_hooks
+            from zcoder.claude.tools.plugins import load_plugin_hooks
 
             plugin_hooks = load_plugin_hooks()
         except ImportError:
@@ -435,7 +435,7 @@ class McpConnector:
             except Exception as e:
                 print(f"  [WARN] .mcp.json parse error: {e}")
         try:
-            from claude_plugins import load_plugin_mcp_servers
+            from zcoder.claude.tools.plugins import load_plugin_mcp_servers
 
             mc.servers.update(load_plugin_mcp_servers())
         except ImportError:
@@ -505,7 +505,7 @@ class SubagentRegistry:
 
         # Plugin-bundled agents (.claude/plugins/installed/<plugin>/agents/*.md)
         try:
-            from claude_plugins import load_plugin_agents
+            from zcoder.claude.tools.plugins import load_plugin_agents
 
             for entry in load_plugin_agents():
                 self._load_one(
@@ -622,7 +622,7 @@ class SkillsRegistry:
                 "source": "anthropic",
             }
         try:
-            from claude_plugins import load_plugin_skills
+            from zcoder.claude.tools.plugins import load_plugin_skills
 
             for entry in load_plugin_skills():
                 content = Path(entry["path"]).read_text()
@@ -745,8 +745,8 @@ class MemoryManager:
 import urllib.error
 import urllib.request
 
-from exceptions import ZCoderError
-from resilience import (
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import (
     CircuitBreaker,
     raise_for_http_error,
     retry,
@@ -987,7 +987,7 @@ class CodeAgent:
                 timeout = inputs.get("timeout", 30)
                 if os.environ.get("ZCODER_SANDBOX") == "1":
                     try:
-                        from claude_sandbox import SandboxViolation, enforce
+                        from zcoder.claude.tools.sandbox import SandboxViolation, enforce
 
                         roots = json.loads(os.environ.get("ZCODER_SANDBOX_ROOTS", "[]"))
                         allow_net = os.environ.get("ZCODER_SANDBOX_NET") == "1"
@@ -1134,7 +1134,7 @@ class CodeAgent:
             betas = []
             if context_management is not None:
                 payload["context_management"] = context_management
-                from claude_tools import CONTEXT_MANAGEMENT_BETA
+                from zcoder.claude.tools.registry import CONTEXT_MANAGEMENT_BETA
 
                 betas.append(CONTEXT_MANAGEMENT_BETA)
 
@@ -1303,7 +1303,7 @@ def cmd_code_agent(
     # Output style: append style instructions to the session's system prompt
     if output_style:
         try:
-            from claude_output_styles import system_prompt_fragment
+            from zcoder.claude.eval.output_styles import system_prompt_fragment
 
             fragment = system_prompt_fragment(output_style)
             if fragment:
@@ -1334,7 +1334,7 @@ def cmd_code_agent(
 
     # Plugin bin/ dirs onto PATH for the duration of this run
     try:
-        from claude_plugins import plugin_bin_paths
+        from zcoder.claude.tools.plugins import plugin_bin_paths
 
         extra_bins = plugin_bin_paths()
         if extra_bins:
@@ -1363,7 +1363,7 @@ def cmd_code_agent(
     # full context_management payload shape.
     cm = None
     if agent_context_editing:
-        from claude_tools import build_context_management
+        from zcoder.claude.tools.registry import build_context_management
 
         cm = build_context_management(clear_tool_uses=True)
         if not headless:
@@ -1510,15 +1510,15 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
         elif cmd == "doctor":
             _run_doctor()
         elif cmd == "plugin":
-            from claude_plugins import cmd_plugin_list
+            from zcoder.claude.tools.plugins import cmd_plugin_list
 
             cmd_plugin_list()
         elif cmd == "output-style":
-            from claude_output_styles import cmd_list_output_styles
+            from zcoder.claude.eval.output_styles import cmd_list_output_styles
 
             cmd_list_output_styles()
         elif cmd == "statusline":
-            from claude_settings import cmd_status_line
+            from zcoder.claude.enterprise.settings import cmd_status_line
 
             cmd_status_line(model=model, cwd=cwd)
         return
@@ -1541,7 +1541,7 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
                     return
 
     try:
-        from claude_plugins import load_plugin_commands
+        from zcoder.claude.tools.plugins import load_plugin_commands
 
         for entry in load_plugin_commands():
             if entry["name"] == cmd or entry["name"].split(":", 1)[-1] == cmd:
@@ -1645,7 +1645,7 @@ def _run_doctor():
         ("Sessions dir", SESSIONS_DIR.exists()),
     ]
     try:
-        from claude_plugins import marketplace_list, plugin_list
+        from zcoder.claude.tools.plugins import marketplace_list, plugin_list
 
         checks.append(("Plugins installed", len(plugin_list()) > 0))
         checks.append(("Marketplaces registered", len(marketplace_list()) > 0))

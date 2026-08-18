@@ -43,7 +43,7 @@ def _format_transcript(history, system=None):
 
 def cmd_interactive(api_key, model, system=None, temperature=0.3, max_tokens=4096, personality_style=None):
     """Run the interactive chat REPL until the user exits."""
-    from coder import Coder
+    from zcoder.services.coder import Coder
 
     history = []
     c = Coder(

@@ -10,7 +10,8 @@ Verifies:
 
 import time
 
-from product_models import (
+from zcoder.api.public.v1 import PublicAPIV1Router
+from zcoder.domain.models.product import (
     CustomerWebhookEndpoint,
     EntitlementService,
     FakeBillingProvider,
@@ -18,9 +19,8 @@ from product_models import (
     Subscription,
     SubscriptionStatus,
 )
-from public_api_v1 import PublicAPIV1Router
-from sdk_client import ZCoderClient
-from tenant_models import EnterpriseRole, RequestContext
+from zcoder.domain.models.tenant import EnterpriseRole, RequestContext
+from zcoder.interfaces.sdk.client import ZCoderClient
 
 
 def test_entitlements_by_plan_tier():

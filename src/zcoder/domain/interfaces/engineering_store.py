@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from engineering_models import Attempt, Checkpoint, EngineeringTask
+from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask
 
 
 class EngineeringStore(ABC):

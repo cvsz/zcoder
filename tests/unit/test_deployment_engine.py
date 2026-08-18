@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from control_plane import ControlPlaneStore, GitHubInstallation
-from deployment_engine import DeploymentEngine
+from zcoder.domain.services.control_plane import ControlPlaneStore, GitHubInstallation
+from zcoder.domain.services.deployment import DeploymentEngine
 
 
 @pytest.fixture
