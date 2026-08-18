@@ -338,50 +338,24 @@ def build_postgres_store_pipeline(
     github_orchestrator: Any = None,
     max_ci_repairs: int = 3,
 ) -> ContinuousEngineeringPipeline:
-    """Build the fenced multi-host PostgreSQL continuous-engineering pipeline."""
+    """Compatibility seam delegating PostgreSQL composition outward."""
 
-    if not database_url:
-        raise ValueError("database_url must not be empty for PostgreSQL state backend")
+    from zcoder.interfaces.cli.continuous_engineering import (
+        build_postgres_store_pipeline as compose_postgres_store_pipeline,
+    )
 
-    from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
-    from zcoder.services.upgrade_postgres_fence import PostgresUpgradeFence
-    from zcoder.services.upgrade_postgres_lease import PostgresAdvisoryRunLease
-    from zcoder.services.upgrade_postgres_runtime import FencedUpgradeEngineeringStore, PostgresFencedRunLease
-
-    store = PostgresEngineeringStore(dsn=database_url)
-    try:
-        store.init_schema()
-        probe = EngineeringStoreUpgradeLedger(store, namespace=ledger_namespace)
-        fence = PostgresUpgradeFence(
-            store.connection_scope,
-            namespace=ledger_namespace,
-            control_task_id=probe.control_task_id,
-        )
-        run_lease = PostgresFencedRunLease(
-            PostgresAdvisoryRunLease(store.connection_scope, f"{ledger_namespace}:continuous-run"),
-            fence,
-        )
-        fenced_store = FencedUpgradeEngineeringStore(store, fence, run_lease.require_token)
-        ledger = EngineeringStoreUpgradeLedger(fenced_store, namespace=ledger_namespace)
-        executor = _build_upgrade20_executor(
-            repository_root,
-            project_id=project_id,
-            allow_push=allow_push,
-            github_orchestrator=github_orchestrator,
-            max_ci_repairs=max_ci_repairs,
-        )
-        return ContinuousEngineeringPipeline(
-            executor,
-            ledger,
-            work_sources=work_sources,
-            policy=policy,
-            retry_blocked=retry_blocked,
-            run_lease=run_lease,
-            close_callback=store.close,
-        )
-    except Exception:
-        store.close()
-        raise
+    return compose_postgres_store_pipeline(
+        repository_root,
+        database_url,
+        ledger_namespace=ledger_namespace,
+        project_id=project_id,
+        allow_push=allow_push,
+        policy=policy,
+        retry_blocked=retry_blocked,
+        work_sources=work_sources,
+        github_orchestrator=github_orchestrator,
+        max_ci_repairs=max_ci_repairs,
+    )
 
 
 def _load_work_file(path: Path) -> list[UpgradeWorkItem]:
