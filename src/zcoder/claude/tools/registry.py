@@ -1,6 +1,6 @@
 """
 claude_tools.py — Tool Use (Function Calling)
-AI Model Coder CLI v1.11.0
+ZCoder CLI v1.11.0
 
 Full tool-use support:
   • Custom tool definitions (JSON Schema)
@@ -53,7 +53,7 @@ CLI flags:
   --strict-tools          Strict schema validation on tool inputs
   --memory-agent PROMPT   Run an agent loop backed by the native memory tool
   --memory-dir DIR        Where the memory tool's local files live
-                          (default: ~/.ai-coder/memory)
+                          (default: ~/.zcoder/memory)
   --context-management    Enable context editing (clear_tool_uses) on
                           --tool-agent / --server-tool calls
   --compaction            Enable server-side compaction on --server-tool
@@ -72,7 +72,7 @@ import urllib.error
 import urllib.request
 from typing import Callable, Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
@@ -438,7 +438,7 @@ class MemoryToolHandler:
     per Anthropic's documented path-traversal-protection requirement for
     memory tool implementations."""
 
-    def __init__(self, base_dir: str = "~/.ai-coder/memory"):
+    def __init__(self, base_dir: str = "~/.zcoder/memory"):
         import os
 
         self.base_dir = os.path.abspath(os.path.expanduser(base_dir))
@@ -585,7 +585,7 @@ class ToolCoder:
         )
         try:
             return self._call(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -789,7 +789,7 @@ class ToolCoder:
         )
         try:
             data = self._call(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             return f"[API ERROR {getattr(e, 'status_code', '')}] {e.message}"
 
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
@@ -842,7 +842,7 @@ class ToolCoder:
             )
             try:
                 data = self._call(req)
-            except AICoderError as e:
+            except ZCoderError as e:
                 return f"[API ERROR {getattr(e, 'status_code', '')}] {e.message}"
 
             stop_reason = data.get("stop_reason", "")
@@ -1015,7 +1015,7 @@ def cmd_server_tool(
 
 
 def cmd_memory_agent(
-    prompt: str, api_key: str, model: str, memory_dir: str = "~/.ai-coder/memory", max_turns: int = 10
+    prompt: str, api_key: str, model: str, memory_dir: str = "~/.zcoder/memory", max_turns: int = 10
 ):
     """Run an agent loop backed by the native memory tool."""
     print(f"\033[94mℹ Memory-tool agent | dir={memory_dir}\033[0m\n")

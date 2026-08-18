@@ -73,6 +73,16 @@ def test_legacy_and_canonical_main_share_version():
     assert legacy_main.VERSION == canonical_main.VERSION
 
 
+def test_parser_uses_zcoder_as_the_displayed_cli_name():
+    import main as main_mod
+
+    parser = main_mod.build_parser()
+
+    assert parser.prog == "zcoder"
+    assert "usage: zcoder" in parser.format_help()
+    assert "usage: ai-coder" not in parser.format_help()
+
+
 @pytest.fixture
 def parsed_args():
     import main as main_mod

@@ -12,16 +12,35 @@ source venv/bin/activate
 python main.py -p "Write a function to reverse a string"
 ```
 
+## Run without an API key (offline / local mode)
+
+Set `ZCODER_LOCAL_MODE=1` (or `true`/`yes`) to run the CLI with no
+`ANTHROPIC_API_KEY` at all — generation, git helpers, live mode, and
+prompt optimization switch to deterministic offline synthesis with no
+network calls:
+
+```bash
+export ZCODER_LOCAL_MODE=1
+python main.py -p "Write a function to reverse a string"
+# -> [zCoder local offline response] ...
+```
+
+Outside local mode, a missing key is a hard error (`[ERROR] No API key
+configured...`) — the CLI never silently pretends to generate. Local mode
+does not require Ollama or any other model engine; it is a pure
+synthesis fallback for trying the CLI, running the test suite, or
+air-gapped smoke tests.
+
 ## Build a standalone executable
 
 No local Python needed to *run* the result — only to build it:
 
 ```bash
-./build.sh               # macOS/Linux — produces dist/ai-coder
-# or build.bat on Windows — produces dist\ai-coder.exe
+./build.sh               # macOS/Linux — produces dist/zcoder
+# or build.bat on Windows — produces dist\zcoder.exe
 
 export ANTHROPIC_API_KEY=sk-ant-...
-./dist/ai-coder -p "Create a Flask REST API"
+./dist/zcoder -p "Create a Flask REST API"
 ```
 
 ## A few places to start
@@ -40,7 +59,7 @@ python main.py --list-server-tools
 # Agentic tool loop
 python main.py --tool-agent -p "Find and fix the bug in app.py"
 
-# Native memory tool (persists across runs, in ~/.ai-coder/memory)
+# Native memory tool (persists across runs, in ~/.zcoder/memory)
 python main.py --memory-agent "Remember that this project uses pytest"
 
 # Advisor tool — a stronger model consulted mid-generation

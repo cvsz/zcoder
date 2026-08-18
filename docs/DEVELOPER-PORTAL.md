@@ -110,8 +110,9 @@ Each webhook delivery includes a signature header `X-ZCoder-Signature`:
 import hmac
 import hashlib
 
+
 def verify_signature(payload_bytes: bytes, secret: str, received_signature: str) -> bool:
-    expected = hmac.new(secret.encode('utf-8'), payload_bytes, hashlib.sha256).hexdigest()
+    expected = hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, received_signature)
 ```
 

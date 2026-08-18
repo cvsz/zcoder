@@ -70,7 +70,7 @@ zcoder/
 │   ├── release_gate.py
 │   └── migrate_src_layout.py
 ├── spec/
-│   ├── ai-coder.spec
+│   ├── zcoder.spec
 │   └── anthropic-conformance.yaml
 ├── deploy/
 ├── ARCHITECTURE.md
@@ -91,6 +91,8 @@ Owns user/runtime settings, production configuration, and logging configuration.
 ### `zcoder.core`
 
 Contains cross-cutting primitives: typed exceptions, retry/circuit-breaker behavior, health checks, security validation, and shared utilities. Core code must remain presentation-agnostic.
+
+Shared utilities in `zcoder.core.utils` are the canonical home for provider-agnostic helpers that both application services and infrastructure adapters need — for example `sanitize_dsn()`, which strips query parameters that `psycopg2` cannot parse (`?schema=public` from Prisma-style DSNs) so a connection string written for other tooling does not crash every PostgreSQL connection. Core-level placement keeps the services → infrastructure dependency rule intact: `zcoder.services` may import core utilities but must never import concrete infrastructure adapters.
 
 ### `zcoder.domain`
 
@@ -135,6 +137,12 @@ Contains concrete persistence, authentication, observability, and artifact adapt
 
 Infrastructure may depend on domain/application ports. The inverse dependency is prohibited.
 
+PostgreSQL adapters follow these persistence conventions:
+
+- every `psycopg2`/`psycopg` entry point (pool creation and direct connects in `services/backup_restore.py`) routes the DSN through `zcoder.core.utils.sanitize_dsn()` before use;
+- schema DDL is idempotent (`CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`), indexes cover every WHERE/JOIN/ORDER BY access pattern (queue status+creation time, lease expiry, foreign-key sides, checkpoint lookup by attempt), and write paths use `INSERT ... ON CONFLICT` so worker retries cannot crash on duplicate keys;
+- tenant isolation is explicit per store: `enterprise_postgres.py` enforces multi-tenant RLS with `FORCE ROW LEVEL SECURITY` plus per-table policies keyed on `current_setting('app.current_org')`, while the single-tenant engineering store (`postgres_engineering.py`) deliberately has no RLS statements — enabling RLS without policies would silently deny all rows to any non-owner role.
+
 ### `zcoder.interfaces` and `zcoder.api`
 
 Presentation/adaptor layers own protocol translation only:
@@ -148,11 +156,10 @@ Presentation/adaptor layers own protocol translation only:
 
 ### Installed CLI
 
-`pyproject.toml` installs both commands through the canonical package:
+`pyproject.toml` installs the canonical command through the package:
 
 ```text
 zcoder   -> zcoder.main:main
-ai-coder -> zcoder.main:main
 ```
 
 ### Source checkout compatibility
@@ -192,6 +199,12 @@ Domain/application code must depend on storage interfaces rather than selecting 
 
 Circuit breakers must be scoped to stable downstream dependencies. Calls to arbitrary user-selected hosts may use bounded retry but must not share a breaker whose state could block unrelated hosts.
 
+### Offline / local mode
+
+`ZCODER_LOCAL_MODE=1` (or `true`/`yes`) switches generation, git, live-streaming, and prompt-optimization call sites to deterministic offline synthesis with no network I/O. Missing API keys are a hard error outside local mode (`[ERROR] No API key configured...`); inside local mode `zcoder.main._api_key` returns a placeholder key so the CLI still reaches command handlers.
+
+Fallback paths must synthesize the response for the current call only. They must not mutate the process environment (e.g. set `ZCODER_LOCAL_MODE` globally on a network error), because that silently flips every later API call in the same process to offline mode. Offline branches must remain pure functions of their inputs so tests can exercise them without touching real credentials.
+
 Secrets must not be committed, logged, returned to browser clients, or embedded in generated artifacts. `.env` and local state/build products are ignored by version control.
 
 ## Admin and Compliance API boundary
@@ -211,6 +224,12 @@ Tests are grouped by execution semantics:
 
 `tests/conftest.py` remains at the suite root so fixtures apply to all categories. CI discovers the complete `tests/` tree and installs the package in editable mode before running tests.
 
+Test isolation rules:
+
+- live infrastructure tests (PostgreSQL-dependent) guard the whole module with `pytest.mark.skipif(not _pg_available(), ...)` and probe the DSN with a short `connect_timeout` before running;
+- tests that need environment variables (`ZCODER_LOCAL_MODE`, fake API keys) set them per-test and restore the previous values afterwards — module-level environment mutation pollutes every later test in the same process and is prohibited;
+- `tests/conftest.py` deletes `ANTHROPIC_API_KEY` per test so a developer's real shell key cannot cause accidental network calls.
+
 ## Documentation architecture
 
 `docs/README.md` is the documentation index. New documents go into the taxonomy instead of accumulating in `docs/` root:
@@ -223,7 +242,7 @@ Historical upgrade and prompt files are preserved byte-for-byte under their taxo
 
 Python packaging uses PEP 517/setuptools with a `src` layout. Package data includes the Anthropic conformance manifest required at runtime.
 
-Canonical setup/build scripts live under `scripts/` and explicitly change to the repository root before operating. Setup performs an editable package install. Standalone builds use `spec/ai-coder.spec`, which includes `src` in PyInstaller analysis and packages the conformance YAML.
+Canonical setup/build scripts live under `scripts/` and explicitly change to the repository root before operating. Setup performs an editable package install. Standalone builds use `spec/zcoder.spec`, which includes `src` in PyInstaller analysis and packages the conformance YAML.
 
 Generated bytecode, virtual environments, distribution/build directories, package metadata, coverage caches, and SQLite WAL/SHM files are excluded from version control. Previously tracked WAL/SHM files were removed during migration.
 

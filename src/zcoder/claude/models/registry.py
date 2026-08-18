@@ -1,6 +1,6 @@
 """
 claude_models.py — Models API + Computer Use + Adaptive/Interleaved Thinking
-AI Model Coder CLI v1.37.0
+ZCoder CLI v1.37.0
 
 Covers:
   • Models API  — list available models, get model info
@@ -32,7 +32,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
@@ -374,7 +374,7 @@ class ModelsAPI:
         req = urllib.request.Request(url, headers=headers, method="GET")
         try:
             return self._call(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"Models API error: {e.message}") from e
 
     def list_models(self) -> list:
@@ -395,7 +395,7 @@ def cmd_list_models(api_key: str, include_legacy: bool = False):
             mid = m.get("id", "")
             name = m.get("display_name", "")[:34]
             ctx = m.get("context_window", 0)
-            ctx_str = f"{ctx//1000}K" if ctx else "—"
+            ctx_str = f"{ctx // 1000}K" if ctx else "—"
             print(f"{mid:<35}{name:<35}{ctx_str}")
         print(f"\n{len(models)} models available")
     except RuntimeError as e:
@@ -414,7 +414,7 @@ def cmd_list_models(api_key: str, include_legacy: bool = False):
             }[tier]
             print(f"\n  \033[1m{label}\033[0m")
             for mid, info in rows:
-                ctx = f"{info['context_window']//1000}K"
+                ctx = f"{info['context_window'] // 1000}K"
                 print(
                     f"    {mid:<32}{info['display_name']:<24}{ctx:<7}"
                     f"${info['price_in']}/${info['price_out']} per MTok"
@@ -443,15 +443,12 @@ def cmd_model_info(model_id: str, api_key: str):
 
     deprecated = check_deprecated(model_id)
     if deprecated:
-        print(
-            f"\n  \033[93m⚠ {model_id} is deprecated, retiring "
-            f"{deprecated['retirement_scheduled']}\033[0m"
-        )
+        print(f"\n  \033[93m⚠ {model_id} is deprecated, retiring {deprecated['retirement_scheduled']}\033[0m")
         print(f"    Was:            {deprecated['display_name']}")
         print(f"    Announced:      {deprecated['deprecation_announced']}")
         print(f"    Migrate to:     {deprecated['replacement']}")
         print(f"    Notes:          {deprecated['notes']}")
-        print("\n  Still works today — this is an early warning, not a failure. " "Continuing below:\n")
+        print("\n  Still works today — this is an early warning, not a failure. Continuing below:\n")
 
     ma = ModelsAPI(api_key=api_key)
     try:
@@ -459,7 +456,7 @@ def cmd_model_info(model_id: str, api_key: str):
         print(f"\n  ID:             {m.get('id')}")
         print(f"  Display name:   {m.get('display_name')}")
         print(f"  Context window: {m.get('context_window', 0):,} tokens")
-        print(f"  Created:        {m.get('created_at','')[:10]}")
+        print(f"  Created:        {m.get('created_at', '')[:10]}")
         caps = m.get("capabilities")
         if caps:
             print("  Capabilities:")
@@ -564,8 +561,7 @@ def cmd_check_deprecated(path: str):
 
     if deprecated_hits:
         print(
-            f"\n\033[93m⚠ Deprecated model IDs found under {path} "
-            f"(still work today, retiring soon)\033[0m\n"
+            f"\n\033[93m⚠ Deprecated model IDs found under {path} (still work today, retiring soon)\033[0m\n"
         )
         for model_id, locations in deprecated_hits.items():
             rec = DEPRECATED_MODELS[model_id]
@@ -650,7 +646,7 @@ def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False, no_b
     import re
 
     if target not in UPGRADE_TARGETS:
-        print(f"[ERROR] Unknown upgrade target '{target}'. Choose from: " f"{', '.join(UPGRADE_TARGETS)}")
+        print(f"[ERROR] Unknown upgrade target '{target}'. Choose from: {', '.join(UPGRADE_TARGETS)}")
         return
 
     target_id = UPGRADE_TARGETS[target]
@@ -769,7 +765,7 @@ class ComputerUseCoder:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -861,7 +857,7 @@ class AdaptiveThinkingCoder:
     def _post(self, payload: dict, betas: list[str] = None) -> dict:
         try:
             return self._call(payload, betas)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

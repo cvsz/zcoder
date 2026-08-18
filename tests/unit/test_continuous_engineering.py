@@ -201,10 +201,9 @@ def test_maintenance_source_adapts_upgrade23_recommendations(tmp_path):
 def test_github_ci_repair_hook_uses_existing_orchestrator_contract():
     calls = []
     orchestrator = SimpleNamespace(
-        execute_ci_repair_loop=lambda job_id, repo, pr, max_repairs: calls.append(
-            (job_id, repo, pr, max_repairs)
+        execute_ci_repair_loop=lambda job_id, repo, pr, max_repairs: (
+            calls.append((job_id, repo, pr, max_repairs)) or True
         )
-        or True
     )
     hook = github_ci_repair_hook(orchestrator, max_repairs=2)
     item = UpgradeWorkItem(

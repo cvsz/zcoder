@@ -12,7 +12,7 @@ end alongside the plain-argparse CLI and the FastAPI web console
     skills.py                 -> SkillManager
     claude_models.py          -> MODEL_CATALOG
     main.py                   -> AGENT_SYSTEM_PROMPTS, VERSION
-    config.py                 -> Config (persisted to ~/.ai-coder-config.json)
+    config.py                 -> Config (persisted to ~/.zcoder-config.json)
 
 No business logic lives here -- this module is purely presentation, same
 principle webapp/backend/server.py documents for itself.
@@ -161,13 +161,13 @@ class ZCoderTUI(App):
             with Vertical(id="main"):
                 yield VerticalScroll(id="transcript")
                 with Horizontal(id="input_row"):
-                    yield Input(placeholder="Ask ai-coder anything…  (Enter to send)", id="prompt_input")
+                    yield Input(placeholder="Ask ZCoder anything…  (Enter to send)", id="prompt_input")
                     yield Button("run", id="send_btn", variant="primary")
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#transcript").mount(
-            ChatMessage("system", "ai-coder TUI ready. Same Coder core as the CLI and web console.")
+            ChatMessage("system", "ZCoder TUI ready. Same Coder core as the CLI and web console.")
         )
         if not self.api_key:
             self.query_one("#transcript").mount(

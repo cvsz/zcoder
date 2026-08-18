@@ -3,15 +3,17 @@
 import json
 import os
 
-CONFIG_PATH = os.path.expanduser("~/.ai-coder-config.json")
+CONFIG_PATH = os.path.expanduser("~/.zcoder-config.json")
+LEGACY_CONFIG_PATH = os.path.expanduser("~/.ai-coder-config.json")
 
 
 class Config:
     def __init__(self):
         self._data = {}
-        if os.path.exists(CONFIG_PATH):
+        read_path = CONFIG_PATH if os.path.exists(CONFIG_PATH) else LEGACY_CONFIG_PATH
+        if os.path.exists(read_path):
             try:
-                with open(CONFIG_PATH) as f:
+                with open(read_path) as f:
                     self._data = json.load(f)
             except Exception:
                 pass

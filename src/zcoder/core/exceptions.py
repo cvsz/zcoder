@@ -22,10 +22,10 @@ Design notes:
 from __future__ import annotations
 
 
-class AICoderError(Exception):
+class ZCoderError(Exception):
     """Base class for all deliberate (expected, handled) errors in this app."""
 
-    error_code: str = "AICODER_ERROR"
+    error_code: str = "ZCODER_ERROR"
     RETRYABLE: bool = False
 
     def __init__(self, message: str, *, details: dict | None = None, cause: BaseException | None = None):
@@ -42,19 +42,19 @@ class AICoderError(Exception):
         }
 
 
-class ConfigError(AICoderError):
+class ConfigError(ZCoderError):
     """Missing or invalid configuration (API key, malformed config file, ...)."""
 
     error_code = "CONFIG_ERROR"
 
 
-class AuthenticationError(AICoderError):
+class AuthenticationError(ZCoderError):
     """API key rejected (HTTP 401)."""
 
     error_code = "AUTH_ERROR"
 
 
-class RateLimitError(AICoderError):
+class RateLimitError(ZCoderError):
     """HTTP 429 — caller should back off. Retryable by definition."""
 
     error_code = "RATE_LIMIT"
@@ -65,14 +65,14 @@ class RateLimitError(AICoderError):
         self.retry_after = retry_after
 
 
-class TransientAPIError(AICoderError):
+class TransientAPIError(ZCoderError):
     """5xx / network timeouts / connection resets — safe to retry."""
 
     error_code = "TRANSIENT_API_ERROR"
     RETRYABLE = True
 
 
-class APIError(AICoderError):
+class APIError(ZCoderError):
     """Non-retryable 4xx from the Anthropic API (bad request, not found, ...)."""
 
     error_code = "API_ERROR"
@@ -82,20 +82,20 @@ class APIError(AICoderError):
         self.status_code = status_code
 
 
-class RefusalError(AICoderError):
+class RefusalError(ZCoderError):
     """Model declined the request (`stop_reason == "refusal"`). Not retryable —
     retrying the identical request will refuse again."""
 
     error_code = "MODEL_REFUSAL"
 
 
-class ValidationError(AICoderError):
+class ValidationError(ZCoderError):
     """Bad input from the caller/user — file path, argument, or payload shape."""
 
     error_code = "VALIDATION_ERROR"
 
 
-class SecurityError(AICoderError):
+class SecurityError(ZCoderError):
     """A security control rejected the operation (path traversal, disallowed
     scheme, secret detected in output, etc). Never retryable — retrying
     without changing the input will trip the same control again."""
@@ -103,7 +103,7 @@ class SecurityError(AICoderError):
     error_code = "SECURITY_ERROR"
 
 
-class CircuitOpenError(AICoderError):
+class CircuitOpenError(ZCoderError):
     """resilience.CircuitBreaker is open; the call was short-circuited
     without hitting the network at all."""
 

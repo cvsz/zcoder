@@ -1,6 +1,6 @@
 """
 claude_advisor.py — Advisor tool (advisor_20260301, beta)
-AI Model Coder CLI v1.11.0
+ZCoder CLI v1.11.0
 
 This was a complete gap before this pass: the advisor tool did not exist
 anywhere in the project. It's a server tool that pairs a faster "executor"
@@ -50,7 +50,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 ADVISOR_TOOL_TYPE = "advisor_20260301"
@@ -135,7 +135,7 @@ class AdvisorCoder:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

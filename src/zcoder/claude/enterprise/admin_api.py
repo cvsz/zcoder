@@ -1,6 +1,6 @@
 """
 claude_admin_api.py — Admin API: Usage & Cost, API keys, Spend Limits, Rate Limits, Claude Code Analytics, User Management
-AI Model Coder CLI v1.38.0
+ZCoder CLI v1.38.0
 
 Thin Admin API wrappers, combined into one module since all require the
 same auth (an Admin API key, prefix sk-ant-admin..., created in the
@@ -841,7 +841,7 @@ def cmd_rate_limits_workspace(workspace_id: str, admin_api_key: str):
     client = AdminApiClient(admin_api_key)
     data = client.get_workspace_rate_limits(workspace_id)
     if "error" in data:
-        print(f"\033[91m✗ Failed to get rate limits for workspace {workspace_id}: " f"{data['error']}\033[0m")
+        print(f"\033[91m✗ Failed to get rate limits for workspace {workspace_id}: {data['error']}\033[0m")
         _wrong_key_hint(data)
         return None
 
@@ -1106,7 +1106,7 @@ def cmd_role_permissions_list(role_id: str, admin_api_key: str, limit: int = 20)
     print(f"\n\033[94mRole {role_id} — permissions\033[0m\n")
     rows = data.get("data", [])
     if not rows:
-        print("  (no permissions found — role may only grant features not enabled " "for this organization)")
+        print("  (no permissions found — role may only grant features not enabled for this organization)")
     for p in rows:
         resource = p.get("resource", {})
         r_type = resource.get("type", "?")

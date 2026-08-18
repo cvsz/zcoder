@@ -414,7 +414,7 @@ Architecture rules fail automatically when dependency direction regresses.
 ### Required entrypoints
 
 - `zcoder`
-- `ai-coder`
+- `zcoder`
 - `python -m zcoder.main`
 - health-check mode
 

@@ -1,6 +1,6 @@
 """
 claude_rag.py — Retrieval-Augmented Generation pipeline
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 
 Indexes a local folder of files (or a pre-built index JSON), retrieves
 the most relevant chunks at query time (keyword BM25-style scoring),
@@ -20,7 +20,7 @@ import anthropic
 
 from utils import sampling_kwargs
 
-INDEX_DIR = Path.home() / ".ai-coder" / "rag_indexes"
+INDEX_DIR = Path.home() / ".zcoder" / "rag_indexes"
 SUPPORTED_EXTS = {
     ".txt",
     ".md",
@@ -190,6 +190,6 @@ def cmd_rag_list():
     for p in sorted(INDEX_DIR.glob("*.json")):
         try:
             d = json.loads(p.read_text())
-            print(f"  {d['name']:<24} {len(d.get('chunks',[]))} chunks")
+            print(f"  {d['name']:<24} {len(d.get('chunks', []))} chunks")
         except Exception:
             pass

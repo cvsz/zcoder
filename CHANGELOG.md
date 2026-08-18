@@ -1,10 +1,50 @@
 # Changelog
 
 Full per-version detail lives in `docs/*_upgrade_*.md` — this file is a
-high-level index. Two project lineages (`ai-coder-cli-v1`, the modular
-`claude_*.py`-per-feature codebase, and `ai-coder-cli-v2`, a smaller
+high-level index. Two project lineages (`zcoder-cli-v1`, the modular
+`claude_*.py`-per-feature codebase, and `zcoder-cli-v2`, a smaller
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
+
+## Unreleased — offline/local-mode hardening, PostgreSQL store fixes
+
+**Offline / local mode (`ZCODER_LOCAL_MODE=1`):**
+* `coder.py` no longer conflates "no API key" with "local mode": a missing
+  key is again a hard `[ERROR] No API key configured...` unless
+  `ZCODER_LOCAL_MODE` is set, restoring the documented contract (this was
+  the regression behind 12 failing `test_coder.py` tests).
+* `claude_git.py` fallback on network/auth error no longer flips
+  `ZCODER_LOCAL_MODE=1` in the process environment (which silently
+  downgraded every later API call to offline); the offline reply is now
+  synthesized per call only.
+* Live/streaming and prompt-optimization offline branches are now pure
+  functions of their inputs; `ZCODER_LOCAL_MODE` handling is documented in
+  `ARCHITECTURE.md` (Offline / local mode).
+
+**PostgreSQL stores:**
+* New `zcoder.core.utils.sanitize_dsn()` strips query parameters
+  `psycopg2` cannot parse (`?schema=public` from Prisma-style DSNs);
+  applied at every pool/connect entry point (`postgres.py`,
+  `enterprise_postgres.py`, `backup_restore.py`).
+* `postgres_engineering.py`: removed `ENABLE ROW LEVEL SECURITY` with no
+  policies (deny-all landmine for any non-owner role); added indexes for
+  `(status, created_at)`, FK sides, and `(attempt_id, sequence)`; attempt/
+  checkpoint inserts now `ON CONFLICT DO NOTHING` so worker retries cannot
+  crash on duplicate keys.
+* `postgres.py`: added `backup_status` indexes backing
+  `get_backup_freshness()`.
+
+**Testing:**
+* `tests/test_all_features_no_anthropic_key.py` no longer mutates
+  `ZCODER_LOCAL_MODE`/`ANTHROPIC_API_KEY` at module import time — env vars
+  are set per test and restored, ending cross-test pollution that broke
+  every `test_coder.py` test running after it in the suite.
+* PostgreSQL-dependent tests (`test_postgres_store.py`,
+  `test_postgres_multiprocess.py`, `test_fleet_e2e.py`) now skip with the
+  repo's `pg_is_available()` guard when no PostgreSQL instance is
+  reachable.
+* Full suite: 954 passed, 25 skipped (live-PostgreSQL tests), 0 failed;
+  `ruff check` and `ruff format --check` clean.
 
 ## v1.40.0 — Compliance Local Sessions, Model Registry Health & Permanent Pricing
 
@@ -753,7 +793,7 @@ in with them, plus one the earlier audit missed entirely: `cowork.py`.
 
 Added `raise_for_http_error()`, `urlopen_json()`, and `urlopen_text()` to
 `resilience.py` — shared helpers that translate a raw `urllib` HTTP or
-network exception into the `AICoderError` hierarchy `retry()` already
+network exception into the `ZCoderError` hierarchy `retry()` already
 knows how to read, so each module no longer hand-rolls its own
 `except HTTPError` translation. Every module now retries transient
 failures (429/5xx/network) with exponential backoff and fails fast via a
@@ -864,10 +904,10 @@ See `docs/26_upgrade_v1.12.1.md` for full detail.
 Packaging-only release. No API/functional changes from v1.11.1.
 
 
-- Merged in `ai-coder-cli-v2`'s standalone-executable packaging: `build.sh`
-  / `build.bat` (PyInstaller, produces a single `dist/ai-coder` binary with
+- Merged in `zcoder-cli-v2`'s standalone-executable packaging: `build.sh`
+  / `build.bat` (PyInstaller, produces a single `dist/zcoder` binary with
   no local Python required), `setup.sh` / `setup.bat` (venv + `.env` setup
-  for running from source), `ai-coder.spec`, `LICENSE` (MIT).
+  for running from source), `zcoder.spec`, `LICENSE` (MIT).
 - Added `.env.example` (referenced by `setup.sh`/`setup.bat` but missing
   from both source projects) documenting `ANTHROPIC_API_KEY` (required),
   `VOYAGE_API_KEY` (optional, `claude_embeddings.py`), `GITHUB_TOKEN`
@@ -875,7 +915,7 @@ Packaging-only release. No API/functional changes from v1.11.1.
 - `requirements.txt`: bumped minimum `anthropic` SDK to `>=0.75.0`,
   required for `client.beta.agents/.environments/.sessions`
   (`--agent-managed-run`, see `claude_agents_sdk.ManagedAgentsClient`).
-- Everything else in `ai-coder-cli-v2` (`coder.py`, `config.py`, `utils.py`,
+- Everything else in `zcoder-cli-v2` (`coder.py`, `config.py`, `utils.py`,
   `skills.py`, `agents.py`, `multi_agent_core.py`, `workflow_examples.py`,
   `batches.py`, its own `managed_agents.py`) was **not** merged — v1 already
   has a mature, independently-audited implementation of the same ground

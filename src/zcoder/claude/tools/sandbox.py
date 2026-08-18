@@ -1,6 +1,6 @@
 """
 claude_sandbox.py — Sandboxed Bash execution
-AI Model Coder CLI v1.9.0
+ZCoder CLI v1.9.0
 
 Models Claude Code's sandboxed Bash tool: OS-level-style filesystem and
 network isolation enforced around shell commands the agent runs, without

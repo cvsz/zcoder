@@ -1,6 +1,6 @@
 """
 claude_structured.py — Structured Outputs
-AI Model Coder CLI v1.30.0
+ZCoder CLI v1.30.0
 
 Force Claude to respond in validated JSON matching a schema.
 Uses the output_config.format parameter — GA on the Claude API for
@@ -30,7 +30,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -66,7 +66,7 @@ class StructuredCoder:
         # already check for, while retrying transient failures in _call().
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

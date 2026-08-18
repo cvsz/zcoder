@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zcoder"
 version = "1.40.0"
-description = "AI Model Coder CLI — enterprise-grade edition"
+description = "ZCoder CLI — enterprise-grade edition"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -45,7 +45,8 @@ dev = [
 
 [project.scripts]
 zcoder = "zcoder.main:main"
-ai-coder = "zcoder.main:main"
+zcoder-server = "zcoder.api.server:start"
+zcoder-api = "zcoder.api.server:start"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

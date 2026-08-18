@@ -2,7 +2,7 @@
 claude_cost_optimizer.py — Cost-aware model routing.
 Classifies a prompt's complexity and routes to the cheapest model that
 can handle it. Tracks cumulative spend across calls.
-AI Model Coder CLI v1.10.3
+ZCoder CLI v1.10.3
 
 Pricing below verified against platform.claude.com/docs/en/about-claude/
 models/overview as of 2026-07-02, re-verified 2026-08-13. Claude Sonnet 5
@@ -32,7 +32,7 @@ import anthropic
 
 from utils import sampling_kwargs
 
-SPEND_LOG = Path.home() / ".ai-coder" / "cost_log.json"
+SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 
 PRICE: dict[str, dict[str, float]] = {
     # Current
@@ -237,8 +237,7 @@ def cmd_optimized(prompt: str, api_key: str, verbose: bool = False, force_model:
     r = optimized_call(prompt, api_key, force_model=force_model)
     if verbose:
         print(
-            f"[model={r.model_used}  complexity={r.complexity}  "
-            f"cost=${r.cost_usd:.5f}  {r.latency_ms}ms]\n"
+            f"[model={r.model_used}  complexity={r.complexity}  cost=${r.cost_usd:.5f}  {r.latency_ms}ms]\n"
         )
     print(r.text)
 

@@ -2,7 +2,7 @@
 
 ## What I Did
 
-You uploaded `ai-coder-cli-v1_9_0.zip`. Before touching anything, I extracted
+You uploaded `zcoder-cli-v1_9_0.zip`. Before touching anything, I extracted
 it and read through it properly rather than re-zipping it blind:
 
 1. **Read every file name and size** — 33 files, 7,750 lines, organized as

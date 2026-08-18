@@ -1,6 +1,6 @@
 """
 claude_chrome.py — CLI browsing-agent loop (Claude in Chrome analog)
-AI Model Coder CLI v1.15.0
+ZCoder CLI v1.15.0
 
 IMPORTANT — what this module is, and isn't: Claude in Chrome is a browser
 extension with a side panel, click/type/tab control, logged-in-session
@@ -119,7 +119,7 @@ def _fetch_retrying(url, timeout):
         with safe_urlopen(req, timeout=timeout) as r:
             return r.read().decode(r.headers.get_content_charset() or "utf-8", errors="replace")
     except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
-        # Translates to the AICoderError hierarchy so retry() above can tell
+        # Translates to the ZCoderError hierarchy so retry() above can tell
         # a transient failure from a permanent one; fetch_page()'s `except
         # Exception` below still catches whatever this raises either way.
         raise_for_http_error(e)
@@ -156,7 +156,7 @@ def cmd_browse(
     from coder import Coder
 
     c = Coder(api_key=api_key, model=model, temperature=temperature, max_tokens=max_tokens)
-    print(f"\033[94mAI Model Coder — browse\033[0m  (model: {c.model})")
+    print(f"\033[94mZCoder — browse\033[0m  (model: {c.model})")
     print(f"Task: {task}")
     print(f"Start: {start_url}\n")
 
@@ -178,8 +178,7 @@ def cmd_browse(
             break
 
         prompt = (
-            f"Task: {task}\n\nCurrent URL: {url}\n\n"
-            f"Page text (truncated to {MAX_PAGE_CHARS} chars):\n{text}"
+            f"Task: {task}\n\nCurrent URL: {url}\n\nPage text (truncated to {MAX_PAGE_CHARS} chars):\n{text}"
         )
         reply = c.generate(prompt, system=SYSTEM_PROMPT, history=[])
 

@@ -2,7 +2,7 @@
 claude_workflow.py — Declarative multi-step pipelines defined in YAML/JSON.
 Each step is a named task with an instruction, optional depends_on list,
 and optional output_var that saves the response for use in later steps.
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 
 Example YAML:
   name: "Refactor + Document"

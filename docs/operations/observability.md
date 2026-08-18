@@ -31,7 +31,8 @@ not attached to a TTY.
 
 ```python
 from logging_config import get_logger
-logger = get_logger("my_module")   # -> "zcoder.my_module"
+
+logger = get_logger("my_module")  # -> "zcoder.my_module"
 
 logger.info("thing_happened", extra={"key": "value"})
 logger.error("thing_failed", extra={"error_code": exc.error_code})
@@ -46,11 +47,11 @@ regex over a message string.
 - **`claude_metrics.py`** (`--metrics-show`, `--metrics-today`,
   `--metrics-model`, `--metrics-export`) — per-call token counts, cost
   (against a verified pricing table), and latency, logged to
-  `~/.ai-coder/metrics.jsonl`. Answers "what am I spending, on which
+  `~/.zcoder/metrics.jsonl`. Answers "what am I spending, on which
   model."
 - **`claude_observability.py`** — structured request/response logging,
   latency histograms, and AI-assisted error-trend analysis, logged to
-  `~/.ai-coder/observability/requests.jsonl`. Answers "is latency/error
+  `~/.zcoder/observability/requests.jsonl`. Answers "is latency/error
   rate drifting."
 
 These two answer *product* questions (cost, model comparison, error

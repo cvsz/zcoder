@@ -1,6 +1,6 @@
 """
 claude_embeddings.py — Text embeddings
-AI Model Coder CLI v1.11.0
+ZCoder CLI v1.11.0
 
 This was a complete gap before this pass: no module at all, even though
 claude_memory.py's docstring says "swap in embeddings for larger stores"
@@ -41,7 +41,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 VOYAGE_ENDPOINT = "https://api.voyageai.com/v1/embeddings"
@@ -96,7 +96,7 @@ def embed(
     )
     try:
         data = _call(req)
-    except AICoderError as e:
+    except ZCoderError as e:
         raise RuntimeError(f"Voyage API error: {e.message}") from e
     return [item["embedding"] for item in data.get("data", [])]
 

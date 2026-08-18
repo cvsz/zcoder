@@ -283,8 +283,10 @@ class EnterprisePostgresStore:
     """PostgreSQL storage backend with hard tenant isolation."""
 
     def __init__(self, dsn: str, min_conn: int = 1, max_conn: int = 10):
-        self.dsn = dsn
-        self.pool = psycopg2.pool.ThreadedConnectionPool(min_conn, max_conn, dsn)
+        from utils import sanitize_dsn
+
+        self.dsn = sanitize_dsn(dsn)
+        self.pool = psycopg2.pool.ThreadedConnectionPool(min_conn, max_conn, self.dsn)
         self.init_schema()
 
     def init_schema(self) -> None:

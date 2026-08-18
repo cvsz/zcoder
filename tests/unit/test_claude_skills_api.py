@@ -91,7 +91,7 @@ def test_call_with_skills_turn_reuses_container_id(monkeypatch):
     monkeypatch.setattr(
         client,
         "_post",
-        lambda payload, betas: (captured.update(payload=payload, betas=betas) or {"content": []}),
+        lambda payload, betas: captured.update(payload=payload, betas=betas) or {"content": []},
     )
 
     client.call_with_skills_turn(
@@ -108,7 +108,7 @@ def test_call_with_skills_turn_adds_files_beta_when_uploading(monkeypatch):
     client = SkillsApiClient(api_key="k")
     captured = {}
     monkeypatch.setattr(
-        client, "_post", lambda payload, betas: (captured.update(betas=betas) or {"content": []})
+        client, "_post", lambda payload, betas: captured.update(betas=betas) or {"content": []}
     )
 
     client.call_with_skills_turn(

@@ -86,8 +86,7 @@ class AuthenticatedIdentity:
         """Raise PermissionDenied if this identity lacks required role."""
         if not role_has_privilege(self.role, required):
             raise PermissionDeniedError(
-                f"Action requires role {required.value}, "
-                f"but identity '{self.sub}' has role {self.role.value}"
+                f"Action requires role {required.value}, but identity '{self.sub}' has role {self.role.value}"
             )
 
 

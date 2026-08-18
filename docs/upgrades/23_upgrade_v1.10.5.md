@@ -61,7 +61,7 @@ code_execution, bash, text_editor, and computer_use — but not:
 - New `cmd_memory_agent()` CLI entry point.
 
 **`main.py`** — new `--memory-agent PROMPT` (+ `--memory-dir DIR`,
-default `~/.ai-coder/memory`) and `--context-management` flag (applies to
+default `~/.zcoder/memory`) and `--context-management` flag (applies to
 `--server-tool`).
 
 ## What was NOT changed

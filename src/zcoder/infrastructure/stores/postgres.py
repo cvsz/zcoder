@@ -31,6 +31,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from legacy_job_models import Job, JobStatus
+from zcoder.core.utils import sanitize_dsn
 from zcoder.infrastructure.stores.postgres_outbox_store import process_postgres_store_outbox
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_lease ON jobs (lease_expires_at) WHERE statu
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox (status, created_at) WHERE status = 'PENDING';
 CREATE INDEX IF NOT EXISTS idx_repos_installation ON repositories (installation_id);
 CREATE INDEX IF NOT EXISTS idx_worker_registry_heartbeat ON worker_registry (last_heartbeat);
+CREATE INDEX IF NOT EXISTS idx_backup_status_success ON backup_status (success, completed_at);
+CREATE INDEX IF NOT EXISTS idx_backup_status_restore_drill ON backup_status (restore_drill_at);
 """
 
 
@@ -193,11 +196,12 @@ class PostgresControlPlaneStore:
 
     def _init_pool(self) -> None:
         """Initialize connection pool."""
+        dsn = sanitize_dsn(self._dsn)
         if _PSYCOPG2_AVAILABLE:
             self._pool = psycopg2.pool.ThreadedConnectionPool(
                 self._min_conn,
                 self._max_conn,
-                self._dsn,
+                dsn,
                 connect_timeout=self._connect_timeout,
             )
             logger.info(
@@ -207,8 +211,8 @@ class PostgresControlPlaneStore:
             # psycopg3 connection pool
             import psycopg.pool  # type: ignore[import]
 
-            self._pool = psycopg.pool.ConnectionPool(
-                self._dsn,
+            self._pool = psycopg.pool.ConnectionPool(  # type: ignore[import]
+                dsn,
                 min_size=self._min_conn,
                 max_size=self._max_conn,
                 open=True,

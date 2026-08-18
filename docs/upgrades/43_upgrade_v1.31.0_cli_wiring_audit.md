@@ -46,7 +46,7 @@ written that early and never wired in the ~20 releases since.
 
 `claude_metrics.py` is a special case worth flagging: it's not inert.
 `claude_stream.py` already calls `record()` on every streamed
-completion, so the JSONL log at `~/.ai-coder/metrics.jsonl` has been
+completion, so the JSONL log at `~/.zcoder/metrics.jsonl` has been
 quietly accumulating real usage data release after release — there was
 just no CLI command to read, filter, export, or clear it. This is the
 closest thing this audit series has found to a "feature was silently

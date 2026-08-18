@@ -1,6 +1,6 @@
 """
 claude_metrics.py — Observability & Usage Metrics
-AI Model Coder CLI v1.9.1
+ZCoder CLI v1.9.1
 
 Tracks every API call (model, tokens, cost, latency) to a local JSONL
 log so you can understand spend, compare models, and spot regressions.
@@ -19,7 +19,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
-LOG_PATH = Path(os.path.expanduser("~/.ai-coder/metrics.jsonl"))
+LOG_PATH = Path(os.path.expanduser("~/.zcoder/metrics.jsonl"))
 
 # Pricing per million tokens (keep in sync with claude_fable5.py)
 # Pricing per million tokens (keep in sync with claude_cost_optimizer.py).

@@ -35,18 +35,18 @@ different key model:
   403 for an Admin API key — there's no scope to add to unlock them.
 
 ```bash
-ai-coder --compliance-activities --compliance-api-key sk-ant-api01-...
-ai-coder --compliance-activities-all \
+zcoder --compliance-activities --compliance-api-key sk-ant-api01-...
+zcoder --compliance-activities-all \
   --compliance-activities-since 2026-06-01T00:00:00Z \
   --compliance-activity-types claude_chat_created,claude_file_uploaded
 
-ai-coder --compliance-chats-list --compliance-user-ids user_abc,user_def
-ai-coder --compliance-chat-messages chat_123
+zcoder --compliance-chats-list --compliance-user-ids user_abc,user_def
+zcoder --compliance-chat-messages chat_123
 
 # Destructive — dry-run by default, prints what *would* happen:
-ai-coder --compliance-chat-delete chat_123
+zcoder --compliance-chat-delete chat_123
 # Actually deletes, permanently, no recovery window:
-ai-coder --compliance-chat-delete chat_123 --compliance-yes
+zcoder --compliance-chat-delete chat_123 --compliance-yes
 ```
 
 Directory endpoints (`--compliance-orgs-list`, `--compliance-org-users`,

@@ -1,6 +1,6 @@
 """
 claude_opus5.py — Claude Opus 5 support (deep, model-specific module)
-AI Model Coder CLI v1.33.0
+ZCoder CLI v1.33.0
 
 Why this module exists: claude_models.py's MODEL_CATALOG carries a single
 short entry for claude-opus-5 (context window, price, one "notes" string),
@@ -67,7 +67,7 @@ import urllib.request
 from typing import Optional
 
 from claude_models import FAST_MODE_SUPPORTED, INFERENCE_GEO_SUPPORTED, SERVICE_TIER_UNSUPPORTED
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -122,9 +122,7 @@ def validate_effort_thinking(effort: Optional[str], disable_thinking: bool) -> O
         # conservative and only clear combinations we can confirm are safe.
         return None
     if effort not in OPUS5_EFFORT_LEVELS:
-        return (
-            f"unknown effort level '{effort}' for Opus 5 — choose from " f"{', '.join(OPUS5_EFFORT_LEVELS)}"
-        )
+        return f"unknown effort level '{effort}' for Opus 5 — choose from {', '.join(OPUS5_EFFORT_LEVELS)}"
     if effort not in OPUS5_THINKING_DISABLE_ALLOWED:
         return (
             f"Opus 5 rejects thinking disabled at effort '{effort}' (HTTP 400). "
@@ -180,7 +178,7 @@ class Opus5Client:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

@@ -1,14 +1,14 @@
-# Merge notes — ai-coder-cli-v1 + ai-coder-cli-v2 → v1.12.0 "Release"
+# Merge notes — zcoder-cli-v1 + zcoder-cli-v2 → v1.12.0 "Release"
 
-Input: `ai-coder-cli-merged.zip`, containing two separate project folders:
+Input: `zcoder-cli-merged.zip`, containing two separate project folders:
 
-- **`ai-coder-cli-v1`** — this project. Modular, one `claude_*.py` file per
+- **`zcoder-cli-v1`** — this project. Modular, one `claude_*.py` file per
   API feature, versioned to v1.11.1 with a full dated audit trail in
   `docs/`. ~52 files.
-- **`ai-coder-cli-v2`** — a smaller, independently-developed CLI. A single
+- **`zcoder-cli-v2`** — a smaller, independently-developed CLI. A single
   `coder.py` core plus `config.py`/`utils.py`/`skills.py`, an `agents.py` /
   `multi_agent_core.py` local orchestration layer, and — uniquely —
-  standalone-executable packaging (`build.sh`/`.bat`, `ai-coder.spec`,
+  standalone-executable packaging (`build.sh`/`.bat`, `zcoder.spec`,
   `setup.sh`/`.bat`, `LICENSE`) that v1 never had. Its own `CHANGELOG.md`
   shows it was independently audited against the same July 2026 docs
   (service tiers, refusal/`stop_details`, fast mode, prompt caching) —
@@ -16,7 +16,7 @@ Input: `ai-coder-cli-merged.zip`, containing two separate project folders:
 
 ## What got merged in
 
-**Packaging/distribution only**: `build.sh`, `build.bat`, `ai-coder.spec`,
+**Packaging/distribution only**: `build.sh`, `build.bat`, `zcoder.spec`,
 `setup.sh`, `setup.bat`, `LICENSE` (MIT), copied over unmodified except a
 copyright year bump. These reference `main.py` generically and don't
 depend on which lineage's `main.py` they point at, so they carry over
@@ -50,7 +50,7 @@ having the same or broader coverage already.
 
 v1.12.0 is functionally identical to v1.11.1 (see `docs/*_upgrade_*.md`
 for that full history) plus a working standalone-build story it didn't
-have before. `ai-coder-cli-v2` as a whole isn't a subset of this release —
+have before. `zcoder-cli-v2` as a whole isn't a subset of this release —
 it's a smaller, competently-built, independently-audited CLI covering a
 narrower feature set — but everything in it that wasn't purely
 packaging was already present here in a more complete form.

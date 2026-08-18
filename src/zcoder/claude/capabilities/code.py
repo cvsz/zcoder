@@ -1,6 +1,6 @@
 """
 claude_code.py — Claude Code / Agent SDK (all features)
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Implements every Claude Code / Agent SDK feature from docs.claude.com:
 
@@ -74,8 +74,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 # ── Storage paths ──────────────────────────────────────────────────────────
-SESSIONS_DIR = Path(os.path.expanduser("~/.ai-coder/code_sessions"))
-HOOKS_DIR = Path(os.path.expanduser("~/.ai-coder/hooks"))
+SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/code_sessions"))
+HOOKS_DIR = Path(os.path.expanduser("~/.zcoder/hooks"))
 SKILLS_DIR = Path(".claude/skills")
 AGENTS_DIR = Path(".claude/agents")
 COMMANDS_DIR = Path(".claude/commands")
@@ -269,7 +269,7 @@ class CodeSession:
         """Save a file-level checkpoint (rewind point)."""
         cp = {
             "id": str(uuid.uuid4())[:8],
-            "label": label or f"checkpoint-{len(self.checkpoints)+1}",
+            "label": label or f"checkpoint-{len(self.checkpoints) + 1}",
             "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "turn": len(self.turns),
         }
@@ -655,7 +655,7 @@ class SkillsRegistry:
 # TODO LISTS
 # ══════════════════════════════════════════════════════════════════════════
 
-TODO_FILE = Path(os.path.expanduser("~/.ai-coder/code_todos.json"))
+TODO_FILE = Path(os.path.expanduser("~/.zcoder/code_todos.json"))
 
 
 class TodoManager:
@@ -745,7 +745,7 @@ class MemoryManager:
 import urllib.error
 import urllib.request
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import (
     CircuitBreaker,
     raise_for_http_error,
@@ -790,7 +790,7 @@ class CodeAgent:
     def _post(self, payload: dict, betas: Optional[list] = None) -> dict:
         try:
             return self._call(payload, betas)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -799,7 +799,7 @@ class CodeAgent:
     # time (agent-chosen), not one fixed downstream dependency.
     @retry(max_attempts=2, base_delay=1.0, max_delay=5.0)
     def _webfetch_retrying(self, url: str) -> str:
-        req = urllib.request.Request(url, headers={"User-Agent": "ai-coder-agent/1.8"})
+        req = urllib.request.Request(url, headers={"User-Agent": "zcoder-agent/1.8"})
         try:
             with safe_urlopen(req, timeout=15) as r:
                 return r.read().decode("utf-8", errors="replace")[:4000]
@@ -985,12 +985,12 @@ class CodeAgent:
             elif name == "Bash":
                 cmd = inputs["command"]
                 timeout = inputs.get("timeout", 30)
-                if os.environ.get("AI_CODER_SANDBOX") == "1":
+                if os.environ.get("ZCODER_SANDBOX") == "1":
                     try:
                         from claude_sandbox import SandboxViolation, enforce
 
-                        roots = json.loads(os.environ.get("AI_CODER_SANDBOX_ROOTS", "[]"))
-                        allow_net = os.environ.get("AI_CODER_SANDBOX_NET") == "1"
+                        roots = json.loads(os.environ.get("ZCODER_SANDBOX_ROOTS", "[]"))
+                        allow_net = os.environ.get("ZCODER_SANDBOX_NET") == "1"
                         enforce(cmd, cwd, allow_net=allow_net, extra_roots=roots)
                     except SandboxViolation as e:
                         return f"[SANDBOX BLOCKED] {e}"
@@ -1139,7 +1139,7 @@ class CodeAgent:
                 betas.append(CONTEXT_MANAGEMENT_BETA)
 
             if output_mode == "stream":
-                print(f"\033[90m[turn {turn+1}]\033[0m ", end="", flush=True)
+                print(f"\033[90m[turn {turn + 1}]\033[0m ", end="", flush=True)
 
             data = self._post(payload, betas=betas or None)
             if "error" in data:
@@ -1325,9 +1325,9 @@ def cmd_code_agent(
 
     # Sandboxed Bash: wrap permission/tool execution with filesystem+network checks
     if sandbox:
-        os.environ["AI_CODER_SANDBOX"] = "1"
-        os.environ["AI_CODER_SANDBOX_NET"] = "1" if sandbox_allow_net else "0"
-        os.environ["AI_CODER_SANDBOX_ROOTS"] = json.dumps([str(Path(cwd).resolve())] + (sandbox_roots or []))
+        os.environ["ZCODER_SANDBOX"] = "1"
+        os.environ["ZCODER_SANDBOX_NET"] = "1" if sandbox_allow_net else "0"
+        os.environ["ZCODER_SANDBOX_ROOTS"] = json.dumps([str(Path(cwd).resolve())] + (sandbox_roots or []))
         if not headless:
             net_state = "network allowed" if sandbox_allow_net else "network blocked"
             print(f"\033[93m  ⚙ Sandbox enabled ({net_state})\033[0m")
@@ -1391,7 +1391,7 @@ def cmd_code_agent(
 
     if not headless:
         print(f"\n\033[90m{session.cost_summary()}\033[0m")
-        print(f'\033[90m  Resume: ai-coder --code-agent-session {session.id} -p "..."\033[0m')
+        print(f'\033[90m  Resume: zcoder --code-agent-session {session.id} -p "..."\033[0m')
     return result
 
 
@@ -1489,7 +1489,7 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
             servers = mcp.list_servers()
             if servers:
                 for s in servers:
-                    print(f"  {s['name']}: {s.get('type','?')} {s.get('url','')}")
+                    print(f"  {s['name']}: {s.get('type', '?')} {s.get('url', '')}")
             else:
                 print("  No MCP servers configured. Add to .mcp.json")
         elif cmd == "agents":
@@ -1560,7 +1560,7 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
         pass
 
     print(f"\033[91m✗ Unknown slash command: {full_cmd}\033[0m")
-    print("  Run: ai-coder --code-agent-slash help")
+    print("  Run: zcoder --code-agent-slash help")
 
 
 def cmd_code_cost(api_key: str):
@@ -1597,7 +1597,7 @@ def cmd_code_list_sessions():
         try:
             d = json.loads(sf.read_text())
             t = len(d.get("turns", [])) // 2
-            print(f"{d['id'][:16]:<18}{t:<8}{d.get('model','')[:24]:<25}{d.get('updated_at','')[:10]}")
+            print(f"{d['id'][:16]:<18}{t:<8}{d.get('model', '')[:24]:<25}{d.get('updated_at', '')[:10]}")
         except Exception:
             pass
 
@@ -1625,7 +1625,7 @@ def cmd_code_list_tools():
         print(f"  {name:<15} — {desc}")
     print("\nTool presets:")
     for name, tools in TOOL_PRESETS.items():
-        print(f"  {name:<12} — {', '.join(tools[:5])}{'…' if len(tools)>5 else ''}")
+        print(f"  {name:<12} — {', '.join(tools[:5])}{'…' if len(tools) > 5 else ''}")
     print("\nPermission modes:")
     for mode, desc in PERMISSION_MODES.items():
         print(f"  {mode:<20} — {desc}")

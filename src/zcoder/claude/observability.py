@@ -1,7 +1,7 @@
 """
 claude_observability.py — Observability: structured request/response
 logging, latency histograms, and AI-powered error trend analysis.
-AI Model Coder CLI v1.10.0
+ZCoder CLI v1.10.0
 """
 
 import json
@@ -15,7 +15,7 @@ from typing import Any, Callable, Optional
 
 import anthropic
 
-OBS_DIR = Path.home() / ".ai-coder" / "observability"
+OBS_DIR = Path.home() / ".zcoder" / "observability"
 LOG_FILE = OBS_DIR / "requests.jsonl"
 
 
@@ -117,7 +117,7 @@ def _histogram(values: list[float], buckets: int = 6) -> str:
         counts[idx] += 1
     lines = []
     for i, c in enumerate(counts):
-        label = f"{lo + i*width:.0f}–{lo + (i+1)*width:.0f}"
+        label = f"{lo + i * width:.0f}–{lo + (i + 1) * width:.0f}"
         bar = "█" * max(1, int(c / max(counts) * 20)) if c else ""
         lines.append(f"  {label:>12}ms  {bar} {c}")
     return "\n".join(lines)
@@ -136,9 +136,9 @@ def latency_report(hours: int = 24):
 
     print(f"Requests (last {hours}h): {len(records)}  errors: {len(errors)}")
     print(
-        f"Latency — p50={sorted(lats)[len(lats)//2]:.0f}ms  "
-        f"p95={sorted(lats)[int(len(lats)*0.95)]:.0f}ms  "
-        f"avg={sum(lats)/len(lats):.0f}ms\n"
+        f"Latency — p50={sorted(lats)[len(lats) // 2]:.0f}ms  "
+        f"p95={sorted(lats)[int(len(lats) * 0.95)]:.0f}ms  "
+        f"avg={sum(lats) / len(lats):.0f}ms\n"
     )
     print("Latency histogram (ms):")
     print(_histogram(lats))
@@ -192,4 +192,4 @@ def cmd_obs_tail(n: int = 20):
         return
     for r in recs:
         err = f" ERROR: {r['error']}" if r.get("error") else ""
-        print(f"{r['ts'][:19]}  {r['model']:<35}  {r.get('latency_ms',0):>5}ms{err}")
+        print(f"{r['ts'][:19]}  {r['model']:<35}  {r.get('latency_ms', 0):>5}ms{err}")

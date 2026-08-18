@@ -1,6 +1,6 @@
 """
 claude_wif.py — Workload Identity Federation (WIF)
-AI Model Coder CLI v1.23.0
+ZCoder CLI v1.23.0
 
 Lets a workload authenticate to the Claude API with a short-lived OIDC
 identity token from an identity provider it already trusts (AWS IAM,
@@ -62,7 +62,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError, APIError, AuthenticationError, RateLimitError
+from exceptions import APIError, AuthenticationError, RateLimitError, ZCoderError
 from resilience import CircuitBreaker, retry, safe_urlopen, urlopen_json
 
 OAUTH_TOKEN_ENDPOINT = "https://api.anthropic.com/v1/oauth/token"
@@ -122,7 +122,7 @@ class WIFCredentialExchanger:
         )
         try:
             # urlopen_json translates a raw HTTPError into the
-            # AICoderError hierarchy (see resilience.raise_for_http_error)
+            # ZCoderError hierarchy (see resilience.raise_for_http_error)
             # before it ever reaches us, so we catch that hierarchy here,
             # not urllib.error.HTTPError directly.
             return urlopen_json(req, timeout=30)
@@ -132,7 +132,7 @@ class WIFCredentialExchanger:
             raise WIFExchangeError(429, e.details.get("body", "")) from None
         except APIError as e:
             raise WIFExchangeError(e.status_code, e.details.get("body", "")) from None
-        except AICoderError as e:
+        except ZCoderError as e:
             raise WIFExchangeError(None, e.details.get("body", "")) from None
 
 
