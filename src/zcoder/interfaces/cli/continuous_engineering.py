@@ -9,18 +9,23 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
+from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
 from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 from zcoder.services.continuous_engineering import (
     ContinuousEngineeringPipeline,
     WorkSource,
+    _build_upgrade20_executor,
     _load_work_file,
     _report_dict,
     build_local_pipeline,
-    build_postgres_store_pipeline,
 )
 from zcoder.services.engineering_store_pipeline import build_engineering_store_pipeline
 from zcoder.services.upgrade_lease import UpgradeRunLease
 from zcoder.services.upgrade_loop import LoopPolicy, LoopReport, LoopState, UpgradeWorkItem, feature_work
+from zcoder.services.upgrade_postgres_fence import PostgresUpgradeFence
+from zcoder.services.upgrade_postgres_lease import PostgresAdvisoryRunLease
+from zcoder.services.upgrade_postgres_runtime import FencedUpgradeEngineeringStore, PostgresFencedRunLease
+from zcoder.services.upgrade_store_ledger import EngineeringStoreUpgradeLedger
 
 
 def build_sqlite_store_pipeline(
@@ -70,6 +75,60 @@ def run_sqlite_store_pipeline_once(
         return pipeline.run(seed_items)
     finally:
         pipeline.close()
+
+
+def build_postgres_store_pipeline(
+    repository_root: str | Path,
+    database_url: str,
+    *,
+    ledger_namespace: str = "zcoder-continuous-upgrades",
+    project_id: str = "zcoder-continuous-upgrades",
+    allow_push: bool = False,
+    policy: LoopPolicy | None = None,
+    retry_blocked: bool = False,
+    work_sources: Sequence[WorkSource] = (),
+    github_orchestrator: Any = None,
+    max_ci_repairs: int = 3,
+) -> ContinuousEngineeringPipeline:
+    """Compose the fenced multi-host PostgreSQL backend outside services."""
+
+    if not database_url:
+        raise ValueError("database_url must not be empty for PostgreSQL state backend")
+
+    store = PostgresEngineeringStore(dsn=database_url)
+    try:
+        store.init_schema()
+        probe = EngineeringStoreUpgradeLedger(store, namespace=ledger_namespace)
+        fence = PostgresUpgradeFence(
+            store.connection_scope,
+            namespace=ledger_namespace,
+            control_task_id=probe.control_task_id,
+        )
+        run_lease = PostgresFencedRunLease(
+            PostgresAdvisoryRunLease(store.connection_scope, f"{ledger_namespace}:continuous-run"),
+            fence,
+        )
+        fenced_store = FencedUpgradeEngineeringStore(store, fence, run_lease.require_token)
+        ledger = EngineeringStoreUpgradeLedger(fenced_store, namespace=ledger_namespace)
+        executor = _build_upgrade20_executor(
+            repository_root,
+            project_id=project_id,
+            allow_push=allow_push,
+            github_orchestrator=github_orchestrator,
+            max_ci_repairs=max_ci_repairs,
+        )
+        return ContinuousEngineeringPipeline(
+            executor,
+            ledger,
+            work_sources=work_sources,
+            policy=policy,
+            retry_blocked=retry_blocked,
+            run_lease=run_lease,
+            close_callback=store.close,
+        )
+    except Exception:
+        store.close()
+        raise
 
 
 def build_parser() -> argparse.ArgumentParser:
