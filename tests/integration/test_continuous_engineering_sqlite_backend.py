@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import zcoder.services.continuous_engineering as continuous_engineering
+import zcoder.interfaces.cli.continuous_engineering as continuous_engineering_cli
 from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
-from zcoder.services.continuous_engineering import ContinuousEngineeringPipeline, build_sqlite_store_pipeline
+from zcoder.services.continuous_engineering import ContinuousEngineeringPipeline
 from zcoder.services.upgrade_lease import UpgradeRunLease
 from zcoder.services.upgrade_loop import LoopPolicy, LoopReport, LoopState, ValidationResult, feature_work
 from zcoder.services.upgrade_store_ledger import EngineeringStoreUpgradeLedger
@@ -37,12 +37,19 @@ def test_sqlite_builder_uses_store_ledger_and_sidecar_lease(tmp_path, monkeypatc
     db_path = tmp_path / "state" / "engineering.db"
     executor = PassingExecutor()
     monkeypatch.setattr(
-        continuous_engineering,
-        "_build_upgrade20_executor",
-        lambda *args, **kwargs: executor,
+        continuous_engineering_cli,
+        "build_engineering_store_pipeline",
+        lambda repository_root, store, **kwargs: ContinuousEngineeringPipeline(
+            executor,
+            EngineeringStoreUpgradeLedger(store, namespace=kwargs["ledger_namespace"]),
+            policy=kwargs.get("policy"),
+            retry_blocked=kwargs.get("retry_blocked", False),
+            work_sources=kwargs.get("work_sources", ()),
+            run_lease=kwargs["run_lease"],
+        ),
     )
 
-    pipeline = build_sqlite_store_pipeline(
+    pipeline = continuous_engineering_cli.build_sqlite_store_pipeline(
         repository,
         db_path,
         ledger_namespace="fleet-test",
@@ -90,8 +97,8 @@ def test_sqlite_pipeline_persists_success_and_skips_restart_duplicate(tmp_path):
 
 
 def test_cli_defaults_to_json_and_accepts_sqlite_backend():
-    defaults = continuous_engineering.build_parser().parse_args([])
-    sqlite = continuous_engineering.build_parser().parse_args(
+    defaults = continuous_engineering_cli.build_parser().parse_args([])
+    sqlite = continuous_engineering_cli.build_parser().parse_args(
         ["--state-backend", "sqlite", "--engineering-db", "fleet.db", "--ledger-namespace", "fleet-a"]
     )
 
@@ -113,7 +120,7 @@ def test_main_routes_sqlite_backend_to_store_builder(tmp_path, monkeypatch, caps
         pending_item_ids=(),
         records=(),
     )
-    fake_pipeline = SimpleNamespace(ledger=fake_ledger, run=lambda seed: fake_report)
+    fake_pipeline = SimpleNamespace(ledger=fake_ledger, run=lambda seed: fake_report, close=lambda: None)
 
     def fake_builder(repository_root, db_path, **kwargs):
         captured["repository_root"] = repository_root
@@ -121,9 +128,9 @@ def test_main_routes_sqlite_backend_to_store_builder(tmp_path, monkeypatch, caps
         captured.update(kwargs)
         return fake_pipeline
 
-    monkeypatch.setattr(continuous_engineering, "build_sqlite_store_pipeline", fake_builder)
+    monkeypatch.setattr(continuous_engineering_cli, "build_sqlite_store_pipeline", fake_builder)
 
-    result = continuous_engineering.main(
+    result = continuous_engineering_cli.main(
         [
             "--repository",
             str(tmp_path),
