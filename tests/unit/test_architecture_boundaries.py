@@ -39,3 +39,7 @@ def test_domain_does_not_import_infrastructure():
 
 def test_core_does_not_import_concrete_infrastructure_adapters():
     _assert_no_infrastructure_dependency("core")
+
+
+def test_services_do_not_import_concrete_infrastructure_adapters():
+    _assert_no_infrastructure_dependency("services")
