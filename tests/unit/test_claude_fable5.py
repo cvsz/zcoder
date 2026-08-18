@@ -9,7 +9,7 @@ Covers both fallback patterns documented in claude_fable5.py:
 
 import pytest
 
-from claude_fable5 import (
+from zcoder.claude.models.fable5 import (
     FABLE5_MODEL_ID,
     SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER,
     Fable5Client,

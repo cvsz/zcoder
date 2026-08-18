@@ -9,7 +9,7 @@ StructuredCoder.BETA attribute — see docs/42_upgrade_v1.30.0.md.
 import json
 from unittest.mock import patch
 
-import claude_structured as mod
+import zcoder.claude.capabilities.structured as mod
 
 
 def _fake_urlopen_json(payload_text):
@@ -31,7 +31,7 @@ def test_no_beta_header_sent_on_structured_request():
         captured_req["headers"] = dict(req.headers)
         return {"content": [{"type": "text", "text": "{}"}]}
 
-    with patch("claude_structured.urlopen_json", _fake_urlopen_json):
+    with patch("zcoder.claude.capabilities.structured.urlopen_json", _fake_urlopen_json):
         sc.json_object("say hi")
 
     headers = captured_req["headers"]
@@ -52,7 +52,7 @@ def test_json_object_still_uses_ga_output_config_format():
         captured_req["body"] = json.loads(req.data)
         return {"content": [{"type": "text", "text": '{"ok": true}'}]}
 
-    with patch("claude_structured.urlopen_json", _fake_urlopen_json):
+    with patch("zcoder.claude.capabilities.structured.urlopen_json", _fake_urlopen_json):
         result = sc.json_object("say hi")
 
     assert captured_req["body"]["output_config"] == {"format": {"type": "json_object"}}
@@ -66,7 +66,7 @@ def test_json_schema_mode_validates_required_fields():
     def _fake_urlopen_json(req, timeout=120):
         return {"content": [{"type": "text", "text": '{"name": "ok"}'}]}
 
-    with patch("claude_structured.urlopen_json", _fake_urlopen_json):
+    with patch("zcoder.claude.capabilities.structured.urlopen_json", _fake_urlopen_json):
         result = sc.json_schema("extract the name", schema)
 
     assert result == {"name": "ok"}
@@ -79,7 +79,7 @@ def test_json_schema_mode_raises_on_missing_required_field():
     def _fake_urlopen_json(req, timeout=120):
         return {"content": [{"type": "text", "text": "{}"}]}
 
-    with patch("claude_structured.urlopen_json", _fake_urlopen_json):
+    with patch("zcoder.claude.capabilities.structured.urlopen_json", _fake_urlopen_json):
         try:
             sc.json_schema("extract the name", schema)
             raise AssertionError("expected ValueError for missing required field")

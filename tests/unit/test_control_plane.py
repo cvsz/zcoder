@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import JobStatus
-from control_plane import (
+from zcoder.domain.services.control_plane import (
     ControlPlaneStore,
     FleetRepository,
     GitHubInstallation,
 )
+from zcoder.services.agent_runtime import JobStatus
 
 
 @pytest.fixture

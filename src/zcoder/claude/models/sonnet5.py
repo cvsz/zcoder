@@ -46,9 +46,13 @@ import urllib.request
 from datetime import date
 from typing import Optional
 
-from claude_models import INFERENCE_GEO_PRICING_MULTIPLIER, INFERENCE_GEO_SUPPORTED, SERVICE_TIER_UNSUPPORTED
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.claude.models.registry import (
+    INFERENCE_GEO_PRICING_MULTIPLIER,
+    INFERENCE_GEO_SUPPORTED,
+    SERVICE_TIER_UNSUPPORTED,
+)
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)

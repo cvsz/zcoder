@@ -89,7 +89,7 @@ class Worker:
         """Initialize control plane store (SQLite or PostgreSQL)."""
         if use_postgres or database_url:
             try:
-                from postgres_store import PostgresControlPlaneStore
+                from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 
                 self._store = PostgresControlPlaneStore(
                     dsn=database_url or os.environ.get("DATABASE_URL", "")
@@ -99,14 +99,14 @@ class Worker:
                 logger.error(f"Failed to connect to PostgreSQL: {e}")
                 raise
         else:
-            from control_plane import ControlPlaneStore
+            from zcoder.domain.services.control_plane import ControlPlaneStore
 
             db_path = Path.home() / ".zcoder" / "control_plane.db"
             self._store = ControlPlaneStore(db_path=db_path)
             logger.info(f"Worker {self.worker_id} using SQLite at {db_path}")
 
         try:
-            from observability_otel import get_metrics
+            from zcoder.infrastructure.observability.otel import get_metrics
 
             self._metrics = get_metrics()
         except Exception:
@@ -204,7 +204,7 @@ class Worker:
 
     def _execute_job(self, job: Any, fencing_token: int) -> None:
         """Execute a single job. Called in a dedicated thread."""
-        from agent_runtime import JobStatus
+        from zcoder.services.agent_runtime import JobStatus
 
         logger.info(f"Executing job {job.id} (task={job.task!r}, runtime={job.runtime})")
 
@@ -323,7 +323,7 @@ class Worker:
 
     def _shutdown_gracefully(self) -> None:
         """Drain active jobs within shutdown_timeout then release all."""
-        from agent_runtime import JobStatus
+        from zcoder.services.agent_runtime import JobStatus
 
         logger.info(
             f"Worker {self.worker_id} shutdown: {len(self._active_jobs)} active jobs, "

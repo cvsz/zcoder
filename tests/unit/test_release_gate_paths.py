@@ -1,6 +1,6 @@
 """Post-migration release-gate path and evidence-state checks."""
 
-from release_gate import GateVerdict, ProductionReleaseGate
+from zcoder.services.release_gate import GateVerdict, ProductionReleaseGate
 
 
 def test_release_gate_uses_current_test_taxonomy():

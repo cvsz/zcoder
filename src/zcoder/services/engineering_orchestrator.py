@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from engineering_models import Attempt, EngineeringTask, TaskStatus
-from engineering_store_interface import EngineeringStore
+from zcoder.domain.interfaces.engineering_store import EngineeringStore
+from zcoder.domain.models.engineering import Attempt, EngineeringTask, TaskStatus
 
 
 class EngineeringOrchestrator:

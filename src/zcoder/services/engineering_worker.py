@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from engineering_store_interface import EngineeringStore
+from zcoder.domain.interfaces.engineering_store import EngineeringStore
 
 
 class EngineeringWorker:

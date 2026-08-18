@@ -35,7 +35,7 @@ import time
 import urllib.request
 from typing import Any, Callable
 
-from resilience import safe_urlopen
+from zcoder.core.resilience import safe_urlopen
 
 # ---------------------------------------------------------------------------
 # 1. Hardware Profiler & Model Fit Estimator

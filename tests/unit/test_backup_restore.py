@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from backup_restore import BackupManager, BackupRecord, RestoreDrillResult
+from zcoder.services.backup_restore import BackupManager, BackupRecord, RestoreDrillResult
 
 
 @pytest.fixture

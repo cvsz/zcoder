@@ -13,7 +13,7 @@ import time
 import psycopg2
 import pytest
 
-from postgres_store import PostgresControlPlaneStore
+from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
 

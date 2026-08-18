@@ -12,14 +12,14 @@ Covers the --agent-context-editing wiring described in claude_code.py:
 
 import pytest
 
-from claude_code import CodeAgent, CodeSession, cmd_code_agent
-from claude_tools import CONTEXT_MANAGEMENT_BETA, build_context_management
+from zcoder.claude.capabilities.code import CodeAgent, CodeSession, cmd_code_agent
+from zcoder.claude.tools.registry import CONTEXT_MANAGEMENT_BETA, build_context_management
 
 
 @pytest.fixture(autouse=True)
 def isolated_sessions_dir(tmp_path, monkeypatch):
     """Keep CodeSession.save() out of the real ~/.zcoder directory."""
-    monkeypatch.setattr("claude_code.SESSIONS_DIR", tmp_path)
+    monkeypatch.setattr("zcoder.claude.capabilities.code.SESSIONS_DIR", tmp_path)
 
 
 def _end_turn_response(text="ok"):
@@ -109,7 +109,7 @@ def test_cmd_code_agent_flag_off_passes_no_context_management(monkeypatch, tmp_p
             captured.update(kwargs)
             return "result"
 
-    monkeypatch.setattr("claude_code.CodeAgent", FakeAgent)
+    monkeypatch.setattr("zcoder.claude.capabilities.code.CodeAgent", FakeAgent)
 
     cmd_code_agent(
         prompt="do a thing",
@@ -133,7 +133,7 @@ def test_cmd_code_agent_flag_on_builds_and_forwards_context_management(monkeypat
             captured.update(kwargs)
             return "result"
 
-    monkeypatch.setattr("claude_code.CodeAgent", FakeAgent)
+    monkeypatch.setattr("zcoder.claude.capabilities.code.CodeAgent", FakeAgent)
 
     cmd_code_agent(
         prompt="do a thing",
@@ -163,7 +163,7 @@ def test_cmd_code_agent_headless_forces_text_output_mode(monkeypatch, tmp_path, 
             captured.update(kwargs)
             return "result"
 
-    monkeypatch.setattr("claude_code.CodeAgent", FakeAgent)
+    monkeypatch.setattr("zcoder.claude.capabilities.code.CodeAgent", FakeAgent)
 
     cmd_code_agent(
         prompt="do a thing",

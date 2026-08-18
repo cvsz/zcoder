@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import time
 
-from engineering_models import Attempt, Checkpoint, EngineeringTask, TaskStatus
-from engineering_store_interface import EngineeringStore
+from zcoder.domain.interfaces.engineering_store import EngineeringStore
+from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask, TaskStatus
 
 # Reusing connection management logic from existing postgres_store.py
-from postgres_store import PostgresControlPlaneStore
+from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 
 
 class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):

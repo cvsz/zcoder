@@ -18,8 +18,8 @@ import time
 import psycopg2
 import pytest
 
-from agent_runtime import Job, JobStatus
-from postgres_store import PostgresControlPlaneStore
+from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
+from zcoder.services.agent_runtime import Job, JobStatus
 
 PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172.17.0.2:5432/zcoder")
 

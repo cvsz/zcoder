@@ -11,7 +11,7 @@ Verifies:
 
 import pytest
 
-from no_cost_platform import (
+from zcoder.enterprise.no_cost_platform import (
     CostClass,
     CostOptimizer,
     CostPolicy,

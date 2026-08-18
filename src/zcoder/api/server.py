@@ -15,8 +15,8 @@ src_path = Path(__file__).resolve().parent.parent.parent
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
-from tenant_models import EnterpriseRole, RequestContext  # noqa: E402
 from zcoder.api.public.v1 import PublicAPIV1Router  # noqa: E402
+from zcoder.domain.models.tenant import EnterpriseRole, RequestContext  # noqa: E402
 
 app = FastAPI(
     title="ZCoder Public API & Control Plane",

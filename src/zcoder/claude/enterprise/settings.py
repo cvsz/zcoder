@@ -31,7 +31,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from resilience import shell_command_argv
+from zcoder.core.resilience import shell_command_argv
 
 USER_SETTINGS = Path(os.path.expanduser("~/.claude/settings.json"))
 PROJECT_SETTINGS = Path(".claude/settings.json")

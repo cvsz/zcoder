@@ -5,8 +5,8 @@ import unittest
 import psycopg2
 import pytest
 
-from engineering_models import EngineeringTask
-from postgres_engineering_store import PostgresEngineeringStore
+from zcoder.domain.models.engineering import EngineeringTask
+from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
 
 
 def _pg_available() -> bool:

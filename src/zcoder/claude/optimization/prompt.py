@@ -23,7 +23,7 @@ from typing import Optional
 
 import anthropic
 
-from utils import sampling_kwargs
+from zcoder.core.utils import sampling_kwargs
 
 PROMPT_LIB_PATH = Path(os.path.expanduser("~/.zcoder/prompt_library.json"))
 

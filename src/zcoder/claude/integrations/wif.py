@@ -62,8 +62,8 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import APIError, AuthenticationError, RateLimitError, ZCoderError
-from resilience import CircuitBreaker, retry, safe_urlopen, urlopen_json
+from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen, urlopen_json
 
 OAUTH_TOKEN_ENDPOINT = "https://api.anthropic.com/v1/oauth/token"
 ADMIN_BASE = "https://api.anthropic.com/v1/organizations"

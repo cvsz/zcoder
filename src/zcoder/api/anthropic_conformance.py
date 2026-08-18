@@ -42,8 +42,8 @@ def load_manifest(path: Path | None = None) -> dict[str, Any]:
 
 
 def run_conformance_check() -> dict[str, Any]:
-    from claude_models import INFERENCE_GEO_SUPPORTED, RETIRED_MODELS
-    from claude_sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD
+    from zcoder.claude.models.registry import INFERENCE_GEO_SUPPORTED, RETIRED_MODELS
+    from zcoder.claude.models.sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD
 
     manifest = load_manifest()
     errors: list[str] = []

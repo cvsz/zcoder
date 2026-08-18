@@ -14,9 +14,9 @@ from typing import Optional
 
 import anthropic
 
-from resilience import raise_for_http_error, retry
-from utils import sampling_kwargs
 from zcoder.core.outbound_security import safe_external_urlopen
+from zcoder.core.resilience import raise_for_http_error, retry
+from zcoder.core.utils import sampling_kwargs
 
 SYS_PLAN = "You are a research planning assistant. Output only valid JSON."
 SYS_ANAL = "You are a careful research analyst. Be precise. Flag uncertainty."

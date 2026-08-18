@@ -22,8 +22,8 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import ZCoderError
-from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
 FILES_BASE = "https://api.anthropic.com/v1/files"
 MESSAGES_BASE = "https://api.anthropic.com/v1/messages"

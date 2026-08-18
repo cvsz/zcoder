@@ -277,7 +277,7 @@ def cmd_excel_chat(
         )
         sys.exit(1)
 
-    from coder import Coder
+    from zcoder.services.coder import Coder
 
     try:
         session = ExcelSession(input_path, sheet_name)
@@ -366,8 +366,8 @@ def _cmd_excel_chat_native(api_key, model, input_path=None, output_path=None, ma
     aren't available here — the xlsx Skill owns the workbook, this CLI
     has no local copy of it to inspect or revert.
     """
-    from claude_files import FilesAPI
-    from claude_skills_api import SkillsApiClient, build_user_content, extract_output_file_ids
+    from zcoder.claude.enterprise.skills import SkillsApiClient, build_user_content, extract_output_file_ids
+    from zcoder.claude.integrations.files import FilesAPI
 
     files_api = FilesAPI(api_key=api_key, model=model)
     client = SkillsApiClient(api_key=api_key, model=model, max_tokens=max_tokens)

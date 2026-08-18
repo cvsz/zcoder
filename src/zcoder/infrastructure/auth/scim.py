@@ -14,7 +14,7 @@ import dataclasses
 import time
 from typing import Any
 
-from tenant_models import EnterpriseRole, RequestContext
+from zcoder.domain.models.tenant import EnterpriseRole, RequestContext
 
 
 @dataclasses.dataclass

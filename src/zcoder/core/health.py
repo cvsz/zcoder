@@ -19,7 +19,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 
-from config import CONFIG_PATH, Config
+from zcoder.config.settings import CONFIG_PATH, Config
 
 
 @dataclass
@@ -76,7 +76,7 @@ def _check_python_version() -> CheckResult:
 def _check_live_api(api_key: str, model: str = "claude-sonnet-5") -> CheckResult:
     """Deep check — makes one minimal live call. Only run explicitly."""
     try:
-        from coder import Coder
+        from zcoder.services.coder import Coder
 
         c = Coder(api_key=api_key, model=model, max_tokens=8)
         result = c.generate("Reply with the single word: ok")

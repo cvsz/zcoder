@@ -2,7 +2,7 @@
 
 import pytest
 
-from utils import format_code_block, sampling_kwargs, wrap_text
+from zcoder.core.utils import format_code_block, sampling_kwargs, wrap_text
 
 
 @pytest.mark.parametrize(

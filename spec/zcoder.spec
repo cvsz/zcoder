@@ -10,13 +10,13 @@ entrypoint = os.path.join(project_root, "main.py")
 block_cipher = None
 
 hidden_imports = (
-    ["anthropic", "_zcoder_compat"]
+    ["anthropic"]
     + collect_submodules("zcoder")
 )
 
 datas = [
     (os.path.join(src_root, "zcoder", "api", "anthropic-conformance.yaml"), "zcoder/api")
-] + [(os.path.join(src_root, f), ".") for f in os.listdir(src_root) if f.endswith(".py")]
+]
 
 a = Analysis(
     [entrypoint],

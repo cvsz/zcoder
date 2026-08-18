@@ -50,36 +50,6 @@ zcoder-api = "zcoder.api.server:start"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = [
-    "_zcoder_compat",
-    "main",
-    "agent_runtime", "anthropic_conformance", "artifacts", "auth_oidc",
-    "backup_restore", "claude_admin_api", "claude_advisor", "claude_agents_sdk",
-    "claude_batch", "claude_cache", "claude_chrome", "claude_citations",
-    "claude_code", "claude_code_exec", "claude_compliance_api",
-    "claude_cost_optimizer", "claude_embeddings", "claude_eval", "claude_evals",
-    "claude_excel", "claude_fable5", "claude_files", "claude_git", "claude_github",
-    "claude_haiku45", "claude_hooks_perms_plan", "claude_interactive", "claude_live",
-    "claude_mcp_connector", "claude_memory", "claude_metrics", "claude_model_preflight",
-    "claude_models", "claude_mythos5", "claude_observability", "claude_opus5",
-    "claude_output_styles", "claude_plugins", "claude_powerpoint",
-    "claude_prompt_optimizer", "claude_rag", "claude_research", "claude_router",
-    "claude_sandbox", "claude_search", "claude_sessions", "claude_settings",
-    "claude_skills_api", "claude_sonnet5", "claude_stream", "claude_structured",
-    "claude_thinking", "claude_tokens", "claude_tools", "claude_vision", "claude_wif",
-    "claude_workflow", "coder", "compliance_evidence", "config", "control_plane",
-    "cowork", "deployment_engine", "engineering_models", "engineering_orchestrator",
-    "engineering_store_interface", "engineering_worker", "enterprise_postgres_store",
-    "exceptions", "github_orchestrator", "health", "intelligence_models",
-    "legacy_job_models", "local_ai_stack", "logging_config",
-    "maintenance_intelligence_service", "no_cost_platform", "observability_otel",
-    "personalities", "policy_engine", "portfolio_models", "portfolio_scheduler",
-    "portfolio_store", "postgres_engineering_store", "postgres_store", "product_models",
-    "production_config", "projects", "public_api_v1", "release_gate", "residency_models",
-    "resilience", "scim_service", "sdk_client", "security", "skills",
-    "sqlite_engineering_store", "tenant_models", "tui", "tui_streaming", "utils",
-    "worker_process",
-]
 
 [tool.setuptools.packages.find]
 where = ["src"]

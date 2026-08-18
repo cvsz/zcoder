@@ -125,7 +125,7 @@ def _run_main_with(monkeypatch, argv, api_key="sk-ant-test"):
 
 
 def test_route_list_dispatches(monkeypatch):
-    import claude_router
+    import zcoder.claude.orchestration.router as claude_router
 
     called = {}
     monkeypatch.setattr(claude_router, "cmd_route_list", lambda *a, **k: called.setdefault("hit", True))
@@ -134,7 +134,7 @@ def test_route_list_dispatches(monkeypatch):
 
 
 def test_metrics_clear_dispatches(monkeypatch):
-    import claude_metrics
+    import zcoder.claude.enterprise.metrics as claude_metrics
 
     called = {}
     monkeypatch.setattr(claude_metrics, "cmd_metrics_clear", lambda *a, **k: called.setdefault("hit", True))

@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import resilience
-from coder import Coder
+import zcoder.core.resilience as resilience
+from zcoder.services.coder import Coder
 
 
 @pytest.fixture(autouse=True)
@@ -19,7 +19,8 @@ def fresh_breaker(monkeypatch):
     """Give every test its own circuit breaker so failures in one test
     don't trip the breaker for the next one."""
     monkeypatch.setattr(
-        "coder._default_breaker", resilience.CircuitBreaker(failure_threshold=10, reset_timeout=0.01)
+        "zcoder.services.coder._default_breaker",
+        resilience.CircuitBreaker(failure_threshold=10, reset_timeout=0.01),
     )
 
 
