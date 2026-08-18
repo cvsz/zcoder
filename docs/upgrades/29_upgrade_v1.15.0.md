@@ -13,7 +13,7 @@ extra round trip. The `fallbacks` request parameter lets the platform do
 the same retry server-side, in the same round trip:
 
 ```bash
-ai-coder --fable5 "risky prompt" \
+zcoder --fable5 "risky prompt" \
   --fable5-fallback-chain claude-opus-4-8
 ```
 
@@ -31,7 +31,7 @@ real gap, found while implementing this, was narrower: `claude_code.py`'s
 `--code-agent` loop never called it.
 
 ```bash
-ai-coder --code-agent -p "long multi-file refactor" \
+zcoder --code-agent -p "long multi-file refactor" \
   --agent-context-editing
 ```
 
@@ -51,8 +51,10 @@ agent = CodeAgent(api_key=key, model="claude-sonnet-5")
 session = CodeSession(cwd=".", model="claude-sonnet-5")
 
 cm = build_context_management(
-    clear_tool_uses=True, clear_tool_uses_trigger_tokens=30000,
-    compact=True, compact_trigger_tokens=150000,
+    clear_tool_uses=True,
+    clear_tool_uses_trigger_tokens=30000,
+    compact=True,
+    compact_trigger_tokens=150000,
 )
 result = agent.query(prompt="...", session=session, context_management=cm)
 ```
@@ -66,8 +68,8 @@ platform Skills API instead references pre-built or custom skills by
 `skill_id` inside a Messages request's code-execution container:
 
 ```bash
-ai-coder --skills-list
-ai-coder --skills-info pptx
+zcoder --skills-list
+zcoder --skills-info pptx
 ```
 
 ```python
@@ -92,9 +94,9 @@ New module `claude_admin_api.py`, combining both since they share the
 same Admin API key requirement:
 
 ```bash
-ai-coder --usage-report --admin-api-key sk-ant-admin-...
-ai-coder --admin-list-keys --admin-api-key sk-ant-admin-...
-ai-coder --admin-revoke-key key_abc123 --admin-api-key sk-ant-admin-...
+zcoder --usage-report --admin-api-key sk-ant-admin-...
+zcoder --admin-list-keys --admin-api-key sk-ant-admin-...
+zcoder --admin-revoke-key key_abc123 --admin-api-key sk-ant-admin-...
 ```
 
 `--admin-create-key` does not call an endpoint — Anthropic doesn't

@@ -1,6 +1,6 @@
 """
 claude_skills_api.py — Agent Skills API (platform, skill_id-based)
-AI Model Coder CLI v1.15.0
+ZCoder CLI v1.15.0
 
 This is a *different* feature from Claude Code's local skill loader in
 claude_code.py (`SkillsRegistry`, `.claude/skills/<name>/SKILL.md`). That
@@ -53,7 +53,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -157,7 +157,7 @@ class SkillsApiClient:
     def _post(self, payload: dict, betas: list) -> dict:
         try:
             return self._call(payload, betas)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

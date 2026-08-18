@@ -1,11 +1,27 @@
 import os
 import unittest
 
+import psycopg2
+import pytest
+
 from engineering_worker import EngineeringWorker
 from portfolio_models import EngineeringCampaign, ManagedRepository
 from portfolio_scheduler import PortfolioScheduler
 from portfolio_store import PortfolioStore
 from postgres_engineering_store import PostgresEngineeringStore
+
+
+def _pg_available() -> bool:
+    dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+    try:
+        conn = psycopg2.connect(dsn, connect_timeout=2)
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+pytestmark = pytest.mark.skipif(not _pg_available(), reason="PostgreSQL instance not reachable")
 
 
 class TestFleetE2E(unittest.TestCase):

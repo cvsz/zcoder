@@ -1,6 +1,6 @@
 """
 claude_sonnet5.py — Claude Sonnet 5 support (deep, model-specific module)
-AI Model Coder CLI v1.34.0
+ZCoder CLI v1.34.0
 
 Why this module exists: MODEL_CATALOG's claude-sonnet-5 row carries a
 flat price_in/price_out entry. This module provides deeper per-model
@@ -47,7 +47,7 @@ from datetime import date
 from typing import Optional
 
 from claude_models import INFERENCE_GEO_PRICING_MULTIPLIER, INFERENCE_GEO_SUPPORTED, SERVICE_TIER_UNSUPPORTED
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -175,7 +175,7 @@ class Sonnet5Client:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

@@ -98,7 +98,7 @@ def test_fallback_chain_attached_to_call_payload():
 def test_fallback_chain_not_attached_on_explicit_model_override():
     client = Fable5Client(api_key="k", fallback_chain=["claude-opus-4-8"])
     captured = {}
-    client._post = lambda payload, extra_headers=None: (captured.update(payload=payload) or _response())
+    client._post = lambda payload, extra_headers=None: captured.update(payload=payload) or _response()
 
     client.call("hi", model="claude-sonnet-5")
 

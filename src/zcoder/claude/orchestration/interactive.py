@@ -1,6 +1,6 @@
 """
 claude_interactive.py — Interactive chat interface
-AI Model Coder CLI v1.14.0
+ZCoder CLI v1.14.0
 
 A persistent, multi-turn REPL against the Messages API. `-i`/`--interactive`
 existed as a bare argparse flag since v1.7.0 but was never read anywhere in
@@ -54,7 +54,7 @@ def cmd_interactive(api_key, model, system=None, temperature=0.3, max_tokens=409
         personality_style=personality_style,
     )
 
-    print(f"\033[94mAI Model Coder — interactive chat\033[0m  (model: {c.model})")
+    print(f"\033[94mZCoder — interactive chat\033[0m  (model: {c.model})")
     print("Type /help for commands, /exit (or Ctrl-D) to quit.\n")
 
     while True:

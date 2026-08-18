@@ -1,6 +1,6 @@
 """
 claude_citations.py — Citations & RAG
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Ground Claude's answers in source documents with inline citations.
 Uses search result content blocks + citations API (GA).
@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -59,7 +59,7 @@ class CitationsCoder:
         # retrying transient/rate-limit failures underneath via _call().
         try:
             return self._call(payload, beta)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
 
     # ── Document citations ────────────────────────────────────────────────
@@ -197,7 +197,7 @@ def cmd_cite(question: str, doc_files: list[str], api_key: str, model: str):
     if result["citations"]:
         print("\n\033[90m── Citations ────────────────────────────\033[0m")
         for i, c in enumerate(result["citations"], 1):
-            print(f"\033[90m[{i}] {c['document']}: \"{c['text'][:80]}…\"\033[0m")
+            print(f'\033[90m[{i}] {c["document"]}: "{c["text"][:80]}…"\033[0m')
     return result
 
 

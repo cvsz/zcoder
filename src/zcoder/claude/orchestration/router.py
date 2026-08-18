@@ -1,6 +1,6 @@
 """
 claude_router.py — Multi-Agent Conversation Router
-AI Model Coder CLI v1.9.1
+ZCoder CLI v1.9.1
 
 Routes every incoming prompt to the most appropriate specialist agent
 by asking a lightweight classifier call first, then forwarding to the
@@ -19,7 +19,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 from utils import sampling_kwargs
 
@@ -62,7 +62,7 @@ def _post(api_key: str, payload: dict) -> dict:
     # already check for, while retrying transient failures in _call().
     try:
         return _call(api_key, payload)
-    except AICoderError as e:
+    except ZCoderError as e:
         return {"error": e.message}
     except Exception as e:
         return {"error": str(e)}

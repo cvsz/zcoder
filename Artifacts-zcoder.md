@@ -337,7 +337,7 @@ zcoder/
 │   └── release_gate.py
 │
 └── spec/
-    ├── ai-coder.spec
+    ├── zcoder.spec
     └── anthropic-conformance.yaml
 
 เหตุผลในการย้ายไฟล์แต่ละกลุ่ม

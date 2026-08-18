@@ -1,6 +1,6 @@
 # zcoder web console
 
-A browser UI for the AI Model Coder CLI. It does not replace the CLI or
+A browser UI for the ZCoder CLI. It does not replace the CLI or
 duplicate its logic — `webapp/backend/server.py` imports and calls the
 same `Coder` class, `personalities.py`, `skills.py`, `config.py`, and
 `health.py` that `main.py` already uses, and just exposes them over HTTP.
@@ -62,5 +62,5 @@ than a second source of truth.
 
 The API key entered in the sidebar is sent once to `POST /api/config` and
 stored the same place the CLI already reads it from
-(`~/.ai-coder-config.json` via `config.Config`) — it is never echoed back
+(`~/.zcoder-config.json` via `config.Config`) — it is never echoed back
 in full to the browser afterward.

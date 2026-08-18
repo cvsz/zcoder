@@ -1,6 +1,6 @@
 """
 claude_mythos5.py — Claude Mythos 5 support (companion to claude_fable5.py)
-AI Model Coder CLI v1.10.1
+ZCoder CLI v1.10.1
 
 IMPORTANT — confidence note, more pointed than claude_fable5.py's: everything
 below is sourced from the same web search results as claude_fable5.py, and
@@ -40,7 +40,7 @@ import urllib.request
 from typing import Optional
 
 from claude_fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
-from exceptions import AICoderError, APIError
+from exceptions import APIError, ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -96,7 +96,7 @@ class Mythos5Client:
                     f"access with Anthropic. Raw response: {body}"
                 ) from e
             return {"error": e.message, "status": e.status_code}
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

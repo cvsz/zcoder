@@ -1,6 +1,6 @@
 """
 claude_evals.py — Evaluation Harness
-AI Model Coder CLI v1.9.1
+ZCoder CLI v1.9.1
 
 Run structured test suites against Claude: assert on output content,
 compare two model versions, track pass-rates over time, and output
@@ -74,7 +74,7 @@ def load_suite(path: str) -> tuple[str, list[EvalCase]]:
     for c in raw.get("cases", []):
         cases.append(
             EvalCase(
-                id=c.get("id", f"case_{len(cases)+1}"),
+                id=c.get("id", f"case_{len(cases) + 1}"),
                 prompt=c["prompt"],
                 system=c.get("system", ""),
                 expected_contains=c.get("expected_contains", []),

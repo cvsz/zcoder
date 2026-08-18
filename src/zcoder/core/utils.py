@@ -3,6 +3,43 @@
 import os
 import sys
 import textwrap
+from urllib.parse import parse_qs, urlencode
+
+
+def sanitize_dsn(dsn: str) -> str:
+    """Strip query parameters psycopg2 cannot parse.
+
+    DSNs written for other tooling (Prisma, Supabase, ...) routinely carry
+    params like ``?schema=public``; psycopg2 rejects any unknown query
+    parameter with ``invalid URI query parameter`` at connect time. Keep
+    only the parameters psycopg2 actually understands.
+    """
+    if "?" not in dsn:
+        return dsn
+    base, query = dsn.split("?", 1)
+    if not query:
+        return base
+    supported = {
+        "sslmode",
+        "sslcert",
+        "sslkey",
+        "sslrootcert",
+        "sslcrl",
+        "sslcrlf",
+        "application_name",
+        "fallback_application_name",
+        "connect_timeout",
+        "options",
+        "gssencmode",
+        "krbsrvname",
+        "target_session_attrs",
+        "channel_binding",
+        "service",
+    }
+    kept = {k: v[-1] for k, v in parse_qs(query).items() if k in supported}
+    if not kept:
+        return base
+    return f"{base}?{urlencode(kept)}"
 
 
 def print_header(title):

@@ -1,6 +1,6 @@
 # ROADMAP.md
 
-**AI Model Coder CLI (zcoder) — v1.32.0**
+**ZCoder CLI (zcoder) — v1.32.0**
 Last audited against `platform.claude.com/docs`: 2026-07-26 (release
 notes overview, full July 14→24 window — see
 `docs/44_upgrade_v1.32.0_release_validation.md`)

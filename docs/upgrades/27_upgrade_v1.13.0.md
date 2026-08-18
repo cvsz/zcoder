@@ -6,7 +6,7 @@ additive infrastructure plus internal wiring in `coder.py`/`main.py`.
 
 ## New modules
 
-- **`exceptions.py`** — `AICoderError` hierarchy (`ConfigError`,
+- **`exceptions.py`** — `ZCoderError` hierarchy (`ConfigError`,
   `AuthenticationError`, `RateLimitError`, `TransientAPIError`, `APIError`,
   `RefusalError`, `ValidationError`, `SecurityError`, `CircuitOpenError`),
   each with a stable `error_code` and a `RETRYABLE` flag.
@@ -62,7 +62,7 @@ additive infrastructure plus internal wiring in `coder.py`/`main.py`.
   release's diff reviewable rather than touching every network call site
   in the same pass.
 - No concurrent-writer protection was added for the local JSON state files
-  (`~/.ai-coder/projects.json` etc). Not new to this release, but worth
+  (`~/.zcoder/projects.json` etc). Not new to this release, but worth
   flagging: two CLI invocations writing the same project at once can race.
 - `mypy` is configured but the existing modules aren't type-annotated
   throughout; `make typecheck` will report a large baseline of

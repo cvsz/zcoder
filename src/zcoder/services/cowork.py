@@ -1,6 +1,6 @@
 """
 cowork.py — Claude Cowork (All Features)
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Cowork is Claude's autonomous multi-step task execution mode.
 Hand off complex tasks and Claude breaks them down, executes each step,
@@ -32,7 +32,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -272,7 +272,7 @@ class CoworkAgent:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -332,7 +332,7 @@ class CoworkAgent:
         if stream_progress:
             print(f"\n{task['icon']} \033[94m{task['name']}\033[0m")
             print(f"  Depth: {depth}/5  |  Format: {output_fmt}\n")
-            print(f"\033[90m{'─'*50}\033[0m\n")
+            print(f"\033[90m{'─' * 50}\033[0m\n")
 
         payload = {
             "model": self.model,
@@ -424,7 +424,7 @@ def cmd_cowork(
 
     u = result.get("usage", {})
     print(
-        f"\n\033[90m[{result['task_name']}  in={u.get('input_tokens',0)}  out={u.get('output_tokens',0)}]\033[0m"
+        f"\n\033[90m[{result['task_name']}  in={u.get('input_tokens', 0)}  out={u.get('output_tokens', 0)}]\033[0m"
     )
 
     if output_file:
@@ -439,5 +439,5 @@ def cmd_cowork_list():
     print(f"\n  {'TYPE':<14}{'NAME':<26}DESCRIPTION")
     print("  " + "─" * 70)
     for key, task in COWORK_TASKS.items():
-        print(f"  {key:<14}{(task['icon']+' '+task['name']):<26}{task['description']}")
-    print('\n  Usage: ai-coder --cowork <type> --cowork-prompt "your task"')
+        print(f"  {key:<14}{(task['icon'] + ' ' + task['name']):<26}{task['description']}")
+    print('\n  Usage: zcoder --cowork <type> --cowork-prompt "your task"')

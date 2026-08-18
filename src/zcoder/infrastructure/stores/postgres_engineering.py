@@ -16,8 +16,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
     """PostgreSQL-backed persistent store for engineering tasks."""
 
     def init_schema(self) -> None:
-        """Create schema if not exists and enable RLS."""
-        # Add engineering-specific tables
+        """Create schema if not exists."""
         schema = """
         CREATE TABLE IF NOT EXISTS engineering_tasks (
             id TEXT PRIMARY KEY,
@@ -27,8 +26,6 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
             updated_at DOUBLE PRECISION NOT NULL,
             metadata JSONB NOT NULL DEFAULT '{}'
         );
-        -- Enable RLS
-        ALTER TABLE engineering_tasks ENABLE ROW LEVEL SECURITY;
         
         CREATE TABLE IF NOT EXISTS engineering_attempts (
             id TEXT PRIMARY KEY,
@@ -60,6 +57,16 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
             status TEXT NOT NULL,
             repositories JSONB NOT NULL DEFAULT '[]'
         );
+        -- Indexes for access patterns (see query-missing-indexes /
+        -- schema-foreign-key-indexes: WHERE/JOIN columns must be indexed).
+        CREATE INDEX IF NOT EXISTS idx_engineering_tasks_status_created
+            ON engineering_tasks (status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_engineering_attempts_task
+            ON engineering_attempts (task_id);
+        CREATE INDEX IF NOT EXISTS idx_engineering_checkpoints_task
+            ON engineering_checkpoints (task_id);
+        CREATE INDEX IF NOT EXISTS idx_engineering_checkpoints_attempt_seq
+            ON engineering_checkpoints (attempt_id, sequence);
         """
         with self._get_conn() as conn:
             with conn.cursor() as cur:
@@ -159,6 +166,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     """
                     INSERT INTO engineering_attempts (id, task_id, generation, status, started_at, completed_at)
                     VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO NOTHING
                 """,
                     (
                         attempt.id,
@@ -177,6 +185,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     """
                     INSERT INTO engineering_checkpoints (id, task_id, attempt_id, sequence, phase, state_snapshot, timestamp)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO NOTHING
                 """,
                     (
                         checkpoint.id,

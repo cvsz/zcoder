@@ -42,12 +42,12 @@ from dataclasses import dataclass, field
 from typing import Callable, TypeVar
 
 from exceptions import (
-    AICoderError,
     APIError,
     AuthenticationError,
     CircuitOpenError,
     RateLimitError,
     TransientAPIError,
+    ZCoderError,
 )
 
 logger = logging.getLogger("zcoder.resilience")
@@ -56,7 +56,7 @@ T = TypeVar("T")
 
 
 def _is_retryable(exc: BaseException) -> bool:
-    if isinstance(exc, AICoderError):
+    if isinstance(exc, ZCoderError):
         return exc.RETRYABLE
     # Unknown/unexpected exceptions are not retried by default — retrying
     # a bug just makes it slower to surface. Network-layer exceptions from
@@ -66,13 +66,13 @@ def _is_retryable(exc: BaseException) -> bool:
 
 
 def raise_for_http_error(exc: BaseException) -> None:
-    """Translate a raw urllib exception into the AICoderError hierarchy.
+    """Translate a raw urllib exception into the ZCoderError hierarchy.
 
     Every module that makes a direct HTTP call (rather than going through
     the `anthropic` SDK client, which retries internally) should route its
     urllib.error.HTTPError / network-layer exceptions through this before
     handing them to `retry()` — otherwise `_is_retryable` never sees an
-    AICoderError and nothing gets retried, silently. Originally written
+    ZCoderError and nothing gets retried, silently. Originally written
     once for coder.py's Messages API call; every direct-HTTP module hits
     the same three cases (auth, rate limit, transient) so the mapping
     belongs here rather than being re-copied at each call site.
@@ -246,7 +246,7 @@ def retry(
     breaker: CircuitBreaker | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ):
-    """Decorator: retry a callable on retryable AICoderError subclasses.
+    """Decorator: retry a callable on retryable ZCoderError subclasses.
 
     `sleep` is injectable for tests so retry-delay tests don't actually
     sleep in the process; see tests/test_resilience.py.
@@ -261,7 +261,7 @@ def retry(
                     breaker.before_call()
                 try:
                     result = fn(*args, **kwargs)
-                except AICoderError as exc:
+                except ZCoderError as exc:
                     last_exc = exc
                     if breaker is not None:
                         breaker.on_failure()

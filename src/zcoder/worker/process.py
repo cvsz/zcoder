@@ -344,7 +344,7 @@ class Worker:
         for job_id, info in list(self._active_jobs.items()):
             job = info["job"]
             fencing_token = info["fencing_token"]
-            logger.warning(f"Shutdown timeout exceeded — releasing job {job_id} " f"back to READY state")
+            logger.warning(f"Shutdown timeout exceeded — releasing job {job_id} back to READY state")
             try:
                 self._store.mutate_with_fencing(
                     job_id,

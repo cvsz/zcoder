@@ -1,6 +1,6 @@
 """
 claude_stream.py — Streaming Messages
-AI Model Coder CLI v1.11.0
+ZCoder CLI v1.11.0
 
 Real-time streaming of Claude responses using SSE.
 Displays tokens as they arrive rather than waiting for full response.
@@ -157,8 +157,8 @@ class StreamCoder:
         print()  # final newline
         if usage_data:
             print(
-                f"\033[90m[tokens] in={usage_data.get('input_tokens',0)}  "
-                f"out={usage_data.get('output_tokens',0)}\033[0m"
+                f"\033[90m[tokens] in={usage_data.get('input_tokens', 0)}  "
+                f"out={usage_data.get('output_tokens', 0)}\033[0m"
             )
 
         return full_text
@@ -269,7 +269,7 @@ class StreamCoder:
             refusal = handle_refusal({"stop_reason": stop_reason, "stop_details": stop_details or {}})
             if verbose and refusal:
                 print(
-                    f"\033[91m[refusal] category={refusal['category']} " f"{refusal['explanation']}\033[0m",
+                    f"\033[91m[refusal] category={refusal['category']} {refusal['explanation']}\033[0m",
                     file=sys.stderr,
                 )
 

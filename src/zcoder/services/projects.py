@@ -1,6 +1,6 @@
 """
 projects.py — Feature Projects subsystem
-AI Model Coder CLI v1.7.0
+ZCoder CLI v1.7.0
 
 Manages full project lifecycles: create, plan, scaffold, track tasks,
 run agents across a project, and maintain a project manifest.
@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-PROJECTS_DIR = os.path.expanduser("~/.ai-coder/projects")
+PROJECTS_DIR = os.path.expanduser("~/.zcoder/projects")
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -318,13 +318,13 @@ class ProjectManager:
         bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
 
         lines = [
-            f"\n{'═'*60}",
+            f"\n{'═' * 60}",
             f"  PROJECT: {m['name']}",
             f"  ID:      {m['id']}",
             f"  Status:  {m['status']}",
             f"  Created: {m['created_at'][:10]}",
             f"  Progress: [{bar}] {pct}% ({done}/{len(tasks)} tasks)",
-            f"{'═'*60}",
+            f"{'═' * 60}",
         ]
         if m.get("description"):
             lines.append(f"\n  {m['description']}")
@@ -337,7 +337,7 @@ class ProjectManager:
                 color = pri_colors.get(t.get("priority", "medium"), "37")
                 lines.append(
                     f"  {icon} [{t['id']}] \033[{color}m{t['title']}\033[0m"
-                    f" ({t.get('priority','medium')}) — {t.get('status','todo')}"
+                    f" ({t.get('priority', 'medium')}) — {t.get('status', 'todo')}"
                 )
         return "\n".join(lines)
 

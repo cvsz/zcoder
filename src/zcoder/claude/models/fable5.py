@@ -1,6 +1,6 @@
 """
 claude_fable5.py — Claude Fable 5 / Claude Mythos 5 support
-AI Model Coder CLI v1.9.1
+ZCoder CLI v1.9.1
 
 IMPORTANT — confidence note: the details below (pricing, context window,
 refusal/fallback mechanics, availability) are taken from web search results
@@ -66,7 +66,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -191,7 +191,7 @@ class Fable5Client:
     def _post(self, payload: dict, extra_headers: Optional[dict] = None) -> dict:
         try:
             return self._call(payload, extra_headers)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}

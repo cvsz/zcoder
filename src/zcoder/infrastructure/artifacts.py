@@ -1,6 +1,6 @@
 """
 artifacts.py — Artifacts subsystem
-AI Model Coder CLI v1.7.0
+ZCoder CLI v1.7.0
 
 An Artifact is any named, versioned, AI-generated output:
   code, documentation, test suites, architecture diagrams (as text/mermaid),
@@ -25,7 +25,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-ARTIFACTS_DIR = os.path.expanduser("~/.ai-coder/artifacts")
+ARTIFACTS_DIR = os.path.expanduser("~/.zcoder/artifacts")
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -322,19 +322,19 @@ class ArtifactManager:
         v = version or meta["version"]
 
         lines = [
-            f"\n{'═'*60}",
+            f"\n{'═' * 60}",
             f"  ARTIFACT: {meta['name']}",
             f"  ID:       {meta['id']}",
             f"  Type:     {meta['type']}{'  Language: ' + meta['language'] if meta.get('language') else ''}",
-            f"  Version:  v{v} of {meta['version']}  |  Checksum: {meta['versions'][v-1]['checksum']}",
+            f"  Version:  v{v} of {meta['version']}  |  Checksum: {meta['versions'][v - 1]['checksum']}",
             f"  Tags:     {', '.join(meta['tags']) or '—'}",
             f"  Project:  {meta['project_id'] or '—'}",
             f"  Updated:  {meta['updated_at'][:19]}",
-            f"{'═'*60}",
+            f"{'═' * 60}",
             "\n--- Version History ---",
         ]
         for vh in meta["versions"]:
-            lines.append(f"  v{vh['v']}  {vh['created_at'][:19]}  {vh.get('note','')[:60]}")
+            lines.append(f"  v{vh['v']}  {vh['created_at'][:19]}  {vh.get('note', '')[:60]}")
         lines.append(f"\n--- Content (v{v}) ---")
 
         content_lines = content.splitlines()

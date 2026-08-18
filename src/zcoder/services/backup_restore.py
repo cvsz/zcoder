@@ -215,7 +215,7 @@ class BackupManager:
 
         restore_url = target_database_url or os.environ.get("RESTORE_DRILL_DATABASE_URL", "")
         if not restore_url:
-            result.error = "RESTORE_DRILL_DATABASE_URL not set — " "never restore over production database"
+            result.error = "RESTORE_DRILL_DATABASE_URL not set — never restore over production database"
             result.completed_at = time.time()
             logger.error(result.error)
             return result
@@ -281,7 +281,9 @@ class BackupManager:
         try:
             import psycopg2  # type: ignore[import]
 
-            conn = psycopg2.connect(database_url)
+            from zcoder.core.utils import sanitize_dsn
+
+            conn = psycopg2.connect(sanitize_dsn(database_url))
             try:
                 cur = conn.cursor()
 

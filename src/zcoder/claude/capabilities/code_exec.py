@@ -1,6 +1,6 @@
 """
 claude_code_exec.py — Code Execution Tool (beta)
-AI Model Coder CLI v1.24.0
+ZCoder CLI v1.24.0
 
 Let Claude write AND run Python code in a secure Anthropic-hosted sandbox.
 Results (stdout, files, images) are returned inline.
@@ -39,7 +39,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -92,7 +92,7 @@ class CodeExecutionCoder:
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
@@ -236,15 +236,15 @@ def cmd_code_exec(
         for out in result["outputs"]:
             ot = out.get("type", "")
             if ot in ("code", "executed_code"):
-                print(f"\033[36m[code]\033[0m {out.get('code','')[:200]}")
+                print(f"\033[36m[code]\033[0m {out.get('code', '')[:200]}")
             elif ot == "stdout":
-                print(f"\033[37m[out]  {out.get('text','')[:200]}\033[0m")
+                print(f"\033[37m[out]  {out.get('text', '')[:200]}\033[0m")
             elif ot == "image_output":
-                print(f"\033[35m[img]  {out.get('media_type','')}\033[0m")
+                print(f"\033[35m[img]  {out.get('media_type', '')}\033[0m")
 
     u = result.get("usage", {})
     if u:
-        print(f"\n\033[90m[tokens] in={u.get('input_tokens',0)}  out={u.get('output_tokens',0)}\033[0m")
+        print(f"\n\033[90m[tokens] in={u.get('input_tokens', 0)}  out={u.get('output_tokens', 0)}\033[0m")
 
     return result
 

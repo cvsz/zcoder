@@ -1,6 +1,6 @@
 """
 claude_files.py — Files API (beta)
-AI Model Coder CLI v1.8.0
+ZCoder CLI v1.8.0
 
 Upload files once, reference by file_id in multiple Messages API calls.
 Supports: PDFs, images, plain text, code, documents.
@@ -22,7 +22,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
 FILES_BASE = "https://api.anthropic.com/v1/files"
@@ -33,7 +33,7 @@ BETA_HEADER = "files-api-2025-04-14"
 MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB per file
 _FORBIDDEN_FILENAME_CHARS = set('<>:"|?*\\/') | {chr(c) for c in range(32)}
 
-LOCAL_REGISTRY = Path(os.path.expanduser("~/.ai-coder/files_registry.json"))
+LOCAL_REGISTRY = Path(os.path.expanduser("~/.zcoder/files_registry.json"))
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
@@ -98,8 +98,8 @@ class FilesAPI:
         size = p.stat().st_size
         if size > MAX_FILE_SIZE_BYTES:
             raise RuntimeError(
-                f"Upload failed: File too large: {size / (1024*1024):.1f}MB "
-                f"(max {MAX_FILE_SIZE_BYTES / (1024*1024):.0f}MB per file)"
+                f"Upload failed: File too large: {size / (1024 * 1024):.1f}MB "
+                f"(max {MAX_FILE_SIZE_BYTES / (1024 * 1024):.0f}MB per file)"
             )
 
         data = p.read_bytes()
@@ -125,7 +125,7 @@ class FilesAPI:
         req = urllib.request.Request(FILES_BASE, data=body, headers=headers, method="POST")
         try:
             result = self._call_json(req, timeout=60)
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"Upload failed: {e.message}") from e
 
         # Save to local registry
@@ -152,7 +152,7 @@ class FilesAPI:
         )
         try:
             return self._call_json(req, timeout=30)
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"List failed: {e.message}") from e
 
     def list_files_all(self, max_items: Optional[int] = None) -> list:
@@ -178,7 +178,7 @@ class FilesAPI:
         )
         try:
             return self._call_json(req, timeout=30)
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"Get failed: {e.message}") from e
 
     # ── Download content ──────────────────────────────────────────────────
@@ -206,7 +206,7 @@ class FilesAPI:
         )
         try:
             data = self._call_bytes(req, timeout=60)
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"Download failed: {e.message}") from e
         Path(output_path).write_bytes(data)
         return output_path
@@ -223,7 +223,7 @@ class FilesAPI:
             self._call_nobody(req, timeout=30)
             self._unregister(file_id)
             return True
-        except AICoderError as e:
+        except ZCoderError as e:
             raise RuntimeError(f"Delete failed: {e.message}") from e
 
     # ── Use file in Messages API ──────────────────────────────────────────
@@ -287,7 +287,7 @@ class FilesAPI:
         )
         try:
             data = self._call_json(req, timeout=120)
-        except AICoderError as e:
+        except ZCoderError as e:
             return f"[API ERROR {getattr(e, 'status_code', '')}] {e.message}"
 
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
@@ -333,7 +333,7 @@ def cmd_file_upload(file_path: str, api_key: str, model: str):
     print(f"  Filename: {result.get('filename', '')}")
     print(f"  Size:     {result.get('size', 0):,} bytes")
     print(f"  Created:  {result.get('created_at', '')}")
-    print(f"\n  Use with: ai-coder --file-ask {result['id']} \"your question\"")
+    print(f'\n  Use with: zcoder --file-ask {result["id"]} "your question"')
     return result["id"]
 
 

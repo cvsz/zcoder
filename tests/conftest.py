@@ -20,8 +20,8 @@ for path in (ROOT, SRC):
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
     """Every test gets its own config file path so tests never read/write
-    a real ~/.ai-coder-config.json on the machine running the suite."""
-    fake_config = tmp_path / ".ai-coder-config.json"
+    a real ~/.zcoder-config.json on the machine running the suite."""
+    fake_config = tmp_path / ".zcoder-config.json"
     monkeypatch.setattr("config.CONFIG_PATH", str(fake_config))
     yield fake_config
 

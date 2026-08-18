@@ -1,6 +1,6 @@
 """
 claude_cache.py — Prompt Caching
-AI Model Coder CLI v1.36.0
+ZCoder CLI v1.36.0
 
 Cache stable prompt prefixes (system prompts, documents, tool definitions)
 to cut input token costs up to 90% and latency up to 85%.
@@ -55,7 +55,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from exceptions import AICoderError
+from exceptions import ZCoderError
 from resilience import CircuitBreaker, retry, urlopen_json
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -131,7 +131,7 @@ def validate_system_message_placement(messages: list[dict]) -> None:
         if _is_system(prev):
             raise SystemMessagePlacementError(
                 f"System message at index {i} is adjacent to another system "
-                f"message at index {i-1}; consecutive system messages are "
+                f"message at index {i - 1}; consecutive system messages are "
                 "not allowed."
             )
 
@@ -148,7 +148,7 @@ def validate_system_message_placement(messages: list[dict]) -> None:
             and "server_tool_use" not in prev_types
         ):
             raise SystemMessagePlacementError(
-                f"System message at index {i} cannot sit between a tool_use " "block and its tool_result."
+                f"System message at index {i} cannot sit between a tool_use block and its tool_result."
             )
 
         prev_ok = prev.get("role") == "user" or (
@@ -166,7 +166,7 @@ def validate_system_message_placement(messages: list[dict]) -> None:
             if _is_system(nxt):
                 raise SystemMessagePlacementError(
                     f"System message at index {i} is adjacent to another "
-                    f"system message at index {i+1}; consecutive system "
+                    f"system message at index {i + 1}; consecutive system "
                     "messages are not allowed."
                 )
             if nxt.get("role") != "assistant":
@@ -231,7 +231,7 @@ class CachingCoder:
         req = urllib.request.Request(self.ENDPOINT, data=body, headers=headers, method="POST")
         try:
             return self._call(req)
-        except AICoderError as e:
+        except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
@@ -470,7 +470,7 @@ class CachingCoder:
         miss = s["cache_creation_input_tokens"]
         inp = s["input_tokens"]
         out = s["output_tokens"]
-        ratio = f"{hit/(hit+miss+inp)*100:.1f}%" if (hit + miss + inp) > 0 else "—"
+        ratio = f"{hit / (hit + miss + inp) * 100:.1f}%" if (hit + miss + inp) > 0 else "—"
         print("\n\033[90m── Cache Stats ─────────────────────────")
         print(f"  input tokens:        {inp}")
         print(f"  cache write tokens:  {miss}  (billed at 1.25x)")
@@ -537,7 +537,7 @@ def cmd_cache_multi_turn(
         print(f"\033[91m✗ {e}\033[0m")
         return []
     for i, r in enumerate(responses):
-        print(f"\n\033[90m── Turn {i+1} ──\033[0m\n{r}")
+        print(f"\n\033[90m── Turn {i + 1} ──\033[0m\n{r}")
     if show_stats:
         cc.print_cache_stats()
     return responses

@@ -32,10 +32,10 @@ ZCoder is designed around a few hard constraints:
 
 | Area | What is in the repository |
 |---|---|
-| CLI | `zcoder`, `ai-coder`, and source-compatible `python main.py` entry points |
+| CLI | `zcoder` and source-compatible `python main.py` entry points |
 | TUI | Textual-based terminal interface |
 | Web | FastAPI/Uvicorn browser console with optional web dependencies |
-| Local AI | Hardware profiling, model registry, local model gateway, llama.cpp/Ollama/vLLM/OpenAI-compatible adapters, local embeddings/RAG |
+| Local AI | Hardware profiling, model registry, local model gateway, llama.cpp/Ollama/vLLM/OpenAI-compatible adapters, local embeddings/RAG; `ZCODER_LOCAL_MODE` offline synthesis for keyless/air-gapped smoke use |
 | No-cost core | Cost classification and routing policy, local object storage, local analytics, notifications, workflows, agent catalog |
 | Agents | Durable agent runtime, bounded coding cycles, approvals, cancellation/retry semantics |
 | GitHub automation | Repository jobs, PR/CI orchestration, review and bounded repair workflows |

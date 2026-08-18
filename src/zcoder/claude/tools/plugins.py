@@ -1,6 +1,6 @@
 """
 claude_plugins.py — Plugin & Marketplace system
-AI Model Coder CLI v1.9.0
+ZCoder CLI v1.9.0
 
 Models Claude Code's plugin system (docs.claude.com/plugins-reference):
 
@@ -49,7 +49,7 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from exceptions import AICoderError, TransientAPIError
+from exceptions import TransientAPIError, ZCoderError
 from resilience import retry, safe_urlopen
 
 PLUGINS_ROOT = Path(os.path.expanduser("~/.claude/plugins"))
@@ -221,7 +221,7 @@ def marketplace_add(source: str, name: Optional[str] = None) -> dict:
             with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
                 try:
                     tmp.write(_fetch_marketplace_source(source))
-                except AICoderError as e:
+                except ZCoderError as e:
                     raise RuntimeError(str(e.message)) from e
                 tmp_path = tmp.name
             with zipfile.ZipFile(tmp_path) as zf:
@@ -230,7 +230,7 @@ def marketplace_add(source: str, name: Optional[str] = None) -> dict:
         else:
             try:
                 raw = _fetch_marketplace_source(source).decode("utf-8", errors="replace")
-            except AICoderError as e:
+            except ZCoderError as e:
                 raise RuntimeError(str(e.message)) from e
             dest.mkdir(parents=True, exist_ok=True)
             (dest / "marketplace.json").write_text(raw)
