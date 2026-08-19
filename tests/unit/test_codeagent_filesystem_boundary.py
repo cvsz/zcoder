@@ -40,7 +40,9 @@ def test_read_rejects_absolute_path_escape(tmp_path: Path) -> None:
     secret = tmp_path / "secret.txt"
     secret.write_text("outside-secret", encoding="utf-8")
 
-    result = _agent()._run_tool("Read", {"path": str(secret.resolve())}, _session(workspace))
+    result = _agent()._run_tool(
+        "Read", {"path": str(secret.resolve())}, _session(workspace)
+    )
 
     _assert_blocked(result)
     assert "outside-secret" not in result
@@ -88,7 +90,9 @@ def test_glob_pattern_cannot_traverse_above_safe_base(tmp_path: Path) -> None:
     workspace.mkdir()
     (tmp_path / "secret.txt").write_text("outside-secret", encoding="utf-8")
 
-    result = _agent()._run_tool("Glob", {"pattern": "../*.txt", "path": "."}, _session(workspace))
+    result = _agent()._run_tool(
+        "Glob", {"pattern": "../*.txt", "path": "."}, _session(workspace)
+    )
 
     assert "Glob pattern must stay inside the workspace" in result
     assert "secret.txt" not in result
@@ -146,10 +150,16 @@ def test_filesystem_tools_keep_normal_workspace_behavior(tmp_path: Path) -> None
     session = _session(workspace)
     agent = _agent()
 
-    assert agent._run_tool("Write", {"path": "notes/a.txt", "content": "alpha"}, session).startswith("Written")
+    assert agent._run_tool(
+        "Write", {"path": "notes/a.txt", "content": "alpha"}, session
+    ).startswith("Written")
     assert agent._run_tool("Read", {"path": "notes/a.txt"}, session) == "alpha"
-    assert "notes/a.txt" in agent._run_tool("Glob", {"pattern": "**/*.txt"}, session)
-    assert "alpha" in agent._run_tool("Grep", {"pattern": "alpha", "path": ".", "include": "*.txt"}, session)
+    assert "notes/a.txt" in agent._run_tool(
+        "Glob", {"pattern": "**/*.txt"}, session
+    )
+    assert "alpha" in agent._run_tool(
+        "Grep", {"pattern": "alpha", "path": ".", "include": "*.txt"}, session
+    )
     assert "notes" in agent._run_tool("LS", {"path": "."}, session)
     assert agent._run_tool(
         "Edit",
@@ -159,7 +169,9 @@ def test_filesystem_tools_keep_normal_workspace_behavior(tmp_path: Path) -> None
     assert (workspace / "notes" / "a.txt").read_text(encoding="utf-8") == "beta"
 
 
-def test_noninteractive_ask_permission_still_routes_read_through_boundary(tmp_path: Path) -> None:
+def test_noninteractive_ask_permission_still_routes_read_through_boundary(
+    tmp_path: Path,
+) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     secret = tmp_path / "secret.txt"
