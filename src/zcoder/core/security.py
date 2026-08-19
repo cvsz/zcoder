@@ -45,9 +45,7 @@ def safe_resolve(path: str | os.PathLike, base_dir: str | os.PathLike) -> Path:
     """
     base = os.path.realpath(os.path.expanduser(os.fspath(base_dir)))
     raw_path = os.fspath(path)
-    candidate = os.path.realpath(
-        raw_path if os.path.isabs(raw_path) else os.path.join(base, raw_path)
-    )
+    candidate = os.path.realpath(raw_path if os.path.isabs(raw_path) else os.path.join(base, raw_path))
     base_prefix = base if base.endswith(os.sep) else base + os.sep
     if candidate != base and not candidate.startswith(base_prefix):
         raise SecurityError(
@@ -78,9 +76,7 @@ def contains_secret(text: str) -> bool:
 def assert_no_secret(text: str, *, context: str = "input") -> None:
     """Raise if ``text`` looks like it contains a live API key."""
     if contains_secret(text):
-        raise SecurityError(
-            f"Refusing to write {context}: looks like it contains an API key"
-        )
+        raise SecurityError(f"Refusing to write {context}: looks like it contains an API key")
 
 
 # ── URL / scheme validation ──────────────────────────────────────────────
