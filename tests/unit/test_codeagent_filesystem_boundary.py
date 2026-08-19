@@ -113,7 +113,9 @@ def test_grep_include_pattern_cannot_traverse_above_safe_base(tmp_path: Path) ->
     assert "outside-secret" not in result
 
 
-def test_write_rejects_escape_without_mutating_outside_workspace(tmp_path: Path) -> None:
+def test_write_rejects_escape_without_mutating_outside_workspace(
+    tmp_path: Path,
+) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     outside = tmp_path / "created.txt"
