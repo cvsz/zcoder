@@ -36,26 +36,25 @@ MAX_FILE_SIZE_BYTES = int(os.getenv("ZCODER_MAX_FILE_SIZE_BYTES", 25 * 1024 * 10
 
 
 def safe_resolve(path: str | os.PathLike, base_dir: str | os.PathLike) -> Path:
-    """Resolve `path` (possibly relative) against `base_dir` and guarantee
-    the result stays inside `base_dir`. Raises SecurityError otherwise.
+    """Resolve ``path`` against ``base_dir`` and enforce containment.
 
-    Use this anywhere a user-controlled path (a CLI arg, a project/artifact
-    name, an agent-produced filename) is about to be opened, written, or
-    deleted, e.g.:
-
-        target = safe_resolve(args.project_export, PROJECTS_DIR)
-        target.write_text(data)
+    Both paths are canonicalized with ``realpath`` so traversal and symlink
+    escapes are resolved before the boundary check. The separator-aware
+    prefix check also rejects sibling-prefix confusion such as
+    ``/safe/workspace-evil`` when the trusted root is ``/safe/workspace``.
     """
-    base = Path(base_dir).expanduser().resolve()
-    candidate = (base / path).resolve() if not os.path.isabs(str(path)) else Path(path).resolve()
-    try:
-        candidate.relative_to(base)
-    except ValueError:
+    base = os.path.realpath(os.path.expanduser(os.fspath(base_dir)))
+    raw_path = os.fspath(path)
+    candidate = os.path.realpath(
+        raw_path if os.path.isabs(raw_path) else os.path.join(base, raw_path)
+    )
+    base_prefix = base if base.endswith(os.sep) else base + os.sep
+    if candidate != base and not candidate.startswith(base_prefix):
         raise SecurityError(
             "Path escapes the allowed base directory",
             details={"path": str(path), "base_dir": str(base)},
-        ) from None
-    return candidate
+        )
+    return Path(candidate)
 
 
 def check_file_size(path: str | os.PathLike, max_bytes: int = MAX_FILE_SIZE_BYTES) -> None:
@@ -77,11 +76,11 @@ def contains_secret(text: str) -> bool:
 
 
 def assert_no_secret(text: str, *, context: str = "input") -> None:
-    """Raise if `text` looks like it contains a live API key. Call before
-    writing user/model-generated content to a file that might get committed
-    or shared (artifacts.py exports, project files, etc)."""
+    """Raise if ``text`` looks like it contains a live API key."""
     if contains_secret(text):
-        raise SecurityError(f"Refusing to write {context}: looks like it contains an API key")
+        raise SecurityError(
+            f"Refusing to write {context}: looks like it contains an API key"
+        )
 
 
 # ── URL / scheme validation ──────────────────────────────────────────────
@@ -90,11 +89,13 @@ _ALLOWED_SCHEMES = ("https",)
 
 
 def validate_url(url: str, *, allowed_schemes: tuple[str, ...] = _ALLOWED_SCHEMES) -> None:
-    """Reject non-https schemes (file://, ftp://, javascript:, data: etc.)
-    before handing a URL to any fetch/download code path."""
+    """Reject non-HTTPS schemes before URL fetch/download code paths."""
     scheme = url.split("://", 1)[0].lower() if "://" in url else ""
     if scheme not in allowed_schemes:
-        raise SecurityError(f"URL scheme '{scheme or '(none)'}' is not allowed", details={"url": url})
+        raise SecurityError(
+            f"URL scheme '{scheme or '(none)'}' is not allowed",
+            details={"url": url},
+        )
 
 
 # ── Generic input validation ─────────────────────────────────────────────
@@ -103,23 +104,22 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9._\- ]{1,200}$")
 
 
 def validate_name(name: str, *, field: str = "name") -> str:
-    """Validate a user-supplied identifier used to build a filesystem path
-    (project name, artifact name, skill name). Rejects path separators,
-    null bytes, and anything outside a conservative allow-list so it's
-    always safe to join onto a base directory."""
+    """Validate a user-supplied identifier used to build a filesystem path."""
     if not name or not _SAFE_NAME.match(name):
         raise ValidationError(
             f"Invalid {field}: only letters, numbers, spaces, '.', '_', '-' are allowed",
             details={field: name},
         )
     if ".." in name or "/" in name or "\\" in name:
-        raise ValidationError(f"Invalid {field}: path separators are not allowed", details={field: name})
+        raise ValidationError(
+            f"Invalid {field}: path separators are not allowed",
+            details={field: name},
+        )
     return name
 
 
 def env_flag(name: str, default: bool = False) -> bool:
-    """Parse a boolean environment variable consistently across the
-    codebase instead of ad hoc `os.getenv(...) == "1"` checks."""
+    """Parse a boolean environment variable consistently across the codebase."""
     val = os.getenv(name)
     if val is None:
         return default
