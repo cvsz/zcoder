@@ -83,6 +83,32 @@ def test_readonly_enumeration_tools_reject_workspace_escape(
     _assert_blocked(result)
 
 
+def test_glob_pattern_cannot_traverse_above_safe_base(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (tmp_path / "secret.txt").write_text("outside-secret", encoding="utf-8")
+
+    result = _agent()._run_tool("Glob", {"pattern": "../*.txt", "path": "."}, _session(workspace))
+
+    assert "Glob pattern must stay inside the workspace" in result
+    assert "secret.txt" not in result
+
+
+def test_grep_include_pattern_cannot_traverse_above_safe_base(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (tmp_path / "secret.txt").write_text("outside-secret", encoding="utf-8")
+
+    result = _agent()._run_tool(
+        "Grep",
+        {"pattern": "outside-secret", "path": ".", "include": "../*.txt"},
+        _session(workspace),
+    )
+
+    assert "Grep include pattern must stay inside the workspace" in result
+    assert "outside-secret" not in result
+
+
 def test_write_rejects_escape_without_mutating_outside_workspace(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
