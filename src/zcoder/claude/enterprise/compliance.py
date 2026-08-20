@@ -201,6 +201,22 @@ def _parse_content_disposition_filename(value: str) -> Optional[str]:
     return None
 
 
+def _safe_download_filename(filename: Optional[str], fallback: str) -> str:
+    """Sanitize a server-supplied filename to a bare basename.
+
+    The filename is untrusted remote output: it must never be used to
+    place the download outside the working directory. Absolute paths,
+    path components, and parent traversal are rejected; the caller's
+    ``file_id`` is used as the fallback instead.
+    """
+    if not filename:
+        return fallback
+    name = filename.replace("\\", "/")
+    if "/" in name or name in {".", ".."}:
+        return fallback
+    return name
+
+
 class ComplianceApiClient:
     """Production client for `/v1/compliance/*`.
 
@@ -707,7 +723,7 @@ def cmd_compliance_file_download(api_key: str, file_id: str, output_path: Option
     except ComplianceApiError as e:
         _print_error(f"Failed to download file {file_id}", e)
         return None
-    dest = Path(output_path or filename or file_id)
+    dest = Path(output_path) if output_path else Path(_safe_download_filename(filename, file_id))
     dest.write_bytes(content)
     print(f"\033[92m✓ Saved {len(content)} bytes to {dest} ({mime_type or 'unknown MIME type'})\033[0m")
     return str(dest)
