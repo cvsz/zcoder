@@ -451,7 +451,7 @@ def enabled_plugin_dirs() -> list:
 
 
 def load_plugin_skills() -> list:
-    """Return [{name, path, plugin}] for every SKILL.md across enabled plugins."""
+    """Return [{name, path, plugin, plugin_dir}] for every SKILL.md across enabled plugins."""
     out = []
     for plug_dir in enabled_plugin_dirs():
         skills_dir = plug_dir / "skills"
@@ -460,7 +460,14 @@ def load_plugin_skills() -> list:
         for sk in skills_dir.iterdir():
             md = sk / "SKILL.md"
             if md.exists():
-                out.append({"name": sk.name, "path": str(md), "plugin": plug_dir.name})
+                out.append(
+                    {
+                        "name": sk.name,
+                        "path": str(md),
+                        "plugin": plug_dir.name,
+                        "plugin_dir": str(plug_dir),
+                    }
+                )
     return out
 
 
