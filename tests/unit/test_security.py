@@ -28,6 +28,17 @@ def test_safe_resolve_blocks_absolute_escape(tmp_path):
         safe_resolve("/etc/passwd", tmp_path)
 
 
+def test_safe_resolve_blocks_sibling_prefix_escape(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    sibling = tmp_path / "workspace-evil"
+    sibling.mkdir()
+    outside = sibling / "secret.txt"
+
+    with pytest.raises(SecurityError):
+        safe_resolve(outside, workspace)
+
+
 @pytest.mark.parametrize("name", ["my-project", "Project 1", "notes.md", "a_b.c"])
 def test_validate_name_accepts_safe_names(name):
     assert validate_name(name) == name
@@ -40,7 +51,7 @@ def test_validate_name_rejects_unsafe_names(name):
 
 
 def test_validate_url_allows_https():
-    validate_url("https://api.anthropic.com/v1/messages")  # no raise
+    validate_url("https://api.anthropic.com/v1/messages")
 
 
 @pytest.mark.parametrize(
