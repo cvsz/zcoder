@@ -1911,7 +1911,6 @@ def build_parser():
     pl.add_argument("--plugin-info", metavar="NAME", dest="plugin_info")
     pl.add_argument("--plugin-enable", metavar="NAME", dest="plugin_enable")
     pl.add_argument("--plugin-disable", metavar="NAME", dest="plugin_disable")
-    pl.add_argument("--plugin-validate", metavar="PATH", dest="plugin_validate")
 
     mem = p.add_argument_group("Memory")
     mem.add_argument("--memory-add", metavar="TEXT", dest="memory_add")
@@ -2239,11 +2238,6 @@ def main():
         from zcoder.claude.tools.plugins import cmd_plugin_disable
 
         cmd_plugin_disable(args.plugin_disable)
-        return
-    if args.plugin_validate:
-        from zcoder.claude.tools.plugins import cmd_plugin_validate
-
-        cmd_plugin_validate(args.plugin_validate)
         return
 
     # ── Settings (no API key required) ──
