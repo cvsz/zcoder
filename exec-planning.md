@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@98204b66bdb24866de4219718b3ba600e48877cd`  
+**Current Baseline:** `main@b38e7e060e3233a15f6173691a095ce22a0f5a26`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -320,7 +320,7 @@ Progress only in bounded PRs through:
 4. skills and slash-command lifecycle — **loader security hardening DONE (Slice E.3); full lifecycle/UX remains**;
 5. hooks lifecycle and policy-safe event model;
 6. MCP transports, discovery, resource/tool trust policy;
-7. subagents and agent teams with bounded budgets/permissions (incl. agent/`.claude/agents` loader containment);
+7. subagents and agent teams with bounded budgets/permissions — **agent/.claude/agents loader containment DONE (Slice E.4); full lifecycle/budgets/permissions remains**;
 8. plugins/marketplaces with provenance and permission manifests;
 9. complete built-in tool parity with security boundaries;
 10. IDE/web/remote/CI workflows;
@@ -489,6 +489,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved (one CI failure caught pre-merge: `Path | None` / `str | None` annotations broke Python 3.9 collection; fixed by using `Optional[...]` in code.py and `from __future__ import annotations` in the test module)
 - security result: SKILL.md loading now containment-checked via safe_resolve (custom→skills_dir, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 8 regression tests
 - compatibility/rollback note: load_plugin_skills now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up; agent/command loaders need identical containment
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.4 — Agent Loader Containment (item 7, security hardening)
+
+- PR: #69
+- verified head: `c529c90` (all 18 PR checks green, incl. test 3.9)
+- merge commit: `b38e7e060e3233a15f6173691a095ce22a0f5a26`
+- CI: `96552422974` (3.9) / `96552422927` (3.10) / `96552422989` (3.11) / `96552422953` (3.12) — success
+- lint: `96552422915` — success
+- security / Bandit & pip-audit: `96552423113` / `96552423113` — success
+- CodeQL / Analyze Python Code Security: pass — `96552679353` / `96552422816` — success
+- Dependency Review / Gitleaks: `96552422816` / `96552422816` — success
+- Helm v3/v4 `96552422816` — success
+- Release Gate: `96552422915` — success
+- SDK & TypeScript: `96552422915` — success
+- docker-build / build-and-push / deploy `96552422915` — success
+- review threads: none unresolved
+- security result: .claude/agents/*.md and plugin-agent files now containment-checked via safe_resolve (local→AGENTS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 6 regression tests
+- compatibility/rollback note: load_plugin_agents now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up; custom-command loader needs identical containment
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
