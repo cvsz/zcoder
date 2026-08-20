@@ -19,9 +19,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Dependency Review
         uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
-          comment-summary-in-pr: always
