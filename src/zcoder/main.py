@@ -85,6 +85,19 @@ def build_parser():
     g.add_argument("--temperature", type=float, default=0.3)
     g.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens")
     g.add_argument("--api-key", default="", dest="api_key")
+    g.add_argument(
+        "--provider",
+        default=None,
+        dest="provider",
+        choices=["anthropic", "gemini", "xai", "ollama", "local"],
+        help="Model gateway provider (default: anthropic; env ZCODER_PROVIDER / ZCODER_LOCAL_MODE)",
+    )
+    g.add_argument(
+        "--base-url",
+        default=None,
+        dest="base_url",
+        help="Override the provider gateway base URL (env ZCODER_BASE_URL / OLLAMA_BASE_URL)",
+    )
     g.add_argument("--version", action="store_true")
     g.add_argument(
         "--service-tier",
@@ -3270,7 +3283,15 @@ def main():
     if args.route:
         from zcoder.claude.orchestration.router import cmd_route
 
-        cmd_route(args.route, key, model, explain=args.route_explain, parallel=args.route_parallel)
+        cmd_route(
+            args.route,
+            key,
+            model,
+            explain=args.route_explain,
+            parallel=args.route_parallel,
+            provider=getattr(args, "provider", None),
+            base_url=getattr(args, "base_url", None),
+        )
         return
 
     # ── Prompt Optimizer ──
