@@ -6,7 +6,10 @@ import socket
 import urllib.request
 from pathlib import Path
 
+import zcoder.claude.capabilities.code as code_module
 from zcoder.claude.capabilities.code import CodeAgent, CodeSession
+
+WEBFETCH_LIMIT = 1_048_576
 
 
 def _agent() -> CodeAgent:
@@ -74,3 +77,56 @@ def test_noninteractive_webfetch_still_uses_network_boundary(monkeypatch, tmp_pa
 
     assert "non-public" in result
     assert "network sink reached" not in result
+
+
+def test_webfetch_bounds_bytes_read(monkeypatch, tmp_path: Path) -> None:
+    read_sizes: list[int] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, size: int = -1) -> bytes:
+            read_sizes.append(size)
+            return b"ok"
+
+    def fake_open(*_args, **_kwargs):
+        return FakeResponse()
+
+    monkeypatch.setattr(code_module, "safe_urlopen", fake_open, raising=False)
+    monkeypatch.setattr(code_module, "safe_external_urlopen", fake_open, raising=False)
+
+    result = _agent()._webfetch_retrying("https://public.example/data")
+
+    assert result == "ok"
+    assert read_sizes == [WEBFETCH_LIMIT + 1]
+
+
+def test_webfetch_rejects_oversized_response(monkeypatch, tmp_path: Path) -> None:
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, size: int = -1) -> bytes:
+            amount = WEBFETCH_LIMIT + 1 if size < 0 else size
+            return b"x" * amount
+
+    def fake_open(*_args, **_kwargs):
+        return FakeResponse()
+
+    monkeypatch.setattr(code_module, "safe_urlopen", fake_open, raising=False)
+    monkeypatch.setattr(code_module, "safe_external_urlopen", fake_open, raising=False)
+
+    result = _agent()._run_tool(
+        "WebFetch",
+        {"url": "https://public.example/data"},
+        _session(tmp_path),
+    )
+
+    assert "response exceeds 1048576 bytes" in result
