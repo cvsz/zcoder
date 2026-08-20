@@ -74,6 +74,7 @@ from typing import Callable, Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.security import safe_resolve
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
 
@@ -627,10 +628,16 @@ class ToolCoder:
         system: Optional[str] = None,
         max_turns: int = 10,
         verbose: bool = True,
+        permission: str = "askPermission",
+        can_use_tool: Callable = None,
     ) -> str:
         """
         Full agentic loop: Claude calls tools, we execute them and return
         results, repeat until stop_reason == 'end_turn'.
+
+        Permission semantics mirror the CodeAgent tool boundary: mutating
+        or code-executing tools require approval (fail closed when no
+        terminal is available); read-only tools pass through.
         """
         messages = [{"role": "user", "content": prompt}]
         tools = registry.definitions()
@@ -675,6 +682,16 @@ class ToolCoder:
                 if verbose:
                     print(f"\033[90m  [tool] {tool_name}({json.dumps(tool_input)[:80]})\033[0m")
 
+                if not self._approve(tool_name, tool_input, permission, can_use_tool):
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": "[DENIED] Tool call not approved",
+                        }
+                    )
+                    continue
+
                 result = registry.execute(tool_name, tool_input)
                 tool_results.append(
                     {
@@ -688,6 +705,26 @@ class ToolCoder:
             turn += 1
 
         return "[MAX TURNS REACHED]"
+
+    def _approve(self, name: str, inputs: dict, permission: str, can_use_tool: Callable) -> bool:
+        """Fail-closed approval for tool calls, mirroring CodeAgent semantics."""
+        if permission == "planMode":
+            return False
+        if permission == "dontAsk":
+            return False
+        if permission == "bypassPermissions":
+            return True
+        read_only = {"read_file", "list_files"}
+        if can_use_tool is not None:
+            return can_use_tool(name, inputs)
+        if name in read_only:
+            return True
+        print(f"\n\033[93m  [permission] {name}({json.dumps(inputs)[:60]})\033[0m")
+        try:
+            ans = input("  Approve? [Y/n] ").strip().lower()
+            return ans != "n"
+        except (EOFError, KeyboardInterrupt):
+            return False
 
     # ── With server tools ──────────────────────────────────────────────────
 
@@ -880,9 +917,17 @@ class ToolCoder:
 # ── Pre-built tool examples ────────────────────────────────────────────────
 
 
-def build_code_tools_registry() -> ToolRegistry:
-    """Example registry with useful coding tools."""
+def build_code_tools_registry(cwd: str | None = None) -> ToolRegistry:
+    """Example registry with useful coding tools, contained to ``cwd``.
+
+    All file paths are resolved against ``cwd`` (default: the process
+    working directory) through the centralized containment primitive;
+    traversal, absolute, and symlink escapes are rejected.
+    """
+    import os
+
     reg = ToolRegistry()
+    base = os.path.realpath(os.path.expanduser(cwd or os.getcwd()))
 
     def run_python(code: str) -> str:
         import subprocess
@@ -897,15 +942,15 @@ def build_code_tools_registry() -> ToolRegistry:
 
     def read_file(path: str) -> str:
         try:
-            with open(path) as f:
-                return f.read()
+            return safe_resolve(path, base).read_text()
         except Exception as e:
             return f"[ERROR] {e}"
 
     def write_file(path: str, content: str) -> str:
         try:
-            with open(path, "w") as f:
-                f.write(content)
+            p = safe_resolve(path, base)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content)
             return f"Written {len(content)} chars to {path}"
         except Exception as e:
             return f"[ERROR] {e}"
@@ -914,7 +959,7 @@ def build_code_tools_registry() -> ToolRegistry:
         import os
 
         try:
-            return "\n".join(sorted(os.listdir(directory)))
+            return "\n".join(sorted(os.listdir(safe_resolve(directory, base))))
         except Exception as e:
             return f"[ERROR] {e}"
 
