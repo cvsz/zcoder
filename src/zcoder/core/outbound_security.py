@@ -71,6 +71,9 @@ def validate_external_http_url(url: str) -> None:
 class _ExternalRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Re-validate every redirect target before urllib follows it."""
 
+    max_repeats = 3
+    max_redirections = 5
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
         validate_external_http_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -79,11 +82,16 @@ class _ExternalRedirectHandler(urllib.request.HTTPRedirectHandler):
 def safe_external_urlopen(req: urllib.request.Request, timeout: float):
     """Open one caller-supplied external URL with SSRF-aware validation.
 
-    Initial and redirect targets are checked.  This is a userspace guard; a
-    production deployment should still enforce egress policy at the network
+    Initial and redirect targets are checked. Environment proxy discovery is
+    disabled so an attacker-controlled or inherited proxy cannot silently move
+    the actual connection onto a private network. This is still a userspace
+    guard; production deployments should enforce egress policy at the network
     boundary to protect against DNS rebinding between validation and connect.
     """
 
     validate_external_http_url(req.full_url)
-    opener = urllib.request.build_opener(_ExternalRedirectHandler())
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _ExternalRedirectHandler(),
+    )
     return opener.open(req, timeout=timeout)
