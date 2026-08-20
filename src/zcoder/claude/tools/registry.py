@@ -917,7 +917,7 @@ class ToolCoder:
 # ── Pre-built tool examples ────────────────────────────────────────────────
 
 
-def build_code_tools_registry(cwd: str | None = None) -> ToolRegistry:
+def build_code_tools_registry(cwd: Optional[str] = None) -> ToolRegistry:
     """Example registry with useful coding tools, contained to ``cwd``.
 
     All file paths are resolved against ``cwd`` (default: the process

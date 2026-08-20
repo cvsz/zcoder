@@ -9,8 +9,6 @@ tests lock the fail-closed approval and containment boundaries.
 
 from __future__ import annotations
 
-import pytest
-
 from zcoder.claude.tools.registry import ToolCoder, build_code_tools_registry
 
 
