@@ -9,21 +9,34 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sdk-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ts-check:
     name: Validate TypeScript SDK & Types
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install TypeScript compiler
-        run: npm install -g typescript
+        run: npm install --global typescript
+
+      - name: Show toolchain versions
+        run: |
+          node --version
+          npm --version
+          tsc --version
 
       - name: Type check TypeScript SDK
         run: tsc --noEmit --target ES2022 --module NodeNext zcoder-sdk.ts
