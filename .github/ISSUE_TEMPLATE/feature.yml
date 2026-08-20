@@ -1,0 +1,60 @@
+name: Feature request
+description: Propose a bounded product, platform, or developer-experience capability
+title: "[Feature]: "
+labels:
+  - enhancement
+  - triage
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / user need
+      description: Describe the concrete problem before proposing implementation details.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What behavior or capability should exist when this is complete?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent / CodeAgent
+        - CLI / terminal UX
+        - Providers / routing
+        - MCP / hooks / skills / plugins
+        - API / web
+        - SDK / TypeScript
+        - Security / permissions
+        - Observability / operations
+        - CI / release / supply chain
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List testable completion criteria, security boundaries, and compatibility requirements.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note existing behavior, workarounds, or rejected approaches.
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues, roadmap items, and pull requests for duplicates.
+          required: true
+        - label: I understand implementation should be delivered as bounded, independently verifiable slices.
+          required: true
