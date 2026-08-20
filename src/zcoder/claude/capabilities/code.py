@@ -70,6 +70,8 @@ import os
 import subprocess
 import time
 import uuid
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -719,8 +721,100 @@ class TodoManager:
 # ══════════════════════════════════════════════════════════════════════════
 
 
+class MemoryScope(Enum):
+    """Precedence floor → ceiling. Enterprise is the managed policy baseline;
+    user and project layers may add context but cannot relax it."""
+
+    ENTERPRISE = "enterprise"
+    USER = "user"
+    PROJECT = "project"
+
+
+@dataclass
+class MemoryLayer:
+    scope: MemoryScope
+    path: Path
+    content: str
+
+
 class MemoryManager:
-    """Read/write CLAUDE.md project and user memory."""
+    """Read/write CLAUDE.md project and user memory with a scoped hierarchy.
+
+    Scoped layering (enterprise → user → project) plus a trust boundary:
+    discovered files are containment-checked (no symlink/path escape outside
+    their own directory — SEC-004/SEC-007 alignment), size-capped, and the
+    combined block is clearly delimited as *untrusted loaded context* so the
+    model distinguishes it from system policy. Security gates remain
+    code-enforced (fail-closed); loaded memory can never disable them.
+    """
+
+    MAX_FILE_BYTES = 256 * 1024
+
+    def __init__(
+        self,
+        workspace: str = ".",
+        *,
+        enterprise_dir: Optional[str] = None,
+        user_memory_path: Optional[str] = None,
+    ):
+        self.workspace = Path(workspace).expanduser().resolve()
+        self.enterprise_dir = (
+            Path(enterprise_dir).expanduser().resolve() if enterprise_dir else Path.home() / ".zcoder"
+        )
+        self.user_memory_path = (
+            Path(user_memory_path).expanduser().resolve() if user_memory_path else USER_MEMORY
+        )
+
+    def _read_scoped(self, candidate: Path, base: Path, scope: MemoryScope) -> Optional[MemoryLayer]:
+        # Containment: the resolved file must stay within the directory it was
+        # discovered in. A symlink pointing outside (e.g. .claude/CLAUDE.md ->
+        # /etc/shadow) is rejected (fail-closed).
+        try:
+            resolved = safe_resolve(candidate, base)
+        except Exception:
+            return None
+        if not resolved.is_file():
+            return None
+        try:
+            check_file_size(resolved, self.MAX_FILE_BYTES)
+        except Exception:
+            return None
+        try:
+            content = resolved.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return None
+        return MemoryLayer(scope, resolved, content)
+
+    def _walk_up(self, start: Path):
+        cur = start.resolve()
+        seen: set = set()
+        while True:
+            if cur in seen:
+                break
+            seen.add(cur)
+            yield cur
+            parent = cur.parent
+            if parent == cur:
+                break
+            cur = parent
+
+    def discover(self) -> list[MemoryLayer]:
+        """Return memory layers in precedence order: enterprise → user → project."""
+        layers: list[MemoryLayer] = []
+        ent = self._read_scoped(
+            self.enterprise_dir / "CLAUDE.md", self.enterprise_dir, MemoryScope.ENTERPRISE
+        )
+        if ent:
+            layers.append(ent)
+        usr = self._read_scoped(self.user_memory_path, self.user_memory_path.parent, MemoryScope.USER)
+        if usr:
+            layers.append(usr)
+        for d in self._walk_up(self.workspace):
+            for name in (".claude/CLAUDE.md", "CLAUDE.md"):
+                proj = self._read_scoped(d / name, d, MemoryScope.PROJECT)
+                if proj:
+                    layers.append(proj)
+        return layers
 
     def read_project(self) -> str:
         for p in (Path(".claude/CLAUDE.md"), Path("CLAUDE.md")):
@@ -729,7 +823,7 @@ class MemoryManager:
         return ""
 
     def read_user(self) -> str:
-        return USER_MEMORY.read_text() if USER_MEMORY.exists() else ""
+        return self.user_memory_path.read_text() if self.user_memory_path.exists() else ""
 
     def append_project(self, content: str):
         p = Path(".claude/CLAUDE.md")
@@ -742,15 +836,30 @@ class MemoryManager:
         with open(USER_MEMORY, "a") as f:
             f.write(f"\n{content}\n")
 
-    def combined(self) -> str:
-        parts = []
-        u = self.read_user()
-        p = self.read_project()
-        if u:
-            parts.append(f"# User Memory\n{u}")
-        if p:
-            parts.append(f"# Project Memory\n{p}")
-        return "\n\n".join(parts)
+    def combined(self, load_project_memory: bool = True) -> str:
+        if not load_project_memory:
+            u = self.read_user()
+            return f"# User Memory\n{u}" if u else ""
+        layers = self.discover()
+        if not layers:
+            return ""
+        blocks = []
+        for layer in layers:
+            if layer.scope is MemoryScope.ENTERPRISE:
+                label = "Enterprise Memory (managed policy baseline)"
+            elif layer.scope is MemoryScope.USER:
+                label = "User Memory"
+            else:
+                label = f"Project Memory ({layer.path})"
+            blocks.append(f"### {label}\n{layer.content}")
+        # Clear delimitation: loaded files are untrusted context, not system
+        # policy. The agent must not treat instructions inside as able to
+        # override security gates (which are enforced in code, fail-closed).
+        return (
+            '<loaded_memory context="untrusted-project-and-user-files">\n'
+            + "\n\n".join(blocks)
+            + "\n</loaded_memory>"
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -769,7 +878,7 @@ from zcoder.core.resilience import (
     shell_command_argv,
     urlopen_json,
 )
-from zcoder.core.security import safe_resolve
+from zcoder.core.security import check_file_size, safe_resolve
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
@@ -1116,6 +1225,7 @@ class CodeAgent:
         output_mode: str = "stream",
         system_extra: str = "",
         context_management: Optional[dict] = None,
+        load_project_memory: bool = True,
     ) -> str:
         """
         Full agentic query loop.
@@ -1130,11 +1240,11 @@ class CodeAgent:
         --agent-context-editing in cmd_code_agent / main.py.
         """
         hooks = hooks or HooksEngine()
-        memory = MemoryManager()
+        memory = MemoryManager(session.cwd)
 
         # Build system prompt
         sys_parts = []
-        mem = memory.combined()
+        mem = memory.combined(load_project_memory=load_project_memory)
         if mem:
             sys_parts.append(mem)
         if session.system_prompt:
@@ -1308,6 +1418,7 @@ def cmd_code_agent(
     sandbox_roots: list = None,
     headless: bool = False,
     agent_context_editing: bool = False,
+    load_project_memory: bool = True,
 ):
     """Main --code-agent entry point.
 
@@ -1417,6 +1528,7 @@ def cmd_code_agent(
         hooks=hooks_engine,
         output_mode=effective_output_mode,
         context_management=cm,
+        load_project_memory=load_project_memory,
     )
 
     if effective_output_mode != "stream":
@@ -1433,7 +1545,7 @@ def cmd_code_agent(
     return result
 
 
-def cmd_code_subagent(task: str, api_key: str, model: str, cwd: str = "."):
+def cmd_code_subagent(task: str, api_key: str, model: str, cwd: str = ".", load_project_memory: bool = True):
     """Spawn a focused subagent for a sub-task."""
     print("\033[94mℹ Spawning subagent…\033[0m\n")
     session = CodeSession(
@@ -1446,7 +1558,14 @@ def cmd_code_subagent(task: str, api_key: str, model: str, cwd: str = "."):
         ),
     )
     agent = CodeAgent(api_key=api_key, model=model)
-    result = agent.query(task, session, tools="safe", permission="acceptEdits", output_mode="stream")
+    result = agent.query(
+        task,
+        session,
+        tools="safe",
+        permission="acceptEdits",
+        output_mode="stream",
+        load_project_memory=load_project_memory,
+    )
     return result
 
 
