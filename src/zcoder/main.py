@@ -1159,6 +1159,8 @@ def build_parser():
 
     ag = p.add_argument_group("Agent SDK")
     ag.add_argument("--agent-session", metavar="ID", dest="agent_session")
+    ag.add_argument("--agent-rewind", metavar="ID", dest="agent_rewind")
+    ag.add_argument("--agent-branch", metavar="ID", dest="agent_branch")
     ag.add_argument("--agent-orchestrate", action="store_true", dest="agent_orchestrate")
     ag.add_argument(
         "--agent-managed-run",
@@ -3671,6 +3673,28 @@ def main():
             cmd_agent_orchestrate(args.prompt or "", key, model, session_id=args.agent_session)
         else:
             cmd_agent_chat(args.prompt or "", key, model, session_id=args.agent_session)
+        return
+    if args.agent_rewind:
+        if not args.agent_session:
+            print("--agent-rewind requires --agent-session")
+            sys.exit(1)
+        from zcoder.claude.capabilities.code import CodeSession
+
+        session = CodeSession.load(args.agent_session)
+        session.rewind(args.agent_rewind)
+        session.save()
+        print(f"Rewound session {args.agent_session} to checkpoint {args.agent_rewind}")
+        return
+    if args.agent_branch:
+        if not args.agent_session:
+            print("--agent-branch requires --agent-session")
+            sys.exit(1)
+        from zcoder.claude.capabilities.code import CodeSession
+
+        session = CodeSession.load(args.agent_session)
+        branched = session.branch(args.agent_branch)
+        branched.save()
+        print(f"Branched session {args.agent_session} at checkpoint {args.agent_branch} → {branched.id}")
         return
     if args.agent_dream:
         from zcoder.claude.orchestration.agents_sdk import cmd_agent_dream

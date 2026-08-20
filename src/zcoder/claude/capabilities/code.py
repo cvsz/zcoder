@@ -284,6 +284,46 @@ class CodeSession:
         self.checkpoints.append(cp)
         return cp
 
+    def _find_checkpoint(self, checkpoint_id: str) -> dict:
+        for cp in self.checkpoints:
+            if cp["id"] == checkpoint_id:
+                return cp
+        raise KeyError(f"checkpoint {checkpoint_id!r} not found")
+
+    def rewind(self, checkpoint_id: str):
+        """Rewind session to a previously saved checkpoint."""
+        cp = self._find_checkpoint(checkpoint_id)
+        turn = cp["turn"]
+        self.turns = self.turns[:turn]
+        self.checkpoints = [c for c in self.checkpoints if c["turn"] <= turn]
+        self.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def branch(self, checkpoint_id: str, name: str = None) -> "CodeSession":
+        """Create a new session branched from a checkpoint."""
+        cp = self._find_checkpoint(checkpoint_id)
+        turn = cp["turn"]
+        branched = CodeSession(
+            session_id=name or str(uuid.uuid4())[:16],
+            cwd=self.cwd,
+            model=self.model,
+            permission_mode=self.permission_mode,
+            system_prompt=self.system_prompt,
+        )
+        branched.turns = self.turns[:turn]
+        branched.tool_calls = list(self.tool_calls)
+        branched.mcp_servers = dict(self.mcp_servers)
+        branched.allowed_tools = list(self.allowed_tools)
+        branched.hooks = dict(self.hooks)
+        branched.cost_usd = sum(
+            (t.get("usage", {}).get("input_tokens", 0) / 1e6 * 3.0)
+            + (t.get("usage", {}).get("output_tokens", 0) / 1e6 * 15.0)
+            for t in branched.turns
+        )
+        branched.input_tokens = sum(t.get("usage", {}).get("input_tokens", 0) for t in branched.turns)
+        branched.output_tokens = sum(t.get("usage", {}).get("output_tokens", 0) for t in branched.turns)
+        branched.checkpoints = [c for c in self.checkpoints if c["turn"] <= turn]
+        return branched
+
     def messages(self) -> list[dict]:
         return [{"role": t["role"], "content": t["content"]} for t in self.turns]
 
