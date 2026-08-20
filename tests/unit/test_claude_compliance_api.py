@@ -16,6 +16,7 @@ from zcoder.claude.enterprise.compliance import (
     ComplianceApiError,
     _is_retryable,
     _parse_content_disposition_filename,
+    _safe_download_filename,
     cmd_compliance_chat_delete,
     cmd_compliance_file_delete,
     cmd_compliance_project_delete,
@@ -76,6 +77,35 @@ def test_parse_content_disposition_percent_encoded():
 def test_parse_content_disposition_missing_returns_none():
     assert _parse_content_disposition_filename("") is None
     assert _parse_content_disposition_filename("attachment") is None
+
+
+# ── Download filename sanitization (SEC-006) ─────────────────────────────
+
+
+def test_safe_download_filename_allows_plain_names():
+    assert _safe_download_filename("report.csv", "file-1") == "report.csv"
+
+
+def test_safe_download_filename_rejects_absolute_path():
+    assert _safe_download_filename("/etc/passwd", "file-1") == "file-1"
+
+
+def test_safe_download_filename_rejects_traversal():
+    assert _safe_download_filename("../../etc/passwd", "file-1") == "file-1"
+
+
+def test_safe_download_filename_rejects_windows_separators():
+    assert _safe_download_filename(r"..\..\Windows\system.ini", "file-1") == "file-1"
+
+
+def test_safe_download_filename_rejects_dot_components():
+    assert _safe_download_filename("..", "file-1") == "file-1"
+    assert _safe_download_filename(".", "file-1") == "file-1"
+
+
+def test_safe_download_filename_missing_falls_back():
+    assert _safe_download_filename(None, "file-1") == "file-1"
+    assert _safe_download_filename("", "file-1") == "file-1"
 
 
 # ── ComplianceApiClient: retry/backoff behavior ──────────────────────────
