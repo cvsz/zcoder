@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import urllib.request
 
 import zcoder.core.outbound_security as outbound_security
@@ -58,3 +59,63 @@ def test_external_url_rejects_ipv4_mapped_ipv6_loopback() -> None:
         assert "non-public" in str(exc)
     else:
         raise AssertionError("IPv4-mapped IPv6 loopback was not rejected")
+
+
+def test_pinned_http_connection_uses_validated_ip_without_dns_reresolution(monkeypatch) -> None:
+    calls: list[tuple[str, int]] = []
+    sentinel_socket = object()
+
+    def fake_create_connection(address, timeout=None, source_address=None):
+        calls.append(address)
+        return sentinel_socket
+
+    def unexpected_getaddrinfo(*_args, **_kwargs):
+        raise AssertionError("connection attempted a second DNS lookup")
+
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    monkeypatch.setattr(socket, "getaddrinfo", unexpected_getaddrinfo)
+
+    conn = outbound_security._PinnedHTTPConnection(
+        "public.example",
+        pinned_address="93.184.216.34",
+        port=80,
+        timeout=3,
+    )
+    conn.connect()
+
+    assert calls == [("93.184.216.34", 80)]
+    assert conn.sock is sentinel_socket
+
+
+def test_pinned_https_connection_uses_validated_ip_and_original_sni(monkeypatch) -> None:
+    calls: list[tuple[str, int]] = []
+    raw_socket = object()
+    tls_socket = object()
+
+    class FakeContext:
+        def wrap_socket(self, sock, *, server_hostname):
+            assert sock is raw_socket
+            assert server_hostname == "public.example"
+            return tls_socket
+
+    def fake_create_connection(address, timeout=None, source_address=None):
+        calls.append(address)
+        return raw_socket
+
+    def unexpected_getaddrinfo(*_args, **_kwargs):
+        raise AssertionError("connection attempted a second DNS lookup")
+
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    monkeypatch.setattr(socket, "getaddrinfo", unexpected_getaddrinfo)
+
+    conn = outbound_security._PinnedHTTPSConnection(
+        "public.example",
+        pinned_address="93.184.216.34",
+        port=443,
+        timeout=3,
+        context=FakeContext(),
+    )
+    conn.connect()
+
+    assert calls == [("93.184.216.34", 443)]
+    assert conn.sock is tls_socket
