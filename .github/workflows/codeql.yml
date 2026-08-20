@@ -31,12 +31,6 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: python
-          config: |
-            queries:
-              - uses: security-and-quality
-            query-filters:
-              - exclude:
-                  id: py/log-sensitive-data
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

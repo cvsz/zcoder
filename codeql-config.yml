@@ -1,0 +1,6 @@
+name: "zcoder-codeql-config"
+queries:
+  - uses: security-and-quality
+query-filters:
+  - exclude:
+      id: py/log-sensitive-data
