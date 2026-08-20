@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@7fa8e659336c7b98700a1e83642dd5ca1298c750`  
+**Current Baseline:** `main@98204b66bdb24866de4219718b3ba600e48877cd`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -282,21 +282,49 @@ hierarchy that doubles as SEC-007 document-trust progress:
 - **Verified Head:** `7b18ef1` (all 18 PR checks green)
 - **Merge Commit:** `7fa8e659336c7b98700a1e83642dd5ca1298c750` (all 19 merged-head checks green)
 
+#### Slice E.3 — Skills Loader Containment (item 4, security hardening) — **COMPLETE / MERGED**
+
+The local skills loader (`SkillsRegistry.load()`) read every
+`.claude/skills/<n>/SKILL.md` (and plugin skill files) with no containment and
+no size cap, then surfaced the file's first line as the `/skills` description —
+a malicious `.claude/skills/evil/SKILL.md` symlink to `/etc/shadow` leaked
+secret contents into the listing (info-leak, SEC-004/SEC-007). Hardened with
+the same trust boundary applied to memory (E.2):
+
+- **Containment:** every SKILL.md is read only after `safe_resolve` proves it
+  stays within its owning directory (custom → `skills_dir`; plugin →
+  `plugin_dir`), so symlink/path escapes are rejected (fail-closed).
+- **Size cap:** 256 KiB per skill file (`check_file_size`).
+- **Name validation:** skill names containing `/` or `..` are rejected.
+- `load_plugin_skills` now also returns `plugin_dir` so plugin-skill containment
+  has a correct base.
+- Latent bug caught in review: `check_file_size` returns `None` on success
+  (raises only on oversize); the loader now calls it bare rather than
+  `if not check_file_size(...)`.
+
+- **PR:** #68
+- **Verified Head:** `ed7fb08` (all 18 PR checks green, incl. test 3.9)
+- **Merge Commit:** `98204b66bdb24866de4219718b3ba600e48877cd` (all 19 merged-head checks green)
+- Note: full *skills & slash-command lifecycle* UX (item 4) remains a follow-up;
+  this slice closes the security gap in the loader. Agent (`.claude/agents`) and
+  custom-command loaders share the pre-hardening pattern and need identical
+  containment (item 7 / commands follow-up).
+
 #### Remaining Slice E items (future bounded PRs)
 
 Progress only in bounded PRs through:
 
 1. terminal/headless/streaming/JSON UX;
 2. sessions, resume, checkpoints, rewind, branchable conversations;
-3. CLAUDE.md-compatible memory plus scoped rules/config hierarchy;
-4. skills and slash-command lifecycle;
+3. ~~CLAUDE.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
+4. skills and slash-command lifecycle — **loader security hardening DONE (Slice E.3); full lifecycle/UX remains**;
 5. hooks lifecycle and policy-safe event model;
 6. MCP transports, discovery, resource/tool trust policy;
-7. subagents and agent teams with bounded budgets/permissions;
+7. subagents and agent teams with bounded budgets/permissions (incl. agent/`.claude/agents` loader containment);
 8. plugins/marketplaces with provenance and permission manifests;
 9. complete built-in tool parity with security boundaries;
 10. IDE/web/remote/CI workflows;
-11. provider-neutral routing, explicit API keys/gateways, local/free runtimes;
+11. ~~provider-neutral routing, explicit API keys/gateways, local/free runtimes~~ — **DONE (Slice E.1)**;
 12. observability, audit, tenancy, quotas, deployment, upgrade/migration, disaster recovery.
 
 Reference priority for parity research:
@@ -442,6 +470,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: CLAUDE.md memory now scoped (enterprise→user→project) with walk-up discovery; every file containment-checked via safe_resolve (symlink escape rejected, fail-closed); 256KiB size cap; loaded files wrapped in delimited <loaded_memory> untrusted block; --no-project-memory opt-out; 9 regression tests
 - compatibility/rollback note: read_project/read_user/append_* backward-compatible; opt-out preserves fail-closed auto-load default; RAG/document retrieval trust + tenant isolation for namespaces are separate follow-ups
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.3 — Skills Loader Containment (item 4, security hardening)
+
+- PR: #68
+- verified head: `ed7fb08` (all 18 PR checks green, incl. test 3.9)
+- merge commit: `98204b66bdb24866de4219718b3ba600e48877cd`
+- CI: `96485973984` (3.9) / `96485974205` (3.10) / `96485974043` (3.11) / `96485973953` (3.12) — success
+- lint: `96485973944` — success
+- security / Bandit & pip-audit: `96485973710` / `96485974012` — success
+- CodeQL / Analyze Python Code Security: pass — `96486235505` / `96485973754` — success
+- Dependency Review / Gitleaks: `96485973754` / `96485973754` — success
+- Helm v3/v4 `96485973754` — success
+- Release Gate: `96485973710` — success
+- SDK & TypeScript: `96485973944` — success
+- docker-build / build-and-push / deploy `96485973710` — success
+- review threads: none unresolved (one CI failure caught pre-merge: `Path | None` / `str | None` annotations broke Python 3.9 collection; fixed by using `Optional[...]` in code.py and `from __future__ import annotations` in the test module)
+- security result: SKILL.md loading now containment-checked via safe_resolve (custom→skills_dir, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 8 regression tests
+- compatibility/rollback note: load_plugin_skills now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up; agent/command loaders need identical containment
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
