@@ -496,7 +496,14 @@ def load_plugin_agents() -> list:
         if not agents_dir.exists():
             continue
         for f in agents_dir.glob("*.md"):
-            out.append({"name": f.stem, "path": str(f), "plugin": plug_dir.name})
+            out.append(
+                {
+                    "name": f.stem,
+                    "path": str(f),
+                    "plugin": plug_dir.name,
+                    "plugin_dir": str(plug_dir),
+                }
+            )
     return out
 
 

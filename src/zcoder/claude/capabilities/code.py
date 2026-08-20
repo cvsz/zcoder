@@ -81,6 +81,7 @@ HOOKS_DIR = Path(os.path.expanduser("~/.zcoder/hooks"))
 SKILLS_DIR = Path(".claude/skills")
 MAX_SKILL_BYTES = 256 * 1024
 AGENTS_DIR = Path(".claude/agents")
+MAX_AGENT_BYTES = 256 * 1024
 COMMANDS_DIR = Path(".claude/commands")
 MEMORY_FILE = Path(".claude/CLAUDE.md")
 USER_MEMORY = Path(os.path.expanduser("~/.claude/CLAUDE.md"))
@@ -518,16 +519,36 @@ class SubagentRegistry:
 
     def load(self):
         if self.dir.exists():
+            try:
+                base = self.dir.resolve()
+            except Exception:
+                base = self.dir
             for f in self.dir.glob("*.md"):
-                self._load_one(f, plugin=None)
+                try:
+                    resolved = safe_resolve(f, base)
+                except Exception:
+                    continue
+                if resolved is None:
+                    continue
+                self._load_one(resolved, plugin=None)
 
         # Plugin-bundled agents (.claude/plugins/installed/<plugin>/agents/*.md)
         try:
             from zcoder.claude.tools.plugins import load_plugin_agents
 
             for entry in load_plugin_agents():
+                name = entry["name"]
+                if "/" in name or ".." in name:
+                    continue
+                plugin_dir = Path(entry.get("plugin_dir", entry["path"]))
+                try:
+                    resolved = safe_resolve(Path(entry["path"]), plugin_dir)
+                except Exception:
+                    continue
+                if resolved is None:
+                    continue
                 self._load_one(
-                    Path(entry["path"]),
+                    resolved,
                     plugin=entry["plugin"],
                     namespace=f"{entry['plugin']}:{entry['name']}",
                 )
@@ -535,6 +556,10 @@ class SubagentRegistry:
             pass
 
     def _load_one(self, f: Path, plugin: Optional[str] = None, namespace: Optional[str] = None):
+        try:
+            check_file_size(f, MAX_AGENT_BYTES)
+        except Exception:
+            return
         try:
             content = f.read_text()
             meta, body = self._parse_frontmatter(content)
