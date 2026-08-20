@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@b38e7e060e3233a15f6173691a095ce22a0f5a26`  
+**Current Baseline:** `main@a150d3853684e748b890f9120f91be16ff6f91ed`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -317,7 +317,7 @@ Progress only in bounded PRs through:
 1. terminal/headless/streaming/JSON UX;
 2. sessions, resume, checkpoints, rewind, branchable conversations;
 3. ~~CLAUDE.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
-4. skills and slash-command lifecycle — **loader security hardening DONE (Slice E.3); full lifecycle/UX remains**;
+4. skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**;
 5. hooks lifecycle and policy-safe event model;
 6. MCP transports, discovery, resource/tool trust policy;
 7. subagents and agent teams with bounded budgets/permissions — **agent/.claude/agents loader containment DONE (Slice E.4); full lifecycle/budgets/permissions remains**;
@@ -508,6 +508,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: .claude/agents/*.md and plugin-agent files now containment-checked via safe_resolve (local→AGENTS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 6 regression tests
 - compatibility/rollback note: load_plugin_agents now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up; custom-command loader needs identical containment
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.5 — Command Loader Containment (item 4 continuation, security hardening)
+
+- PR: #70
+- verified head: `c529c90` (all 18 PR checks green, incl. test 3.9)
+- merge commit: `a150d3853684e748b890f9120f91be16ff6f91ed`
+- CI: `96558816280` (3.9) / `96558816469` (3.10) / `96558816275` (3.11) / `96558816358` (3.12) — success
+- lint: `96558816161` — success
+- security / Bandit & pip-audit: `96558816327` / `96558816373` — success
+- CodeQL / Analyze Python Code Security: pass — `96559036674` / `96558816187` — success
+- Dependency Review / Gitleaks: `96558815891` / `96558816864` — success
+- Helm v3/v4 `96558816161` — success
+- Release Gate: `96558815779` — success
+- SDK & TypeScript: `96558816302` — success
+- docker-build / build-and-push / deploy `96558816161` — success
+- review threads: none unresolved
+- security result: .claude/commands/*.md and plugin command files now containment-checked via safe_resolve (local→COMMANDS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; 5 regression tests
+- compatibility/rollback note: load_plugin_commands now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
