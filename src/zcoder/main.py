@@ -1886,6 +1886,13 @@ def build_parser():
         "Compaction summarizes the whole conversation. Useful for long "
         "--code-agent sessions.",
     )
+    cc.add_argument(
+        "--no-project-memory",
+        action="store_true",
+        dest="no_project_memory",
+        help="Disable auto-loading of CLAUDE.md project/user memory into the "
+        "agent system prompt (load nothing beyond the user memory file)",
+    )
 
     pl = p.add_argument_group("Plugins & Marketplaces")
     pl.add_argument("--plugin-marketplace-add", metavar="PATH_OR_URL", dest="plugin_marketplace_add")
@@ -4015,12 +4022,19 @@ def main():
             sandbox_roots=args.code_agent_sandbox_roots or [],
             headless=args.code_agent_headless,
             agent_context_editing=args.agent_context_editing,
+            load_project_memory=not args.no_project_memory,
         )
         return
     if args.code_agent_subagent:
         from zcoder.claude.capabilities.code import cmd_code_subagent
 
-        cmd_code_subagent(args.code_agent_subagent, key, model, cwd=args.code_agent_cwd)
+        cmd_code_subagent(
+            args.code_agent_subagent,
+            key,
+            model,
+            cwd=args.code_agent_cwd,
+            load_project_memory=not args.no_project_memory,
+        )
         return
     if args.code_agent_todo:
         from zcoder.claude.capabilities.code import cmd_code_todo
