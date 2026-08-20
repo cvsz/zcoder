@@ -57,6 +57,25 @@ MARKETPLACES_DIR = PLUGINS_ROOT / "marketplaces"
 INSTALLED_DIR = PLUGINS_ROOT / "installed"
 REGISTRY_FILE = PLUGINS_ROOT / "registry.json"
 
+_BUILTIN_TOOLS = [
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Bash",
+    "Glob",
+    "Grep",
+    "LS",
+    "WebSearch",
+    "WebFetch",
+    "Task",
+    "TodoRead",
+    "TodoWrite",
+    "NotebookRead",
+    "NotebookEdit",
+    "mcp__*",
+]
+
 for d in (MARKETPLACES_DIR, INSTALLED_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
@@ -101,6 +120,8 @@ DEFAULT_MANIFEST_FIELDS = {
     "outputStyles": None,
     "lspServers": None,
     "dependencies": [],
+    "provenance": {"source": "", "trusted": False},
+    "permissions": {"tools": [], "network": False, "filesystem": "readonly"},
 }
 
 
@@ -139,6 +160,41 @@ def validate_plugin(plugin_dir: Path) -> list:
 
     if not (plugin_dir / ".claude-plugin" / "plugin.json").exists():
         findings.append(("info", "no manifest found; using auto-discovery"))
+
+    # Provenance + permission manifest validation (item 8)
+    provenance = manifest.get("provenance", {})
+    if provenance:
+        source = provenance.get("source", "")
+        trusted = provenance.get("trusted", False)
+        if trusted and not source:
+            findings.append(("warn", "provenance.trusted=true but provenance.source is empty"))
+        elif source:
+            findings.append(("info", f"provenance.source={source} (trusted={trusted})"))
+
+    permissions = manifest.get("permissions", {})
+    if permissions:
+        tools = permissions.get("tools", [])
+        network = permissions.get("network", False)
+        fs = permissions.get("filesystem", "readonly")
+        if not isinstance(tools, list):
+            findings.append(("error", "permissions.tools must be a list of tool names"))
+        else:
+            for t in tools:
+                if not isinstance(t, str) or not t:
+                    findings.append(("warn", f"permissions.tools contains invalid entry: {t}"))
+                elif not (t in _BUILTIN_TOOLS or t.startswith("mcp__")):
+                    findings.append(("warn", f"permissions.tools references unknown tool: {t}"))
+        if not isinstance(network, bool):
+            findings.append(("error", "permissions.network must be a boolean"))
+        elif network:
+            findings.append(
+                ("warn", "plugin requests network access (permissions.network=true); review before approving")
+            )
+        allowed_fs = {"none", "readonly", "plugin", "write"}
+        if fs not in allowed_fs:
+            findings.append(
+                ("error", f"permissions.filesystem must be one of {sorted(allowed_fs)}; got {fs!r}")
+            )
 
     known_dirs = {
         "skills",
@@ -670,10 +726,6 @@ def cmd_plugin_disable(name: str):
         sys.exit(1)
 
 
-def cmd_plugin_validate(path: str):
-    findings = validate_plugin(Path(os.path.expanduser(path)))
+def format_findings(findings: list) -> list[str]:
     icon = {"ok": "\033[92m✓", "info": "\033[94mℹ", "warn": "\033[93m⚠", "error": "\033[91m✗"}
-    for level, msg in findings:
-        print(f"{icon.get(level, '')} {msg}\033[0m")
-    if any(level == "error" for level, _ in findings):
-        sys.exit(1)
+    return [f"{icon.get(level, '')} {msg}\033[0m" for level, msg in findings]
