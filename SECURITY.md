@@ -2,79 +2,84 @@
 
 ## Reporting a vulnerability
 
-Please report security issues privately rather than opening a public
-GitHub issue. Email the maintainer (see repository metadata) with:
+Please report suspected vulnerabilities privately. Do **not** open a public issue with exploit details, credentials, private data, or an unpatched proof of concept.
 
-- A description of the issue and its impact
-- Steps to reproduce, or a PoC if available
-- The version/commit affected
+Use the repository Security policy entry point or contact the maintainer identified in repository metadata. Include:
 
-We aim to acknowledge reports within 3 business days.
+- affected version or commit SHA;
+- concise impact and trust boundary;
+- deterministic reproduction steps using controlled, non-production data;
+- sanitized logs or a minimal proof of concept when useful;
+- suggested remediation or mitigations if known.
+
+We aim to acknowledge actionable reports within 3 business days. Public disclosure should wait until a fix or coordinated mitigation is available.
 
 ## Supported versions
 
-| Version | Supported |
-|---------|-----------|
-| 1.16.x  | ✅        |
-| < 1.16  | ❌        |
+Security fixes target the current `main` branch and the most recent stable release. Older releases may receive fixes only when a supported upgrade path is not sufficient. For production use, stay on the latest verified release and review `CHANGELOG.md` and `exec-planning.md` before deployment.
 
-## Built-in security controls
+## Security model
 
-This project ships the following controls (see `security.py`,
-`logging_config.py`, `resilience.py`):
+zcoder is an agentic coding platform. Treat model output, tool arguments, MCP/tool responses, retrieved documents, provider responses, repository content, web content, and user-supplied files as untrusted input until a boundary validates them.
 
-- **Path traversal protection** — `security.safe_resolve()` and
-  `security.validate_name()` guard every user-supplied path or name
-  (project names, artifact names, file uploads/exports) before it touches
-  the filesystem.
-- **Secret redaction in logs** — `logging_config.RedactingFilter` scrubs
-  API-key-shaped strings from every log line before emission, regardless
-  of log level or format (JSON/text).
-- **Secret-in-output guard** — `security.assert_no_secret()` is available
-  for any code path that writes model-generated or user-generated content
-  to disk, to catch an API key being echoed back accidentally.
-- **URL scheme allow-listing** — `security.validate_url()` rejects
-  non-`https` schemes (`file://`, `javascript:`, `data:`, etc.) before a
-  URL reaches any fetch/download code path.
-- **Input size limits** — `security.check_file_size()` / `MAX_FILE_SIZE_BYTES`
-  (default 25 MB, override via `ZCODER_MAX_FILE_SIZE_BYTES`) bound memory
-  use from `--file`/`--file-upload` before any API call is made.
-- **Least-privilege container** — the Docker image runs as a non-root
-  `zcoder` user (see `Dockerfile`); config/cache are volume-mounted under
-  that user's home rather than baked into the image.
-- **No secrets in the image** — `.dockerignore` excludes `.env`, `.bak`
-  files, and git history from the build context.
-- **Dependency pinning + scanning** — `requirements.txt` pins a minimum
-  `anthropic` SDK version; CI runs `bandit` (static analysis) against the
-  full source tree on every push (see `.github/workflows/ci.yml`).
-- **Dry-run-by-default destructive operations** — `claude_compliance_api.py`'s
-  hard-delete endpoints (chat/file/project) are permanent, org-wide, and
-  have no recovery window. Every `cmd_*` that deletes something previews
-  what it would do and requires an explicit `--compliance-yes` to actually
-  execute, rather than acting on the first invocation.
+The project follows these security principles:
 
-## Known limitations / out of scope
+- **Fail closed** for filesystem, network, permission, identity, tenant, and approval decisions.
+- **Least privilege** for GitHub Actions tokens, provider credentials, containers, and runtime tools.
+- **Provider-neutral authentication**: third-party/product traffic must not depend on Claude Free/Pro consumer OAuth credentials. Use explicit provider API keys, enterprise gateways, or approved local runtimes.
+- **Bounded autonomous execution**: do not stack code changes on an unverified baseline; exact final heads must pass applicable hosted checks before merge.
+- **No gate weakening**: tests, coverage thresholds, permissions, CodeQL, Dependency Review, Bandit, release gates, and other security controls are not relaxed to make a change pass.
+- **Controlled validation only**: security tests must use repository fixtures, local/ephemeral resources, or explicitly authorized non-production systems. Do not attack third parties or production data.
 
-- **Local code execution**: this CLI does not execute model-generated
-  code locally. `claude_sandbox.py` and `claude_code_exec.py` delegate to
-  Anthropic's hosted code-execution tool. If you extend this project to
-  run generated code locally, that requires its own sandboxing (containers,
-  seccomp, no network) which is *not* provided here.
-- **API key storage**: `~/.zcoder-config.json` stores the key in plain
-  text on disk if you use `--setup` instead of an environment variable.
-  Prefer `ANTHROPIC_API_KEY` (env var, or a secrets manager in production)
-  over the on-disk config for anything beyond local dev.
-- **Rate limiting is client-side only**: `resilience.py`'s retry/circuit
-  breaker protect *this process* from hammering a struggling API; they are
-  not a substitute for server-side rate limiting if you expose this tool
-  behind a shared service.
-- **Admin/Compliance keys have a much larger blast radius than a regular
-  API key**: `--admin-api-key` and `--compliance-api-key` (and their
-  `ANTHROPIC_ADMIN_API_KEY` / `ANTHROPIC_COMPLIANCE_API_KEY` env-var
-  equivalents) follow the same plain-text-on-disk-if-you-use-`--setup`
-  handling as the regular API key above, but a leaked Compliance Access
-  Key can read or hard-delete *any user's* chats and files org-wide, not
-  just this CLI session's. Treat these as higher-sensitivity secrets than
-  `ANTHROPIC_API_KEY` — prefer an env var or secrets manager, not
-  `--compliance-api-key`/`--admin-api-key` on the command line where
-  shell history or `ps` can leak it.
+## Built-in controls
+
+Current controls include:
+
+- centralized canonical path containment through `zcoder.core.security.safe_resolve()` for user/model-controlled filesystem paths, including CodeAgent `Read`, `Write`, `Edit`, `Glob`, `Grep`, and `LS` workspace access;
+- conservative name/path validation and input-size limits;
+- secret detection/redaction helpers and structured logging boundaries;
+- HTTPS scheme validation and dedicated outbound-network security review requirements for fetch-style tools;
+- sandbox controls for executable/tool surfaces and regression coverage for filesystem/network escape classes;
+- explicit permission/approval boundaries for mutating operations;
+- loopback-safe API server defaults unless an operator explicitly configures another bind address;
+- non-root container execution and build-context secret exclusions;
+- Python lint/test/security matrix plus Docker smoke validation;
+- CodeQL, Dependency Review, Release Gate, Helm, and SDK/TypeScript hosted checks;
+- Dependabot version updates for Python, GitHub Actions, and Docker dependencies;
+- release checksums and artifact/container provenance attestations in release workflows.
+
+## Secrets and credentials
+
+Prefer environment injection from a secrets manager, workload identity, or provider-specific secure credential helper. Do not commit credentials, place secrets in issue bodies, or pass high-sensitivity admin/compliance keys on command lines where shell history or process inspection can expose them.
+
+Provider, admin, compliance, GitHub, MCP, database, cloud, and signing credentials have different blast radii. Scope them to the minimum repository, tenant, operation, and lifetime required.
+
+Local configuration files that can contain credentials are for controlled local development only unless protected by an appropriate operating-system or enterprise secret-storage mechanism.
+
+## Agent/tool boundaries
+
+Any new or changed tool must document and test:
+
+1. the untrusted source of its arguments or content;
+2. the privileged sink it can reach;
+3. filesystem/network/secret/tenant/approval implications;
+4. permission behavior in interactive and non-interactive modes;
+5. redirect, symlink, subprocess, environment, and retry behavior where applicable;
+6. bounded resource limits and safe error reporting.
+
+Read-only classification does not by itself make a tool safe; reads and enumeration can expose host or tenant data.
+
+## GitHub Actions and supply chain
+
+Workflows should use least-privilege `permissions`, bounded timeouts/concurrency, maintained action runtimes, dependency review, and provenance for published artifacts. Prefer immutable full-length action SHAs for security-sensitive workflows when practical and keep pinned actions updated through Dependabot.
+
+Release consumers should verify checksums and GitHub artifact attestations where provided.
+
+## Known limitations
+
+- Client-side retry/rate controls are not substitutes for server-side rate limiting in a shared deployment.
+- Local and provider tool execution remains security-sensitive even when sandboxed; deployment policy must constrain filesystem, network, subprocess, identity, and secret access appropriate to the environment.
+- Third-party MCP servers, plugins, hooks, skills, provider gateways, and retrieved content extend the trust boundary and require explicit operator review.
+- Production multi-tenant deployments require external identity, authorization, data-isolation, audit-retention, backup/restore, and operational controls appropriate to the organization.
+
+See `exec-planning.md` for current release-blocking security and production-readiness work. Security hypotheses are not treated as confirmed findings until source-to-sink reachability is validated.
