@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@f46317f7aaf742cf00d0433e29c4e7349dc64e93`  
+**Current Baseline:** `main@7fa8e659336c7b98700a1e83642dd5ca1298c750`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E — Claude-Code-like Provider-Neutral Feature Parity
+**Next slice:** Slice E (cont.) — remaining items: sessions/resume/checkpoints, skills & slash-command lifecycle, hooks lifecycle, MCP transports/trust, subagents/teams, plugins/marketplaces, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -253,6 +253,34 @@ payload/parse per provider, precedence, scheme rejection, local stub, parallel/e
 - **PR:** #66
 - **Verified Head:** `62e6414` (all 18 PR checks green; CodeQL cleared after URL-cleanup fix)
 - **Merge Commit:** `f46317f7aaf742cf00d0433e29c4e7349dc64e93` (all 19 merged-head checks green)
+
+#### Slice E.2 — Scoped CLAUDE.md Memory + Trust Boundary (item 3) — **COMPLETE / MERGED**
+
+`MemoryManager` previously read cwd `.claude/CLAUDE.md` / `CLAUDE.md` and
+`~/.claude/CLAUDE.md` with no scoping hierarchy, no containment, and no trust
+delimitation, injecting raw text into the system prompt. Reworked into a scoped
+hierarchy that doubles as SEC-007 document-trust progress:
+
+- **Precedence floor → ceiling:** enterprise (managed policy baseline) → user →
+  project (walk-up discovery from the workspace).
+- **Containment:** every discovered file is resolved via `safe_resolve` against
+  its own directory, so a `.claude/CLAUDE.md` symlink escape (e.g. → `/etc/shadow`)
+  is rejected — fail-closed (SEC-004/SEC-007 alignment).
+- **Size cap:** 256 KiB/file to prevent prompt-bombing.
+- **Trust boundary:** `combined()` wraps loaded files in a clearly-delimited
+  `<loaded_memory context="untrusted-project-and-user-files">` block so the model
+  distinguishes them from system policy; security gates remain code-enforced
+  (fail-closed) and cannot be disabled by loaded memory.
+- **Opt-out:** `--no-project-memory` disables auto-loading (loads only the user
+  memory file); wired through `cmd_code_agent` / `cmd_code_subagent` / `query`.
+- **Backward-compatible** `read_project` / `read_user` / `append_*` retained.
+- Regressions: `tests/unit/test_project_memory.py` (9 tests: precedence, walk-up
+  discovery, containment rejection, missing-file handling, size cap, delimited
+  render, opt-out, backward compat).
+
+- **PR:** #67
+- **Verified Head:** `7b18ef1` (all 18 PR checks green)
+- **Merge Commit:** `7fa8e659336c7b98700a1e83642dd5ca1298c750` (all 19 merged-head checks green)
 
 #### Remaining Slice E items (future bounded PRs)
 
@@ -395,6 +423,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: router no longer hardcoded to Anthropic; provider abstraction (anthropic/gemini/xai/ollama/local) with explicit precedence for provider/api-key/base-url; all gateway URLs scheme-checked (http/https only); local/ollama allow local addresses by design; remote gateways operator-trusted; 28 regression tests
 - compatibility/rollback note: classify/route_and_call external contract unchanged; `ENDPOINT` + `x-api-key` retained for back-compat; other capabilities (code agent, models registry) still call Anthropic directly — separate slice
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.2 — Scoped CLAUDE.md Memory + Trust Boundary (item 3)
+
+- PR: #67
+- verified head: `7b18ef1` (all 18 PR checks green)
+- merge commit: `7fa8e659336c7b98700a1e83642dd5ca1298c750`
+- CI: `96468067780` (3.9) / `96468067631` (3.10) / `96468067741` (3.11) / `96468067587` (3.12) — success
+- lint: `96468067637` — success
+- security / Bandit & pip-audit: `96468067332` / `96468067939` — success
+- CodeQL / Analyze Python Code Security: pass — `96468324098` / `96468066798` — success
+- Dependency Review / Gitleaks: `96468067167` / `96468067552` — success
+- Helm v3 `96468067074` / v4 `96468067205` — success
+- Release Gate: `96468067695` — success
+- SDK & TypeScript: `96468066986` — success
+- docker-build `96468594419`, build-and-push `96468067167`, deploy `96468067167` — success
+- review threads: none unresolved
+- security result: CLAUDE.md memory now scoped (enterprise→user→project) with walk-up discovery; every file containment-checked via safe_resolve (symlink escape rejected, fail-closed); 256KiB size cap; loaded files wrapped in delimited <loaded_memory> untrusted block; --no-project-memory opt-out; 9 regression tests
+- compatibility/rollback note: read_project/read_user/append_* backward-compatible; opt-out preserves fail-closed auto-load default; RAG/document retrieval trust + tenant isolation for namespaces are separate follow-ups
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
