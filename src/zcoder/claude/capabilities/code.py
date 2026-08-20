@@ -121,6 +121,9 @@ TOOL_PRESETS = {
     "none": [],
 }
 
+READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "LS", "WebSearch", "WebFetch", "TodoRead"})
+FILE_EDIT_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
+
 PERMISSION_MODES = {
     "acceptEdits": "Auto-approve file edits; ask for other tool calls",
     "askPermission": "Ask user before each tool call (default)",
@@ -339,9 +342,13 @@ class HooksEngine:
             merged[event] = merged[event] + handlers
         return cls(merged)
 
-    def fire(self, event: str, payload: dict) -> dict:
+    def fire(self, event: str, payload: dict, fail_closed: bool = False) -> dict:
         """
         Fire a hook event. Returns {"allowed": bool, "message": str}
+
+        ``fail_closed`` applies to decision events (PreToolUse): a handler
+        that times out, errors, or exits with an unrecognized code cannot
+        be assumed to have approved, so the call is blocked.
         """
         handlers = self.config.get(event, [])
         if not handlers:
@@ -367,9 +374,16 @@ class HooksEngine:
                     return {"allowed": False, "message": msg}
                 if result.returncode == 1:
                     print(f"  \033[93m[hook:{event}] {result.stdout.strip()}\033[0m")
+                elif result.returncode != 0 and fail_closed:
+                    msg = result.stdout.strip() or result.stderr.strip() or f"exit code {result.returncode}"
+                    return {"allowed": False, "message": msg}
             except subprocess.TimeoutExpired:
+                if fail_closed:
+                    return {"allowed": False, "message": f"[hook:{event}] timed out"}
                 print(f"  \033[91m[hook:{event}] timed out\033[0m")
             except Exception as e:
+                if fail_closed:
+                    return {"allowed": False, "message": f"[hook:{event}] error: {e}"}
                 print(f"  \033[91m[hook:{event}] error: {e}\033[0m")
 
         return {"allowed": True, "message": ""}
@@ -384,6 +398,7 @@ class HooksEngine:
                 "tool_name": tool_name,
                 "tool_input": tool_input,
             },
+            fail_closed=True,
         )
 
     def post_tool_use(self, tool_name: str, tool_input: dict, tool_response: str, session: CodeSession):
@@ -934,27 +949,39 @@ class CodeAgent:
         # Hook: PreToolUse
         hook_result = hooks.pre_tool_use(name, inputs, session)
         if not hook_result["allowed"]:
+            session.add_tool_call(
+                name, inputs, f"[BLOCKED by hook] {hook_result['message']}"[:200], approved=False
+            )
             return f"[BLOCKED by hook] {hook_result['message']}"
 
         # Permission check
         if permission == "planMode":
+            session.add_tool_call(name, inputs, "[PLAN MODE] Tool not executed — plan only.", approved=False)
             return "[PLAN MODE] Tool not executed — plan only."
         if permission == "dontAsk":
+            session.add_tool_call(name, inputs, "[DENIED] Tool not in allowed list.", approved=False)
             return "[DENIED] Tool not in allowed list."
+        if permission == "acceptEdits":
+            # Auto-approve file edits and read-only tools; everything else
+            # (Bash, TodoWrite, mcp, ...) drops into the askPermission path.
+            if name not in READ_ONLY_TOOLS and name not in FILE_EDIT_TOOLS:
+                permission = "askPermission"
         if permission == "askPermission":
             if can_use_tool:
                 if not can_use_tool(name, inputs):
+                    session.add_tool_call(name, inputs, "[DENIED by user]", approved=False)
                     return "[DENIED by user]"
             else:
                 # In non-interactive mode, auto-approve reads, ask for writes
-                read_only = {"Read", "Glob", "Grep", "LS", "WebSearch", "WebFetch", "TodoRead"}
-                if name not in read_only:
+                if name not in READ_ONLY_TOOLS:
                     print(f"\n\033[93m  [permission] {name}({json.dumps(inputs)[:60]})\033[0m")
                     try:
                         ans = input("  Approve? [Y/n] ").strip().lower()
                         if ans == "n":
+                            session.add_tool_call(name, inputs, "[DENIED by user]", approved=False)
                             return "[DENIED by user]"
                     except (EOFError, KeyboardInterrupt):
+                        session.add_tool_call(name, inputs, "[DENIED — no terminal]", approved=False)
                         return "[DENIED — no terminal]"
 
         # Execute
