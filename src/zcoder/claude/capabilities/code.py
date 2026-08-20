@@ -807,7 +807,7 @@ class CodeAgent:
                 body = r.read(WEBFETCH_MAX_RESPONSE_BYTES + 1)
                 if len(body) > WEBFETCH_MAX_RESPONSE_BYTES:
                     raise ValueError(
-                        f"WebFetch response exceeds {WEBFETCH_MAX_RESPONSE_BYTES} bytes"
+                        f"WebFetch response exceeds {WEBFETCH_MAX_RESPONSE_BYTES} bytes",
                     )
                 return body.decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
