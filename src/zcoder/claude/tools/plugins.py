@@ -472,7 +472,7 @@ def load_plugin_skills() -> list:
 
 
 def load_plugin_commands() -> list:
-    """Return [{name, path, plugin}] for every command .md (namespaced as plugin:name)."""
+    """Return [{name, path, plugin, plugin_dir}] for every command .md (namespaced as plugin:name)."""
     out = []
     for plug_dir in enabled_plugin_dirs():
         cmd_dir = plug_dir / "commands"
@@ -484,6 +484,7 @@ def load_plugin_commands() -> list:
                     "name": f"{plug_dir.name}:{f.stem}",
                     "path": str(f),
                     "plugin": plug_dir.name,
+                    "plugin_dir": str(plug_dir),
                 }
             )
     return out
