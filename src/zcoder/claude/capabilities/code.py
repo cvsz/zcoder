@@ -79,6 +79,7 @@ from typing import Callable, Optional
 SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/code_sessions"))
 HOOKS_DIR = Path(os.path.expanduser("~/.zcoder/hooks"))
 SKILLS_DIR = Path(".claude/skills")
+MAX_SKILL_BYTES = 256 * 1024
 AGENTS_DIR = Path(".claude/agents")
 COMMANDS_DIR = Path(".claude/commands")
 MEMORY_FILE = Path(".claude/CLAUDE.md")
@@ -603,35 +604,66 @@ ANTHROPIC_MANAGED_SKILLS = {
 
 
 class SkillsRegistry:
-    """Load Agent Skills from .claude/skills/<name>/SKILL.md"""
+    """Load Agent Skills from .claude/skills/<name>/SKILL.md.
+
+    Skills are untrusted project/plugin documents. Every SKILL.md is read only
+    after it is proven to stay within its owning directory (no symlink escape)
+    and within the size cap, so a malicious .claude/skills/<n>/SKILL.md symlink
+    to /etc/shadow cannot leak secrets via the `/skills` listing (SEC-004/SEC-007).
+    """
 
     def __init__(self, skills_dir: Path = SKILLS_DIR):
         self.dir = skills_dir
         self._skills: dict = {}
 
+    @staticmethod
+    def _read_skill(path: Path, base: Path) -> Optional[str]:
+        """Read a SKILL.md only if it resolves within base (no symlink escape)
+        and within the size cap. Returns content, or None if unsafe/oversized."""
+        try:
+            resolved = safe_resolve(path, base)
+            check_file_size(resolved, MAX_SKILL_BYTES)
+        except Exception:
+            return None
+        try:
+            return resolved.read_text()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _first_line_description(content: str) -> str:
+        for line in content.splitlines():
+            if line.strip() and not line.startswith("---"):
+                return line.lstrip("# ").strip()
+        return ""
+
+    @staticmethod
+    def _safe_name(name: str) -> bool:
+        return name != "" and "/" not in name and ".." not in name
+
     def load(self):
+        self._skills = {}
         if self.dir.exists():
+            try:
+                base = self.dir.resolve()
+            except Exception:
+                base = self.dir
             for skill_dir in self.dir.iterdir():
-                skill_md = skill_dir / "SKILL.md"
-                if skill_md.exists():
-                    content = skill_md.read_text()
-                    name = skill_dir.name
-                    # extract first line description
-                    desc = next(
-                        (
-                            l.lstrip("# ").strip()
-                            for l in content.splitlines()
-                            if l.strip() and not l.startswith("---")
-                        ),
-                        "",
-                    )
-                    self._skills[name] = {
-                        "name": name,
-                        "description": desc,
-                        "path": str(skill_md),
-                        "source": "custom",
-                    }
+                name = skill_dir.name
+                if not self._safe_name(name):
+                    continue
+                content = self._read_skill(skill_dir / "SKILL.md", base)
+                if content is None:
+                    continue
+                self._skills[name] = {
+                    "name": name,
+                    "description": self._first_line_description(content),
+                    "path": str(skill_dir / "SKILL.md"),
+                    "source": "custom",
+                }
         for name, desc in ANTHROPIC_MANAGED_SKILLS.items():
+            if not self._safe_name(name):
+                continue
             self._skills[name] = {
                 "name": name,
                 "description": desc,
@@ -642,19 +674,17 @@ class SkillsRegistry:
             from zcoder.claude.tools.plugins import load_plugin_skills
 
             for entry in load_plugin_skills():
-                content = Path(entry["path"]).read_text()
-                desc = next(
-                    (
-                        l.lstrip("# ").strip()
-                        for l in content.splitlines()
-                        if l.strip() and not l.startswith("---")
-                    ),
-                    "",
-                )
-                key = f"{entry['plugin']}:{entry['name']}"
+                name = entry["name"]
+                if not self._safe_name(name):
+                    continue
+                plugin_dir = Path(entry.get("plugin_dir", entry["path"]))
+                content = self._read_skill(Path(entry["path"]), plugin_dir)
+                if content is None:
+                    continue
+                key = f"{entry['plugin']}:{name}"
                 self._skills[key] = {
                     "name": key,
-                    "description": desc,
+                    "description": self._first_line_description(content),
                     "path": entry["path"],
                     "source": f"plugin:{entry['plugin']}",
                 }
