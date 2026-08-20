@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@fe9809bcf547996e13f9256738bfab4d645354de`  
+**Current Baseline:** `main@f46317f7aaf742cf00d0433e29c4e7349dc64e93`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -227,6 +227,35 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
+#### Slice E.1 — Provider-Neutral Routing (item 11: provider-neutral routing, explicit API keys/gateways, local/free runtimes) — **COMPLETE / MERGED**
+
+The multi-agent router (`zcoder/claude/orchestration/router.py`) was hardcoded to
+Anthropic (`ENDPOINT` + `x-api-key`). Added a provider abstraction
+(`zcoder/claude/orchestration/providers.py`) so routing is gateway-agnostic:
+
+- **provider precedence:** `--provider` > `ZCODER_PROVIDER` env > `ZCODER_LOCAL_MODE=1` > `anthropic`
+- **api_key precedence:** `--api-key` > provider-specific env (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `XAI_API_KEY`) > `""`
+- **base_url precedence:** `--base-url` > `ZCODER_BASE_URL` > `OLLAMA_BASE_URL` > provider default
+
+Providers: `anthropic` (`x-api-key`), `gemini` (`x-goog-api-key`, model in path,
+`contents`/`systemInstruction` translation), `xai` (`Bearer`, OpenAI-compat),
+`ollama` (`http://localhost:11434`, no auth), `local` (no network, stub). Every
+base URL is scheme-checked (http/https only) via `safe_urlopen` semantics; explicit
+gateways are operator-configured so local/private addresses are intentionally allowed
+for `ollama`/`local`, while remote gateways remain operator trust (consistent with the
+outbound-security boundary: `safe_urlopen` for gateways vs `safe_external_urlopen` for
+model-chosen URLs). Router `classify`/`route_and_call`/parallel fan-out thread
+provider/base_url through the adapter and normalize provider responses to the existing
+Anthropic-shaped contract. CLI adds `--provider` (choices) and `--base-url`.
+Regressions: `tests/unit/test_router_provider_parity.py` (28 tests: endpoint/auth/
+payload/parse per provider, precedence, scheme rejection, local stub, parallel/error).
+
+- **PR:** #66
+- **Verified Head:** `62e6414` (all 18 PR checks green; CodeQL cleared after URL-cleanup fix)
+- **Merge Commit:** `f46317f7aaf742cf00d0433e29c4e7349dc64e93` (all 19 merged-head checks green)
+
+#### Remaining Slice E items (future bounded PRs)
+
 Progress only in bounded PRs through:
 
 1. terminal/headless/streaming/JSON UX;
@@ -347,6 +376,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: acceptEdits now approves edits+reads only (Bash/other tools ask, non-interactive fail-closed); PreToolUse hooks fail closed on timeout/error/unknown exit; denial audit records approved=False
 - compatibility/rollback note: deny-first precedence unchanged; interactive approval prompts unchanged; only acceptEdits auto-approval scope narrowed (behavior change intended by documented contract)
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.1 — Provider-Neutral Routing (item 11)
+
+- PR: #66
+- verified head: `62e6414` (all 18 PR checks green)
+- merge commit: `f46317f7aaf742cf00d0433e29c4e7349dc64e93`
+- CI: `96442793554` (3.9) / `96442793730` (3.10) / `96442793615` (3.11) / `96442793628` (3.12) — success
+- lint: `96442793511` — success
+- security / Bandit & pip-audit: `96442793250` / `96442792959` — success
+- CodeQL / Analyze Python Code Security: pass — `96443041194` / `96442795395` — success
+- Dependency Review / Gitleaks: `96442793312` / `96442793104` — success
+- Helm v3 `96442793544` / v4 `96442793300` — success
+- Release Gate: `96442793419` — success
+- SDK & TypeScript: `96442793206` — success
+- docker-build `96443299326`, build-and-push `96442793140`, deploy `96442793140` — success
+- review threads: none unresolved
+- security result: router no longer hardcoded to Anthropic; provider abstraction (anthropic/gemini/xai/ollama/local) with explicit precedence for provider/api-key/base-url; all gateway URLs scheme-checked (http/https only); local/ollama allow local addresses by design; remote gateways operator-trusted; 28 regression tests
+- compatibility/rollback note: classify/route_and_call external contract unchanged; `ENDPOINT` + `x-api-key` retained for back-compat; other capabilities (code agent, models registry) still call Anthropic directly — separate slice
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
