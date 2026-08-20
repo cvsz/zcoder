@@ -754,6 +754,7 @@ from zcoder.core.resilience import (
     shell_command_argv,
     urlopen_json,
 )
+from zcoder.core.security import safe_resolve
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -964,17 +965,17 @@ class CodeAgent:
         cwd = session.cwd
         try:
             if name == "Read":
-                p = Path(cwd) / inputs["path"]
+                p = safe_resolve(inputs["path"], cwd)
                 return p.read_text()[:8000]
 
             elif name == "Write":
-                p = Path(cwd) / inputs["path"]
+                p = safe_resolve(inputs["path"], cwd)
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(inputs["content"])
                 return f"Written {len(inputs['content'])} chars to {inputs['path']}"
 
             elif name == "Edit":
-                p = Path(cwd) / inputs["path"]
+                p = safe_resolve(inputs["path"], cwd)
                 content = p.read_text()
                 new = content.replace(inputs["old_string"], inputs["new_string"], 1)
                 if new == content:
@@ -1007,7 +1008,9 @@ class CodeAgent:
 
             elif name == "Glob":
                 pattern = inputs["pattern"]
-                base = Path(cwd) / inputs.get("path", ".")
+                if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+                    raise ValueError("Glob pattern must stay inside the workspace")
+                base = safe_resolve(inputs.get("path", "."), cwd)
                 matches = sorted(base.glob(pattern))
                 return "\n".join(str(m.relative_to(cwd)) for m in matches[:100])
 
@@ -1015,8 +1018,10 @@ class CodeAgent:
                 import re
 
                 pattern = inputs["pattern"]
-                base = Path(cwd) / inputs.get("path", ".")
+                base = safe_resolve(inputs.get("path", "."), cwd)
                 include = inputs.get("include", "*")
+                if Path(include).is_absolute() or ".." in Path(include).parts:
+                    raise ValueError("Grep include pattern must stay inside the workspace")
                 results = []
                 for f in base.rglob(include):
                     if not f.is_file():
@@ -1030,7 +1035,7 @@ class CodeAgent:
                 return "\n".join(results[:200]) or "(no matches)"
 
             elif name == "LS":
-                p = Path(cwd) / inputs.get("path", ".")
+                p = safe_resolve(inputs.get("path", "."), cwd)
                 return "\n".join(sorted(str(c.name) for c in p.iterdir()))
 
             elif name == "WebSearch":
