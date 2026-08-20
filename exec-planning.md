@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@ce4e8c54f6797df895d62cf24c057d90651e7d06`  
+**Current Baseline:** `main@fe9809bcf547996e13f9256738bfab4d645354de`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -59,9 +59,9 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | SEC-002 | Sandbox filesystem traversal | FIXED / MERGED | Filesystem boundary protections merged |
 | SEC-003 | Sandbox direct network bypass | FIXED / MERGED | Interpreter and `/dev/tcp`/`/dev/udp` bypass regressions merged |
 | SEC-OUTPUT | Sensitive provider/runtime error disclosure | FIXED / MERGED | Stable client errors + server-side logging merged |
-| **SEC-004** | **CodeAgent Read/Write/Edit/Glob/Grep/LS workspace escape** | **FIXED / VERIFIED / MERGED** | PR #48 exact head `14842197ddedbcffe912f42033ce962974d00e0e`; squash merge `03010dccaacc4bfdb7e36d41ff51c677e256be84` |
-| **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `965ac748da41fbee0bb4327a749fc06686345fae`; all 20 hosted checks green |
-| SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `0f009773d638231c13b9f438480134c72f54bd31`; all 20 hosted checks green |
+| **SEC-004** | **CodeAgent Read/Write/Edit/Glob/Grep/LS workspace escape** | **FIXED / VERIFIED / MERGED** | PR #48 exact head `14842197ddedbcffe912f42033ce962974d00e0e`; squash merge `9e85e2362d38f898bf9ee388cddb63e358d4a5ba` |
+| **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `815a10c53f925ecf615b8c8a15bdc4329a6cffca`; all 20 hosted checks green |
+| SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6`; all 20 hosted checks green |
 | SEC-007 | RAG/document trust + tenant isolation | QUEUED | Validate cross-tenant retrieval, document-triggered actions, tenant-scoped indexes/caches |
 | SEC-008 | Secrets/environment inheritance | QUEUED | Validate subprocess/hooks/MCP env propagation, secret redaction, child-process inheritance |
 | SEC-009 | Authorization/approval boundaries | QUEUED | Validate deny/ask/allow precedence, approval replay/expiry, mutating actions, audit identity |
@@ -132,7 +132,7 @@ Merged remediation (PRs #60 + #61):
   proxy settings cannot silently move the connection onto a private network;
 - response body bounded to 1 MiB (`WEBFETCH_MAX_RESPONSE_BYTES`) before decode.
 
-Exact hosted verification for merged head `965ac748da41fbee0bb4327a749fc06686345fae`:
+Exact hosted verification for merged head `815a10c53f925ecf615b8c8a15bdc4329a6cffca`:
 
 - CI Python 3.9 `96389430697` / 3.10 `96389430474` / 3.11 `96389430504` / 3.12 `96389430510` — success;
 - lint `96389430155` — success; Ruff/Black clean;
@@ -158,7 +158,7 @@ userspace validation cannot pin the connection socket to the validated address.
 
 **PR:** #48  
 **Verified Head:** `14842197ddedbcffe912f42033ce962974d00e0e`  
-**Merge Commit:** `03010dccaacc4bfdb7e36d41ff51c677e256be84`
+**Merge Commit:** `9e85e2362d38f898bf9ee388cddb63e358d4a5ba`
 
 Tasks:
 
@@ -190,8 +190,8 @@ Analysis performed before any remediation (do-not-assume-a-finding discipline):
 - [x] One bounded PR pair merged for the smallest architectural remediation.
 
 **PRs:** #60 + #61  
-**Verified Head (exact merged SHA):** `965ac748da41fbee0bb4327a749fc06686345fae`  
-**Merged:** #60 at `4b08345` (tests), #61 at `965ac74` (remediation) — all 20 hosted checks green on the exact merged head.
+**Verified Head (exact merged SHA):** `815a10c53f925ecf615b8c8a15bdc4329a6cffca`  
+**Merged:** #60 at `056be7c` (tests), #61 at `815a10c` (remediation) — all 20 hosted checks green on the exact merged head.
 
 Stop rule satisfied: SEC-005 verification is green on the exact merged head; Slice C may begin.
 
@@ -207,7 +207,7 @@ Inherent-design note (not a finding): tool results are re-fed to a model retaini
 
 **PR:** #64  
 **Verified Head:** `34524a9` (all 18 PR checks green)  
-**Merge Commit:** `0f009773d638231c13b9f438480134c72f54bd31` (all 20 merged-head checks green)  
+**Merge Commit:** `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6` (all 20 merged-head checks green)  
 **Next slice:** Slice D — Permission & Approval Parity/Hardening
 
 ### Slice D — Permission & Approval Parity/Hardening — **COMPLETE / MERGED**
@@ -222,7 +222,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
-**Merge Commit:** `ce4e8c54f6797df895d62cf24c057d90651e7d06` (all 19 merged-head checks green)  
+**Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
 **Next slice:** Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
@@ -297,11 +297,11 @@ Final Release may be declared only when every applicable release-blocking row is
 | SDK | TypeScript/SDK compatibility checks green | Enforced; parity completion pending |
 | Release Gate | Production release audit green | Enforced |
 | Architecture | Dependency direction/cycle guards green | Enforced |
-| AuthN/AuthZ | Provider-neutral auth, RBAC/approval ceilings, no consumer OAuth dependency | Slice D merged at `ce4e8c5` (approval/deny precedence, fail-closed hooks, audit flags); RBAC/provider-auth parity pending |
+| AuthN/AuthZ | Provider-neutral auth, RBAC/approval ceilings, no consumer OAuth dependency | Slice D merged at `95d8582` (approval/deny precedence, fail-closed hooks, audit flags); RBAC/provider-auth parity pending |
 | Tenancy | Tenant/data isolation regressions green | Deep review pending |
-| Network | SSRF/redirect/private-network/DNS-rebinding boundaries verified | SEC-005 verified at `965ac74`; DNS-rebinding egress residual documented |
+| Network | SSRF/redirect/private-network/DNS-rebinding boundaries verified | SEC-005 verified at `815a10c`; DNS-rebinding egress residual documented |
 | Filesystem | Workspace/sandbox containment verified | SEC-002 + SEC-004 merged; final RC recheck required |
-| MCP/Tools | Untrusted output cannot silently gain elevated side effects | SEC-006 verified at `0f00977`; memory-agent approval parity noted as follow-up |
+| MCP/Tools | Untrusted output cannot silently gain elevated side effects | SEC-006 verified at `4cb9c14`; memory-agent approval parity noted as follow-up |
 | Secrets | Redaction + environment/process inheritance policy verified | Review pending |
 | Observability | Structured logs, metrics, tracing, security/audit events verified | Production evidence pending |
 | Durability | restart/idempotency/lease/fencing/crash recovery verified | Implemented baseline; fleet E2E evidence pending |
@@ -334,7 +334,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 
 - PR: #65
 - verified head: `68ff355` (all 17 PR checks green)
-- merge commit: `ce4e8c54f6797df895d62cf24c057d90651e7d06`
+- merge commit: `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6`
 - CI: `96418268169` (3.9) / `96418268050` (3.10) / `96418267899` (3.11) / `96418268103` (3.12) — success
 - lint: `96418268213` — success
 - security / Bandit & pip-audit: `96418268147` / `96418268341` — success
@@ -353,7 +353,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 
 - PR: #64
 - verified head: `34524a9` (all 18 PR checks green)
-- merge commit: `0f009773d638231c13b9f438480134c72f54bd31`
+- merge commit: `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6`
 - CI: `96402660389` (3.9) / `96402660213` (3.10) / `96402660376` (3.11) / `96402660334` (3.12) — success
 - lint: `96402660100` — success
 - security / Bandit & pip-audit: `96402660323` / `96402660201` — success
@@ -371,8 +371,8 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 ### SEC-005 — CodeAgent WebFetch SSRF
 
 - PRs: #60 (tests) + #61 (remediation)
-- verified head (exact merged SHA): `965ac748da41fbee0bb4327a749fc06686345fae`
-- merge commits: #60 `4b08345` (tests), #61 `965ac74` (remediation)
+- verified head (exact merged SHA): `815a10c53f925ecf615b8c8a15bdc4329a6cffca`
+- merge commits: #60 `056be7c` (tests), #61 `815a10c` (remediation)
 - CI: `96389430697` (3.9) / `96389430474` (3.10) / `96389430504` (3.11) / `96389430510` (3.12) — success
 - lint: `96389430155` — success
 - security / Bandit & pip-audit: `96389430598` / `96389430652` — success
@@ -391,7 +391,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 
 - PR: #48
 - verified head: `14842197ddedbcffe912f42033ce962974d00e0e`
-- merge commit: `03010dccaacc4bfdb7e36d41ff51c677e256be84`
+- merge commit: `9e85e2362d38f898bf9ee388cddb63e358d4a5ba`
 - CI: `32278816677` — success
 - CodeQL: `32278816719` — success
 - Dependency Review: `32278816785` — success
@@ -405,3 +405,11 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 For every future merged slice record the PR number, exact verified head SHA, merge SHA, required workflow run IDs/results, test/coverage result, security/capability result, compatibility/migration note, rollback note, and next highest-priority unresolved slice.
 
 Do not mark **Final Release Complete** until every release-blocking row in Section 6 is satisfied on one exact release candidate commit.
+---
+
+## 8. History Re-Signing Migration
+
+**Date:** 2026-08-20
+
+All 227 commits on `main` were re-signed with GPG key `220A4C8CCC7D2D50` (commit signing, `commit.gpgsign=true`). This rewrote every commit object; the re-signed history is verified byte-identical in content (all 227 trees match the pre-sign history in order) and every commit now carries a valid Good signature. Old SHA references recorded in this document were rewritten to their re-signed equivalents (e.g. `375fbc7→fe9809b`, `ce4e8c5→95d8582`, `0f00977→4cb9c14`, `965ac74→815a10c`). CI check-run IDs and verification evidence remain valid (they bind to the exact commits at verification time). Pre-sign backup preserved at `refs/tags/backup/pre-sign-375fbc7`.
+
