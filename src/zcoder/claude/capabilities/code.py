@@ -746,17 +746,18 @@ import urllib.error
 import urllib.request
 
 from zcoder.core.exceptions import ZCoderError
+from zcoder.core.outbound_security import safe_external_urlopen
 from zcoder.core.resilience import (
     CircuitBreaker,
     raise_for_http_error,
     retry,
-    safe_urlopen,
     shell_command_argv,
     urlopen_json,
 )
 from zcoder.core.security import safe_resolve
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
+WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
@@ -802,8 +803,13 @@ class CodeAgent:
     def _webfetch_retrying(self, url: str) -> str:
         req = urllib.request.Request(url, headers={"User-Agent": "zcoder-agent/1.8"})
         try:
-            with safe_urlopen(req, timeout=15) as r:
-                return r.read().decode("utf-8", errors="replace")[:4000]
+            with safe_external_urlopen(req, timeout=15) as r:
+                body = r.read(WEBFETCH_MAX_RESPONSE_BYTES + 1)
+                if len(body) > WEBFETCH_MAX_RESPONSE_BYTES:
+                    raise ValueError(
+                        f"WebFetch response exceeds {WEBFETCH_MAX_RESPONSE_BYTES} bytes",
+                    )
+                return body.decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
 
