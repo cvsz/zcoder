@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@0f009773d638231c13b9f438480134c72f54bd31`  
+**Current Baseline:** `main@ce4e8c54f6797df895d62cf24c057d90651e7d06`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -210,16 +210,20 @@ Inherent-design note (not a finding): tool results are re-fed to a model retaini
 **Merge Commit:** `0f009773d638231c13b9f438480134c72f54bd31` (all 20 merged-head checks green)  
 **Next slice:** Slice D — Permission & Approval Parity/Hardening
 
-### Slice D — Permission & Approval Parity/Hardening
+### Slice D — Permission & Approval Parity/Hardening — **COMPLETE / MERGED**
 
-Unify and verify:
+Mapped every permission/approval decision point (`CodeAgent._execute_tool`, `HooksEngine`, tool-agent `_approve`, hooks/perms engines) and validated precedence against the plan's contract. Confirmed findings, each validated by reachability:
 
-- deny > ask > allow precedence;
-- non-interactive fail-closed semantics for mutating tools;
-- hook semantics that cannot override a higher-priority deny;
-- approval binding to actor/session/tool/action/resource;
-- expiry/replay/idempotency protections;
-- audit records for request, decision, executor, result, and denial reason.
+- **`acceptEdits` auto-approved ALL tool calls** — including `Bash` — despite the documented contract "auto-approve file edits; ask for other tool calls". Reachable via `--code-agent-permission acceptEdits` and as the default for custom/plugin slash commands running the `code` preset (includes Bash). Fixed: `acceptEdits` auto-approves only `Write`/`Edit`/`MultiEdit`/`NotebookEdit` + read-only tools; everything else drops into the `askPermission` path (non-interactive fail-closed).
+- **PreToolUse hooks failed open** — timeout/exception/exit≠2 silently allowed the tool call; an ambiguous hook decision was treated as consent. Fixed: `PreToolUse` fires `fail_closed`; timeout/error/unrecognized exit code block the call. PostToolUse/Notification keep warn-and-continue (non-decision events).
+- **Denied calls recorded as approved** — every denial path used the `add_tool_call` default `approved=True`, mislabeling denials as approvals. Fixed: every denial path records `approved=False` with its reason.
+
+Verified already-correct: hook deny runs first and cannot be overridden by `bypassPermissions`; `dontAsk`/planMode deny everything (fail-closed); `can_use_tool` callback authoritative.
+
+**PR:** #65  
+**Verified Head:** `68ff355` (all 17 PR checks green)  
+**Merge Commit:** `ce4e8c54f6797df895d62cf24c057d90651e7d06` (all 19 merged-head checks green)  
+**Next slice:** Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -285,7 +289,7 @@ Final Release may be declared only when every applicable release-blocking row is
 | Python | 3.9 / 3.10 / 3.11 / 3.12 all green | Continuous per PR; must be green on final RC |
 | Coverage | Existing threshold preserved or increased | Enforced; final RC evidence required |
 | Lint/Format | Ruff + Black green | Enforced |
-| Security | Bandit/security green; confirmed findings closed | SEC-007..010 remain to review |
+| Security | Bandit/security green; confirmed findings closed | SEC-007/008/010 remain to review; SEC-009 covered by Slice D |
 | Code scanning | CodeQL green with no unresolved introduced alert | Enforced |
 | Dependencies | Dependency Review green; no unaccepted high/critical release blocker | Enforced; reproducibility review pending |
 | Containers | Docker build/version/health smoke green | Enforced; runtime hardening evidence pending |
@@ -293,7 +297,7 @@ Final Release may be declared only when every applicable release-blocking row is
 | SDK | TypeScript/SDK compatibility checks green | Enforced; parity completion pending |
 | Release Gate | Production release audit green | Enforced |
 | Architecture | Dependency direction/cycle guards green | Enforced |
-| AuthN/AuthZ | Provider-neutral auth, RBAC/approval ceilings, no consumer OAuth dependency | Hardening review pending |
+| AuthN/AuthZ | Provider-neutral auth, RBAC/approval ceilings, no consumer OAuth dependency | Slice D merged at `ce4e8c5` (approval/deny precedence, fail-closed hooks, audit flags); RBAC/provider-auth parity pending |
 | Tenancy | Tenant/data isolation regressions green | Deep review pending |
 | Network | SSRF/redirect/private-network/DNS-rebinding boundaries verified | SEC-005 verified at `965ac74`; DNS-rebinding egress residual documented |
 | Filesystem | Workspace/sandbox containment verified | SEC-002 + SEC-004 merged; final RC recheck required |
@@ -325,6 +329,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 ---
 
 ## 7. Completion Evidence Ledger
+
+### Slice D — Permission & Approval Parity/Hardening (SEC-009)
+
+- PR: #65
+- verified head: `68ff355` (all 17 PR checks green)
+- merge commit: `ce4e8c54f6797df895d62cf24c057d90651e7d06`
+- CI: `96418268169` (3.9) / `96418268050` (3.10) / `96418267899` (3.11) / `96418268103` (3.12) — success
+- lint: `96418268213` — success
+- security / Bandit & pip-audit: `96418268147` / `96418268341` — success
+- CodeQL / Analyze Python Code Security: `96418268288` — success
+- Dependency Review / Gitleaks: `96418268208` — success
+- Helm v3 `96418268398` / v4 `96418268126` — success
+- Release Gate: `96418267995` — success
+- SDK & TypeScript: `96418268534` — success
+- docker-build `96418664875`, build-and-push `96418268137`, deploy `96418371583` — success
+- review threads: none unresolved
+- security result: acceptEdits now approves edits+reads only (Bash/other tools ask, non-interactive fail-closed); PreToolUse hooks fail closed on timeout/error/unknown exit; denial audit records approved=False
+- compatibility/rollback note: deny-first precedence unchanged; interactive approval prompts unchanged; only acceptEdits auto-approval scope narrowed (behavior change intended by documented contract)
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
 
