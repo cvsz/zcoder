@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@ff8d9e260c68244b02858dd8b6cc1b09260ac176`  
+**Current Baseline:** `main@c16e87760bc57c100aa679f29c6d3504e3500885`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: sessions/resume/checkpoints, full skills/commands lifecycle UX, hooks lifecycle, MCP transports/trust, subagents budgets/permissions, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
+**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, hooks lifecycle, MCP transports/trust, subagents budgets/permissions, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -315,7 +315,7 @@ the same trust boundary applied to memory (E.2):
 Progress only in bounded PRs through:
 
 1. terminal/headless/streaming/JSON UX;
-2. sessions, resume, checkpoints, rewind, branchable conversations;
+2. ~~sessions, resume, checkpoints, rewind, branchable conversations~~ — **DONE (Slice E.7)**;
 3. ~~CLAUDE.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
 4. skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**;
 5. hooks lifecycle and policy-safe event model;
@@ -546,6 +546,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved (one CodeQL false positive on validation-message logging resolved by removing the CLI wrapper; core `validate_plugin()` API and tests retained)
 - security result: plugin manifests now include provenance + permissions schema; `validate_plugin()` lints them (provenance.source required when trusted=true; permissions.tools must be known-tool list; network=true warns; filesystem must be one of {none, readonly, plugin, write}); 9 regression tests
 - compatibility/rollback note: `DEFAULT_MANIFEST_FIELDS` extended with additive provenance/permissions keys; no behavior change for existing manifests without these keys; `cmd_plugin_validate` CLI removed (false-positive-prone); direct `validate_plugin()` API preserved
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.7 — Session Rewind & Branch (item 2: sessions/resume/checkpoints)
+
+- PR: #72
+- verified head: `c529c90` (all 18 PR checks green)
+- merge commit: `c16e87760bc57c100aa679f29c6d3504e3500885`
+- CI: `96609037274` (3.9) / `96609037209` (3.10) / `96609037329` (3.11) / `96609037221` (3.12) — success
+- lint: `96609037114` — success
+- security / Bandit & pip-audit: `96609037279` / `96609036963` — success
+- CodeQL / Analyze Python Code Security: pass — `96609205183` / `96609036747` — success
+- Dependency Review / Gitleaks: `96609036727` / `96609036942` — success
+- Helm v3/v4 `96609036898` — success
+- Release Gate: `96609036604` — success
+- SDK & TypeScript: `96609036794` — success
+- docker-build / build-and-push / deploy `96609037114` — success
+- review threads: none unresolved
+- security result: rewind/branch operate on persisted session state only; no new external surface
+- compatibility/rollback note: additive methods on CodeSession; CLI flags opt-in; existing sessions unaffected
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
