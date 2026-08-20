@@ -746,11 +746,11 @@ import urllib.error
 import urllib.request
 
 from zcoder.core.exceptions import ZCoderError
+from zcoder.core.outbound_security import safe_external_urlopen
 from zcoder.core.resilience import (
     CircuitBreaker,
     raise_for_http_error,
     retry,
-    safe_urlopen,
     shell_command_argv,
     urlopen_json,
 )
@@ -802,8 +802,8 @@ class CodeAgent:
     def _webfetch_retrying(self, url: str) -> str:
         req = urllib.request.Request(url, headers={"User-Agent": "zcoder-agent/1.8"})
         try:
-            with safe_urlopen(req, timeout=15) as r:
-                return r.read().decode("utf-8", errors="replace")[:4000]
+            with safe_external_urlopen(req, timeout=15) as r:
+                return r.read(4096).decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
 
