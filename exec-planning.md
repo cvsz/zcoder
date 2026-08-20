@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@c16e87760bc57c100aa679f29c6d3504e3500885`  
+**Current Baseline:** `main@7ca30c121f216809f9e5701469fd5cbc2fa95b35`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, hooks lifecycle, MCP transports/trust, subagents budgets/permissions, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
+**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, hooks lifecycle, MCP transports/trust, subagents budgets (tool validation DONE in E.8), built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -320,7 +320,7 @@ Progress only in bounded PRs through:
 4. skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**;
 5. hooks lifecycle and policy-safe event model;
 6. MCP transports, discovery, resource/tool trust policy;
-7. subagents and agent teams with bounded budgets/permissions — **agent/.claude/agents loader containment DONE (Slice E.4); full lifecycle/budgets/permissions remains**;
+7. subagents and agent teams with bounded budgets/permissions — **agent loader containment DONE (E.4); frontmatter tool validation DONE (E.8); full lifecycle/budgets remains**;
 8. ~~plugins/marketplaces with provenance and permission manifests~~ — **DONE (Slice E.6)**;
 9. complete built-in tool parity with security boundaries;
 10. IDE/web/remote/CI workflows;
@@ -565,6 +565,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: rewind/branch operate on persisted session state only; no new external surface
 - compatibility/rollback note: additive methods on CodeSession; CLI flags opt-in; existing sessions unaffected
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.8 — Subagent Frontmatter Tool Validation (item 6: subagents budgets/permissions)
+
+- PR: #73
+- verified head: `c529c90` (all 18 PR checks green)
+- merge commit: `7ca30c121f216809f9e5701469fd5cbc2fa95b35`
+- CI: `96613825662` (3.9) / `96613825586` (3.10) / `96613825526` (3.11) / `96613825739` (3.12) — success
+- lint: `96613825357` — success
+- security / Bandit & pip-audit: `96613825599` / `96613825377` — success
+- CodeQL / Analyze Python Code Security: pass — `96613987922` / `96613824941` — success
+- Dependency Review / Gitleaks: `96613825160` / `96613825606` — success
+- Helm v3/v4 `96613825357` — success
+- Release Gate: `96613825070` — success
+- SDK & TypeScript: `96613825296` — success
+- docker-build / build-and-push / deploy `96613825357` — success
+- review threads: none unresolved
+- security result: subagent YAML frontmatter tools/disallowedTools validated against BUILTIN_TOOLS + mcp__* prefix; unknown tools rejected (fail-closed); mirrors plugin-manifest tool validation (E.6); 7 regression tests
+- compatibility/rollback note: additive validation in _load_one(); agents with unknown tools skipped with warning; existing valid agents unaffected
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
