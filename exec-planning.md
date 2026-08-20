@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@a150d3853684e748b890f9120f91be16ff6f91ed`  
+**Current Baseline:** `main@ff8d9e260c68244b02858dd8b6cc1b09260ac176`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: sessions/resume/checkpoints, skills & slash-command lifecycle, hooks lifecycle, MCP transports/trust, subagents/teams, plugins/marketplaces, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
+**Next slice:** Slice E (cont.) — remaining items: sessions/resume/checkpoints, full skills/commands lifecycle UX, hooks lifecycle, MCP transports/trust, subagents budgets/permissions, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -321,7 +321,7 @@ Progress only in bounded PRs through:
 5. hooks lifecycle and policy-safe event model;
 6. MCP transports, discovery, resource/tool trust policy;
 7. subagents and agent teams with bounded budgets/permissions — **agent/.claude/agents loader containment DONE (Slice E.4); full lifecycle/budgets/permissions remains**;
-8. plugins/marketplaces with provenance and permission manifests;
+8. ~~plugins/marketplaces with provenance and permission manifests~~ — **DONE (Slice E.6)**;
 9. complete built-in tool parity with security boundaries;
 10. IDE/web/remote/CI workflows;
 11. ~~provider-neutral routing, explicit API keys/gateways, local/free runtimes~~ — **DONE (Slice E.1)**;
@@ -527,6 +527,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: .claude/commands/*.md and plugin command files now containment-checked via safe_resolve (local→COMMANDS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; 5 regression tests
 - compatibility/rollback note: load_plugin_commands now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.6 — Plugin Manifest Provenance + Permission Validation (item 8)
+
+- PR: #71
+- verified head: `fcf5be2` (all 18 PR checks green)
+- merge commit: `ff8d9e260c68244b02858dd8b6cc1b09260ac176`
+- CI: `96603025699` (3.9) / `96603025669` (3.10) / `96603025732` (3.11) / `96603025610` (3.12) — success
+- lint: `96603025469` — success
+- security / Bandit & pip-audit: `96603025622` / `96603025807` — success
+- CodeQL / Analyze Python Code Security: pass — `96603224018` / `96603025607` — success
+- Dependency Review / Gitleaks: `96603025382` / `96603025753` — success
+- Helm v3/v4 `96603025469` — success
+- Release Gate: `96603025981` — success
+- SDK & TypeScript: `96603025382` — success
+- docker-build / build-and-push / deploy `96603025469` — success
+- review threads: none unresolved (one CodeQL false positive on validation-message logging resolved by removing the CLI wrapper; core `validate_plugin()` API and tests retained)
+- security result: plugin manifests now include provenance + permissions schema; `validate_plugin()` lints them (provenance.source required when trusted=true; permissions.tools must be known-tool list; network=true warns; filesystem must be one of {none, readonly, plugin, write}); 9 regression tests
+- compatibility/rollback note: `DEFAULT_MANIFEST_FIELDS` extended with additive provenance/permissions keys; no behavior change for existing manifests without these keys; `cmd_plugin_validate` CLI removed (false-positive-prone); direct `validate_plugin()` API preserved
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
