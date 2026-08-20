@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@03010dccaacc4bfdb7e36d41ff51c677e256be84`  
+**Current Baseline:** `main@965ac748da41fbee0bb4327a749fc06686345fae`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -60,7 +60,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | SEC-003 | Sandbox direct network bypass | FIXED / MERGED | Interpreter and `/dev/tcp`/`/dev/udp` bypass regressions merged |
 | SEC-OUTPUT | Sensitive provider/runtime error disclosure | FIXED / MERGED | Stable client errors + server-side logging merged |
 | **SEC-004** | **CodeAgent Read/Write/Edit/Glob/Grep/LS workspace escape** | **FIXED / VERIFIED / MERGED** | PR #48 exact head `14842197ddedbcffe912f42033ce962974d00e0e`; squash merge `03010dccaacc4bfdb7e36d41ff51c677e256be84` |
-| **SEC-005** | **CodeAgent WebFetch SSRF** | **ACTIVE HYPOTHESIS** | Validate source→sink, redirects, hostname/IP checks, metadata/private ranges, DNS re-resolution/repinning before calling a finding |
+| **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `965ac748da41fbee0bb4327a749fc06686345fae`; all 20 hosted checks green |
 | SEC-006 | MCP/tool-output trust boundary | QUEUED | Validate untrusted MCP/tool output into shell/files/network/actions |
 | SEC-007 | RAG/document trust + tenant isolation | QUEUED | Validate cross-tenant retrieval, document-triggered actions, tenant-scoped indexes/caches |
 | SEC-008 | Secrets/environment inheritance | QUEUED | Validate subprocess/hooks/MCP env propagation, secret redaction, child-process inheritance |
@@ -100,6 +100,56 @@ Exact hosted verification for PR #48 head `14842197ddedbcffe912f42033ce962974d00
 - Python 3.9 / 3.10 / 3.11 / 3.12, Ruff, Black, Bandit/security, and Docker jobs — success;
 - unresolved review threads — none.
 
+### 4.2 SEC-005 Closure Evidence
+
+Confirmed pre-fix path:
+
+```text
+model-controlled tool input
+  -> CodeAgent._execute_tool() (WebFetch branch)
+  -> CodeAgent._webfetch_retrying()
+  -> urllib.request.Request(url)
+  -> safe_urlopen()  (scheme-only check)
+  -> urllib.request.urlopen   -- follows up to 10 unvalidated redirects
+  -> loopback / private / link-local / cloud-metadata / userinfo-confusion sink
+```
+
+Confirmed reachability (validated before remediation): WebFetch is auto-approved in
+non-interactive `askPermission` mode (read-only preset), so a model-controlled URL
+could direct the agent to `http://127.0.0.1:8080/...`, `http://169.254.169.254/...`
+(cloud metadata), `http://[::1]/...`, `http://10.0.0.1/...`, or reach any of those
+via a redirect from a public URL. Response bodies were read unbounded.
+
+Merged remediation (PRs #60 + #61):
+
+- `WebFetch` now routes through `zcoder.core.outbound_security.safe_external_urlopen`
+  — the same centralized boundary SEC-001 Deep Research uses;
+- non-public IP literals and DNS answers rejected (loopback, private, link-local,
+  multicast, unspecified, reserved, IPv4-mapped IPv6, cloud-metadata ranges);
+- userinfo hostname-confusion forms rejected;
+- every redirect hop re-validated via `_ExternalRedirectHandler` (`max_redirections=5`);
+- environment proxy discovery disabled (`ProxyHandler({})`) so inherited/attacker
+  proxy settings cannot silently move the connection onto a private network;
+- response body bounded to 1 MiB (`WEBFETCH_MAX_RESPONSE_BYTES`) before decode.
+
+Exact hosted verification for merged head `965ac748da41fbee0bb4327a749fc06686345fae`:
+
+- CI Python 3.9 `96389430697` / 3.10 `96389430474` / 3.11 `96389430504` / 3.12 `96389430510` — success;
+- lint `96389430155` — success; Ruff/Black clean;
+- security + Bandit/pip-audit `96389430598` / `96389430652` — success;
+- CodeQL `96389431198` — success;
+- Dependency Review `96389430529` — success;
+- Gitleaks secret scan `96389430529` — success;
+- Helm v3 `96389431372` / v4 `96389431098` — success;
+- Release Gate `96389430460` — success;
+- Validate TypeScript SDK & Types `96389430893` — success;
+- docker-build `96389860141`, build-and-push `96389430757`, deploy `96389589866` — success;
+- unresolved review threads — none.
+
+Known residual limitation (documented in `outbound_security.py`): DNS-rebinding TOCTOU
+between validation and connect remains a production network-egress responsibility;
+userspace validation cannot pin the connection socket to the validated address.
+
 ---
 
 ## 5. Active Bounded Execution Queue
@@ -123,25 +173,27 @@ Tasks:
 - [x] No unresolved review blocker.
 - [x] Exact-head squash merge complete.
 
-### Slice B — SEC-005 CodeAgent WebFetch SSRF — **ACTIVE**
+### Slice B — SEC-005 CodeAgent WebFetch SSRF — **COMPLETE / MERGED**
 
-Do not assume a finding. First validate the complete source-to-sink chain from model-controlled URL input through every fetch helper and redirect hop.
+Analysis performed before any remediation (do-not-assume-a-finding discipline):
 
-Required analysis:
+- [x] Identified all `WebFetch`/URL-fetch source entry points and actual network sinks — `CodeAgent._run_tool()` WebFetch branch -> `_webfetch_retrying()` -> `safe_urlopen()` -> `urllib.request.urlopen`; server-side `web_fetch` tools (`search.py`, `agents_sdk.py` presets) are executed by Anthropic infra, not locally, and are out of scope for local SSRF.
+- [x] Verified scheme restrictions and URL canonicalization — scheme-only check pre-fix; centralized boundary enforces http/https only.
+- [x] Verified hostname resolution and IP classification before connection — pre-fix none; boundary rejects non-public literals and DNS answers (loopback, RFC1918/private, link-local incl. `169.254.169.254`, multicast, unspecified, reserved, IPv4-mapped IPv6).
+- [x] Loopback, private, link-local, multicast, unspecified, reserved, and cloud-metadata destinations blocked (SEC-002-style regression set).
+- [x] Every redirect hop re-validated — `_ExternalRedirectHandler` with `max_redirections=5`.
+- [x] DNS resolution re-validation — resolution is checked for every validation and redirect hop; connection socket pinning is a documented network-egress responsibility (TOCTOU rebinding residual).
+- [x] IPv4 and IPv6 handling verified, including IPv4-mapped IPv6 forms (`::ffff:127.0.0.1` rejected).
+- [x] Redirect count, response size, timeout, and decompression/resource amplification bounded — `max_redirections=5`, `WEBFETCH_MAX_RESPONSE_BYTES=1 MiB`, 15s timeout.
+- [x] Proxy/environment settings cannot silently bypass destination policy — `ProxyHandler({})` disables env proxy discovery for the external opener.
+- [x] Regression tests added only after reachability was confirmed — PRs #60 + #61.
+- [x] One bounded PR pair merged for the smallest architectural remediation.
 
-- [ ] Identify all `WebFetch`/URL-fetch source entry points and actual network sinks.
-- [ ] Verify scheme restrictions and URL canonicalization.
-- [ ] Verify hostname resolution and IP classification before connection.
-- [ ] Block loopback, RFC1918/private, link-local, multicast, unspecified, reserved/documentation, and cloud metadata destinations where applicable.
-- [ ] Revalidate every redirect hop rather than validating only the initial URL.
-- [ ] Determine whether DNS resolution is pinned/revalidated sufficiently to prevent hostname-to-private-address rebinding between validation and connection.
-- [ ] Verify IPv4 and IPv6 handling, including IPv4-mapped IPv6 forms.
-- [ ] Bound redirect count, response size, timeout, and decompression/resource amplification.
-- [ ] Confirm proxy/environment settings cannot silently bypass destination policy.
-- [ ] Add regression tests only after reachability is confirmed.
-- [ ] Open one bounded PR for the smallest architectural remediation if a finding is confirmed.
+**PRs:** #60 + #61  
+**Verified Head (exact merged SHA):** `965ac748da41fbee0bb4327a749fc06686345fae`  
+**Merged:** #60 at `4b08345` (tests), #61 at `965ac74` (remediation) — all 20 hosted checks green on the exact merged head.
 
-Stop rule: if SEC-005 PR hosted verification is pending or red, do not begin Slice C.
+Stop rule satisfied: SEC-005 verification is green on the exact merged head; Slice C may begin.
 
 ### Slice C — MCP / Tool-Output Trust Boundary
 
@@ -222,7 +274,7 @@ Final Release may be declared only when every applicable release-blocking row is
 | Python | 3.9 / 3.10 / 3.11 / 3.12 all green | Continuous per PR; must be green on final RC |
 | Coverage | Existing threshold preserved or increased | Enforced; final RC evidence required |
 | Lint/Format | Ruff + Black green | Enforced |
-| Security | Bandit/security green; confirmed findings closed | SEC-005..010 remain to review |
+| Security | Bandit/security green; confirmed findings closed | SEC-006..010 remain to review |
 | Code scanning | CodeQL green with no unresolved introduced alert | Enforced |
 | Dependencies | Dependency Review green; no unaccepted high/critical release blocker | Enforced; reproducibility review pending |
 | Containers | Docker build/version/health smoke green | Enforced; runtime hardening evidence pending |
@@ -232,7 +284,7 @@ Final Release may be declared only when every applicable release-blocking row is
 | Architecture | Dependency direction/cycle guards green | Enforced |
 | AuthN/AuthZ | Provider-neutral auth, RBAC/approval ceilings, no consumer OAuth dependency | Hardening review pending |
 | Tenancy | Tenant/data isolation regressions green | Deep review pending |
-| Network | SSRF/redirect/private-network/DNS-rebinding boundaries verified | SEC-005 active |
+| Network | SSRF/redirect/private-network/DNS-rebinding boundaries verified | SEC-005 verified at `965ac74`; DNS-rebinding egress residual documented |
 | Filesystem | Workspace/sandbox containment verified | SEC-002 + SEC-004 merged; final RC recheck required |
 | MCP/Tools | Untrusted output cannot silently gain elevated side effects | Review pending |
 | Secrets | Redaction + environment/process inheritance policy verified | Review pending |
@@ -248,7 +300,7 @@ Final Release may be declared only when every applicable release-blocking row is
 Do not declare **Enterprise Final Release Complete** while any of these remain true:
 
 - a confirmed high/critical security finding is unremediated;
-- SEC-005 network trust boundary has not been reviewed;
+- SEC-006 MCP/tool-output trust transition is not verified;
 - approval/authorization replay and mutation semantics are not verified;
 - cross-tenant data/tool paths are not verified;
 - MCP/tool-output trust transition is not verified;
@@ -261,6 +313,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 ---
 
 ## 7. Completion Evidence Ledger
+
+### SEC-005 — CodeAgent WebFetch SSRF
+
+- PRs: #60 (tests) + #61 (remediation)
+- verified head (exact merged SHA): `965ac748da41fbee0bb4327a749fc06686345fae`
+- merge commits: #60 `4b08345` (tests), #61 `965ac74` (remediation)
+- CI: `96389430697` (3.9) / `96389430474` (3.10) / `96389430504` (3.11) / `96389430510` (3.12) — success
+- lint: `96389430155` — success
+- security / Bandit & pip-audit: `96389430598` / `96389430652` — success
+- CodeQL: `96389431198` — success
+- Dependency Review: `96389430529` — success
+- Gitleaks: `96389430529` — success
+- Helm v3 `96389431372` / v4 `96389431098` — success
+- Release Gate: `96389430460` — success
+- SDK & TypeScript: `96389430893` — success
+- docker-build `96389860141`, build-and-push `96389430757`, deploy `96389589866` — success
+- review threads: none unresolved
+- security result: CodeAgent WebFetch now routes through the centralized external-URL boundary; non-public literals/DNS, userinfo confusion, redirect hops, env-proxy bypass, and unbounded reads closed; 1 MiB response cap + redirect cap + proxy-disable hardening
+- next security hypothesis: SEC-006 MCP/tool-output trust boundary
 
 ### SEC-004 — CodeAgent Filesystem Workspace Containment
 
@@ -275,7 +346,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - SDK & TypeScript: `32278816704` — success
 - review threads: none unresolved
 - security result: relative traversal, absolute escape, symlink escape, read/enumeration escape, and Write/Edit outside-workspace mutation closed for CodeAgent filesystem tools
-- next security hypothesis: SEC-005 CodeAgent WebFetch SSRF
+- next security hypothesis: SEC-006 MCP/tool-output trust boundary
 
 For every future merged slice record the PR number, exact verified head SHA, merge SHA, required workflow run IDs/results, test/coverage result, security/capability result, compatibility/migration note, rollback note, and next highest-priority unresolved slice.
 
