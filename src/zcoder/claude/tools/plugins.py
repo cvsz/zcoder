@@ -729,5 +729,3 @@ def cmd_plugin_disable(name: str):
 def format_findings(findings: list) -> list[str]:
     icon = {"ok": "\033[92m✓", "info": "\033[94mℹ", "warn": "\033[93m⚠", "error": "\033[91m✗"}
     return [f"{icon.get(level, '')} {msg}\033[0m" for level, msg in findings]
-
-
