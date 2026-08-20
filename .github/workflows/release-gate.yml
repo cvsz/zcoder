@@ -3,7 +3,7 @@ name: Release Gate
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,18 +11,27 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   release-gate:
     name: Production Release Gate Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: |
@@ -31,5 +40,4 @@ jobs:
           pip install -e .
 
       - name: Run Production Release Gate Report
-        run: |
-          python scripts/release_gate.py
+        run: python scripts/release_gate.py
