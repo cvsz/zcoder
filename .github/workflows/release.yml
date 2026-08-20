@@ -3,29 +3,44 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release Tag (e.g. v1.40.0)'
+        description: "Release tag (for example v1.40.0)"
         required: true
         type: string
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   build-python-dist:
     name: Build Python Wheel & Sdist
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
       - name: Install build tools
         run: pip install --upgrade build wheel
@@ -34,22 +49,30 @@ jobs:
         run: python -m build
 
       - name: Upload Python packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: python-dist
           path: dist/*
+          if-no-files-found: error
+          retention-days: 14
 
   build-linux-binary:
     name: Build Linux Standalone Binary
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
       - name: Build Linux executable
         run: |
@@ -58,22 +81,30 @@ jobs:
           mv dist/ai-coder dist/ai-coder-linux-x86_64
 
       - name: Upload Linux binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binary-linux
           path: dist/ai-coder-linux-x86_64
+          if-no-files-found: error
+          retention-days: 14
 
   build-windows-binary:
     name: Build Windows Standalone Executable
     runs-on: windows-latest
+    timeout-minutes: 25
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
       - name: Build Windows executable
         shell: cmd
@@ -82,34 +113,46 @@ jobs:
           move dist\ai-coder.exe dist\ai-coder-windows-x86_64.exe
 
       - name: Upload Windows binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binary-windows
           path: dist/ai-coder-windows-x86_64.exe
+          if-no-files-found: error
+          retention-days: 14
 
   publish-release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [build-python-dist, build-linux-binary, build-windows-binary]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: true
 
-      - name: Generate Checksums
+      - name: Generate checksums
         run: |
           cd release-assets
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Attest release provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/*
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: release-assets/*
           generate_release_notes: true
           draft: false
