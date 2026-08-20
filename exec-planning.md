@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@965ac748da41fbee0bb4327a749fc06686345fae`  
+**Current Baseline:** `main@0f009773d638231c13b9f438480134c72f54bd31`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -9,7 +9,7 @@
 
 ## 1. Executive State
 
-The repository has completed the Upgrade-01..25 foundation, durable engineering runtime, bounded continuous engineering loop, canonical `src/zcoder` migration, service/infrastructure architecture hardening, and the first four confirmed AI-agent security remediation slices.
+The repository has completed the Upgrade-01..25 foundation, durable engineering runtime, bounded continuous engineering loop, canonical `src/zcoder` migration, service/infrastructure architecture hardening, and the first six confirmed AI-agent security remediation slices (SEC-001..006, SEC-OUTPUT).
 
 The active program now has three coordinated tracks:
 
@@ -61,7 +61,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | SEC-OUTPUT | Sensitive provider/runtime error disclosure | FIXED / MERGED | Stable client errors + server-side logging merged |
 | **SEC-004** | **CodeAgent Read/Write/Edit/Glob/Grep/LS workspace escape** | **FIXED / VERIFIED / MERGED** | PR #48 exact head `14842197ddedbcffe912f42033ce962974d00e0e`; squash merge `03010dccaacc4bfdb7e36d41ff51c677e256be84` |
 | **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `965ac748da41fbee0bb4327a749fc06686345fae`; all 20 hosted checks green |
-| SEC-006 | MCP/tool-output trust boundary | QUEUED | Validate untrusted MCP/tool output into shell/files/network/actions |
+| SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `0f009773d638231c13b9f438480134c72f54bd31`; all 20 hosted checks green |
 | SEC-007 | RAG/document trust + tenant isolation | QUEUED | Validate cross-tenant retrieval, document-triggered actions, tenant-scoped indexes/caches |
 | SEC-008 | Secrets/environment inheritance | QUEUED | Validate subprocess/hooks/MCP env propagation, secret redaction, child-process inheritance |
 | SEC-009 | Authorization/approval boundaries | QUEUED | Validate deny/ask/allow precedence, approval replay/expiry, mutating actions, audit identity |
@@ -195,9 +195,20 @@ Analysis performed before any remediation (do-not-assume-a-finding discipline):
 
 Stop rule satisfied: SEC-005 verification is green on the exact merged head; Slice C may begin.
 
-### Slice C — MCP / Tool-Output Trust Boundary
+### Slice C — MCP / Tool-Output Trust Boundary — **COMPLETE / MERGED**
 
-Validate whether untrusted MCP/tool output can cross into Bash, filesystem mutation, network actions, prompts with elevated tool authority, or structured action dispatch without an explicit trust/approval transition.
+Validated every path where untrusted MCP/tool output can cross into Bash, filesystem mutation, network actions, prompts with elevated tool authority, or structured action dispatch without an explicit trust/approval transition. Confirmed findings, each validated for reachability before remediation:
+
+- **Tool-agent loop (`cmd_tool_agent` → `run_agent`):** executed every model tool call with no permission gate and no filesystem containment — `run_python` reached `subprocess` with model-chosen code, `write_file` wrote to arbitrary paths; tool results (MCP/web/plugin content) fed the loop. Fixed: fail-closed approval mirroring CodeAgent semantics (`_approve`: read-only auto-approved, mutating/exec denied without approval, `bypassPermissions`/planMode/dontAsk honored, `can_use_tool` callback authoritative) + `read_file`/`write_file`/`list_files` through centralized `safe_resolve` containment.
+- **Browsing agent (`cmd_browse`):** fetched model/page-derived navigation URLs through `safe_urlopen` (scheme-only) — the same SSRF surface SEC-005 closed for WebFetch. Fixed: browse fetch routes through `safe_external_urlopen`.
+- **Compliance file download:** server-supplied Content-Disposition filename written directly to disk; absolute/traversal components could place the download anywhere. Fixed: `_safe_download_filename` sanitizes to a bare basename with `file_id` fallback.
+
+Inherent-design note (not a finding): tool results are re-fed to a model retaining tool authority; the boundary is enforced at tool-execution gates, which this slice strengthens.
+
+**PR:** #64  
+**Verified Head:** `34524a9` (all 18 PR checks green)  
+**Merge Commit:** `0f009773d638231c13b9f438480134c72f54bd31` (all 20 merged-head checks green)  
+**Next slice:** Slice D — Permission & Approval Parity/Hardening
 
 ### Slice D — Permission & Approval Parity/Hardening
 
@@ -274,7 +285,7 @@ Final Release may be declared only when every applicable release-blocking row is
 | Python | 3.9 / 3.10 / 3.11 / 3.12 all green | Continuous per PR; must be green on final RC |
 | Coverage | Existing threshold preserved or increased | Enforced; final RC evidence required |
 | Lint/Format | Ruff + Black green | Enforced |
-| Security | Bandit/security green; confirmed findings closed | SEC-006..010 remain to review |
+| Security | Bandit/security green; confirmed findings closed | SEC-007..010 remain to review |
 | Code scanning | CodeQL green with no unresolved introduced alert | Enforced |
 | Dependencies | Dependency Review green; no unaccepted high/critical release blocker | Enforced; reproducibility review pending |
 | Containers | Docker build/version/health smoke green | Enforced; runtime hardening evidence pending |
@@ -286,7 +297,7 @@ Final Release may be declared only when every applicable release-blocking row is
 | Tenancy | Tenant/data isolation regressions green | Deep review pending |
 | Network | SSRF/redirect/private-network/DNS-rebinding boundaries verified | SEC-005 verified at `965ac74`; DNS-rebinding egress residual documented |
 | Filesystem | Workspace/sandbox containment verified | SEC-002 + SEC-004 merged; final RC recheck required |
-| MCP/Tools | Untrusted output cannot silently gain elevated side effects | Review pending |
+| MCP/Tools | Untrusted output cannot silently gain elevated side effects | SEC-006 verified at `0f00977`; memory-agent approval parity noted as follow-up |
 | Secrets | Redaction + environment/process inheritance policy verified | Review pending |
 | Observability | Structured logs, metrics, tracing, security/audit events verified | Production evidence pending |
 | Durability | restart/idempotency/lease/fencing/crash recovery verified | Implemented baseline; fleet E2E evidence pending |
@@ -300,7 +311,8 @@ Final Release may be declared only when every applicable release-blocking row is
 Do not declare **Enterprise Final Release Complete** while any of these remain true:
 
 - a confirmed high/critical security finding is unremediated;
-- SEC-006 MCP/tool-output trust transition is not verified;
+- SEC-007 document/tenant isolation paths are not verified;
+- MCP/tool-output trust transition is not verified;
 - approval/authorization replay and mutation semantics are not verified;
 - cross-tenant data/tool paths are not verified;
 - MCP/tool-output trust transition is not verified;
@@ -313,6 +325,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 ---
 
 ## 7. Completion Evidence Ledger
+
+### SEC-006 — MCP / Tool-Output Trust Boundary
+
+- PR: #64
+- verified head: `34524a9` (all 18 PR checks green)
+- merge commit: `0f009773d638231c13b9f438480134c72f54bd31`
+- CI: `96402660389` (3.9) / `96402660213` (3.10) / `96402660376` (3.11) / `96402660334` (3.12) — success
+- lint: `96402660100` — success
+- security / Bandit & pip-audit: `96402660323` / `96402660201` — success
+- CodeQL / Analyze Python Code Security: `96402660065` — success
+- Dependency Review: `96402660454` — success
+- Gitleaks: `96402660454` — success
+- Helm v3 `96402659915` / v4 `96402660182` — success
+- Release Gate: `96402660174` — success
+- SDK & TypeScript: `96402659955` — success
+- docker-build `96403032734`, build-and-push `96402660109`, deploy `96402773130` — success
+- review threads: none unresolved
+- security result: tool-agent loop gated (fail-closed approval, `safe_resolve` containment), browse fetch SSRF-gated via centralized boundary, compliance download filename sanitized
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-005 — CodeAgent WebFetch SSRF
 
@@ -331,7 +362,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - docker-build `96389860141`, build-and-push `96389430757`, deploy `96389589866` — success
 - review threads: none unresolved
 - security result: CodeAgent WebFetch now routes through the centralized external-URL boundary; non-public literals/DNS, userinfo confusion, redirect hops, env-proxy bypass, and unbounded reads closed; 1 MiB response cap + redirect cap + proxy-disable hardening
-- next security hypothesis: SEC-006 MCP/tool-output trust boundary
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-004 — CodeAgent Filesystem Workspace Containment
 
@@ -346,7 +377,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - SDK & TypeScript: `32278816704` — success
 - review threads: none unresolved
 - security result: relative traversal, absolute escape, symlink escape, read/enumeration escape, and Write/Edit outside-workspace mutation closed for CodeAgent filesystem tools
-- next security hypothesis: SEC-006 MCP/tool-output trust boundary
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 For every future merged slice record the PR number, exact verified head SHA, merge SHA, required workflow run IDs/results, test/coverage result, security/capability result, compatibility/migration note, rollback note, and next highest-priority unresolved slice.
 
