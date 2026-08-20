@@ -2239,9 +2239,6 @@ def main():
 
         cmd_plugin_disable(args.plugin_disable)
         return
-    if args.plugin_validate:
-
-        return
 
     # ── Settings (no API key required) ──
     if args.settings_show:
