@@ -605,11 +605,19 @@ class SubagentRegistry:
             content = f.read_text()
             meta, body = self._parse_frontmatter(content)
             name = namespace or meta.get("name") or f.stem
+            tools = meta.get("tools", "all")
+            disallowed = meta.get("disallowedTools", "")
+            if tools != "all" and not self._validate_tool_names(tools):
+                print(f"  [WARN] Skipping agent {f.name}: unknown tool in tools={tools!r}")
+                return
+            if disallowed and not self._validate_tool_names(disallowed):
+                print(f"  [WARN] Skipping agent {f.name}: unknown tool in disallowedTools={disallowed!r}")
+                return
             self._agents[name] = {
                 "name": name,
                 "description": meta.get("description", ""),
-                "tools": meta.get("tools", "all"),
-                "disallowedTools": meta.get("disallowedTools", ""),
+                "tools": tools,
+                "disallowedTools": disallowed,
                 "model": meta.get("model", ""),
                 "system_prompt": body.strip(),
                 "file": str(f),
@@ -617,6 +625,16 @@ class SubagentRegistry:
             }
         except Exception as e:
             print(f"  [WARN] Could not load agent {f.name}: {e}")
+
+    @staticmethod
+    def _validate_tool_names(raw: str) -> bool:
+        known = set(BUILTIN_TOOLS)
+        for token in str(raw).replace(",", " ").split():
+            if token.startswith("mcp__"):
+                continue
+            if token not in known:
+                return False
+        return True
 
     def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
         if not content.startswith("---"):
