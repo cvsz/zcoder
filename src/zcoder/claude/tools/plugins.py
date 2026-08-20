@@ -731,9 +731,3 @@ def format_findings(findings: list) -> list[str]:
     return [f"{icon.get(level, '')} {msg}\033[0m" for level, msg in findings]
 
 
-def cmd_plugin_validate(path: str):
-    findings = validate_plugin(Path(os.path.expanduser(path)))
-    for line in format_findings(findings):
-        print(line)
-    if any(level == "error" for level, _ in findings):
-        sys.exit(1)
