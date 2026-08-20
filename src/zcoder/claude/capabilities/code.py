@@ -83,6 +83,7 @@ MAX_SKILL_BYTES = 256 * 1024
 AGENTS_DIR = Path(".claude/agents")
 MAX_AGENT_BYTES = 256 * 1024
 COMMANDS_DIR = Path(".claude/commands")
+MAX_COMMAND_BYTES = 256 * 1024
 MEMORY_FILE = Path(".claude/CLAUDE.md")
 USER_MEMORY = Path(os.path.expanduser("~/.claude/CLAUDE.md"))
 MCP_JSON = Path(".mcp.json")
@@ -1738,26 +1739,52 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
     # Check for custom slash command (project/skills dirs, then plugins)
     for d in (COMMANDS_DIR, SKILLS_DIR):
         if d.exists():
+            try:
+                base = d.resolve()
+            except Exception:
+                base = d
             for f in d.rglob("*.md"):
-                if f.stem == cmd:
-                    content = f.read_text()
-                    print(f"\033[94mℹ Running custom command: /{cmd}\033[0m\n")
-                    session = CodeSession(cwd=cwd, model=model)
-                    agent = CodeAgent(api_key=api_key, model=model)
-                    agent.query(
-                        f"{content}\n\n{prompt}" if prompt else content,
-                        session,
-                        tools="code",
-                        permission="acceptEdits",
-                    )
-                    return
+                if f.stem != cmd:
+                    continue
+                try:
+                    resolved = safe_resolve(f, base)
+                except Exception:
+                    continue
+                if resolved is None:
+                    continue
+                try:
+                    check_file_size(resolved, MAX_COMMAND_BYTES)
+                except Exception:
+                    continue
+                content = resolved.read_text()
+                print(f"\033[94mℹ Running custom command: /{cmd}\033[0m\n")
+                session = CodeSession(cwd=cwd, model=model)
+                agent = CodeAgent(api_key=api_key, model=model)
+                agent.query(
+                    f"{content}\n\n{prompt}" if prompt else content,
+                    session,
+                    tools="code",
+                    permission="acceptEdits",
+                )
+                return
 
     try:
         from zcoder.claude.tools.plugins import load_plugin_commands
 
         for entry in load_plugin_commands():
             if entry["name"] == cmd or entry["name"].split(":", 1)[-1] == cmd:
-                content = Path(entry["path"]).read_text()
+                plugin_dir = Path(entry.get("plugin_dir", entry["path"]))
+                try:
+                    resolved = safe_resolve(Path(entry["path"]), plugin_dir)
+                except Exception:
+                    continue
+                if resolved is None:
+                    continue
+                try:
+                    check_file_size(resolved, MAX_COMMAND_BYTES)
+                except Exception:
+                    continue
+                content = resolved.read_text()
                 print(f"\033[94mℹ Running plugin command: /{entry['name']}\033[0m\n")
                 session = CodeSession(cwd=cwd, model=model)
                 agent = CodeAgent(api_key=api_key, model=model)
