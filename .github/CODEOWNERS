@@ -1,0 +1,15 @@
+# Default ownership
+* @cvsz
+
+# Security-sensitive surfaces
+/.github/ @cvsz
+/src/zcoder/core/security.py @cvsz
+/src/zcoder/claude/ @cvsz
+/src/zcoder/api/ @cvsz
+/SECURITY.md @cvsz
+/exec-planning.md @cvsz
+
+# Release and deployment
+/Dockerfile @cvsz
+/helm/ @cvsz
+/scripts/ @cvsz
