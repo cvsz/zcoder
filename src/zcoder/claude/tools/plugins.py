@@ -726,10 +726,14 @@ def cmd_plugin_disable(name: str):
         sys.exit(1)
 
 
+def format_findings(findings: list) -> list[str]:
+    icon = {"ok": "\033[92m✓", "info": "\033[94mℹ", "warn": "\033[93m⚠", "error": "\033[91m✗"}
+    return [f"{icon.get(level, '')} {msg}\033[0m" for level, msg in findings]
+
+
 def cmd_plugin_validate(path: str):
     findings = validate_plugin(Path(os.path.expanduser(path)))
-    icon = {"ok": "\033[92m✓", "info": "\033[94mℹ", "warn": "\033[93m⚠", "error": "\033[91m✗"}
-    for level, msg in findings:
-        sys.stdout.write(icon.get(level, "") + " " + msg + "\033[0m\n")
+    for line in format_findings(findings):
+        print(line)
     if any(level == "error" for level, _ in findings):
         sys.exit(1)
