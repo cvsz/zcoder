@@ -343,7 +343,7 @@ Third-party reverse-engineering references are design aids only. Do not copy pro
 
 After security-critical agent boundaries are green:
 
-- provider-backed GitHub adapter construction;
+- ~~provider-backed GitHub adapter construction~~ — **DONE (Slice F.1)**;
 - durable SQLite/PostgreSQL multi-process/fleet runtime wiring;
 - worker/service entrypoints for scheduled maintenance campaigns;
 - crash-resume/fencing/lease integration tests across processes;
@@ -790,6 +790,23 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: relative traversal, absolute escape, symlink escape, read/enumeration escape, and Write/Edit outside-workspace mutation closed for CodeAgent filesystem tools
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice F.1 — Provider-backed GitHub Adapter Construction (Slice F item 1)
+
+- PR: #82
+- verified head: `4c35705` (all 18 PR checks green)
+- merge commit: `a9910e2` (all 19 merged-head check runs success)
+- CI: test 3.9 / 3.10 / 3.11 / 3.12 — success; lint, security, Bandit & pip-audit — success
+- CodeQL / Analyze Python Code Security: success
+- Dependency Review / Gitleaks: success
+- Helm v3 / v4: success
+- Release Gate: success
+- SDK & TypeScript: success
+- docker-build: success
+- review threads: none unresolved (independent reviewer loop repaired 2 findings pre-push: Content-Type on JSON bodies; narrowed KeyError swallowing in get_pr)
+- capability result: GitHubProvider implements GitHubProviderProtocol over the REST API via centralized safe_urlopen + validate_url scheme gate; operator-configured base_url honored; lowercase conclusions mapped; ISO-8601 timestamps parsed to epoch floats; token never appears in error messages; FakeGitHubProvider duplicated block removed; 11 mocked-transport regression tests
+- compatibility/rollback note: additive provider class; FakeGitHubProvider behavior unchanged; single-service revert restores prior behavior
+- next in queue: SEC-008 secrets/environment inheritance
 
 For every future merged slice record the PR number, exact verified head SHA, merge SHA, required workflow run IDs/results, test/coverage result, security/capability result, compatibility/migration note, rollback note, and next highest-priority unresolved slice.
 
