@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@cbabae43165982bb7dc5dd7025c76c0a69e1e8a2`  
+**Current Baseline:** `main@30a4b39f5fe75b90915f601668a13022c8eaa48c`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, subagents budgets (tool validation DONE in E.8), built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
+**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy. **Now executing: E.12 — SEC-007 tenant isolation for memory (extends E.2).**
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -320,7 +320,7 @@ Progress only in bounded PRs through:
 4. skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**;
 5. ~~hooks lifecycle and policy-safe event model~~ — **DONE (Slice E.9)**;
 6. ~~MCP transports, discovery, resource/tool trust policy~~ — **DONE (Slice E.10)**;
-7. subagents and agent teams with bounded budgets/permissions — **agent loader containment DONE (E.4); frontmatter tool validation DONE (E.8); full lifecycle/budgets remains**;
+7. ~~subagents and agent teams with bounded budgets/permissions~~ — **agent loader containment DONE (E.4); frontmatter tool validation DONE (E.8); budget enforcement DONE (E.11); full lifecycle remains**;
 8. ~~plugins/marketplaces with provenance and permission manifests~~ — **DONE (Slice E.6)**;
 9. complete built-in tool parity with security boundaries;
 10. IDE/web/remote/CI workflows;
@@ -622,6 +622,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: McpConnector.from_json_file() validates server names (reject / and ..) and URLs (require http or https via validate_url); invalid servers skipped with warning (fail-closed); plugin MCP servers validated via same path; 6 regression tests
 - compatibility/rollback note: additive validation in from_json_file(); existing valid configs unaffected; stdio transport unchanged (local command execution)
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.11 — Subagent Budget Enforcement (item 7: subagents budgets)
+
+- PR: #76
+- verified head: `c529c90` (all 18 PR checks green)
+- merge commit: `30a4b39f5fe75b90915f601668a13022c8eaa48c`
+- CI: `96646596800` (3.9) / `96646596724` (3.10) / `96646596803` (3.11) / `96646596848` (3.12) — success
+- lint: `96646596732` — success
+- security / Bandit & pip-audit: `96646596788` / `96646597035` — success
+- CodeQL / Analyze Python Code Security: pass — `96646739986` / `96646597060` — success
+- Dependency Review / Gitleaks: `96646596731` / `96646597078` — success
+- Helm v3/v4 `96646596749` — success
+- Release Gate: `96646597083` — success
+- SDK & TypeScript: `96646596808` — success
+- docker-build / build-and-push / deploy `96646596732` — success
+- review threads: none unresolved
+- security result: CodeAgent.query() now enforces max_cost_usd after each turn; subagent budget prevents runaway token/cost consumption; CLI flags --code-agent-subagent-turns and --code-agent-subagent-cost wire through; 3 regression tests
+- compatibility/rollback note: additive max_cost_usd param; default None = no limit; existing callers unaffected
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
