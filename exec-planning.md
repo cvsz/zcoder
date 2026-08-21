@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@c1654d0eb7b6d66edcbf85a37df58ff6b635823d`  
+**Current Baseline:** `main@cbabae43165982bb7dc5dd7025c76c0a69e1e8a2`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, MCP transports/trust, subagents budgets (tool validation DONE in E.8), built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
+**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, subagents budgets (tool validation DONE in E.8), built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy (SEC-007 RAG/document trust + tenant isolation remains the next security hypothesis)
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -319,7 +319,7 @@ Progress only in bounded PRs through:
 3. ~~CLAUDE.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
 4. skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**;
 5. ~~hooks lifecycle and policy-safe event model~~ — **DONE (Slice E.9)**;
-6. MCP transports, discovery, resource/tool trust policy;
+6. ~~MCP transports, discovery, resource/tool trust policy~~ — **DONE (Slice E.10)**;
 7. subagents and agent teams with bounded budgets/permissions — **agent loader containment DONE (E.4); frontmatter tool validation DONE (E.8); full lifecycle/budgets remains**;
 8. ~~plugins/marketplaces with provenance and permission manifests~~ — **DONE (Slice E.6)**;
 9. complete built-in tool parity with security boundaries;
@@ -603,6 +603,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: HooksEngine validates event names against known HOOK_EVENTS frozenset; unknown events rejected with warning (fail-closed policy-safe event model); applies in __init__() and with_plugins(); 7 regression tests
 - compatibility/rollback note: HOOK_EVENTS converted to frozenset (O(1) lookup); additive validation; existing valid configs unaffected; plugin hooks filtered automatically via existing with_plugins() delegation
+- next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.10 — MCP Server Name and URL Validation (item 6: MCP transports/trust)
+
+- PR: #75
+- verified head: `c529c90` (all 18 PR checks green)
+- merge commit: `cbabae43165982bb7dc5dd7025c76c0a69e1e8a2`
+- CI: `96640265849` (3.9) / `96640265837` (3.10) / `96640265970` (3.11) / `96640265928` (3.12) — success
+- lint: `96640265784` — success
+- security / Bandit & pip-audit: `96640265737` / `96640265338` — success
+- CodeQL / Analyze Python Code Security: pass — `96640399113` / `96640265532` — success
+- Dependency Review / Gitleaks: `96640265672` / `96640265457` — success
+- Helm v3/v4 `96640265620` — success
+- Release Gate: `96640265538` — success
+- SDK & TypeScript: `96640265852` — success
+- docker-build / build-and-push / deploy `96640265784` — success
+- review threads: none unresolved
+- security result: McpConnector.from_json_file() validates server names (reject / and ..) and URLs (require http or https via validate_url); invalid servers skipped with warning (fail-closed); plugin MCP servers validated via same path; 6 regression tests
+- compatibility/rollback note: additive validation in from_json_file(); existing valid configs unaffected; stdio transport unchanged (local command execution)
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
