@@ -1870,6 +1870,43 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
             reg.load()
             for s in reg.list():
                 print(f"  {s['name']} ({s['source']}): {s['description']}")
+        elif cmd == "skills":
+            reg = SkillsRegistry()
+            reg.load()
+            for s in reg.list():
+                print(f"  {s['name']} ({s['source']}): {s['description']}")
+        elif cmd == "skill":
+            if not prompt:
+                print("Usage: /skill <install|remove|info> <name>")
+                return
+            parts = prompt.split(maxsplit=1)
+            if len(parts) < 2:
+                print("Usage: /skill <install|remove|info> <name>")
+                return
+            action, name = parts[0], parts[1]
+            reg = SkillsRegistry()
+            reg.load()
+            if action == "info":
+                skill = reg.get(name)
+                if not skill:
+                    print(f"Skill '{name}' not found")
+                    return
+                print(f"Name: {skill['name']}")
+                print(f"Source: {skill['source']}")
+                print(f"Description: {skill['description']}")
+                print(f"Path: {skill['file']}")
+            elif action == "remove":
+                skill_path = reg.dir / name / "SKILL.md"
+                if not skill_path.exists():
+                    print(f"Skill '{name}' not found")
+                    return
+                skill_path.unlink()
+                print(f"Removed skill '{name}'")
+            elif action == "install":
+                print(f"Skill installation not yet implemented. Place SKILL.md in .claude/skills/{name}/")
+            else:
+                print(f"Unknown action '{action}'. Use: install, remove, info")
+            return
         elif cmd == "memory":
             mm = MemoryManager()
             mem = mm.combined()
