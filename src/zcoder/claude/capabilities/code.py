@@ -1484,6 +1484,14 @@ class CodeAgent:
                 tinput = block.get("input", {})
                 tid = block["id"]
 
+                # Defense-in-depth: reject unknown tool names even if they
+                # appear in a tool_use block (fail-closed).
+                if tname not in BUILTIN_TOOLS and not tname.startswith("mcp__"):
+                    result = f"[DENIED] unknown tool {tname}"
+                    tool_results.append({"type": "tool_result", "tool_use_id": tid, "content": result})
+                    session.add_tool_call(tname, tinput, result, approved=False)
+                    continue
+
                 if output_mode in ("stream",):
                     print(f"  \033[90m→ {tname}({json.dumps(tinput)[:60]})\033[0m")
 
