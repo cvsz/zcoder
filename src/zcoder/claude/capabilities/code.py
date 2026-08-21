@@ -885,6 +885,7 @@ class MemoryLayer:
     scope: MemoryScope
     path: Path
     content: str
+    tenant_id: str = ""
 
 
 class MemoryManager:
@@ -906,6 +907,7 @@ class MemoryManager:
         *,
         enterprise_dir: Optional[str] = None,
         user_memory_path: Optional[str] = None,
+        tenant_id: str = "",
     ):
         self.workspace = Path(workspace).expanduser().resolve()
         self.enterprise_dir = (
@@ -914,6 +916,7 @@ class MemoryManager:
         self.user_memory_path = (
             Path(user_memory_path).expanduser().resolve() if user_memory_path else USER_MEMORY
         )
+        self.tenant_id = tenant_id
 
     def _read_scoped(self, candidate: Path, base: Path, scope: MemoryScope) -> Optional[MemoryLayer]:
         # Containment: the resolved file must stay within the directory it was
@@ -933,7 +936,7 @@ class MemoryManager:
             content = resolved.read_text(encoding="utf-8", errors="replace")
         except Exception:
             return None
-        return MemoryLayer(scope, resolved, content)
+        return MemoryLayer(scope, resolved, content, tenant_id=self.tenant_id)
 
     def _walk_up(self, start: Path):
         cur = start.resolve()
@@ -1005,8 +1008,9 @@ class MemoryManager:
         # Clear delimitation: loaded files are untrusted context, not system
         # policy. The agent must not treat instructions inside as able to
         # override security gates (which are enforced in code, fail-closed).
+        tenant_attr = f' tenant="{self.tenant_id}"' if self.tenant_id else ""
         return (
-            '<loaded_memory context="untrusted-project-and-user-files">\n'
+            f'<loaded_memory context="untrusted-project-and-user-files"{tenant_attr}>\n'
             + "\n\n".join(blocks)
             + "\n</loaded_memory>"
         )
