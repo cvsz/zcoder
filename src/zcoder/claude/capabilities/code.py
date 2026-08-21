@@ -215,6 +215,7 @@ class CodeSession:
         model: str = "claude-sonnet-5",
         permission_mode: str = "askPermission",
         system_prompt: str = None,
+        tenant_id: str = "",
     ):
         self.id = session_id or str(uuid.uuid4())[:16]
         self.cwd = str(Path(cwd).resolve())
@@ -232,6 +233,8 @@ class CodeSession:
         self.created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
         self.updated_at = self.created_at
         self.checkpoints: list = []
+        self.audit_events: list = []
+        self.tenant_id: str = tenant_id
 
     @classmethod
     def load(cls, session_id: str) -> "CodeSession":
@@ -272,6 +275,16 @@ class CodeSession:
                 "result": result,
                 "approved": approved,
                 "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+        )
+
+    def add_audit(self, event: str, detail: dict = None):
+        self.audit_events.append(
+            {
+                "event": event,
+                "detail": detail or {},
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "tenant_id": self.tenant_id,
             }
         )
 
@@ -1420,6 +1433,7 @@ class CodeAgent:
 
         # Add prompt to session
         session.add_turn("user", prompt)
+        session.add_audit("session_start", {"prompt": prompt[:200], "max_turns": max_turns})
 
         turn = 0
         final_text = ""
@@ -1467,6 +1481,9 @@ class CodeAgent:
                 final_text += (
                     f"\n[budget] cost budget exhausted (${session.cost_usd:.4f} >= ${max_cost_usd:.4f})"
                 )
+                session.add_audit(
+                    "budget_exhausted", {"cost_usd": session.cost_usd, "limit_usd": max_cost_usd}
+                )
                 break
 
             if stop_reason == "end_turn":
@@ -1490,16 +1507,21 @@ class CodeAgent:
                     result = f"[DENIED] unknown tool {tname}"
                     tool_results.append({"type": "tool_result", "tool_use_id": tid, "content": result})
                     session.add_tool_call(tname, tinput, result, approved=False)
+                    session.add_audit("tool_denied", {"tool": tname, "reason": "unknown"})
                     continue
 
                 if output_mode in ("stream",):
                     print(f"  \033[90m→ {tname}({json.dumps(tinput)[:60]})\033[0m")
+
+                session.add_audit("tool_start", {"tool": tname, "input": tinput})
 
                 # Check disallowed
                 if disallowed and tname in disallowed:
                     result = f"[DENIED] {tname} is in disallowed_tools"
                 else:
                     result = self._execute_tool(tname, tinput, session, hooks, permission, can_use_tool)
+
+                session.add_audit("tool_end", {"tool": tname, "approved": "DENIED" not in result})
 
                 tool_results.append(
                     {
@@ -1524,6 +1546,7 @@ class CodeAgent:
                 }
             )
 
+        session.add_audit("session_end", {"turns": turn, "cost_usd": session.cost_usd})
         return final_text
 
 
@@ -1588,6 +1611,7 @@ def cmd_code_agent(
     headless: bool = False,
     agent_context_editing: bool = False,
     load_project_memory: bool = True,
+    tenant_id: str = "",
 ):
     """Main --code-agent entry point.
 
@@ -1605,6 +1629,8 @@ def cmd_code_agent(
     if session_id:
         try:
             session = CodeSession.load(session_id)
+            if tenant_id:
+                session.tenant_id = tenant_id
             if not headless:
                 print(f"\033[90m  Resumed session: {session.id} ({len(session.turns)} turns)\033[0m\n")
         except FileNotFoundError:
@@ -1614,9 +1640,12 @@ def cmd_code_agent(
                 model=model,
                 permission_mode=permission,
                 system_prompt=system or "",
+                tenant_id=tenant_id,
             )
     else:
-        session = CodeSession(cwd=cwd, model=model, permission_mode=permission, system_prompt=system or "")
+        session = CodeSession(
+            cwd=cwd, model=model, permission_mode=permission, system_prompt=system or "", tenant_id=tenant_id
+        )
 
     # Output style: append style instructions to the session's system prompt
     if output_style:
@@ -1722,6 +1751,7 @@ def cmd_code_subagent(
     load_project_memory: bool = True,
     max_turns: int = 10,
     max_cost_usd: float = None,
+    tenant_id: str = "",
 ):
     """Spawn a focused subagent for a sub-task."""
     print("\033[94mℹ Spawning subagent…\033[0m\n")
@@ -1733,6 +1763,7 @@ def cmd_code_subagent(
             "You are a focused subagent. Complete ONLY the specific task. "
             "Be thorough. Return just the result."
         ),
+        tenant_id=tenant_id,
     )
     agent = CodeAgent(api_key=api_key, model=model)
     result = agent.query(
