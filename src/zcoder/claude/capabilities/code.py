@@ -423,7 +423,7 @@ class HooksEngine:
         stdin_data = json.dumps(payload)
         for handler in handlers:
             cmd = handler.get("command", "")
-            env = {**os.environ, **handler.get("env", {})}
+            env = build_child_env(handler.get("env", {}))
             if not cmd:
                 continue
             try:
@@ -1045,7 +1045,7 @@ from zcoder.core.resilience import (
     shell_command_argv,
     urlopen_json,
 )
-from zcoder.core.security import check_file_size, safe_resolve, validate_url
+from zcoder.core.security import build_child_env, check_file_size, safe_resolve, validate_url
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
@@ -1307,7 +1307,12 @@ class CodeAgent:
                     except ImportError:
                         pass
                 r = subprocess.run(
-                    shell_command_argv(cmd), cwd=cwd, capture_output=True, text=True, timeout=timeout
+                    shell_command_argv(cmd),
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    env=build_child_env(),
                 )
                 out = r.stdout.strip()
                 err = r.stderr.strip()

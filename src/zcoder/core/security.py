@@ -120,3 +120,67 @@ def env_flag(name: str, default: bool = False) -> bool:
     if val is None:
         return default
     return val.strip().lower() in ("1", "true", "yes", "on")
+
+
+# ── Child-process environment isolation ─────────────────────────────────
+
+_SECRET_ENV_SUFFIXES = (
+    "API_KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "PASSPHRASE",
+    "DSN",
+)
+
+_SECRET_ENV_NAMES = frozenset(
+    {
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AZURE_CLIENT_SECRET",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "PGPASSWORD",
+        "SSH_AUTH_SOCK",
+    }
+)
+
+
+def is_secret_env_name(name: str) -> bool:
+    """Return True when an environment variable name is treated as secret.
+
+    A name is secret when it ends with a known credential suffix
+    (``*_API_KEY``, ``*_TOKEN``, ``*_SECRET``, ``*_PASSWORD``,
+    ``*_PASSWD``, ``*_PASSPHRASE``, ``*_DSN``) or appears on the explicit
+    credential-name list. Matching is case-insensitive.
+
+    Note: ``SSH_AUTH_SOCK`` and ``GIT_ASKPASS`` are filtered deliberately —
+    model-spawned children should not reach agent/credential-helper sockets.
+    Re-inject them via explicit trusted config if a workflow requires it.
+    """
+    upper = name.upper()
+    if upper in _SECRET_ENV_NAMES:
+        return True
+    return any(upper.endswith(suffix) for suffix in _SECRET_ENV_SUFFIXES)
+
+
+def build_child_env(
+    overrides: dict[str, str] | None = None,
+    *,
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Build a filtered environment for child processes (SEC-008).
+
+    Starts from ``base`` (default: the current process environment), drops
+    every variable whose name matches :func:`is_secret_env_name`, then
+    applies ``overrides`` last. Overrides are applied *after* filtering so
+    trusted callers can deliberately re-inject a specific credential (for
+    example ``PGPASSWORD`` for a backup child); they are an explicit
+    operator-code decision, never implicit inheritance.
+    """
+    env = dict(base if base is not None else os.environ)
+    filtered = {k: v for k, v in env.items() if not is_secret_env_name(k)}
+    if overrides:
+        filtered.update(overrides)
+    return filtered
