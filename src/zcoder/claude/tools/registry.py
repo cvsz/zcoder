@@ -74,7 +74,7 @@ from typing import Callable, Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
-from zcoder.core.security import safe_resolve
+from zcoder.core.security import build_child_env, safe_resolve
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
 
@@ -933,7 +933,13 @@ def build_code_tools_registry(cwd: Optional[str] = None) -> ToolRegistry:
         import subprocess
         import sys
 
-        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=build_child_env(),
+        )
         out = result.stdout.strip()
         err = result.stderr.strip()
         if err:

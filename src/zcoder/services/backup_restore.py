@@ -23,8 +23,47 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit, urlunsplit
+
+from zcoder.core.security import build_child_env
 
 logger = logging.getLogger(__name__)
+
+
+def _split_dsn_password(url: str) -> tuple[str, str]:
+    """Split a database URL into (password-free URL, password).
+
+    Keeps credentials off the child-process command line (SEC-008): the
+    password travels via the ``PGPASSWORD`` environment override instead of
+    being visible in ``/proc/*/cmdline``. URLs without a password are
+    returned unchanged.
+    """
+    try:
+        parts = urlsplit(url)
+        # urlsplit leaves userinfo percent-ENCODED; decode so libpq's
+        # PGPASSWORD receives the literal password
+        password = unquote(parts.password) if parts.password else ""
+        if not password:
+            return url, ""
+        host = parts.hostname or ""
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        # urlsplit leaves userinfo percent-encoded: keep the username as-is
+        # so encoded specials (us%2Fer) survive into the rebuilt URL
+        netloc = f"{parts.username}@{host}" if parts.username else host
+        if parts.port:
+            netloc = f"{netloc}:{parts.port}"
+    except ValueError:
+        return url, ""
+    rebuilt = urlunsplit((parts.scheme, netloc, parts.path or "", parts.query, parts.fragment))
+    return rebuilt, password
+
+
+def _redact(text: str, secret: str) -> str:
+    """Best-effort removal of a known secret from diagnostic text."""
+    if secret and text:
+        return text.replace(secret, "[redacted]")
+    return text
 
 
 # ─── Backup record ────────────────────────────────────────────────────────────
@@ -119,7 +158,9 @@ class BackupManager:
 
         dump_file = self.backup_destination / f"{backup_id}.sql.gz"
         try:
-            # Run pg_dump compressed
+            # Keep the password off the command line: pass it via PGPASSWORD
+            # in the filtered child environment instead (SEC-008).
+            target_url, password = _split_dsn_password(self.database_url)
             result = subprocess.run(
                 [
                     "pg_dump",
@@ -127,15 +168,18 @@ class BackupManager:
                     "--format=custom",
                     "--compress=9",
                     f"--file={dump_file}",
-                    self.database_url,
+                    target_url,
                 ],
                 capture_output=True,
                 text=True,
                 timeout=3600,
+                env=build_child_env({"PGPASSWORD": password} if password else None),
             )
 
             if result.returncode != 0:
-                record.error = f"pg_dump failed (rc={result.returncode}): {result.stderr}"
+                record.error = (
+                    f"pg_dump failed (rc={result.returncode}): " f"{_redact(result.stderr, password)}"
+                )
                 logger.error(record.error)
                 record.completed_at = time.time()
                 return record
@@ -221,25 +265,30 @@ class BackupManager:
             return result
 
         try:
-            # Run pg_restore
+            # Keep the password off the command line (SEC-008).
+            target_url, password = _split_dsn_password(restore_url)
             restore_result = subprocess.run(
                 [
                     "pg_restore",
                     "--no-password",
                     "--clean",
                     "--if-exists",
-                    f"--dbname={restore_url}",
+                    f"--dbname={target_url}",
                     str(dump_file),
                 ],
                 capture_output=True,
                 text=True,
                 timeout=3600,
+                env=build_child_env({"PGPASSWORD": password} if password else None),
             )
 
             if restore_result.returncode not in (0, 1):  # rc=1 may be warnings
-                result.error = f"pg_restore failed (rc={restore_result.returncode}): {restore_result.stderr}"
-                result.completed_at = time.time()
+                result.error = (
+                    f"pg_restore failed (rc={restore_result.returncode}): "
+                    f"{_redact(restore_result.stderr, password)}"
+                )
                 logger.error(result.error)
+                result.completed_at = time.time()
                 return result
 
             # Verify state
