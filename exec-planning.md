@@ -62,8 +62,8 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | **SEC-004** | **CodeAgent Read/Write/Edit/Glob/Grep/LS workspace escape** | **FIXED / VERIFIED / MERGED** | PR #48 exact head `14842197ddedbcffe912f42033ce962974d00e0e`; squash merge `9e85e2362d38f898bf9ee388cddb63e358d4a5ba` |
 | **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `815a10c53f925ecf615b8c8a15bdc4329a6cffca`; all 20 hosted checks green |
 | SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6`; all 20 hosted checks green |
-| SEC-007 | RAG/document trust + tenant isolation | QUEUED | Validate cross-tenant retrieval, document-triggered actions, tenant-scoped indexes/caches |
-| SEC-008 | Secrets/environment inheritance | QUEUED | Validate subprocess/hooks/MCP env propagation, secret redaction, child-process inheritance |
+| SEC-007 | RAG/document trust + tenant isolation | PARTIAL | Tenant-scoped memory verified (Slice E.12); document-triggered actions + tenant-scoped indexes/caches remain |
+| **SEC-008** | **Secrets/environment inheritance** | **FIXED / VERIFIED / MERGED** | PR #83 exact head `1634d94` (17/17 green); merge `4a00c26` (19/19 green) |
 | SEC-009 | Authorization/approval boundaries | QUEUED | Validate deny/ask/allow precedence, approval replay/expiry, mutating actions, audit identity |
 | SEC-010 | CI/dependency/supply-chain | QUEUED | Review workflow permissions, action pinning, provenance, SBOM, dependency pinning, artifact integrity |
 
@@ -737,6 +737,18 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### SEC-008 — Secrets/Environment Inheritance
+
+- PR: #83
+- verified head: `1634d94` (all 17 PR checks green)
+- merge commit: `4a00c26` (all 19 merged-head check runs success)
+- CI: test 3.9 / 3.10 / 3.11 / 3.12, lint, security, Bandit & pip-audit — success
+- CodeQL / Dependency Review / Gitleaks / Helm v3+v4 / Release Gate / SDK & TypeScript / docker-build — success
+- review threads: none unresolved (independent reviewer loop APPROVE; 1 repair round: black formatting, DSN userinfo encoding, PASSPHRASE suffix)
+- security result: centralized `is_secret_env_name`/`build_child_env` in zcoder.core.security; CodeAgent Bash, HooksEngine.fire, and run_python children spawn with filtered env (no provider keys/tokens/passwords/agent sockets); hook-declared env applied after filtering (trusted-config contract); backup/restore keeps DB passwords off argv via PGPASSWORD override and redacts logged errors; 28 regression tests pin the property at every sink
+- behavior change (intentional): model-spawned/project-hook children no longer inherit secret-named vars — documented in is_secret_env_name docstring
+- next in queue: SEC-010 CI/dependency/supply-chain review
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
 
