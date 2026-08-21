@@ -499,13 +499,29 @@ class McpConnector:
         if path.exists():
             try:
                 data = json.loads(path.read_text())
-                mc.servers = data.get("mcpServers", {})
+                for name, cfg in data.get("mcpServers", {}).items():
+                    if not cls._validate_server_name(name):
+                        print(f"  [WARN] Skipping MCP server with invalid name {name!r}")
+                        continue
+                    url = cfg.get("url", "")
+                    if url and not cls._validate_url(url):
+                        print(f"  [WARN] Skipping MCP server {name!r}: invalid URL {url!r}")
+                        continue
+                    mc.servers[name] = cfg
             except Exception as e:
                 print(f"  [WARN] .mcp.json parse error: {e}")
         try:
             from zcoder.claude.tools.plugins import load_plugin_mcp_servers
 
-            mc.servers.update(load_plugin_mcp_servers())
+            for name, cfg in load_plugin_mcp_servers().items():
+                if not cls._validate_server_name(name):
+                    print(f"  [WARN] Skipping plugin MCP server with invalid name {name!r}")
+                    continue
+                url = cfg.get("url", "")
+                if url and not cls._validate_url(url):
+                    print(f"  [WARN] Skipping plugin MCP server {name!r}: invalid URL {url!r}")
+                    continue
+                mc.servers[name] = cfg
         except ImportError:
             pass
         return mc
@@ -539,6 +555,18 @@ class McpConnector:
             self.add_http(name, url)
         else:
             self.add_stdio(name, url)
+
+    @staticmethod
+    def _validate_server_name(name: str) -> bool:
+        return bool(name) and "/" not in name and ".." not in name
+
+    @staticmethod
+    def _validate_url(url: str) -> bool:
+        try:
+            validate_url(url, allowed_schemes=("http", "https"))
+        except Exception:
+            return False
+        return True
 
     def to_query_options(self) -> dict:
         return {"mcpServers": self.servers}
@@ -1000,7 +1028,7 @@ from zcoder.core.resilience import (
     shell_command_argv,
     urlopen_json,
 )
-from zcoder.core.security import check_file_size, safe_resolve
+from zcoder.core.security import check_file_size, safe_resolve, validate_url
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
