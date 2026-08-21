@@ -4024,7 +4024,7 @@ def main():
         if not prompt:
             print("[ERROR] --code-agent requires -p PROMPT")
             sys.exit(1)
-        cmd_code_agent(
+        result = cmd_code_agent(
             prompt=prompt,
             api_key=key,
             model=model,
@@ -4047,11 +4047,15 @@ def main():
             load_project_memory=not args.no_project_memory,
             tenant_id=args.code_agent_tenant or "",
         )
+        if args.code_agent_output == "json":
+            print(result)
+        elif args.output:
+            Path(args.output).write_text(result)
         return
     if args.code_agent_subagent:
         from zcoder.claude.capabilities.code import cmd_code_subagent
 
-        cmd_code_subagent(
+        result = cmd_code_subagent(
             args.code_agent_subagent,
             key,
             model,
@@ -4061,6 +4065,10 @@ def main():
             max_cost_usd=args.code_agent_subagent_cost,
             tenant_id=args.code_agent_subagent_tenant or "",
         )
+        if args.code_agent_output == "json":
+            print(result)
+        elif args.output:
+            Path(args.output).write_text(result)
         return
     if args.code_agent_todo:
         from zcoder.claude.capabilities.code import cmd_code_todo
