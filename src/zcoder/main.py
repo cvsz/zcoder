@@ -1841,6 +1841,8 @@ def build_parser():
     cc.add_argument("--code-agent-hooks", metavar="FILE", dest="code_agent_hooks")
     cc.add_argument("--code-agent-checkpoint", action="store_true", dest="code_agent_checkpoint")
     cc.add_argument("--code-agent-subagent", metavar="PROMPT", dest="code_agent_subagent")
+    cc.add_argument("--code-agent-subagent-turns", metavar="N", type=int, dest="code_agent_subagent_turns")
+    cc.add_argument("--code-agent-subagent-cost", metavar="USD", type=float, dest="code_agent_subagent_cost")
     cc.add_argument("--code-agent-todo", metavar="PROMPT", dest="code_agent_todo")
     cc.add_argument("--code-agent-slash", metavar="CMD", dest="code_agent_slash")
     cc.add_argument("--code-agent-cost", action="store_true", dest="code_agent_cost")
@@ -4052,6 +4054,8 @@ def main():
             model,
             cwd=args.code_agent_cwd,
             load_project_memory=not args.no_project_memory,
+            max_turns=args.code_agent_subagent_turns or 10,
+            max_cost_usd=args.code_agent_subagent_cost,
         )
         return
     if args.code_agent_todo:
