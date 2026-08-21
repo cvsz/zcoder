@@ -142,25 +142,27 @@ PERMISSION_MODES = {
 # HOOK EVENTS
 # ══════════════════════════════════════════════════════════════════════════
 
-HOOK_EVENTS = [
-    "PreToolUse",  # before tool execution
-    "PostToolUse",  # after tool execution
-    "PostToolUseFailure",  # after tool fails
-    "UserPromptSubmit",  # when user submits a prompt
-    "Stop",  # agent stopping
-    "SubagentStart",  # subagent starts
-    "SubagentStop",  # subagent stops
-    "PreCompact",  # before message compaction
-    "Notification",  # notification events
-    "PermissionRequest",  # permission decision needed
-    "SessionStart",  # session begins (TypeScript only)
-    "SessionEnd",  # session ends (TypeScript only)
-    "Setup",  # setup phase
-    "TaskCompleted",  # task done
-    "ConfigChange",  # settings changed
-    "WorktreeCreate",  # git worktree created
-    "WorktreeRemove",  # git worktree removed
-]
+HOOK_EVENTS = frozenset(
+    {
+        "PreToolUse",  # before tool execution
+        "PostToolUse",  # after tool execution
+        "PostToolUseFailure",  # after tool fails
+        "UserPromptSubmit",  # when user submits a prompt
+        "Stop",  # agent stopping
+        "SubagentStart",  # subagent starts
+        "SubagentStop",  # subagent stops
+        "PreCompact",  # before message compaction
+        "Notification",  # notification events
+        "PermissionRequest",  # permission decision needed
+        "SessionStart",  # session begins (TypeScript only)
+        "SessionEnd",  # session ends (TypeScript only)
+        "Setup",  # setup phase
+        "TaskCompleted",  # task done
+        "ConfigChange",  # settings changed
+        "WorktreeCreate",  # git worktree created
+        "WorktreeRemove",  # git worktree removed
+    }
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -351,7 +353,13 @@ class HooksEngine:
 
     def __init__(self, hooks_config: dict = None):
         # hooks_config: {event_name: [{"command": "...", "env": {...}}]}
-        self.config = hooks_config or {}
+        raw = hooks_config or {}
+        self.config = {}
+        for event, handlers in raw.items():
+            if event not in HOOK_EVENTS:
+                print(f"  [WARN] Unknown hook event {event!r}; skipped")
+                continue
+            self.config[event] = handlers
 
     @classmethod
     def from_settings(cls, settings_path: Path = SETTINGS_JSON) -> "HooksEngine":
