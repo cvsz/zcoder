@@ -13,10 +13,16 @@ from __future__ import annotations
 import enum
 import hashlib
 import hmac
+import json
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
+from zcoder.core.resilience import safe_urlopen
+from zcoder.core.security import validate_url
 from zcoder.services.agent_runtime import Job, JobStatus, JobStore
 
 
@@ -83,7 +89,155 @@ class GitHubProviderProtocol:
     def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool: ...
 
 
+class GitHubProvider:
+    """Real GitHub provider using the GitHub REST API.
+
+    Operator-configured endpoint (default ``https://api.github.com``); every
+    request crosses the centralized ``safe_urlopen`` HTTP(S) boundary and the
+    base URL is scheme-validated at construction. The token never appears in
+    raised error messages or logs.
+    """
+
+    def __init__(self, token: str, base_url: str = "https://api.github.com"):
+        validate_url(base_url, allowed_schemes=("http", "https"))
+        self.token = token
+        self.base_url = base_url.rstrip("/")
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "zcoder-cli/1.9.1",
+        }
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        url = f"{self.base_url}{path}"
+        data = json.dumps(payload).encode("utf-8") if payload is not None else None
+        headers = self._headers()
+        if data is not None:
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, headers=headers, method=method, data=data)
+        try:
+            with safe_urlopen(req, timeout=30) as resp:
+                body = resp.read()
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"GitHub API error: {exc.code} {exc.reason}") from exc
+        if not body:
+            return {}
+        return json.loads(body.decode("utf-8"))
+
+    @staticmethod
+    def _parse_timestamp(value: Any) -> float | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.timestamp()
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _conclusion(value: Any) -> CheckConclusion | None:
+        if not value:
+            return None
+        try:
+            return CheckConclusion(str(value).upper())
+        except ValueError:
+            return None
+
+    def create_branch(self, repo: str, branch: str, base_sha: str) -> str:
+        self._request(
+            "POST",
+            f"/repos/{repo}/git/refs",
+            payload={"ref": f"refs/heads/{branch}", "sha": base_sha},
+        )
+        return base_sha
+
+    def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest:
+        resp = self._request(
+            "POST",
+            f"/repos/{repo}/pulls",
+            payload={"title": title, "body": body, "head": head, "base": base},
+        )
+        return self._pr_from_api(resp)
+
+    @staticmethod
+    def _pr_from_api(resp: dict[str, Any]) -> PullRequest:
+        return PullRequest(
+            number=resp["number"],
+            title=resp.get("title", ""),
+            body=resp.get("body") or "",
+            head_branch=resp["head"]["ref"],
+            base_branch=resp["base"]["ref"],
+            head_sha=resp["head"]["sha"],
+            html_url=resp.get("html_url", ""),
+            merged=bool(resp.get("merged", False)),
+            mergeable=bool(resp.get("mergeable", True)),
+            draft=bool(resp.get("draft", False)),
+        )
+
+    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None:
+        try:
+            resp = self._request("GET", f"/repos/{repo}/pulls/{pr_number}")
+        except (RuntimeError, urllib.error.URLError, ValueError):
+            return None
+        return self._pr_from_api(resp)
+
+    def list_checks(self, repo: str, ref: str) -> list[CheckRun]:
+        try:
+            resp = self._request("GET", f"/repos/{repo}/commits/{ref}/check-runs")
+        except (RuntimeError, urllib.error.URLError, ValueError):
+            return []
+        runs: list[CheckRun] = []
+        for cr in resp.get("check_runs", []):
+            started_at = self._parse_timestamp(cr.get("started_at")) or time.time()
+            runs.append(
+                CheckRun(
+                    id=str(cr["id"]),
+                    name=cr.get("name", ""),
+                    status=cr.get("status", ""),
+                    conclusion=self._conclusion(cr.get("conclusion")),
+                    html_url=cr.get("html_url", ""),
+                    started_at=started_at,
+                    completed_at=self._parse_timestamp(cr.get("completed_at")),
+                )
+            )
+        return runs
+
+    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]:
+        try:
+            resp = self._request("GET", f"/repos/{repo}/pulls/{pr_number}/reviews")
+        except (RuntimeError, urllib.error.URLError, ValueError):
+            return []
+        reviews: list[dict[str, Any]] = []
+        for review in resp:
+            user = review.get("user") or {}
+            reviews.append({"state": review.get("state", ""), "user": user.get("login", "")})
+        return reviews
+
+    def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool:
+        try:
+            self._request(
+                "PUT",
+                f"/repos/{repo}/pulls/{pr_number}/merge",
+                payload={"merge_method": strategy},
+            )
+        except (RuntimeError, urllib.error.URLError, ValueError):
+            return False
+        return True
+
+
 class FakeGitHubProvider:
+    """Fake GitHub provider for deterministic offline testing."""
+
     def __init__(self):
         self.prs: dict[int, PullRequest] = {}
         self.branches: dict[str, str] = {}
