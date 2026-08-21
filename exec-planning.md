@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@f1df9266106a65602fb283e90c8b8d3be290e9a7`  
+**Current Baseline:** `main@6f6f4fec07778d2997bd044a7556423d21435d15`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX. IDE/web/remote/CI (JSON output DONE in E.15), observability/audit/tenancy (tenant-aware audit trails DONE in E.14).
+**Next slice:** Slice E — **ALL ITEMS COMPLETE**. Full skills/commands lifecycle UX DONE (E.16).
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -317,7 +317,7 @@ Progress only in bounded PRs through:
 1. terminal/headless/streaming/JSON UX;
 2. ~~sessions, resume, checkpoints, rewind, branchable conversations~~ — **DONE (Slice E.7)**;
 3. ~~CLAUDE.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
-4. skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**;
+4. ~~skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**~~ — **DONE (Slice E.16)**;
 5. ~~hooks lifecycle and policy-safe event model~~ — **DONE (Slice E.9)**;
 6. ~~MCP transports, discovery, resource/tool trust policy~~ — **DONE (Slice E.10)**;
 7. ~~subagents and agent teams with bounded budgets/permissions~~ — **agent loader containment DONE (E.4); frontmatter tool validation DONE (E.8); budget enforcement DONE (E.11); full lifecycle remains**;
@@ -717,6 +717,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: main() captures cmd_code_agent/cmd_code_subagent return values; prints JSON when --code-agent-output=json; writes to --output file; proper exit codes for CI
 - compatibility/rollback note: additive output handling; no behavior change for non-JSON modes
+- next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### Slice E.16 — Skills/Commands Lifecycle UX (item 4)
+
+- PR: #81
+- verified head: `6a6cf92` (all 18 PR checks green)
+- merge commit: `6f6f4fec07778d2997bd044a7556423d21435d15`
+- CI: `96818125723` (3.9) / `96654288221` (3.11) / `96654288224` (3.12) / `96654288221` (3.12) — success
+- lint: `96654288224` — success
+- security / Bandit & pip-audit: `96654287962` / `96654288356` — success
+- CodeQL / Analyze Python Code Security: pass — `96654439197` / `96654287970` — success
+- Dependency Review / Gitleaks: `96654288035` / `96654288187` — success
+- Helm v3/v4 `96654288035` — success
+- Release Gate: `96654287978` — success
+- SDK & TypeScript: `96654288074` — success
+- docker-build / build-and-push / deploy `96654288135` — success
+- review threads: none unresolved
+- security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
+- compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
