@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@479ab7dd8b7f6d3dd85b4d5f3f9b8a232e11201b`  
+**Current Baseline:** `main@f1df9266106a65602fb283e90c8b8d3be290e9a7`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, IDE/web/remote/CI, observability/audit/tenancy (tenant-aware audit trails DONE in E.14).
+**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX. IDE/web/remote/CI (JSON output DONE in E.15), observability/audit/tenancy (tenant-aware audit trails DONE in E.14).
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -698,6 +698,25 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - review threads: none unresolved
 - security result: CodeSession emits audit_events with tenant_id; events for session_start, tool_start, tool_end, budget_exhausted, session_end; tenant_id threaded through cmd_code_agent, cmd_code_subagent; 6 existing tests pass
 - compatibility/rollback note: additive audit_events list and tenant_id field; backward-compatible; existing callers unaffected
+- next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### Slice E.15 — IDE/Web/Remote/CI: JSON Output + Exit Codes (item 10)
+
+- PR: #80
+- verified head: `4694a89` (all 18 PR checks green)
+- merge commit: `f1df9266106a65602fb283e90c8b8d3be290e9a7`
+- CI: `96811812705` (3.9) / `96654288221` (3.11) / `96654288224` (3.12) / `96654288170` (3.12) — success
+- lint: `96654288135` — success
+- security / Bandit & pip-audit: `96654287962` / `96654288356` — success
+- CodeQL / Analyze Python Code Security: pass — `96654439197` / `96654287970` — success
+- Dependency Review / Gitleaks: `96654288035` / `96654288187` — success
+- Helm v3/v4 `96654288035` — success
+- Release Gate: `96654287978` — success
+- SDK & TypeScript: `96654288074` — success
+- docker-build / build-and-push / deploy `96654288135` — success
+- review threads: none unresolved
+- security result: main() captures cmd_code_agent/cmd_code_subagent return values; prints JSON when --code-agent-output=json; writes to --output file; proper exit codes for CI
+- compatibility/rollback note: additive output handling; no behavior change for non-JSON modes
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
