@@ -1376,6 +1376,7 @@ class CodeAgent:
         system_extra: str = "",
         context_management: Optional[dict] = None,
         load_project_memory: bool = True,
+        max_cost_usd: float = None,
     ) -> str:
         """
         Full agentic query loop.
@@ -1457,6 +1458,12 @@ class CodeAgent:
             # Update session
             session.add_turn("assistant", text or "[tool use]", usage)
             session.save()
+
+            if max_cost_usd is not None and session.cost_usd >= max_cost_usd:
+                final_text += (
+                    f"\n[budget] cost budget exhausted (${session.cost_usd:.4f} >= ${max_cost_usd:.4f})"
+                )
+                break
 
             if stop_reason == "end_turn":
                 break
@@ -1695,7 +1702,15 @@ def cmd_code_agent(
     return result
 
 
-def cmd_code_subagent(task: str, api_key: str, model: str, cwd: str = ".", load_project_memory: bool = True):
+def cmd_code_subagent(
+    task: str,
+    api_key: str,
+    model: str,
+    cwd: str = ".",
+    load_project_memory: bool = True,
+    max_turns: int = 10,
+    max_cost_usd: float = None,
+):
     """Spawn a focused subagent for a sub-task."""
     print("\033[94mℹ Spawning subagent…\033[0m\n")
     session = CodeSession(
@@ -1715,6 +1730,8 @@ def cmd_code_subagent(task: str, api_key: str, model: str, cwd: str = ".", load_
         permission="acceptEdits",
         output_mode="stream",
         load_project_memory=load_project_memory,
+        max_turns=max_turns,
+        max_cost_usd=max_cost_usd,
     )
     return result
 
