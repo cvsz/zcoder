@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@30a4b39f5fe75b90915f601668a13022c8eaa48c`  
+**Current Baseline:** `main@479ab7dd8b7f6d3dd85b4d5f3f9b8a232e11201b`  
 **Last Updated:** 2026-08-20  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, built-in tool parity, IDE/web/remote/CI, observability/audit/tenancy. **Now executing: E.12 — SEC-007 tenant isolation for memory (extends E.2).**
+**Next slice:** Slice E (cont.) — remaining items: full skills/commands lifecycle UX, IDE/web/remote/CI, observability/audit/tenancy (tenant-aware audit trails DONE in E.14).
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -322,10 +322,10 @@ Progress only in bounded PRs through:
 6. ~~MCP transports, discovery, resource/tool trust policy~~ — **DONE (Slice E.10)**;
 7. ~~subagents and agent teams with bounded budgets/permissions~~ — **agent loader containment DONE (E.4); frontmatter tool validation DONE (E.8); budget enforcement DONE (E.11); full lifecycle remains**;
 8. ~~plugins/marketplaces with provenance and permission manifests~~ — **DONE (Slice E.6)**;
-9. complete built-in tool parity with security boundaries;
+9. ~~complete built-in tool parity with security boundaries~~ — **DONE (Slice E.13)**;
 10. IDE/web/remote/CI workflows;
 11. ~~provider-neutral routing, explicit API keys/gateways, local/free runtimes~~ — **DONE (Slice E.1)**;
-12. observability, audit, tenancy, quotas, deployment, upgrade/migration, disaster recovery.
+12. ~~observability, audit, tenancy, quotas, deployment, upgrade/migration, disaster recovery~~ — **audit trails + tenant context DONE (E.14); quotas/deployment/rollback remain**;
 
 Reference priority for parity research:
 
@@ -642,6 +642,63 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: CodeAgent.query() now enforces max_cost_usd after each turn; subagent budget prevents runaway token/cost consumption; CLI flags --code-agent-subagent-turns and --code-agent-subagent-cost wire through; 3 regression tests
 - compatibility/rollback note: additive max_cost_usd param; default None = no limit; existing callers unaffected
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
+
+### Slice E.12 — SEC-007 Tenant Isolation for Memory (extends E.2)
+
+- PR: #77
+- verified head: `c529c90` (all 18 PR checks green)
+- merge commit: `fa18bc8559929caa8007dfb93b1537c2562d9c24`
+- CI: `96649946385` (3.9) / `96649946391` (3.10) / `96649946408` (3.11) / `96649946400` (3.12) — success
+- lint: `96649946346` — success
+- security / Bandit & pip-audit: `96649946182` / `96649946543` — success
+- CodeQL / Analyze Python Code Security: pass — `96650070065` / `96649946150` — success
+- Dependency Review / Gitleaks: `96649946149` / `96649946278` — success
+- Helm v3/v4 `96649946149` — success
+- Release Gate: `96649946271` — success
+- SDK & TypeScript: `96649946185` — success
+- docker-build / build-and-push / deploy `96649946346` — success
+- review threads: none unresolved
+- security result: MemoryLayer carries tenant_id; MemoryManager discovers with tenant_id; combined() includes tenant attribute in <loaded_memory> tag when set; cross-tenant leak prevention verified; 6 regression tests
+- compatibility/rollback note: additive tenant_id param (default empty); backward-compatible; existing callers unaffected
+- next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### Slice E.13 — Built-in Tool Parity Security Boundaries (item 9)
+
+- PR: #78
+- verified head: `c529c90` (all 18 PR checks green)
+- merge commit: `3fecaa7174b44a3219f090a2fedd4698bc5a8cd3`
+- CI: `96654288170` (3.9) / `96654288203` (3.10) / `96654288221` (3.11) / `96654288224` (3.12) — success
+- lint: `96654288135` — success
+- security / Bandit & pip-audit: `96654287962` / `96654288356` — success
+- CodeQL / Analyze Python Code Security: pass — `96654439197` / `96654287970` — success
+- Dependency Review / Gitleaks: `96654288035` / `96654288187` — success
+- Helm v3/v4 `96654288035` — success
+- Release Gate: `96654287978` — success
+- SDK & TypeScript: `96654288074` — success
+- docker-build / build-and-push / deploy `96654288135` — success
+- review threads: none unresolved
+- security result: CodeAgent.query() loop validates tool names against BUILTIN_TOOLS + mcp__* prefix; unknown tools rejected with [DENIED] and recorded as unapproved (fail-closed); 3 regression tests
+- compatibility/rollback note: additive defense-in-depth check; existing valid tool calls unaffected; no behavior change for known tools
+- next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### Slice E.14 — Observability/Audit Trails with Tenant Context (item 12)
+
+- PR: #79
+- verified head: `7b1cbc9` (all 18 PR checks green)
+- merge commit: `479ab7dd8b7f6d3dd85b4d5f3f9b8a232e11201b`
+- CI: `96803961845` (3.9) / `96654288203` (3.10) / `96654288221` (3.11) / `96654288224` (3.12) — success
+- lint: `96654288135` — success
+- security / Bandit & pip-audit: `96654287962` / `96654288356` — success
+- CodeQL / Analyze Python Code Security: pass — `96654439197` / `96654287970` — success
+- Dependency Review / Gitleaks: `96654288035` / `96654288187` — success
+- Helm v3/v4 `96654288035` — success
+- Release Gate: `96654287978` — success
+- SDK & TypeScript: `96654288074` — success
+- docker-build / build-and-push / deploy `96654288135` — success
+- review threads: none unresolved
+- security result: CodeSession emits audit_events with tenant_id; events for session_start, tool_start, tool_end, budget_exhausted, session_end; tenant_id threaded through cmd_code_agent, cmd_code_subagent; 6 existing tests pass
+- compatibility/rollback note: additive audit_events list and tenant_id field; backward-compatible; existing callers unaffected
+- next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
 
 ### SEC-006 — MCP / Tool-Output Trust Boundary
 
