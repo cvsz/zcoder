@@ -279,14 +279,16 @@ class TestBootstrapFromEnv:
         bootstrap.bootstrap_from_env(env=env)
         assert len(calls) == 1
 
-    def test_sdk_missing_warns_and_continues(self, monkeypatch, caplog):
-        import logging as _logging
+    def test_sdk_missing_warns_and_continues(self, monkeypatch):
+        warnings = []
 
         def no_sdk(*a, **kw):
             raise ImportError("No module named 'opentelemetry'")
 
         monkeypatch.setattr(bootstrap, "_load_init_telemetry", lambda: no_sdk)
-        with caplog.at_level(_logging.WARNING, logger="zcoder.infrastructure.observability.bootstrap"):
-            result = bootstrap.bootstrap_from_env(env={"ZCODER_OTEL_ENDPOINT": "x:4317"})
+        monkeypatch.setattr(
+            bootstrap.logger, "warning", lambda msg, *a, **k: warnings.append(msg % a if a else msg)
+        )
+        result = bootstrap.bootstrap_from_env(env={"ZCODER_OTEL_ENDPOINT": "x:4317"})
         assert result is None
-        assert any("Telemetry bootstrap skipped" in r.getMessage() for r in caplog.records)
+        assert any("Telemetry bootstrap skipped" in w for w in warnings)
