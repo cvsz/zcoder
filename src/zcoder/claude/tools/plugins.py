@@ -571,7 +571,14 @@ def load_plugin_output_styles() -> list:
         if not styles_dir.exists():
             continue
         for f in styles_dir.glob("*.md"):
-            out.append({"name": f.stem, "path": str(f), "plugin": plug_dir.name})
+            out.append(
+                {
+                    "name": f.stem,
+                    "path": str(f),
+                    "plugin": plug_dir.name,
+                    "plugin_dir": str(plug_dir),
+                }
+            )
     return out
 
 
