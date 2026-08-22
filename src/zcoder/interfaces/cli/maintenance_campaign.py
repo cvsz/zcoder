@@ -11,6 +11,13 @@ from zcoder.services.maintenance_campaign import main as run_maintenance_campaig
 def main(argv: Sequence[str] | None = None) -> int:
     """Compose infrastructure observability around the service-level CLI."""
 
+    try:
+        from zcoder.infrastructure.observability.bootstrap import bootstrap_from_env
+
+        bootstrap_from_env()
+    except Exception:
+        pass
+
     return run_maintenance_campaign_cli(
         argv,
         event_sink=OtelMaintenanceCampaignEventSink(),

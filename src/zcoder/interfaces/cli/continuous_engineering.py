@@ -168,6 +168,13 @@ def _resolve_repository_path(repository_root: Path, value: str | Path) -> Path:
 def main(argv: Sequence[str] | None = None) -> int:
     """Compose and execute exactly one bounded continuous-engineering CLI run."""
 
+    try:
+        from zcoder.infrastructure.observability.bootstrap import bootstrap_from_env
+
+        bootstrap_from_env()
+    except Exception:
+        pass
+
     args = build_parser().parse_args(argv)
     repository_root = Path(args.repository).resolve()
 
