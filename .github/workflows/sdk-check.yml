@@ -30,7 +30,7 @@ jobs:
           node-version: "24"
 
       - name: Install TypeScript compiler
-        run: npm install --global typescript
+        run: npm install --global typescript@7.0.2
 
       - name: Show toolchain versions
         run: |
