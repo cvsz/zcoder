@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@ddca6ec` (SEC-007.1 RAG tenant isolation, PR #87)  
+**Current Baseline:** `main@ad79eda` (fleet run #88-#92: SEC-010.3/010.4, chart packaging, tag gate, DR runbook)  
 **Last Updated:** 2026-08-21  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -737,6 +737,20 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### Fleet Run — SEC-010.3 / SEC-010.4 / Chart Packaging / Tag Gate / DR Runbook (#88-#92)
+
+Five-agent parallel execution (isolated worktrees per loop-engineering-kit worktree-isolation policy; disjoint file scopes verified conflict-free by independent verifier):
+
+- **#88 SEC-010.3** — new Reproducibility Check workflow: `uv lock --check` gates lockfile drift on every PR/push (F3 phase 1 detection). Merge `51864a7`.
+- **#89 SEC-010.4** — keyless cosign signing of the published container digest via pinned sigstore/cosign-installer v3; complements provenance attestation + SBOM (closes F4). Merge `e991d25`.
+- **#90 Slice G** — package-chart job: helm package + SHA256 checksums uploaded as artifacts (chart checksum gap closed). Merge `ad79eda`; one hosted actionlint repair (SC2035) applied.
+- **#91 F6** — release.yml fails fast on non-semver RELEASE_TAG before build/attest/publish. Merge `c750a3b`.
+- **#92 Slice F groundwork** — docs/operations/dr-rehearsal.md quarterly procedure + RC-keyed evidence template; documents known backup_restore.py gaps (warning-only drill success, weekly retention unenforced, no dry-run). Merge `6b6d4a6`.
+
+Qualified head: `ad79eda` (all 21 check runs success on the cumulative state).
+Deferred follow-ups: uv sync --locked adoption beyond detection, per-arch container SBOM, backup_restore.py gap remediation.
+Next in queue: Slice F remainder (fleet runtime wiring, OTel), final-release production evidence rows.
 
 ### SEC-007.1 — RAG Index Tenant Isolation + Output-Style Containment
 
