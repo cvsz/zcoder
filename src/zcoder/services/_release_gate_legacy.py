@@ -79,7 +79,7 @@ class ProductionReleaseGate:
             GateVerdict.PASS,
             EvidenceLevel.E3_SYSTEM_MULTIPROCESS_TESTED,
             "pip install dist/*.whl && zcoder --version",
-            "Canonical version 1.40.0 unified across pyproject.toml, main.py, and built wheel",
+            "Canonical version 1.41.0 unified across pyproject.toml, main.py, and built wheel",
         )
         self.record(
             "TEST_ACCOUNTING",

@@ -22,7 +22,7 @@ from zcoder.domain.models.tenant import EnterpriseRole, RequestContext  # noqa: 
 app = FastAPI(
     title="ZCoder Public API & Control Plane",
     description="REST API interface for ZCoder autonomous engineering workflows, jobs, and tools.",
-    version="1.40.0",
+    version="1.41.0",
 )
 
 app.add_middleware(
@@ -38,7 +38,7 @@ router = PublicAPIV1Router()
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "zcoder-api-server", "version": "1.40.0"}
+    return {"status": "ok", "service": "zcoder-api-server", "version": "1.41.0"}
 
 
 @app.get("/metrics")

@@ -85,7 +85,7 @@ def run_release_gate() -> dict[str, Any]:
 
     final_pass = all(gates.values())
     return {
-        "version": "1.40.0",
+        "version": "1.41.0",
         "result": "PASS" if final_pass else "FAIL",
         "gates": gates,
         "conformance": conf,

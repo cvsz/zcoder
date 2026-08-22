@@ -46,7 +46,7 @@ def test_version_single_source_of_truth():
             match = re.search(r'version\s*=\s*"([^"]+)"', content)
             toml_ver = match.group(1) if match else None
 
-    assert main.VERSION == toml_ver == "1.40.0"
+    assert main.VERSION == toml_ver == "1.41.0"
 
 
 def test_data_residency_policy_evaluation():

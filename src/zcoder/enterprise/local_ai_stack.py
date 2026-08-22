@@ -313,7 +313,7 @@ class LlamaCppRuntime(LocalModelProvider):
 
     def is_running(self) -> bool:
         try:
-            req = urllib.request.Request(f"{self.base_url}/health", headers={"User-Agent": "ZCoder/1.40.0"})
+            req = urllib.request.Request(f"{self.base_url}/health", headers={"User-Agent": "ZCoder/1.41.0"})
             with safe_urlopen(req, timeout=1) as resp:
                 return resp.status == 200
         except Exception:
@@ -469,7 +469,7 @@ class OllamaAdapter(LocalModelProvider):
 
     def is_available(self) -> bool:
         try:
-            req = urllib.request.Request(f"{self.base_url}/api/tags", headers={"User-Agent": "ZCoder/1.40.0"})
+            req = urllib.request.Request(f"{self.base_url}/api/tags", headers={"User-Agent": "ZCoder/1.41.0"})
             with safe_urlopen(req, timeout=1) as resp:
                 return resp.status == 200
         except Exception:
