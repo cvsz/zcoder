@@ -6,6 +6,14 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## Unreleased — security slices F.1 / SEC-008 / SEC-010.1 (PRs #81–#85)
+
+* **Slice E.16 (#81):** `/skill install|remove|info` slash-command lifecycle UX on the contained `SkillsRegistry`.
+* **Slice F.1 (#82):** provider-backed `GitHubProvider` implements `GitHubProviderProtocol` over the GitHub REST API via the centralized `safe_urlopen()` boundary; operator-configured base URL, scheme-validated; token never in error messages; duplicated fake-provider block removed.
+* **SEC-008 (#83):** secrets/environment inheritance isolation — new `is_secret_env_name()`/`build_child_env()` in `zcoder.core.security`; CodeAgent Bash, tool-registry `run_python`, and `HooksEngine.fire` spawn children with filtered env; pg_dump/pg_restore keep database passwords off the command line (`PGPASSWORD` override) and redact logged errors.
+* **SEC-010.1 (#84):** all 49 GitHub Actions refs pinned to immutable full-length SHAs; `release.yml` least-privilege (write perms only on publish-release); `persist-credentials: false` on all checkouts.
+* **SEC-008 follow-up (#85):** remaining sibling sinks (`HookManager.fire`, `render_status_line`) also spawn children through the filtered environment.
+
 ## Unreleased — offline/local-mode hardening, PostgreSQL store fixes
 
 **Offline / local mode (`ZCODER_LOCAL_MODE=1`):**

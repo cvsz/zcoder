@@ -3,11 +3,11 @@
 zcoder has two, complementary layers of observability. This pass added
 the first; the second predates it and is unchanged.
 
-## 1. Process-level structured logs (`logging_config.py`) — new
+## 1. Process-level structured logs (`src/zcoder/config/logging.py`) — new
 
 Every log line the process emits (retries, circuit-breaker state changes,
 auth failures, refusals, unexpected exceptions) goes through
-`logging_config.py`:
+`src/zcoder/config/logging.py`:
 
 - **Format**: `text` on an interactive TTY, `json` otherwise, or forced
   via `ZCODER_LOG_FORMAT`. JSON lines are one object each — no multi-line
@@ -30,7 +30,7 @@ not attached to a TTY.
 ### Adding logging to a new module
 
 ```python
-from logging_config import get_logger
+from zcoder.config.logging import get_logger
 
 logger = get_logger("my_module")  # -> "zcoder.my_module"
 
@@ -44,18 +44,18 @@ regex over a message string.
 
 ## 2. Application-level usage & request logs — pre-existing, unchanged
 
-- **`claude_metrics.py`** (`--metrics-show`, `--metrics-today`,
+- **`src/zcoder/claude/enterprise/metrics.py`** (`--metrics-show`, `--metrics-today`,
   `--metrics-model`, `--metrics-export`) — per-call token counts, cost
   (against a verified pricing table), and latency, logged to
   `~/.zcoder/metrics.jsonl`. Answers "what am I spending, on which
   model."
-- **`claude_observability.py`** — structured request/response logging,
+- **`src/zcoder/claude/observability.py`** — structured request/response logging,
   latency histograms, and AI-assisted error-trend analysis, logged to
   `~/.zcoder/observability/requests.jsonl`. Answers "is latency/error
   rate drifting."
 
 These two answer *product* questions (cost, model comparison, error
-trends over days); `logging_config.py` answers *operational* questions
+trends over days); `src/zcoder/config/logging.py` answers *operational* questions
 (is this specific process healthy right now, what happened during this
 one invocation). Both are useful; neither replaces the other.
 

@@ -34,7 +34,7 @@ Dependabot configuration is not a substitute for Dependency Review on pull reque
 
 ## Action versioning
 
-Use maintained major action versions compatible with the current GitHub-hosted runner runtime. Security-sensitive supply-chain hardening should progressively pin third-party actions to immutable full commit SHAs and let Dependabot maintain those references.
+Use maintained major action versions compatible with the current GitHub-hosted runner runtime. All workflow `uses:` refs are pinned to immutable full commit SHAs (completed in PR #84, SEC-010.1), with version-tag comments preserved so Dependabot continues to maintain the pins.
 
 Action-major modernization and immutable-SHA pinning are separate concerns: upgrading to a maintained runtime does not by itself provide immutable provenance.
 
@@ -60,7 +60,7 @@ Repository settings such as branch protection/rulesets, required checks, signed 
 
 Follow-up supply-chain slices should evaluate:
 
-- immutable full-SHA pinning for third-party and GitHub-maintained actions where practical;
+- ~~immutable full-SHA pinning for third-party and GitHub-maintained actions~~ — DONE (PR #84);
 - SBOM generation for Python/container release artifacts;
 - OpenSSF Scorecard or equivalent repository-security posture checks;
 - release environment approvals and protected tags;
