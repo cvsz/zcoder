@@ -34,8 +34,26 @@ class SQLiteEngineeringStore(EngineeringStore):
                     status TEXT,
                     created_at REAL,
                     updated_at REAL,
-                    metadata TEXT
+                    metadata TEXT,
+                    claimed_by TEXT,
+                    claim_generation INTEGER NOT NULL DEFAULT 0,
+                    lease_expires_at REAL NOT NULL DEFAULT 0
                 )
+            """)
+            # Defensive migration for pre-existing database files created before
+            # lease-claim columns were introduced.
+            for column_def in (
+                "claimed_by TEXT",
+                "claim_generation INTEGER NOT NULL DEFAULT 0",
+                "lease_expires_at REAL NOT NULL DEFAULT 0",
+            ):
+                try:
+                    conn.execute(f"ALTER TABLE tasks ADD COLUMN {column_def}")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_tasks_status_created
+                ON tasks (status, created_at)
             """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS attempts (
@@ -58,6 +76,72 @@ class SQLiteEngineeringStore(EngineeringStore):
                     timestamp REAL
                 )
             """)
+
+    def claim_task(
+        self,
+        task_id: str | None = None,
+        claimed_by: str = "default-worker",
+        lease_seconds: float = 60.0,
+    ) -> EngineeringTask | None:
+        """Atomically claim a CREATED task (or reclaim an expired RUNNING lease).
+
+        Uses BEGIN IMMEDIATE plus a compare-and-set on claim_generation so two
+        concurrent processes can never claim the same task. The incremented
+        generation acts as a fencing token; stale claimers are rejected.
+        """
+        now = time.time()
+        with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                query = """
+                    SELECT id, task_description, status, created_at, updated_at, metadata, claim_generation
+                    FROM tasks
+                    WHERE status = 'CREATED'
+                       OR (status = 'RUNNING' AND lease_expires_at < ?)
+                """
+                params: list[object] = [now]
+                if task_id is not None:
+                    query += " AND id = ?"
+                    params.append(task_id)
+                query += " ORDER BY created_at ASC LIMIT 1"
+                row = conn.execute(query, params).fetchone()
+                if not row:
+                    conn.commit()
+                    return None
+
+                task_id_found, description, _, created_at, updated_at, metadata_json, generation = row
+                new_generation = int(generation or 0) + 1
+                cur = conn.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'RUNNING', claimed_by = ?, claim_generation = ?,
+                        lease_expires_at = ?, updated_at = ?
+                    WHERE id = ? AND claim_generation = ?
+                """,
+                    (
+                        claimed_by,
+                        new_generation,
+                        now + lease_seconds,
+                        now,
+                        task_id_found,
+                        int(generation or 0),
+                    ),
+                )
+                if cur.rowcount != 1:
+                    conn.commit()
+                    return None  # Lost the claim race.
+                conn.commit()
+                return EngineeringTask(
+                    id=task_id_found,
+                    task_description=description,
+                    status=TaskStatus.RUNNING,
+                    created_at=created_at,
+                    updated_at=now,
+                    metadata=json.loads(metadata_json) if metadata_json else {},
+                )
+            except Exception:
+                conn.rollback()
+                raise
 
     def save_task(self, task: EngineeringTask) -> None:
         task.updated_at = time.time()
