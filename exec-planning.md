@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@ad79eda` (fleet run #88-#92: SEC-010.3/010.4, chart packaging, tag gate, DR runbook)  
+**Current Baseline:** `main@91056c6` (fleet wave 2 #93-#99: backup gaps, health/metrics, cross-process E2E, SQLite parity, maintenance scheduler, admission seam, OTel bootstrap)  
 **Last Updated:** 2026-08-21  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -388,8 +388,8 @@ Final Release may be declared only when every applicable release-blocking row is
 | Filesystem | Workspace/sandbox containment verified | SEC-002 + SEC-004 merged; final RC recheck required |
 | MCP/Tools | Untrusted output cannot silently gain elevated side effects | SEC-006 verified at `4cb9c14`; memory-agent approval parity noted as follow-up |
 | Secrets | Redaction + environment/process inheritance policy verified | Review pending |
-| Observability | Structured logs, metrics, tracing, security/audit events verified | Production evidence pending |
-| Durability | restart/idempotency/lease/fencing/crash recovery verified | Implemented baseline; fleet E2E evidence pending |
+| Observability | Structured logs, metrics, tracing, security/audit events verified | /metrics + /health/live + /health/ready shipped (#94); OTel OTLP bootstrap behind ZCODER_OTEL_ENDPOINT (#95); dashboard/live-environment evidence remains |
+| Durability | restart/idempotency/lease/fencing/crash recovery verified | Cross-process claim-fence-crash-reclaim E2E green (#96); SIGKILL reclaim + stale-fence rejection proven; PG fence paths live-validated |
 | Performance | bounded latency/memory/concurrency/backpressure targets documented and tested | Qualification pending |
 | Packaging | clean wheel/install + container/chart artifacts + checksums/SBOM/provenance | Supply-chain slice pending |
 | Operations | health/readiness, config validation, backup/restore, rollback, DR rehearsal | Qualification pending |
@@ -737,6 +737,21 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### Fleet Wave 2 — Slice F implementation sweep (#93-#99)
+
+Seven-agent parallel execution (disjoint file scopes; independent verifier 7/7 PASS incl. pairwise conflict matrix):
+
+- **#93** — backup_restore known-gaps remediation from the #92 runbook audit: drill success requires expected IDs (fail-closed), weekly retention enforced (two-window policy), events_verified populated, dry-run modes for backup+retention, orphaned-manifest path bug fixed. 13 tests.
+- **#94** — API server ships GET /metrics (Prometheus exposition) + /health/live + /health/ready (fail-closed 503 DB probe); KUBERNETES.md contracts now real. 5 tests.
+- **#95** — OTel entrypoint wiring: idempotent never-raising bootstrap_from_env behind ZCODER_OTEL_ENDPOINT called from worker + 2 CLI mains; opentelemetry stays optional. 6 new tests. Two hosted 3.9 repairs (caplog formatter dependence -> direct logger patch).
+- **#96** — durability evidence: real-subprocess E2E proves zero duplicate claims under contention, SIGKILL crash -> lease-expiry reclaim with generation fencing, stale fenced write rejected; PG advisory-lease/fence paths live-validated against ephemeral Postgres. Confirms control_plane CAS correct as-is.
+- **#97** — SQLite fleet parity: atomic claim_task (BEGIN IMMEDIATE CAS + generation fencing + lease migration); EngineeringWorker placeholder replaced by bounded fail-closed drain. 2x24-task multiprocess test: zero duplicate executions.
+- **#98** — bounded MaintenanceScheduler service + CLI composition root (lease-gated, exactly-one-campaign-per-interval, finite outbox budgets, SIGTERM stop). 8 tests incl. two-scheduler exclusivity.
+- **#99** — AdmissionGate protocol + PlanQuotaGate/DurableQuotaGate quota+backpressure seam (deliberately unwired for a follow-up composition slice). 19 tests.
+
+Qualified head: `91056c6` (all 21 check runs success on the cumulative state).
+Remaining to final release: production/live evidence only (OTel dashboards on live env, DR rehearsal EXECUTION per #92 procedure, deployment rehearsal, performance targets vs live load, tenancy deep review sign-off, final RC qualification sweep).
 
 ### Fleet Run — SEC-010.3 / SEC-010.4 / Chart Packaging / Tag Gate / DR Runbook (#88-#92)
 
