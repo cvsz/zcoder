@@ -2,13 +2,21 @@
 
 import json
 import os
+import subprocess
+import sys
 import time
+import types
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from zcoder.services.backup_restore import BackupManager, BackupRecord, RestoreDrillResult
+from zcoder.services.backup_restore import (
+    BackupManager,
+    BackupRecord,
+    RestoreDrillResult,
+    RestoredStateVerification,
+)
 
 
 @pytest.fixture
@@ -163,7 +171,8 @@ class TestRetentionPolicy:
     def test_enforce_retention_deletes_old_backups(self, backup_manager, tmp_path):
         """Old backup files should be deleted based on retention policy."""
         dest = Path(backup_manager.backup_destination)
-        backup_manager.retention_days_daily = 0  # Everything older than 0 days
+        backup_manager.retention_days_daily = 0
+        backup_manager.retention_days_weekly = 0  # collapse both windows
 
         # Create a fake backup file
         old_backup = dest / "pgdump_old_backup.sql.gz"
@@ -189,6 +198,220 @@ class TestRetentionPolicy:
 
         backup_manager.enforce_retention()
         assert recent_backup.exists()
+
+
+class TestWeeklyRetentionTier:
+    """retention_days_weekly enforcement (gap fix: weekly tier was ignored).
+
+    Policy under test: backups younger than retention_days_daily are always
+    kept; backups older than max(daily, weekly) are deleted; the band in
+    between is the retained weekly tier.
+    """
+
+    def _make_backup(self, manager, name, age_days):
+        f = Path(manager.backup_destination) / name
+        f.write_bytes(b"backup")
+        mtime = time.time() - (age_days * 86400)
+        os.utime(f, (mtime, mtime))
+        return f
+
+    def test_backups_between_windows_are_kept(self, backup_manager):
+        backup_manager.retention_days_daily = 7
+        backup_manager.retention_days_weekly = 30
+        mid_tier = self._make_backup(backup_manager, "pgdump_mid.sql.gz", age_days=10)
+
+        assert backup_manager.enforce_retention() == 0
+        assert mid_tier.exists()
+
+    def test_backups_beyond_weekly_window_deleted_with_manifest(self, backup_manager, tmp_path):
+        backup_manager.retention_days_daily = 7
+        backup_manager.retention_days_weekly = 30
+        ancient = self._make_backup(backup_manager, "pgdump_ancient.sql.gz", age_days=40)
+
+        manifest = Path(str(ancient).replace(".sql.gz", ".json"))
+        manifest.write_text("{}")
+
+        deleted = backup_manager.enforce_retention()
+        assert deleted == 1
+        assert not ancient.exists()
+        assert not manifest.exists()
+
+    def test_weekly_below_daily_fails_closed_uses_longer_window(self, backup_manager):
+        """Misconfigured weekly < daily must not delete daily-tier backups."""
+        backup_manager.retention_days_daily = 7
+        backup_manager.retention_days_weekly = 1
+        protected = self._make_backup(backup_manager, "pgdump_p.sql.gz", age_days=5)
+
+        assert backup_manager.enforce_retention() == 0
+        assert protected.exists()
+
+    def test_dry_run_reports_without_deleting(self, backup_manager):
+        backup_manager.retention_days_daily = 7
+        backup_manager.retention_days_weekly = 30
+        ancient = self._make_backup(backup_manager, "pgdump_ancient.sql.gz", age_days=40)
+
+        would_delete = backup_manager.enforce_retention(dry_run=True)
+        assert would_delete == 1
+        assert ancient.exists()  # untouched
+
+
+class TestDryRunBackup:
+    def test_dry_run_invokes_no_subprocess_and_writes_nothing(self, backup_manager, monkeypatch):
+        calls = []
+        monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a))
+        monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/dryrun")
+        backup_manager.database_url = "postgresql://localhost/dryrun"
+
+        record = backup_manager.run_pg_dump_backup(dry_run=True)
+
+        assert record.success is True
+        assert record.notes.startswith("dry-run:")
+        assert record.sha256 == ""  # nothing hashed — no artifact written
+        assert calls == []  # pg_dump never invoked
+        assert not list(Path(backup_manager.backup_destination).glob("*.sql.gz"))
+        assert not list(Path(backup_manager.backup_destination).glob("*.json"))
+
+    def test_dry_run_still_fails_without_database_url(self, backup_manager):
+        backup_manager.database_url = ""
+        record = backup_manager.run_pg_dump_backup(dry_run=True)
+        assert record.success is False
+        assert "DATABASE_URL" in record.error
+
+
+class TestRestoreDrillVerification:
+    """Fail-closed drill verification (gap fixes 1 and 3)."""
+
+    def _prepare(self, backup_manager, monkeypatch):
+        dest = Path(backup_manager.backup_destination)
+        backup_id = "pgdump_drill"
+        (dest / f"{backup_id}.sql.gz").write_bytes(b"fake dump")
+
+        def fake_run(argv, **kwargs):
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        return backup_id
+
+    def test_drill_fails_when_expected_job_missing(self, backup_manager, monkeypatch):
+        backup_id = self._prepare(backup_manager, monkeypatch)
+
+        def fake_verify(url, job_ids, repo_ids):
+            return RestoredStateVerification(
+                jobs_verified=3,
+                repos_verified=2,
+                missing_job_ids=["job-42"],
+            )
+
+        monkeypatch.setattr(backup_manager, "_verify_restored_state", fake_verify)
+        result = backup_manager.run_restore_drill(
+            backup_id,
+            target_database_url="postgresql://localhost/target",
+            expected_job_ids=["job-42"],
+        )
+        assert result.success is False
+        assert result.error is not None
+        assert "job-42" in result.error
+
+    def test_drill_succeeds_when_all_expected_found(self, backup_manager, monkeypatch):
+        backup_id = self._prepare(backup_manager, monkeypatch)
+
+        monkeypatch.setattr(
+            backup_manager,
+            "_verify_restored_state",
+            lambda url, j, r: RestoredStateVerification(
+                jobs_verified=3, repos_verified=2, events_verified=11
+            ),
+        )
+        result = backup_manager.run_restore_drill(
+            backup_id,
+            target_database_url="postgresql://localhost/target",
+            expected_job_ids=["job-1"],
+            expected_repo_ids=["repo-1"],
+        )
+        assert result.success is True
+        assert result.jobs_verified == 3
+        assert result.repos_verified == 2
+        assert result.events_verified == 11  # gap fix 3: populated
+        assert "events" in result.notes
+
+    def test_drill_passes_without_expectations_even_if_zero_counts(self, backup_manager, monkeypatch):
+        backup_id = self._prepare(backup_manager, monkeypatch)
+        monkeypatch.setattr(
+            backup_manager,
+            "_verify_restored_state",
+            lambda url, j, r: RestoredStateVerification(),
+        )
+        result = backup_manager.run_restore_drill(
+            backup_id, target_database_url="postgresql://localhost/target"
+        )
+        assert result.success is True
+
+    def test_drill_fails_closed_when_verification_raises(self, backup_manager, monkeypatch):
+        backup_id = self._prepare(backup_manager, monkeypatch)
+
+        def boom(*_a, **_k):
+            raise RuntimeError("connection refused during verification")
+
+        monkeypatch.setattr(backup_manager, "_verify_restored_state", boom)
+        result = backup_manager.run_restore_drill(
+            backup_id, target_database_url="postgresql://localhost/target"
+        )
+        assert result.success is False
+        assert result.error is not None
+        assert "verification" in result.error.lower() or "refused" in result.error.lower()
+
+
+class TestVerifyRestoredStateUnit:
+    """Direct tests of _verify_restored_state with a fake psycopg2."""
+
+    class _FakeCursor:
+        def __init__(self):
+            self._last_sql = ""
+
+        def execute(self, sql, params=None):
+            if "FROM events" in sql:
+                raise Exception('relation "events" does not exist')
+            self._last_sql = sql
+
+        def fetchone(self):
+            if "WHERE id" in self._last_sql:
+                return None  # expected record absent
+            return (7,)
+
+    class _FakeConn:
+        rolled_back = False
+
+        def cursor(self):
+            return TestVerifyRestoredStateUnit._FakeCursor()
+
+        def rollback(self):
+            self.rolled_back = True
+
+        def close(self):
+            pass
+
+    def test_counts_events_and_records_missing_ids(self, monkeypatch):
+        from zcoder.services import backup_restore as br
+
+        fake_psycopg2 = types.SimpleNamespace(connect=lambda dsn: self._FakeConn())
+        monkeypatch.setitem(sys.modules, "psycopg2", fake_psycopg2)
+
+        outcome = br.BackupManager._verify_restored_state(None, "postgresql://localhost/restored", ["j1"], [])
+        assert outcome.jobs_verified == 7
+        assert outcome.repos_verified == 7
+        assert outcome.events_verified == 0  # tolerated missing table
+        assert outcome.missing_job_ids == ["j1"]
+        assert outcome.missing_repo_ids == []
+
+    def test_raises_on_connection_failure_fail_closed(self, monkeypatch):
+        from zcoder.services import backup_restore as br
+
+        def refuse(_dsn):
+            raise RuntimeError("cannot connect")
+
+        monkeypatch.setitem(sys.modules, "psycopg2", types.SimpleNamespace(connect=refuse))
+        with pytest.raises(RuntimeError):
+            br.BackupManager._verify_restored_state(None, "postgresql://localhost/restored", [], [])
 
 
 class TestWalArchiveConfig:

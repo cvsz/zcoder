@@ -20,7 +20,7 @@ import logging
 import os
 import subprocess
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit, urlunsplit
@@ -82,9 +82,26 @@ class BackupRecord:
     error: str | None = None
     restore_drill_at: float | None = None
     restore_drill_success: bool | None = None
+    notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class RestoredStateVerification:
+    """Outcome of post-restore state verification.
+
+    ``missing_*`` lists record expected IDs that were requested but NOT found
+    in the restored database; a drill that was given expectations must have
+    both lists empty to count as successful (fail-closed).
+    """
+
+    jobs_verified: int = 0
+    repos_verified: int = 0
+    events_verified: int = 0
+    missing_job_ids: list[str] = field(default_factory=list)
+    missing_repo_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -136,12 +153,18 @@ class BackupManager:
 
     # ── pg_dump backup ────────────────────────────────────────────────────
 
-    def run_pg_dump_backup(self) -> BackupRecord:
+    def run_pg_dump_backup(self, *, dry_run: bool = False) -> BackupRecord:
         """Run pg_dump logical backup.
 
         Returns a BackupRecord with success status and SHA256 hash.
         Note: pg_dump is a consistent snapshot but not suitable for PITR.
         For PITR you need WAL archiving (see configure_wal_archiving()).
+
+        When ``dry_run`` is True, validation and planning run exactly as in a
+        real backup, but no destructive writes are performed: the pg_dump
+        subprocess is NOT invoked, no dump file is created, and no manifest
+        is written. The actions that WOULD be taken are reported in
+        ``record.notes`` (prefixed ``dry-run:``).
         """
         backup_id = f"pgdump_{int(time.time())}"
         record = BackupRecord(
@@ -157,6 +180,18 @@ class BackupManager:
             return record
 
         dump_file = self.backup_destination / f"{backup_id}.sql.gz"
+
+        if dry_run:
+            record.destination = str(dump_file)
+            record.notes = (
+                f"dry-run: would run pg_dump -> {dump_file} "
+                f"and write manifest {self.backup_destination / (backup_id + '.json')}"
+            )
+            record.success = True
+            record.completed_at = time.time()
+            logger.info(record.notes)
+            return record
+
         try:
             # Keep the password off the command line: pass it via PGPASSWORD
             # in the filtered child environment instead (SEC-008).
@@ -291,21 +326,45 @@ class BackupManager:
                 result.completed_at = time.time()
                 return result
 
-            # Verify state
-            jobs_verified, repos_verified = self._verify_restored_state(
+            # Verify state. Fail-closed: if verification raises, the generic
+            # handler below marks the drill as failed with the error populated.
+            verification = self._verify_restored_state(
                 restore_url,
                 expected_job_ids or [],
                 expected_repo_ids or [],
             )
 
-            result.jobs_verified = jobs_verified
-            result.repos_verified = repos_verified
+            result.jobs_verified = verification.jobs_verified
+            result.repos_verified = verification.repos_verified
+            result.events_verified = verification.events_verified
+
+            # When expected IDs were provided, success requires ALL of them
+            # to be present — a warning is not enough (DR false-success fix).
+            missing = verification.missing_job_ids + verification.missing_repo_ids
+            if (expected_job_ids or expected_repo_ids) and missing:
+                result.success = False
+                result.completed_at = time.time()
+                result.rto_seconds = result.completed_at - start
+                result.error = (
+                    "Restore drill FAILED state verification: "
+                    f"missing job_ids={verification.missing_job_ids}, "
+                    f"missing repo_ids={verification.missing_repo_ids}"
+                )
+                result.notes = (
+                    f"Restore completed in {result.rto_seconds:.1f}s but "
+                    f"{len(missing)} expected record(s) were not found."
+                )
+                logger.error(result.error)
+                return result
+
             result.success = True
             result.completed_at = time.time()
             result.rto_seconds = result.completed_at - start
             result.notes = (
                 f"Restore drill completed in {result.rto_seconds:.1f}s. "
-                f"Verified {jobs_verified} jobs, {repos_verified} repos."
+                f"Verified {verification.jobs_verified} jobs, "
+                f"{verification.repos_verified} repos, "
+                f"{verification.events_verified} events."
             )
             logger.info(f"Restore drill {drill_id} PASSED: {result.notes}")
 
@@ -325,62 +384,106 @@ class BackupManager:
         database_url: str,
         expected_job_ids: list[str],
         expected_repo_ids: list[str],
-    ) -> tuple[int, int]:
-        """Verify that expected records exist in the restored database."""
+    ) -> RestoredStateVerification:
+        """Verify that expected records exist in the restored database.
+
+        Fail-closed: any connection or query failure raises so the calling
+        drill is marked FAILED rather than silently passing with zeroed
+        counters. Expected IDs that are requested but absent are recorded in
+        ``missing_job_ids`` / ``missing_repo_ids``. The ``events`` table is
+        counted defensively — a restored database without it is tolerated
+        (events_verified stays 0) but never masks other results.
+        """
+        import psycopg2  # type: ignore[import]
+
+        from zcoder.core.utils import sanitize_dsn
+
+        outcome = RestoredStateVerification()
+
+        conn = psycopg2.connect(sanitize_dsn(database_url))
         try:
-            import psycopg2  # type: ignore[import]
+            cur = conn.cursor()
 
-            from zcoder.core.utils import sanitize_dsn
+            # Count jobs
+            cur.execute("SELECT COUNT(*) FROM jobs")
+            outcome.jobs_verified = cur.fetchone()[0]
 
-            conn = psycopg2.connect(sanitize_dsn(database_url))
+            # Verify specific jobs if provided
+            for job_id in expected_job_ids:
+                cur.execute("SELECT id FROM jobs WHERE id = %s", (job_id,))
+                if not cur.fetchone():
+                    logger.warning(f"Expected job {job_id} not found after restore")
+                    outcome.missing_job_ids.append(job_id)
+
+            # Count repos
+            cur.execute("SELECT COUNT(*) FROM repositories")
+            outcome.repos_verified = cur.fetchone()[0]
+
+            # Verify specific repos if provided
+            for repo_id in expected_repo_ids:
+                cur.execute("SELECT id FROM repositories WHERE id = %s", (repo_id,))
+                if not cur.fetchone():
+                    logger.warning(f"Expected repo {repo_id} not found after restore")
+                    outcome.missing_repo_ids.append(repo_id)
+
+            # Count events defensively: the table may legitimately be absent
+            # in a partial restore; tolerate and continue.
             try:
-                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM events")
+                outcome.events_verified = cur.fetchone()[0]
+            except Exception as e:
+                logger.warning(f"Could not count events table (tolerated): {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            conn.close()
 
-                # Count jobs
-                cur.execute("SELECT COUNT(*) FROM jobs")
-                jobs_count = cur.fetchone()[0]
-
-                # Verify specific jobs if provided
-                for job_id in expected_job_ids:
-                    cur.execute("SELECT id FROM jobs WHERE id = %s", (job_id,))
-                    if not cur.fetchone():
-                        logger.warning(f"Expected job {job_id} not found after restore")
-
-                # Count repos
-                cur.execute("SELECT COUNT(*) FROM repositories")
-                repos_count = cur.fetchone()[0]
-
-                # Verify specific repos if provided
-                for repo_id in expected_repo_ids:
-                    cur.execute("SELECT id FROM repositories WHERE id = %s", (repo_id,))
-                    if not cur.fetchone():
-                        logger.warning(f"Expected repo {repo_id} not found after restore")
-
-                conn.close()
-                return jobs_count, repos_count
-            finally:
-                conn.close()
-        except Exception as e:
-            logger.error(f"State verification failed: {e}")
-            return 0, 0
+        return outcome
 
     # ── Retention ─────────────────────────────────────────────────────────
 
-    def enforce_retention(self) -> int:
-        """Delete backups older than retention policy. Returns count deleted."""
+    def enforce_retention(self, *, dry_run: bool = False) -> int:
+        """Delete backups older than retention policy. Returns count deleted.
+
+        Two-window policy (minimal weekly-tier enforcement):
+
+        * Daily window — backups newer than ``retention_days_daily`` are
+          always kept.
+        * Weekly window — backups older than
+          ``max(retention_days_daily, retention_days_weekly)`` days are
+          deleted, together with their ``.json`` manifests.
+        * Backups whose age falls between the two windows belong to the
+          weekly tier and are retained. Oldest-per-week GFS sampling inside
+          that band is intentionally out of scope for this minimal policy.
+
+        The ``max(...)`` guard fails closed on misconfiguration: a weekly
+        window shorter than the daily window can never delete backups the
+        daily tier still protects.
+
+        With ``dry_run=True`` nothing is deleted; returns the number of
+        files that WOULD be deleted and logs them.
+        """
+        effective_weekly = max(self.retention_days_daily, self.retention_days_weekly)
         deleted = 0
         now = time.time()
 
         for f in self.backup_destination.glob("pgdump_*.sql.gz"):
             try:
                 age_days = (now - f.stat().st_mtime) / 86400
-                if age_days > self.retention_days_daily:
-                    f.unlink()
-                    manifest = f.with_suffix(".json")
-                    if manifest.exists():
-                        manifest.unlink()
+                if age_days <= effective_weekly:
+                    continue
+                if dry_run:
                     deleted += 1
-                    logger.info(f"Deleted old backup: {f.name} (age={age_days:.1f} days)")
+                    logger.info(f"Dry-run: would delete old backup: {f.name} " f"(age={age_days:.1f} days)")
+                    continue
+                f.unlink()
+                manifest = self._manifest_path(f)
+                if manifest.exists():
+                    manifest.unlink()
+                deleted += 1
+                logger.info(f"Deleted old backup: {f.name} (age={age_days:.1f} days)")
             except Exception as e:
                 logger.warning(f"Could not delete {f}: {e}")
 
@@ -420,6 +523,16 @@ class BackupManager:
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _manifest_path(dump_file: Path) -> Path:
+        """Manifest for ``pgdump_<id>.sql.gz`` lives at ``pgdump_<id>.json``.
+
+        Note: ``Path.with_suffix('.json')`` would yield ``pgdump_<id>.sql.json``
+        which never exists — manifests must match the name written by
+        ``_write_manifest()`` or old manifests are never cleaned up.
+        """
+        return dump_file.with_name(dump_file.name[: -len(".sql.gz")] + ".json")
+
     def _sha256_file(self, path: Path) -> str:
         h = hashlib.sha256()
         with open(path, "rb") as f:
@@ -452,7 +565,7 @@ class BackupManager:
         last_mtime = last.stat().st_mtime
         age_hours = (time.time() - last_mtime) / 3600
 
-        manifest_path = last.with_suffix(".json")
+        manifest_path = self._manifest_path(last)
         sha256 = ""
         if manifest_path.exists():
             try:
