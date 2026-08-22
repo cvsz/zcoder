@@ -1,12 +1,17 @@
 """tests/test_deployment_engine.py — Tests for Deployment Health, Backup/Restore Drills & Worker Recovery"""
 
+import hashlib
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from zcoder.domain.services.control_plane import ControlPlaneStore, GitHubInstallation
-from zcoder.domain.services.deployment import DeploymentEngine
+from zcoder.domain.services.deployment import (
+    ArtifactManifest,
+    DeploymentEngine,
+    DeploymentRecord,
+)
 
 
 @pytest.fixture
@@ -80,3 +85,86 @@ def test_worker_crash_lease_expiry_drill(deploy_setup):
     reclaimed, details = engine.simulate_worker_crash_and_reclaim("worker_A", "job_crash_1")
     assert reclaimed is True
     assert "fencing token 2" in details
+
+
+def test_deployment_history_and_rollback(deploy_setup):
+    store, engine = deploy_setup
+
+    # Record two deployments
+    engine.record_deployment(
+        DeploymentRecord(
+            deployment_id="dep_1",
+            version="v1.0.0",
+            image_digest="sha256:abc123",
+            deployed_at=1000.0,
+            actor="ci",
+            environment="production",
+            result="SUCCESS",
+        )
+    )
+    engine.record_deployment(
+        DeploymentRecord(
+            deployment_id="dep_2",
+            version="v1.1.0",
+            image_digest="sha256:def456",
+            deployed_at=2000.0,
+            actor="ci",
+            environment="production",
+            result="FAILED",
+        )
+    )
+
+    history = engine.get_deployment_history(limit=5)
+    assert len(history) == 2
+    assert history[0].version == "v1.1.0"
+
+    success, msg = engine.rollback_to_version("v1.0.0", actor="ops")
+    assert success is True
+    assert "v1.0.0" in msg
+
+    updated = engine.get_deployment_history(limit=5)
+    assert any(d.result == "ROLLBACK" for d in updated)
+
+
+def test_artifact_revocation_and_verification(deploy_setup):
+    store, engine = deploy_setup
+
+    # Create a temp file and compute its hash
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".whl") as tmp:
+        tmp.write(b"fake-wheel-content")
+        tmp_path = Path(tmp.name)
+
+    sha256 = hashlib.sha256()
+    with open(tmp_path, "rb") as f:
+        sha256.update(f.read())
+    digest = sha256.hexdigest()
+
+    manifest = ArtifactManifest(
+        artifact_id="art_1",
+        artifact_type="wheel",
+        version="v1.0.0",
+        sha256=digest,
+        size_bytes=len(b"fake-wheel-content"),
+        provenance="sbom+attestation",
+    )
+
+    engine.revoke_artifact(manifest, "Supply chain compromise")
+    loaded = engine.get_artifact_manifest("art_1")
+    assert loaded is not None
+    assert loaded.revoked is True
+    assert loaded.revocation_reason == "Supply chain compromise"
+    assert engine.verify_artifact_integrity(loaded, str(tmp_path)) is True
+
+    tmp_path.unlink()
+
+
+def test_deployment_rehearsal(deploy_setup):
+    store, engine = deploy_setup
+
+    result = engine.run_deployment_rehearsal("v1.0.0", dry_run=True)
+    assert result["target_version"] == "v1.0.0"
+    assert result["dry_run"] is True
+    assert result["passed"] is True
+    assert any(c["name"] == "health" for c in result["checks"])
+    assert any(c["name"] == "backup_creation" for c in result["checks"])
+    assert "duration_seconds" in result

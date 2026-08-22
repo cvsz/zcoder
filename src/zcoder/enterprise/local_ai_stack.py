@@ -1532,7 +1532,7 @@ class StaticReviewer:
         "pytest.mark.skip",
         "xfail",
         "# noqa",
-        "pass  # TODO",
+        "# pragma no cover",
     ]
 
     def review(self, diff_lines: list[str], task: EngineeringTask) -> list[StaticReviewFinding]:

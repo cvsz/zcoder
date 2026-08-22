@@ -1,0 +1,253 @@
+{
+  "dashboard": {
+    "title": "ZCoder Production Observability",
+    "version": "1.0.0",
+    "panels": [
+      {
+        "id": "jobs",
+        "title": "Job Queue & Execution",
+        "type": "row",
+        "panels": [
+          {
+            "id": "jobs-queued",
+            "title": "Jobs Queued",
+            "type": "gauge",
+            "metric": "zcoder_jobs_queued",
+            "unit": "short",
+            "description": "Number of jobs currently queued (READY)"
+          },
+          {
+            "id": "jobs-running",
+            "title": "Jobs Running",
+            "type": "gauge",
+            "metric": "zcoder_jobs_running",
+            "unit": "short",
+            "description": "Number of jobs currently running"
+          },
+          {
+            "id": "job-duration",
+            "title": "Job Duration (p50/p95/p99)",
+            "type": "histogram",
+            "metric": "zcoder_job_duration_seconds",
+            "unit": "s",
+            "description": "Job execution duration distribution"
+          },
+          {
+            "id": "jobs-total",
+            "title": "Jobs Total",
+            "type": "counter",
+            "metric": "zcoder_jobs_total",
+            "description": "Total jobs processed"
+          },
+          {
+            "id": "jobs-failed",
+            "title": "Jobs Failed",
+            "type": "counter",
+            "metric": "zcoder_jobs_failed_total",
+            "description": "Total failed jobs"
+          }
+        ]
+      },
+      {
+        "id": "workers",
+        "title": "Worker Health",
+        "type": "row",
+        "panels": [
+          {
+            "id": "worker-active",
+            "title": "Active Workers",
+            "type": "gauge",
+            "metric": "zcoder_worker_active",
+            "unit": "short",
+            "description": "Number of active worker processes"
+          },
+          {
+            "id": "worker-lease-expirations",
+            "title": "Lease Expirations",
+            "type": "counter",
+            "metric": "zcoder_worker_lease_expirations",
+            "description": "Total worker lease expirations"
+          },
+          {
+            "id": "worker-fencing-rejections",
+            "title": "Fencing Rejections",
+            "type": "counter",
+            "metric": "zcoder_worker_fencing_rejections",
+            "description": "Stale fencing token rejections"
+          }
+        ]
+      },
+      {
+        "id": "outbox",
+        "title": "Outbox & Webhooks",
+        "type": "row",
+        "panels": [
+          {
+            "id": "outbox-pending",
+            "title": "Outbox Pending",
+            "type": "gauge",
+            "metric": "zcoder_outbox_pending",
+            "unit": "short",
+            "description": "Number of undelivered outbox messages"
+          },
+          {
+            "id": "outbox-failures",
+            "title": "Outbox Failures",
+            "type": "counter",
+            "metric": "zcoder_outbox_failures",
+            "description": "Outbox delivery failures"
+          },
+          {
+            "id": "outbox-deliveries",
+            "title": "Outbox Deliveries",
+            "type": "counter",
+            "metric": "zcoder_outbox_deliveries",
+            "description": "Successful outbox deliveries"
+          },
+          {
+            "id": "webhooks-total",
+            "title": "Webhooks Received",
+            "type": "counter",
+            "metric": "zcoder_webhooks",
+            "description": "Total webhooks received"
+          },
+          {
+            "id": "webhooks-duplicate",
+            "title": "Duplicate Webhooks",
+            "type": "counter",
+            "metric": "zcoder_webhooks_duplicate",
+            "description": "Duplicate webhook deliveries detected"
+          }
+        ]
+      },
+      {
+        "id": "database",
+        "title": "Database",
+        "type": "row",
+        "panels": [
+          {
+            "id": "db-pool-in-use",
+            "title": "DB Pool In Use",
+            "type": "gauge",
+            "metric": "zcoder_db_pool_in_use",
+            "unit": "short",
+            "description": "Database pool connections currently in use"
+          },
+          {
+            "id": "db-pool-available",
+            "title": "DB Pool Available",
+            "type": "gauge",
+            "metric": "zcoder_db_pool_available",
+            "unit": "short",
+            "description": "Database pool connections available"
+          },
+          {
+            "id": "db-query-latency",
+            "title": "DB Query Latency (p50/p95/p99)",
+            "type": "histogram",
+            "metric": "zcoder_db_query_latency_seconds",
+            "unit": "s",
+            "description": "Database query latency distribution"
+          },
+          {
+            "id": "db-errors",
+            "title": "DB Errors",
+            "type": "counter",
+            "metric": "zcoder_db_errors",
+            "description": "Total database errors"
+          }
+        ]
+      },
+      {
+        "id": "backup",
+        "title": "Backup & DR",
+        "type": "row",
+        "panels": [
+          {
+            "id": "backup-last-success",
+            "title": "Last Successful Backup",
+            "type": "gauge",
+            "metric": "zcoder_backup_last_success_timestamp",
+            "unit": "dateTime",
+            "description": "Unix timestamp of last successful backup"
+          },
+          {
+            "id": "backup-last-drill",
+            "title": "Last Restore Drill",
+            "type": "gauge",
+            "metric": "zcoder_backup_last_restore_drill_timestamp",
+            "unit": "dateTime",
+            "description": "Unix timestamp of last successful restore drill"
+          },
+          {
+            "id": "backup-size",
+            "title": "Backup Size",
+            "type": "gauge",
+            "metric": "zcoder_backup_size_bytes",
+            "unit": "bytes",
+            "description": "Size of last backup in bytes"
+          }
+        ]
+      },
+      {
+        "id": "api",
+        "title": "API (RED)",
+        "type": "row",
+        "panels": [
+          {
+            "id": "api-requests",
+            "title": "API Requests",
+            "type": "counter",
+            "metric": "zcoder_api_requests",
+            "description": "Total API requests"
+          },
+          {
+            "id": "api-errors",
+            "title": "API Errors",
+            "type": "counter",
+            "metric": "zcoder_api_errors",
+            "description": "Total API errors"
+          },
+          {
+            "id": "api-duration",
+            "title": "API Duration (p50/p95/p99)",
+            "type": "histogram",
+            "metric": "zcoder_api_duration_seconds",
+            "unit": "s",
+            "description": "API request duration distribution"
+          }
+        ]
+      },
+      {
+        "id": "cost",
+        "title": "Cost & Maintenance",
+        "type": "row",
+        "panels": [
+          {
+            "id": "cost-usd",
+            "title": "Total Cost (USD)",
+            "type": "counter",
+            "metric": "zcoder_cost_usd",
+            "unit": "currencyUSD",
+            "description": "Total cost in USD"
+          },
+          {
+            "id": "maintenance-campaigns",
+            "title": "Maintenance Campaigns",
+            "type": "counter",
+            "metric": "zcoder_maintenance_campaigns",
+            "description": "Total maintenance campaigns started"
+          },
+          {
+            "id": "maintenance-duration",
+            "title": "Campaign Duration (p50/p95/p99)",
+            "type": "histogram",
+            "metric": "zcoder_maintenance_campaign_duration_seconds",
+            "unit": "s",
+            "description": "Maintenance campaign duration distribution"
+          }
+        ]
+      }
+    ]
+  }
+}

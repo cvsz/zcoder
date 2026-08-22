@@ -45,7 +45,7 @@ for i in range(1000):
         proc = subprocess.Popen([sys.executable, "-c", script], env=env)
 
         # Give it some time to start writing
-        time.sleep(0.5)
+        time.sleep(2.0)
 
         # SIGKILL it
         proc.kill()

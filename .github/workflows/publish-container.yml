@@ -74,6 +74,33 @@ jobs:
           artifact-name: container-sbom-spdx
           upload-release-assets: false
 
+      - name: Generate per-architecture SBOMs
+        run: |
+          mkdir -p sboms
+          for arch in amd64 arm64; do
+            docker build --platform linux/${arch} -t zcoder-sbom:${arch} .
+            docker save zcoder-sbom:${arch} -o sboms/zcoder-${arch}.tar
+          done
+
+      - name: Install syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate per-architecture SBOMs with syft
+        run: |
+          for arch in amd64 arm64; do
+            syft zcoder-sbom:${arch} -o spdx-json=sboms/sbom-${arch}.spdx.json
+          done
+          ls -la sboms/
+
+      - name: Upload per-arch SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: per-arch-sboms
+          path: sboms/*
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Attest container provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:

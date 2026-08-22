@@ -332,6 +332,8 @@ class RbacPolicy:
         "metrics.view": ZCoderRole.VIEWER,
         "health.view": ZCoderRole.VIEWER,
         "zcoder.config.settings.view": ZCoderRole.VIEWER,
+        "deployment.history.view": ZCoderRole.VIEWER,
+        "artifact.verify": ZCoderRole.VIEWER,
         # Operator-level: operations
         "job.submit": ZCoderRole.OPERATOR,
         "job.cancel": ZCoderRole.OPERATOR,
@@ -341,6 +343,9 @@ class RbacPolicy:
         "approval.grant": ZCoderRole.OPERATOR,
         "approval.deny": ZCoderRole.OPERATOR,
         "webhook.replay": ZCoderRole.OPERATOR,
+        "backup.create": ZCoderRole.OPERATOR,
+        "backup.restore": ZCoderRole.OPERATOR,
+        "deployment.rehearse": ZCoderRole.OPERATOR,
         # Admin-level: configuration changes
         "zcoder.config.settings.update": ZCoderRole.ADMIN,
         "github.update_installation": ZCoderRole.ADMIN,
@@ -348,30 +353,58 @@ class RbacPolicy:
         "secret.rotate": ZCoderRole.ADMIN,
         "policy.change": ZCoderRole.ADMIN,
         "deploy.trigger": ZCoderRole.ADMIN,
+        "deploy.rollback": ZCoderRole.ADMIN,
         "worker.register": ZCoderRole.ADMIN,
+        "artifact.revoke": ZCoderRole.ADMIN,
+        "tenant.isolation.verify": ZCoderRole.ADMIN,
+    }
+
+    # Provider → required role mapping for cross-provider parity
+    PROVIDER_ACTION_ROLES: dict[str, dict[str, ZCoderRole]] = {
+        "oidc": ACTION_ROLES,
+        "api_key": ACTION_ROLES,
+        "scim": {
+            "user.create": ZCoderRole.ADMIN,
+            "user.update": ZCoderRole.ADMIN,
+            "user.delete": ZCoderRole.ADMIN,
+            "group.create": ZCoderRole.ADMIN,
+            "group.update": ZCoderRole.ADMIN,
+            "group.delete": ZCoderRole.ADMIN,
+        },
+        "break_glass": ACTION_ROLES,
     }
 
     @classmethod
-    def check(cls, identity: AuthenticatedIdentity, action: str) -> None:
+    def check(cls, identity: AuthenticatedIdentity, action: str, provider: str = "oidc") -> None:
         """Enforce action authorization. Raises PermissionDeniedError if denied."""
-        required = cls.ACTION_ROLES.get(action, ZCoderRole.ADMIN)
+        provider_actions = cls.PROVIDER_ACTION_ROLES.get(provider, cls.ACTION_ROLES)
+        required = provider_actions.get(action, ZCoderRole.ADMIN)
         if not role_has_privilege(identity.role, required):
             _audit_log(
                 "AUTH_DENIED",
                 identity.sub,
-                {"action": action, "role": identity.role.value, "required": required.value},
+                {
+                    "action": action,
+                    "role": identity.role.value,
+                    "required": required.value,
+                    "provider": provider,
+                },
             )
             raise PermissionDeniedError(
                 f"Action '{action}' requires role {required.value}, "
                 f"but '{identity.sub}' has role {identity.role.value}"
             )
-        _audit_log("AUTH_ALLOWED", identity.sub, {"action": action, "role": identity.role.value})
+        _audit_log(
+            "AUTH_ALLOWED",
+            identity.sub,
+            {"action": action, "role": identity.role.value, "provider": provider},
+        )
 
     @classmethod
-    def is_allowed(cls, identity: AuthenticatedIdentity, action: str) -> bool:
+    def is_allowed(cls, identity: AuthenticatedIdentity, action: str, provider: str = "oidc") -> bool:
         """Non-raising version for conditional checks."""
         try:
-            cls.check(identity, action)
+            cls.check(identity, action, provider)
             return True
         except PermissionDeniedError:
             return False

@@ -145,6 +145,51 @@ class TestRbacPolicy:
             # Admin should succeed
             RbacPolicy.check(admin, action)
 
+    def test_new_deployment_actions_parity(self):
+        viewer = self._identity(ZCoderRole.VIEWER)
+        operator = self._identity(ZCoderRole.OPERATOR)
+        admin = self._identity(ZCoderRole.ADMIN)
+
+        # Viewer can view history and verify artifacts
+        RbacPolicy.check(viewer, "deployment.history.view")
+        RbacPolicy.check(viewer, "artifact.verify")
+
+        # Operator can create backups, restore, and rehearse
+        RbacPolicy.check(operator, "backup.create")
+        RbacPolicy.check(operator, "backup.restore")
+        RbacPolicy.check(operator, "deployment.rehearse")
+
+        # Admin can rollback, revoke artifacts, and verify tenant isolation
+        RbacPolicy.check(admin, "deploy.rollback")
+        RbacPolicy.check(admin, "artifact.revoke")
+        RbacPolicy.check(admin, "tenant.isolation.verify")
+
+        # Viewer/operator cannot perform admin actions
+        for action in ["deploy.rollback", "artifact.revoke", "tenant.isolation.verify"]:
+            with pytest.raises(PermissionDeniedError):
+                RbacPolicy.check(viewer, action)
+            with pytest.raises(PermissionDeniedError):
+                RbacPolicy.check(operator, action)
+
+    def test_provider_auth_parity(self):
+        admin = self._identity(ZCoderRole.ADMIN)
+
+        # OIDC provider actions
+        RbacPolicy.check(admin, "job.list", provider="oidc")
+        RbacPolicy.check(admin, "job.submit", provider="oidc")
+
+        # API key provider actions
+        RbacPolicy.check(admin, "job.list", provider="api_key")
+        RbacPolicy.check(admin, "job.submit", provider="api_key")
+
+        # SCIM provider actions (different action set)
+        RbacPolicy.check(admin, "user.create", provider="scim")
+        RbacPolicy.check(admin, "group.update", provider="scim")
+
+        # Break-glass provider actions
+        RbacPolicy.check(admin, "deploy.trigger", provider="break_glass")
+        RbacPolicy.check(admin, "secret.rotate", provider="break_glass")
+
 
 class TestSessionStore:
     def _make_identity(self) -> AuthenticatedIdentity:
