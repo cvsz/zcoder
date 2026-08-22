@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Optional
 
 from zcoder.core.resilience import shell_command_argv
+from zcoder.core.security import build_child_env
 
 USER_SETTINGS = Path(os.path.expanduser("~/.claude/settings.json"))
 PROJECT_SETTINGS = Path(".claude/settings.json")
@@ -134,6 +135,7 @@ def render_status_line(session_state: dict) -> str:
                 capture_output=True,
                 text=True,
                 timeout=5,
+                env=build_child_env(),  # SEC-008: no secret inheritance
             )
             line = r.stdout.strip()
             if line:
