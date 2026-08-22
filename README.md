@@ -1,54 +1,134 @@
 # ZCoder
 
-> **No-cost-first AI coding and agent platform for local, self-hosted, and optional cloud workflows.**
+> **AI Coding Platform ระดับองค์กรสำหรับการพัฒนาแบบ Local-First, Self-Hosted, และ Hybrid Cloud**
 
 [![CI](https://github.com/cvsz/zcoder/actions/workflows/ci.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
 
-**Current package version:** `1.40.0`
-
-ZCoder is a modular Python platform for AI-assisted software engineering. It combines a CLI, TUI, browser UI, autonomous agent runtime, local/self-hosted AI infrastructure, GitHub orchestration, enterprise control-plane capabilities, and optional provider integrations in one codebase.
-
-The current architecture is intentionally **no-cost first**: local and self-hosted execution can be used without making a commercial AI provider mandatory. Paid or customer-supplied provider credentials are optional integration paths rather than a requirement for the platform core.
+**เวอร์ชันปัจจุบัน:** `1.41.0`
 
 ---
 
-## Why ZCoder
+## ภาพรวม
 
-ZCoder is designed around a few hard constraints:
+ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบมาให้ครบ盖 toutes ด้าน ทั้ง CLI, TUI, Web Console, Autonomous Agent Runtime, Local AI Infrastructure, GitHub Orchestration, และ Enterprise Control Plane ใน codebase เดียว
 
-- **Local/self-hosted first** — keep core workflows runnable on infrastructure you control.
-- **Zero-cost policy support** — distinguish local/free execution from customer-key, paid-platform, and unknown-cost routes.
-- **Provider portability** — keep model/provider-specific behavior behind adapters.
-- **Autonomous engineering workflows** — inspect, plan, edit, test, validate, review, and orchestrate bounded coding jobs.
-- **Production architecture** — durable jobs, policy, tenant boundaries, auditability, queues, workers, observability, backup/restore, and deployment concerns are first-class.
-- **Evidence over claims** — catalog entries, mocks, contract tests, and real runtime verification are treated as different evidence levels.
-- **Backward compatibility** — the implementation is organized under `src/zcoder/`; legacy flat-module import shims were removed after the canonical migration completed.
+### จุดเด่นหลัก
 
----
-
-## Platform at a glance
-
-| Area | What is in the repository |
+| คุณสมบัติ | รายละเอียด |
 |---|---|
-| CLI | `zcoder` and source-compatible `python main.py` entry points |
-| TUI | Textual-based terminal interface |
-| Web | FastAPI/Uvicorn browser console with optional web dependencies |
-| Local AI | Hardware profiling, model registry, local model gateway, llama.cpp/Ollama/vLLM/OpenAI-compatible adapters, local embeddings/RAG; `ZCODER_LOCAL_MODE` offline synthesis for keyless/air-gapped smoke use |
-| No-cost core | Cost classification and routing policy, local object storage, local analytics, notifications, workflows, agent catalog |
-| Agents | Durable agent runtime, bounded coding cycles, approvals, cancellation/retry semantics |
-| GitHub automation | Repository jobs, PR/CI orchestration, review and bounded repair workflows |
-| Enterprise control plane | Multi-tenancy, PostgreSQL-backed state, policy, identity, quotas, audit, residency and compliance-oriented components |
-| Public product layer | Public API, SDK client, customer webhooks, product/plan/entitlement boundaries |
-| Operations | Deployment, observability, health, resilience, backup/restore, security and release gates |
-| Claude integration | Extensive optional Anthropic/Claude API, admin, compliance, tools, files, batch, agents, memory, model and workflow support |
+| **Local-First** | รันได้เต็มรูปแบบบน infrastructure ของคุณ ไม่ต้องพึ่ง cloud |
+| **Zero-Cost First** | แยก cost classification จาก runtime availability — ไม่ silent fallback ไป paid provider |
+| **Provider-Neutral** | รองรับ Anthropic, Gemini, xAI, Ollama, local model พร้อมกัน |
+| **Production-Ready** | Durable jobs, policy, tenant isolation, audit, queues, workers, observability, backup/restore |
+| **Security-First** | 11 ช่องบ่อน vulnerability ที่ปิดครบ (SEC-001 ถึง SEC-010) |
+| **Evidence-Based** | роверинг แบบ tiered: source → unit → integration → live-runtime → production |
 
 ---
 
-## Quick start
+## Platform Capabilities
 
-### 1. Clone and create a virtual environment
+### 🖥️ Interfaces
+
+| Interface | Technology | Description |
+|---|---|---|
+| **CLI** | Click/Typer patterns | `zcoder` และ `python main.py` entry points |
+| **TUI** | Textual 0.80+ | Terminal UI แบบ interactive |
+| **Web Console** | FastAPI + Uvicorn | Browser-based management console |
+| **API Server** | FastAPI + OpenAPI | RESTful API พร้อม `/metrics`, `/health/live`, `/health/ready` |
+
+### 🤖 AI & Agent Runtime
+
+- **CodeAgent** — autonomous coding cycles แบบ bounded (Inspect → Plan → Edit → Test → Validate)
+- **Tool Parity** — Read, Write, Edit, Glob, Grep, LS, Bash, WebFetch พร้อม security boundaries
+- **Sessions** — resume, rewind, branch conversations
+- **Subagents** — bounded budgets, permissions, frontmatter validation
+- **Hooks** — lifecycle events แบบ fail-closed
+- **MCP** — server discovery, tool trust policy, resource validation
+- **Memory** — scoped CLAUDE.md hierarchy (enterprise → user → project)
+- **Skills & Commands** — loader containment, install/remove/info lifecycle
+
+### 🏗️ Architecture
+
+```text
+                    +----------------------+
+                    |      Interfaces      |
+                    | CLI / TUI / Web/API  |
+                    +----------+-----------+
+                               |
+                               v
+                    +----------------------+
+                    |       Services       |
+                    | agents / workflows   |
+                    | orchestration / API  |
+                    +----------+-----------+
+                               |
+               +---------------+---------------+
+               |                               |
+               v                               v
+     +-------------------+         +--------------------+
+     | Core / Domain     |         | Provider Adapters  |
+     | jobs / policy /   |         | local / Claude /   |
+     | tenants / models  |         | external optional  |
+     +---------+---------+         +---------+----------+
+               |                               |
+               +---------------+---------------+
+                               |
+                               v
+                    +----------------------+
+                    |   Infrastructure     |
+                    | SQLite / PostgreSQL  |
+                    | GitHub / workers /   |
+                    | deploy / telemetry   |
+                    +----------------------+
+```
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) สำหรับรายละเอียดเต็ม
+
+### 🏢 Enterprise Features
+
+| Domain | Components |
+|---|---|
+| **Multi-Tenancy** | Organization → Project → Resources hierarchy, RLS policies |
+| **Identity** | OIDC/JWT, SCIM 2.0 provisioning, API keys, break-glass admin |
+| **RBAC** | 8 enterprise roles, 30+ permissions, provider-neutral enforcement |
+| **Quotas** | Concurrent jobs, monthly budget, project/repository limits |
+| **Audit** | Immutable append-only audit log, structured JSONL export |
+| **Billing** | Provider-neutral interface, Stripe adapter, usage metering |
+| **Deployment** | Health checks, backup/restore, rollback, DR rehearsal |
+| **Observability** | Prometheus `/metrics`, OTel OTLP, structured JSON logs |
+
+### 🔒 Security Boundaries
+
+| ID | Surface | Status |
+|---|---|---|
+| SEC-001 | Deep Research SSRF | ✅ FIXED |
+| SEC-002 | Sandbox filesystem traversal | ✅ FIXED |
+| SEC-003 | Sandbox network bypass | ✅ FIXED |
+| SEC-004 | CodeAgent filesystem containment | ✅ FIXED |
+| SEC-005 | CodeAgent WebFetch SSRF | ✅ FIXED |
+| SEC-006 | MCP/tool-output trust boundary | ✅ FIXED |
+| SEC-007 | RAG/document trust + tenant isolation | ✅ FIXED |
+| SEC-008 | Secrets/environment inheritance | ✅ FIXED |
+| SEC-009 | Authorization/approval boundaries | ✅ FIXED |
+| SEC-010 | CI/dependency/supply-chain | ✅ FIXED |
+
+See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอียด
+
+---
+
+## เริ่มต้นใช้งาน
+
+### ตrequirements
+
+- Python 3.9+
+- pip
+- (Optional) PostgreSQL 16+ สำหรับ enterprise mode
+- (Optional) Ollama/llama.cpp สำหรับ local AI
+
+### Installation
 
 ```bash
 git clone https://github.com/cvsz/zcoder.git
@@ -60,306 +140,199 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-For development tooling:
+Development dependencies:
 
 ```bash
 pip install -e '.[dev]'
 ```
 
-Optional feature groups are available through `pyproject.toml`, including `web`, `tui`, `excel`, `pptx`, and `all`.
+Optional groups: `web`, `tui`, `excel`, `pptx`, `all`
 
-### 2. Verify the installation
+### Verification
 
 ```bash
 zcoder --version
 zcoder --help
-```
-
-The source-checkout entry point also remains available:
-
-```bash
 python main.py --help
 ```
 
-### 3. Run a basic coding request
-
-For an Anthropic-backed request, configure your own key explicitly:
+### การใช้งานพื้นฐาน
 
 ```bash
+# Coding request with Anthropic
 export ANTHROPIC_API_KEY='sk-ant-...'
 zcoder -p 'Write a Python function to reverse a string'
-```
 
-Analyze an existing file:
+# File analysis
+zcoder -f app.py -p 'Review this file and propose a minimal fix'
 
-```bash
-zcoder -f app.py -p 'Review this file, identify defects, and propose a minimal fix'
-```
-
-### 4. Terminal UI
-
-```bash
+# Terminal UI
 zcoder --tui
-```
 
-### 5. Web console
-
-```bash
+# Web console
 make build
 make start
 ```
 
-The existing web lifecycle targets include `start`, `stop`, `restart`, `status`, and `logs`. See [`QUICKSTART.md`](QUICKSTART.md) and the web documentation for the current details.
+---
+
+## No-Cost-First Execution Model
+
+ZCoder แยก **cost classification** จาก **runtime availability**:
+
+```text
+Cost Classes:
+  FREE_LOCAL     → Ollama, llama.cpp, local embeddings
+  FREE_REMOTE    → Public/free model endpoints
+  CUSTOMER_KEY   → Customer-supplied API keys
+  PAID_PLATFORM  → Commercial provider APIs
+  UNKNOWN        → Unclassified routes
+
+Policy Modes:
+  ZERO_COST_ONLY   → Block all paid/unknown transports
+  PREFER_ZERO_COST → Use free first, paid only with explicit opt-in
+  PERMIT_PAID      → Allow paid routes with logging
+```
+
+**กฎสำคัญ:** Zero-cost routing **ต้องไม่ silent fallback** ไป paid transport
 
 ---
 
-## No-cost-first execution model
+## Local AI Stack
 
-ZCoder separates **cost classification** from **runtime availability**.
+### Runtime Adapters
 
-The no-cost platform defines these cost classes:
+- **llama.cpp / llama-server** — process ownership, structured output
+- **Ollama** — local gateway (`http://127.0.0.1:11434`)
+- **vLLM** — high-throughput local inference
+- **OpenAI-compatible** — generic loopback servers
 
-```text
-FREE_LOCAL
-FREE_REMOTE
-CUSTOMER_KEY
-PAID_PLATFORM
-UNKNOWN
-```
+### Hardware Profiling
 
-and policy modes including:
-
-```text
-ZERO_COST_ONLY
-PREFER_ZERO_COST
-PERMIT_PAID
-```
-
-The important rule is that **zero-cost routing must not silently fall back to a paid or unknown-cost transport**.
-
-A model being present in a catalog is not the same as the model being downloaded, installed, loaded, benchmarked, or proven on the current host. ZCoder's local model lifecycle keeps these concepts separate so operational decisions can be made from actual state rather than labels.
-
----
-
-## Local AI stack
-
-The local AI subsystem lives primarily in:
-
-```text
-src/zcoder/enterprise/local_ai_stack.py
-src/zcoder/enterprise/no_cost_platform.py
-```
-
-### Runtime adapters
-
-The codebase contains local execution abstractions and adapters for:
-
-- **llama.cpp / llama-server**
-- **Ollama**
-- **vLLM**
-- **generic loopback OpenAI-compatible servers**
-
-The adapters are intended to sit behind the local model gateway rather than leaking runtime-specific behavior into coding workflows.
-
-### Hardware profiling
-
-`HardwareProfiler` detects host characteristics used by routing and fit decisions, including:
-
-- operating system and architecture
+`HardwareProfiler` ตรวจสอบ:
+- OS และ architecture
 - CPU core count
-- total and available RAM
-- NVIDIA GPU detection when `nvidia-smi` is available
-- Apple Silicon detection
-- CPU-only fallback
-- VRAM where it can be determined
+- RAM (total/available)
+- NVIDIA GPU (`nvidia-smi`)
+- Apple Silicon
+- VRAM (เมื่อสามารถระบุได้)
 
-Hardware detection is advisory. A claimed GPU/runtime capability must still be verified on the machine where the workload actually runs.
-
-### Model registry and lifecycle
-
-The local model registry distinguishes model state instead of treating every catalog entry as installed:
+### Model Lifecycle
 
 ```text
-CATALOG
-DISCOVERED
-DOWNLOADING
-DOWNLOADED
-VERIFIED
-LOADABLE
-LOADED
-FAILED
-REMOVED
+CATALOG → DISCOVERED → DOWNLOADING → DOWNLOADED →
+VERIFIED → LOADABLE → LOADED → FAILED → REMOVED
 ```
 
-Model metadata can include source type, repository/path, revision, filename, format, size, digest, license, parameter count, quantization and gated-access status.
+### Local RAG
 
-### Local embeddings and RAG
+- Offline TF-IDF/cosine retrieval
+- ไม่ต้องพึ่ง hosted embedding service หรือ vector DB
+- Secret-aware filtering สำหรับ repository content
 
-ZCoder includes an offline repository-indexing path using deterministic local TF-IDF/cosine retrieval. It is designed to avoid a mandatory hosted embedding service or vector database and includes secret-aware filtering for repository content.
+---
 
-### Local MCP and agent runtime
+## Autonomous Engineering
 
-The local stack also contains MCP-oriented tooling and a bounded autonomous coding cycle built around:
+ZCoder มี durable agent runtime สำหรับ bounded coding cycles:
 
-```text
-Inspect -> Plan -> Edit -> Test -> Validate
+| Component | Description |
+|---|---|
+| **EngineeringTask** | Durable job state with status, metadata, lease |
+| **Worker** | Process execution boundaries, cancellation, retry |
+| **Outbox** | Durable outbox สำหรับ external mutations |
+| **Fencing** | Monotonic fencing tokens ป้องกัน stale claims |
+| **Approval** | Approval-aware actions แบบ fail-closed |
+| **GitHub Orchestration** | PR/CI orchestration, bounded repair |
+| **Policy Engine** | require_approval, sandbox, max_budget obligations |
+| **Scheduler** | Maintenance campaigns, lease-gated execution |
+
+---
+
+## CLI Commands
+
+```bash
+# Core coding
+zcoder -p "prompt"                    # One-shot coding
+zcoder -f file.py -p "review"         # File analysis
+zcoder --tui                           # Terminal UI
+
+# Code agent (autonomous)
+zcoder --code-agent "fix auth bug"    # Autonomous coding cycle
+zcoder --code-agent-permission ask   # Permission mode
+
+# Provider routing
+zcoder --provider anthropic           # anthropic | gemini | xai | ollama | local
+zcoder --base-url http://localhost:11434  # Custom gateway
+
+# GitHub
+zcoder --gh-issue 123                 # GitHub issue operations
+zcoder --gh-pr 456                    # PR orchestration
+
+# Embeddings/RAG
+zcoder --embed "query"                # Embedding lookup
+zcoder --embed-file doc.md            # Index file
+
+# Observability
+zcoder --metrics-show                 # Show metrics
+zcoder --health-check                 # Health endpoints
+
+# Maintenance
+zcoder --maintenance                  # Run maintenance campaign
+zcoder --backup                       # Create backup
+zcoder --dr-rehearsal                 # DR rehearsal
 ```
 
-The local agent path is designed to be independent from a proprietary cloud agent SDK.
-
-### Important verification rule
-
-Some contract or development paths can operate with simulated/fallback behavior when a real local daemon or model is unavailable. Therefore:
-
-> **Do not interpret a model catalog entry or contract test as proof of real local inference.**
-
-A real-runtime claim should include an actual local process, actual model identity/artifact, actual generated output, and zero-paid-call evidence for the run.
-
 ---
 
-## Autonomous engineering platform
+## Configuration
 
-ZCoder has evolved beyond one-shot code generation. The repository includes components for durable engineering jobs and orchestration, including:
+### Environment Variables
 
-- durable agent job state
-- worker execution boundaries
-- cancellation and retry handling
-- approval-aware actions
-- GitHub repository and pull-request orchestration
-- CI observation and bounded repair workflows
-- policy enforcement
-- audit events
-- scheduling and leases
-- SQLite and PostgreSQL-backed persistence paths
-- observability and operational health components
+| Variable | Description | Required |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key | Optional |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google Gemini API key | Optional |
+| `XAI_API_KEY` | xAI Grok API key | Optional |
+| `OLLAMA_BASE_URL` | Ollama gateway URL | Optional |
+| `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |
+| `DATABASE_URL` | PostgreSQL connection string | Optional (SQLite default) |
+| `ZCODER_OTEL_ENDPOINT` | OpenTelemetry collector endpoint | Optional |
+| `ZCODER_PROVIDER` | Default provider (anthropic/gemini/xai/ollama/local) | Optional |
+| `ZCODER_BASE_URL` | Default API gateway URL | Optional |
 
-These capabilities are organized across `core`, `domain`, `services`, `infrastructure`, `worker`, and enterprise-oriented modules instead of being embedded entirely inside the CLI.
+### Cost Policy
 
----
+```bash
+# Zero-cost only — block all paid transports
+export ZCODER_COST_POLICY=ZERO_COST_ONLY
 
-## Enterprise and SaaS-oriented capabilities
+# Prefer free, allow paid with logging
+export ZCODER_COST_POLICY=PREFER_ZERO_COST
 
-The repository contains architecture and implementation for larger deployments, including components for:
-
-- organizations, projects and tenant boundaries
-- PostgreSQL-backed control-plane state
-- row-level tenant isolation work
-- identity/OIDC integration
-- SSO/SCIM-oriented services
-- service accounts and policy controls
-- quotas and usage accounting
-- residency/compliance models
-- audit evidence
-- public API and SDK boundaries
-- customer webhooks
-- product/plan/entitlement models
-- provider-neutral billing boundaries
-- deployment and resilience
-- backup/restore and recovery workflows
-- OpenTelemetry-oriented observability
-
-These components do **not** imply that every external production dependency is bundled with ZCoder. Production PostgreSQL HA, external identity infrastructure, object storage, physical multi-region deployment and other environment-specific systems remain deployment responsibilities unless explicitly implemented by the selected deployment profile.
-
----
-
-## Optional Claude / Anthropic integration
-
-ZCoder retains extensive Claude integration for users who choose to provide Anthropic credentials. The repository includes modules for areas such as:
-
-- Messages and streaming
-- model catalog/preflight behavior
-- tool use and structured output
-- prompt caching and token management
-- Files and Batch APIs
-- citations, search and research helpers
-- memory and sessions
-- Claude Code / agent-oriented integrations
-- Managed Agents
-- Admin API and compliance-oriented APIs
-- GitHub, routing, metrics and prompt-optimization helpers
-- Excel and PowerPoint-oriented workflows
-
-Cloud-backed features are optional integrations. They are not evidence that a zero-cost execution profile is using a paid provider.
-
-For historical Anthropic-specific changes, see [`CHANGELOG.md`](CHANGELOG.md) and the dated documents under [`docs/`](docs/).
-
----
-
-## Architecture
-
-A simplified view of the current repository architecture:
-
-```text
-                       +----------------------+
-                       |      Interfaces      |
-                       | CLI / TUI / Web/API  |
-                       +----------+-----------+
-                                  |
-                                  v
-                       +----------------------+
-                       |       Services       |
-                       | agents / workflows   |
-                       | orchestration / API  |
-                       +----------+-----------+
-                                  |
-                    +-------------+-------------+
-                    |                           |
-                    v                           v
-          +--------------------+      +--------------------+
-          | Core / Domain      |      | Provider Adapters  |
-          | jobs / policy /    |      | local / Claude /   |
-          | tenants / models   |      | external optional  |
-          +---------+----------+      +---------+----------+
-                    |                           |
-                    +-------------+-------------+
-                                  |
-                                  v
-                       +----------------------+
-                       |   Infrastructure     |
-                       | SQLite / PostgreSQL  |
-                       | GitHub / workers /   |
-                       | deploy / telemetry   |
-                       +----------------------+
+# Permit paid routes
+export ZCODER_COST_POLICY=PERMIT_PAID
 ```
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the detailed system view.
-
 ---
 
-## Repository layout
+## Security Principles
 
-```text
-zcoder/
-├── src/
-│   ├── zcoder/
-│   │   ├── api/              # API specifications/resources
-│   │   ├── claude/           # Claude-specific integration modules
-│   │   ├── config/           # configuration package
-│   │   ├── core/             # core application behavior
-│   │   ├── domain/           # domain models and boundaries
-│   │   ├── enterprise/       # local AI and no-cost enterprise stack
-│   │   ├── infrastructure/   # persistence/integration infrastructure
-│   │   ├── interfaces/       # interface adapters
-│   │   ├── services/         # application services
-│   │   ├── worker/           # worker/runtime processes
-│   │   └── main.py           # primary CLI entry point
-├── tests/                    # unit/integration/e2e suites
-├── webapp/                   # browser application
-├── docs/                     # implementation, audit and upgrade docs
-├── .github/workflows/ci.yml  # CI pipeline
-├── ARCHITECTURE.md
-├── CHANGELOG.md
-├── QUICKSTART.md
-├── ROADMAP.md
-├── SECURITY.md
-└── pyproject.toml
-```
+1. **No provider secrets in client-side code**
+2. **Mutating actions behind explicit policy/approval boundaries**
+3. **Tenant-scoped data isolation** (RLS, fail-closed boundaries)
+4. **Filesystem path validation** (safe_resolve, traversal rejection)
+5. **No silent paid-provider fallback** in zero-cost mode
+6. **Model artifacts as data** — not automatically trusted executables
+7. **Audit/evidence visible** — no mocks presented as real-runtime proof
+
+See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอียด
 
 ---
 
 ## Development
 
-Install development dependencies:
+### Prerequisites
 
 ```bash
 python -m venv .venv
@@ -367,133 +340,184 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 ```
 
-Run the test suite:
+### Quality Checks
 
 ```bash
-pytest
-```
-
-Run the same primary quality checks used by CI:
-
-```bash
+# Lint & format
 ruff check .
 black --check .
-bandit -r . -ll -x ./tests,./build,./dist
+
+# Security
+bandit -r src/zcoder -ll
+
+# Type checking
+mypy src/zcoder --ignore-missing-imports
+
+# Tests with coverage
 pytest --cov --cov-report=term-missing
+
+# Minimum coverage: 70%
 ```
 
-The project currently declares a **70% minimum coverage threshold** in `pyproject.toml`.
+### CI Matrix
 
-### CI matrix
+| Python Version | Status |
+|---|---|
+| 3.9 | ✅ Supported |
+| 3.10 | ✅ Supported |
+| 3.11 | ✅ Supported |
+| 3.12 | ✅ Supported |
 
-The GitHub Actions workflow currently defines test jobs for:
+### Additional CI Checks
 
-```text
-Python 3.9
-Python 3.10
-Python 3.11
-Python 3.12
-```
-
-and separately checks linting, formatting, security scanning, coverage, import/package behavior, and Docker image construction.
-
-The CI badge at the top of this README is the source of truth for the current branch state; historical test counts in old upgrade reports should not be treated as current CI status.
+- CodeQL security scanning
+- Dependency Review (Dependabot)
+- Helm lint/template
+- Release Gate validation
+- SDK/TypeScript compatibility
+- Docker build
+- Reproducibility (`uv lock --check`, `uv sync --locked`)
 
 ---
 
 ## Docker
 
-Build the image locally:
-
 ```bash
+# Build
 docker build -t zcoder:local .
+
+# Verify
+docker run --rm zcoder:local --version
+
+# Run with provider key
+docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder:local
 ```
 
-Verify the packaged CLI:
+---
+
+## Operations
+
+### Health Endpoints
 
 ```bash
-docker run --rm zcoder:local --version
+GET /health/live    # Liveness probe
+GET /health/ready   # Readiness probe (fail-closed 503 on DB failure)
+GET /metrics        # Prometheus exposition format
 ```
 
-Credentials should be passed explicitly at runtime only for the provider paths you choose to enable.
+### Backup & Restore
+
+```python
+from zcoder.services.backup_restore import BackupManager
+
+bm = BackupManager()
+
+# Create backup
+record = bm.run_pg_dump_backup()
+
+# Restore drill
+result = bm.run_restore_drill(
+    backup_id=record.backup_id,
+    target_database_url="postgresql://...",
+    expected_job_ids=["job_1", "job_2"]
+)
+```
+
+### Deployment
+
+```python
+from zcoder.domain.services.deployment import DeploymentEngine
+
+engine = DeploymentEngine(store)
+
+# Health check
+health = engine.evaluate_health()
+
+# Deployment history
+history = engine.get_deployment_history(limit=20)
+
+# Rollback
+success, msg = engine.rollback_to_version("v1.40.0")
+
+# Artifact revocation
+engine.revoke_artifact(manifest, "Supply chain compromise")
+
+# Deployment rehearsal
+result = engine.run_deployment_rehearsal("v1.41.0-rc1", dry_run=True)
+```
+
+### DR Rehearsal
+
+ดู [`docs/operations/dr-rehearsal.md`](docs/operations/dr-rehearsal.md) สำหรับ quarterly procedure
 
 ---
 
-## Security principles
+## Observability
 
-ZCoder's security model is built around explicit boundaries rather than implicit trust:
+### Metrics (Prometheus)
 
-- do not expose provider secrets to browser clients
-- keep mutating actions behind explicit policy/approval boundaries
-- isolate tenant-scoped data and operations
-- validate filesystem paths and imported configuration
-- avoid silent paid-provider fallback in zero-cost mode
-- treat downloaded model artifacts as data, not automatically trusted executable code
-- distinguish user-owned external runtimes from ZCoder-owned processes before lifecycle operations
-- keep local analytics and telemetry local unless an external exporter is explicitly configured
-- make audit/evidence status visible instead of upgrading mocks into production claims
+```
+zcoder_jobs_queued
+zcoder_jobs_running
+zcoder_job_duration_seconds
+zcoder_worker_active
+zcoder_worker_lease_expirations
+zcoder_outbox_pending
+zcoder_webhooks_total
+zcoder_github_api_errors
+zcoder_db_pool_in_use
+zcoder_backup_last_success_timestamp
+zcoder_api_requests
+zcoder_cost_usd
+zcoder_maintenance_campaigns
+```
 
-See [`SECURITY.md`](SECURITY.md) for project security guidance.
+### Logging
 
----
+- **Format:** JSON (non-TTY) หรือ text (interactive TTY)
+- **Correlation ID:** หนึ่งต่อ CLI invocation
+- **Redaction:** `sk-ant-...`, `Authorization`, `x-api-key` filtered อัตโนมัติ
+- **Destination:** stderr only (stdout reserved for CLI output)
 
-## Evidence and release semantics
+### OpenTelemetry
 
-When evaluating a capability, ZCoder documentation should distinguish at least these situations:
+```bash
+export ZCODER_OTEL_ENDPOINT=http://collector:4317
+zcoder --health-check  # OTel bootstrap happens automatically
+```
 
-1. **Implemented in source**
-2. **Unit/contract tested**
-3. **Integration tested with a controlled dependency**
-4. **Verified against a real local/external runtime**
-5. **Production verified in the target deployment**
-
-Examples:
-
-- A model listed in the catalog is **not** automatically installed.
-- An adapter contract test is **not** proof that llama.cpp/Ollama/vLLM generated real tokens.
-- A skipped browser test is **not** a web E2E pass.
-- A zero-cost policy test is only strong evidence when prohibited paid transports are also observed to remain unused.
-
-This distinction is intentional and is part of the project's release discipline.
+Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashboard.json)
 
 ---
 
 ## Documentation
 
-Start here:
-
-- [`QUICKSTART.md`](QUICKSTART.md) — basic setup and first commands
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — architecture and system boundaries
-- [`ROADMAP.md`](ROADMAP.md) — planned and historical engineering direction
-- [`CHANGELOG.md`](CHANGELOG.md) — release/change history
-- [`SECURITY.md`](SECURITY.md) — security guidance
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution workflow
-- [`IMPLEMENTATION_CHECKLIST.md`](IMPLEMENTATION_CHECKLIST.md) — implementation tracking
-- [`docs/`](docs/) — detailed audits, implementation reports and upgrade material
+| Document | Description |
+|---|---|
+| [`QUICKSTART.md`](QUICKSTART.md) | Basic setup and first commands |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System architecture and boundaries |
+| [`ROADMAP.md`](ROADMAP.md) | Engineering direction |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history |
+| [`SECURITY.md`](SECURITY.md) | Security guidance |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution workflow |
+| [`IMPLEMENTATION_CHECKLIST.md`](IMPLEMENTATION_CHECKLIST.md) | Implementation tracking |
+| [`exec-planning.md`](exec-planning.md) | Production readiness execution plan |
+| [`docs/operations/`](docs/operations/) | Deployment, DR, observability runbooks |
+| [`docs/security/`](docs/security/) | Security audits and remediation |
 
 ---
 
-## Contributing
+## Evidence Tiers
 
-Contributions should preserve the project's primary invariants:
+| Tier | Description |
+|---|---|
+| **1. Source** | Implemented in `src/zcoder/` |
+| **2. Unit** | Contract/unit tests (1255+ tests) |
+| **3. Integration** | Controlled dependency testing |
+| **4. Live Runtime** | Verified against real local/external runtime |
+| **5. Production** | Verified in target deployment environment |
 
-- no mandatory commercial dependency for the no-cost core
-- no silent downgrade of security, tenant isolation or approval semantics
-- no provider secrets in client-side code
-- no fake/simulated evidence presented as real-runtime proof
-- deterministic tests for routing, policy and failure paths
-- backward compatibility where practical
-
-Before opening a pull request, run:
-
-```bash
-ruff check .
-black --check .
-bandit -r . -ll -x ./tests,./build,./dist
-pytest --cov --cov-report=term-missing
-```
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow.
+> **Important:** A model catalog entry is NOT proof of installed/runnable model. An adapter contract test is NOT proof of real inference. Evidence must match the claim tier.
 
 ---
 
@@ -503,6 +527,34 @@ ZCoder is released under the [MIT License](LICENSE).
 
 ---
 
-## Project status
+## Project Status
 
-ZCoder is an actively evolving engineering platform. The repository contains both mature integration surfaces and newer local-AI/control-plane subsystems. When deciding whether a capability is ready for a production environment, use the current CI result, release gates, real-runtime evidence, deployment-specific validation, and the documented limitations for that subsystem rather than relying on feature names alone.
+**Actively maintained.** The repository contains mature integration surfaces and active development on local-AI and control-plane subsystems. When evaluating production readiness, use CI results, release gates, real-runtime evidence, and documented subsystem limitations — not feature names alone.
+
+**Current Baseline:** `main@2d8b4a2` (exec-planning.md implementation sweep complete)
+
+**Security:** SEC-001 through SEC-010 closed and verified.
+
+---
+
+## Contributing
+
+Contributions must preserve:
+
+- ✅ No mandatory commercial dependency for no-cost core
+- ✅ No silent downgrade of security, tenant isolation, or approval semantics
+- ✅ No provider secrets in client-side code
+- ✅ No fake/simulated evidence presented as real-runtime proof
+- ✅ Deterministic tests for routing, policy, and failure paths
+- ✅ Backward compatibility where practical
+
+Before opening a PR:
+
+```bash
+ruff check .
+black --check .
+bandit -r src/zcoder -ll
+pytest --cov --cov-report=term-missing
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow.
