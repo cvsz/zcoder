@@ -1952,6 +1952,13 @@ def build_parser():
     rag.add_argument("--rag-index-name", default="default", dest="rag_index_name")
     rag.add_argument("--rag-list", action="store_true", dest="rag_list")
     rag.add_argument("--rag-k", type=int, default=5, dest="rag_k")
+    rag.add_argument(
+        "--rag-tenant",
+        metavar="ID",
+        dest="rag_tenant",
+        default="",
+        help="Tenant boundary for RAG indexes (SEC-007; required for index/query)",
+    )
 
     ev = p.add_argument_group("Evaluation")
     ev.add_argument("--eval-run", metavar="SUITE_JSON", dest="eval_run")
@@ -2973,12 +2980,12 @@ def main():
     if args.rag_index and args.rag_folder:
         from zcoder.claude.rag.engine import cmd_rag_index
 
-        cmd_rag_index(args.rag_index, args.rag_folder)
+        cmd_rag_index(args.rag_index, args.rag_folder, tenant_id=args.rag_tenant)
         return
     if args.rag_list:
         from zcoder.claude.rag.engine import cmd_rag_list
 
-        cmd_rag_list()
+        cmd_rag_list(tenant_id=args.rag_tenant)
         return
     if args.eval_list:
         from zcoder.claude.eval.eval import cmd_eval_list
@@ -3214,7 +3221,9 @@ def main():
     if args.rag_query:
         from zcoder.claude.rag.engine import cmd_rag_query
 
-        cmd_rag_query(args.rag_index_name, args.rag_query, key, model, k=args.rag_k)
+        cmd_rag_query(
+            args.rag_index_name, args.rag_query, key, model, k=args.rag_k, tenant_id=args.rag_tenant
+        )
         return
 
     # ── Evaluation (run/compare call the model; list/scaffold handled above) ──

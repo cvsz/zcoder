@@ -27,7 +27,10 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from zcoder.core.security import check_file_size, safe_resolve
+
 PROJECT_STYLES_DIR = Path(".claude/output-styles")
+MAX_STYLE_BYTES = 256 * 1024  # matches skills/agents/commands caps
 USER_STYLES_DIR = Path(os.path.expanduser("~/.claude/output-styles"))
 
 BUILTIN_STYLES = {
@@ -67,9 +70,15 @@ BUILTIN_STYLES = {
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
 
 
-def _parse_style_file(path: Path) -> Optional[dict]:
+def _parse_style_file(path: Path, base_dir: Optional[Path] = None) -> Optional[dict]:
+    # SEC-004/SEC-007 containment idiom: resolve the style file against its
+    # owning directory (rejecting symlink/path escapes) and cap its size
+    # before reading model-bound prompt content.
+    base = Path(base_dir) if base_dir else path.parent
     try:
-        text = path.read_text()
+        resolved = safe_resolve(path, base)
+        check_file_size(resolved, MAX_STYLE_BYTES)
+        text = resolved.read_text()
     except Exception:
         return None
     m = FRONTMATTER_RE.match(text)
@@ -96,14 +105,16 @@ def discover_custom_styles() -> dict:
     for d in (USER_STYLES_DIR, PROJECT_STYLES_DIR):
         if d.exists():
             for f in d.glob("*.md"):
-                style = _parse_style_file(f)
+                style = _parse_style_file(f, base_dir=d)
                 if style:
                     out[style["name"]] = style
     try:
         from zcoder.claude.tools.plugins import load_plugin_output_styles
 
         for entry in load_plugin_output_styles():
-            style = _parse_style_file(Path(entry["path"]))
+            if not entry.get("plugin_dir"):
+                continue  # fail closed: no containment base, no load
+            style = _parse_style_file(Path(entry["path"]), base_dir=Path(entry["plugin_dir"]))
             if style:
                 style["plugin"] = entry["plugin"]
                 out[style["name"]] = style
