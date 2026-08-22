@@ -1251,9 +1251,7 @@ class CodeAgent:
                 # In non-interactive mode, auto-approve reads, ask for writes
                 if name not in READ_ONLY_TOOLS:
                     input_keys = ", ".join(sorted(str(k) for k in inputs.keys()))[:60]
-                    print(
-                        f"\n\033[93m  [permission] {name}(keys=[{input_keys}], total={len(inputs)})\033[0m"
-                    )
+                    print(f"\n\033[93m  [permission] {name}(keys=[{input_keys}], total={len(inputs)})\033[0m")
                     try:
                         ans = input("  Approve? [Y/n] ").strip().lower()
                         if ans == "n":
