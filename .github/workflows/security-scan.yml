@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
           cache: pip
@@ -39,7 +39,7 @@ jobs:
       - name: Install security scanners
         run: |
           python -m pip install --upgrade pip
-          python -m pip install bandit pip-audit
+          python -m pip install bandit==1.9.4 pip-audit==2.10.1
 
       - name: Bandit source scan
         run: bandit -r src -q -ll
