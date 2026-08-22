@@ -71,8 +71,7 @@ class JobStore:
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY,
                     task TEXT,
@@ -86,10 +85,8 @@ class JobStore:
                     cost_usd REAL,
                     metadata TEXT
                 )
-            """
-            )
-            conn.execute(
-                """
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS events (
                     id TEXT PRIMARY KEY,
                     job_id TEXT,
@@ -98,10 +95,8 @@ class JobStore:
                     timestamp REAL,
                     payload TEXT
                 )
-            """
-            )
-            conn.execute(
-                """
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS approvals (
                     id TEXT PRIMARY KEY,
                     job_id TEXT,
@@ -111,8 +106,7 @@ class JobStore:
                     status TEXT,
                     created_at REAL
                 )
-            """
-            )
+            """)
 
     def save_job(self, job: Job):
         job.updated_at = time.time()

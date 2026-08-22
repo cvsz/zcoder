@@ -394,13 +394,11 @@ class EnterprisePostgresStore:
         """
         with self._raw_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT rolsuper, rolinherit, rolbypassrls
                     FROM pg_roles
                     WHERE rolname = 'zcoder_app'
-                """
-                )
+                """)
                 row = cur.fetchone()
         if row is None:
             return {"exists": False, "superuser": False, "bypassrls": False}

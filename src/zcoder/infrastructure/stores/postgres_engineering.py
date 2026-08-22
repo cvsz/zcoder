@@ -80,15 +80,13 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
         """Atomically claim a CREATED task for processing."""
         with self._get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT * FROM engineering_tasks
                     WHERE status = 'CREATED'
                     ORDER BY created_at ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
-                """
-                )
+                """)
                 row = cur.fetchone()
                 if not row:
                     return None

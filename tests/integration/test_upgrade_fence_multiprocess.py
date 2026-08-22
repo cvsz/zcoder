@@ -98,9 +98,7 @@ def wait_for_file(path, timeout):
     raise AssertionError(f"runner timed out waiting for {path}")
 """
 
-_HOLDER_SOURCE = (
-    _RUNNER_PREAMBLE
-    + """
+_HOLDER_SOURCE = _RUNNER_PREAMBLE + """
 from zcoder.services.upgrade_postgres_lease import PostgresAdvisoryRunLease
 
 _, _, _, NAMESPACE, HELD_MARKER, STOP_MARKER, RELEASED_MARKER = sys.argv
@@ -114,11 +112,8 @@ while not Path(STOP_MARKER).exists() and time.monotonic() < deadline:
 lease.release()
 Path(RELEASED_MARKER).write_text("RELEASED")
 """
-)
 
-_CONTENDER_SOURCE = (
-    _RUNNER_PREAMBLE
-    + """
+_CONTENDER_SOURCE = _RUNNER_PREAMBLE + """
 from zcoder.services.upgrade_postgres_lease import (
     PostgresAdvisoryRunLease,
     PostgresUpgradeRunLeaseError,
@@ -147,11 +142,8 @@ retry.acquire()
 retry.release()
 Path(REACQUIRED_MARKER).write_text(json.dumps({"result": "REACQUIRED"}))
 """
-)
 
-_FIRST_RUNNER_SOURCE = (
-    _RUNNER_PREAMBLE
-    + """
+_FIRST_RUNNER_SOURCE = _RUNNER_PREAMBLE + """
 from zcoder.domain.models.engineering import EngineeringTask, TaskStatus
 from zcoder.services.upgrade_postgres_fence import (
     PostgresUpgradeFence,
@@ -184,11 +176,8 @@ Path(OUTCOME_FILE).write_text(json.dumps(outcome))
 if outcome["result"] != "STALE_REJECTED":
     sys.exit(0)
 """
-)
 
-_SECOND_RUNNER_SOURCE = (
-    _RUNNER_PREAMBLE
-    + """
+_SECOND_RUNNER_SOURCE = _RUNNER_PREAMBLE + """
 from zcoder.domain.models.engineering import EngineeringTask, TaskStatus
 from zcoder.services.upgrade_postgres_fence import PostgresUpgradeFence
 
@@ -209,7 +198,6 @@ current = EngineeringTask(
 fence.save_task(current, newer)
 Path(SAVED_FILE).write_text("SAVED")
 """
-)
 
 
 def _spawn(script: Path, *args: object) -> subprocess.Popen:
@@ -247,8 +235,7 @@ def _wait_until_json(path: Path, timeout: float, description: str) -> dict:
 def _ensure_schema() -> None:
     with connection_scope() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS engineering_tasks (
                     id TEXT PRIMARY KEY,
                     task_description TEXT NOT NULL,
@@ -257,8 +244,7 @@ def _ensure_schema() -> None:
                     updated_at DOUBLE PRECISION NOT NULL,
                     metadata JSONB NOT NULL DEFAULT '{}'
                 )
-                """
-            )
+                """)
 
 
 class TestCrossProcessUpgradeFence:

@@ -1,8 +1,8 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@dbc85a2` (full-history re-signing pass #2; content identical to 91056c6 lineage)  
-**Last Updated:** 2026-08-21  
+**Current Baseline:** `main@9cff601` (closure docs + migration evidence + release scripts; descends from `2ec89ce` py310 drop)  
+**Last Updated:** 2026-08-22  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
 ---
@@ -44,7 +44,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 - Domain/application dependency direction is guarded by architecture tests.
 - Upgrade-20 remains task-level engineering authority; Upgrade-24 owns bounded queue policy; durable continuous engineering composes persistence, leases, fencing, and runtime around them.
 - SQLite/PostgreSQL durable engineering state, cross-process run leases, fencing, restart/idempotency, and maintenance orchestration are implemented.
-- CI supports Python 3.9, 3.10, 3.11, and 3.12 plus Ruff, Black, Bandit/security, Docker, CodeQL, Dependency Review, Helm, Release Gate, and SDK/TypeScript validation.
+- CI supports Python 3.10, 3.11, and 3.12 plus Ruff, Black, Bandit/security, Docker, CodeQL, Dependency Review, Helm, Release Gate, and SDK/TypeScript validation (3.9 dropped in `2ec89ce` — `pytest 9.1.1`/`black 26.5.1`/`starlette 1.6.0`/`python-dotenv 1.2.3` require `>=3.10`).
 - Local/offline/no-cost operation remains a first-class path; paid-provider fallback must never be implicit.
 - CodeAgent filesystem access now uses the centralized canonical containment primitive for `Read`, `Write`, `Edit`, `Glob`, `Grep`, and `LS`.
 - API server default bind is loopback-safe (`127.0.0.1`) while preserving explicit operator override through configuration.
@@ -371,7 +371,7 @@ Final Release may be declared only when every applicable release-blocking row is
 
 | Gate | Requirement | Current Program State |
 |---|---|---|
-| Python | 3.9 / 3.10 / 3.11 / 3.12 all green | Continuous per PR; must be green on final RC |
+| Python | 3.10 / 3.11 / 3.12 all green | Continuous per PR; must be green on final RC (`2ec89ce` drops 3.9) |
 | Coverage | Existing threshold preserved or increased | Enforced; final RC evidence required |
 | Lint/Format | Ruff + Black green | Enforced |
 | Security | Bandit/security green; confirmed findings closed | SEC-007/008/010 remain to review; SEC-009 covered by Slice D |
@@ -766,6 +766,13 @@ Five-agent parallel execution (isolated worktrees per loop-engineering-kit workt
 Qualified head: `ad79eda` (all 21 check runs success on the cumulative state).
 Deferred follow-ups: uv sync --locked adoption beyond detection, per-arch container SBOM, backup_restore.py gap remediation.
 Next in queue: Slice F remainder (fleet runtime wiring, OTel), final-release production evidence rows.
+
+### Closure — Python 3.10 migration + Docs/Migration Evidence + Release Scripts (2ec89ce → 9cff601)
+
+- **2ec89ce** `fix: drop Python 3.9, require >=3.10 and patch deps` — `pyproject.toml:10` `>=3.9→>=3.10`, `ruff:91`/`black:113` `py39→py310`, `mypy:116` `3.9→3.10`, `core/health.py:70` `>=3.10`, `main.py:27` `1.40.0→1.41.0` (missed in `45a91a1`), `embeddings.py:112,149,179` `zip strict=False` (B905), `ci.yml:70` matrix `3.9→3.10-3.12`, `README:6` badge, `uv.lock` prune `<3.10` markers + `uvicorn 0.52.3→0.52.4` (70 files, 661+/1460-). Hosted: `test 3.10/3.11/3.12` green (3.9 removed fixes `pytest 9.1.1` `>=3.10`), lint `black` pending `code.py` follow-up.
+- **9cff601** `docs: close ep01/ep11/ep11b/ep12-13 + migration evidence + release scripts` — `docs/closure/ep01-credential-rotation.md:1`, `ep11-production-execution.md:1`, `ep11b-gpg-attestation.md:1`, `ep12-13-cutover-retirement.md:1`, `docs/migration/evidence/README.md:1` + `001/002/003`, `scripts/release-candidate.mjs:1` (`uv lock --check`, version-sync, `gh api check-runs`), `scripts/post-release-smoke.mjs:1` (wheel/container/live), `code.py:1` black reformat. Hosted `9cff601` lint green expected; `26 vulns` remain upstream-unpatched at latest (pillow 12.3.0 etc per pypi).
+- Evidence: `docs/migration/evidence/*` + `docs/closure/*` + scripts `node --check` clean
+- Next: `scripts/release-candidate.mjs --check --sha 9cff601` + `post-release-smoke.mjs --target ghcr.io/cvsz/zcoder:1.41.0` for final RC sweep; branch-protection hardening per `GITHUB-GOVERNANCE.md:Future hardening queue`
 
 ### SEC-007.1 — RAG Index Tenant Isolation + Output-Style Containment
 

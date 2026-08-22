@@ -25,12 +25,10 @@ def cp_store():
 
 def test_atomic_claim_with_monotonic_fencing_token(cp_store):
     with sqlite3_conn(cp_store.db_path) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             INSERT INTO jobs (id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, claim_generation, lease_expires_at, metadata)
             VALUES ('job_fence_1', 'Task 1', 'direct', 'READY', '.', 100.0, 100.0, 'claude-sonnet-5', 5.0, 0.0, 0, 0, '{}')
-        """
-        )
+        """)
 
     # Worker A claims job -> generation token = 1
     res = cp_store.claim_job_with_fencing("worker_A", lease_duration=60.0)
