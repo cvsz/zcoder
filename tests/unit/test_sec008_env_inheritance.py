@@ -24,6 +24,7 @@ from zcoder.claude.tools.registry import build_code_tools_registry
 from zcoder.core.security import build_child_env, is_secret_env_name
 from zcoder.services.backup_restore import (
     BackupManager,
+    RestoredStateVerification,
     _redact,
     _split_dsn_password,
 )
@@ -237,7 +238,7 @@ def test_pg_restore_keeps_password_off_argv(tmp_path, monkeypatch):
 
     class M(BackupManager):
         def _verify_restored_state(self, *_a, **_k):
-            return 0, 0
+            return RestoredStateVerification()
 
     manager = M(
         database_url="postgresql://u:v@localhost/source",
