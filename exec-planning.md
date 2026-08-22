@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@d0bfee3` (SEC-008 sibling-sink closure, PR #85)  
+**Current Baseline:** `main@65ca626` (SEC-010.2 SBOM + tool pinning, PR #86)  
 **Last Updated:** 2026-08-21  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -65,7 +65,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | SEC-007 | RAG/document trust + tenant isolation | PARTIAL | Tenant-scoped memory verified (Slice E.12); document-triggered actions + tenant-scoped indexes/caches remain |
 | **SEC-008** | **Secrets/environment inheritance** | **FIXED / VERIFIED / MERGED** | PR #83 exact head `1634d94`; merge `4a00c26` (19/19 green); sibling sinks (HookManager.fire, render_status_line) closed by PR #85 merge `d0bfee3` (19/19 green) |
 | SEC-009 | Authorization/approval boundaries | FIXED / VERIFIED / MERGED | Slice D — PR #65 at `95d8582`; deny/ask/allow precedence, fail-closed hooks, audit identity |
-| **SEC-010** | **CI/dependency/supply-chain** | **PARTIAL (SEC-010.1 MERGED)** | All 49 action refs SHA-pinned + release.yml least-privilege + persist-credentials:false (PR #84 at `d6c7280`); SBOM/cosign/uv.lock wiring remain |
+| **SEC-010** | **CI/dependency/supply-chain** | **PARTIAL (SEC-010.1+010.2 MERGED)** | Action pinning + least-privilege (#84 `d6c7280`) + SBOM generation & tool pinning (#86 `65ca626`); cosign signing + uv.lock reproducible-build wiring remain |
 
 ### 4.1 SEC-004 Closure Evidence
 
@@ -737,6 +737,16 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### SEC-010.2 — SBOM Generation + Ad-hoc Tool Pinning
+
+- PR: #86
+- verified head: merged from green PR checks
+- merge commit: `65ca626` (all 19 merged-head check runs success)
+- security result: SPDX SBOM of release assets generated pre-checksum (ships checksummed + attested + attached to release); container SBOM for pushed image digest as workflow artifact; ad-hoc tools pinned (bandit==1.9.4 pip-audit==2.10.1 typescript@7.0.2 build==1.5.0 wheel==0.48.0); setup-python v6→v7 fleet alignment; anchore/sbom-action pinned at v0.24.0
+- deferred follow-ups: cosign keyless signing, uv.lock wiring for reproducible builds, per-arch container SBOM coverage, release-tag gate linkage
+- compatibility/rollback note: config-only; single-commit revert
+- next in queue: SEC-007 remainder / Slice F remainder
 
 ### SEC-008 Follow-up — Sibling Env Sinks (HookManager.fire, render_status_line)
 
