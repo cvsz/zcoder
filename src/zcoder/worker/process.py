@@ -396,6 +396,13 @@ def main() -> None:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
+    try:
+        from zcoder.infrastructure.observability.bootstrap import bootstrap_from_env
+
+        bootstrap_from_env()
+    except Exception:
+        pass
+
     parser = argparse.ArgumentParser(description="ZCoder Worker Process")
     parser.add_argument("--worker-id", default="", help="Worker identity (default: auto-generated)")
     parser.add_argument(

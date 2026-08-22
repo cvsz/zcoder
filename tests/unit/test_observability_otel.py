@@ -1,5 +1,8 @@
 """tests/test_observability_otel.py — Tests for the observability/metrics layer."""
 
+import pytest
+
+from zcoder.infrastructure.observability import bootstrap
 from zcoder.infrastructure.observability.otel import (
     ZCoderMetrics,
     _Counter,
@@ -208,3 +211,84 @@ class TestPrometheusExposition:
         assert "zcoder_api_requests" in output
         assert "zcoder_api_errors" in output
         assert "zcoder_api_duration_seconds" in output
+
+
+class TestBootstrapFromEnv:
+    @pytest.fixture(autouse=True)
+    def _reset_bootstrap(self):
+        bootstrap._reset_for_tests()
+        yield
+        bootstrap._reset_for_tests()
+
+    def test_flag_unset_is_noop(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            bootstrap,
+            "_load_init_telemetry",
+            lambda: (lambda *a, **kw: calls.append(kw)),
+        )
+        result = bootstrap.bootstrap_from_env(env={})
+        assert result is None
+        assert calls == []
+
+    def test_flag_set_calls_init_with_endpoint(self, monkeypatch):
+        sentinel = object()
+        calls = []
+
+        def fake_init(*args, **kwargs):
+            call = {"args": args, "kwargs": kwargs}
+            calls.append(call)
+            return sentinel
+
+        monkeypatch.setattr(bootstrap, "_load_init_telemetry", lambda: fake_init)
+        env = {"ZCODER_OTEL_ENDPOINT": "localhost:4317"}
+        result = bootstrap.bootstrap_from_env(env=env)
+        assert len(calls) == 1
+        assert calls[0]["kwargs"]["otel_endpoint"] == "localhost:4317"
+        assert calls[0]["kwargs"]["enabled"] is True
+        assert result is sentinel
+
+    def test_env_os_environ_fallback(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            bootstrap,
+            "_load_init_telemetry",
+            lambda: (lambda *a, **kw: calls.append(kw)),
+        )
+        monkeypatch.setenv("ZCODER_OTEL_ENDPOINT", "collector:4317")
+        bootstrap.bootstrap_from_env()
+        assert calls and calls[0]["otel_endpoint"] == "collector:4317"
+
+    def test_init_raising_is_swallowed(self, monkeypatch):
+        def boom(*a, **kw):
+            raise RuntimeError("no otel sdk")
+
+        monkeypatch.setattr(bootstrap, "_load_init_telemetry", lambda: boom)
+        result = bootstrap.bootstrap_from_env(env={"ZCODER_OTEL_ENDPOINT": "x:4317"})
+        assert result is None
+
+    def test_idempotent_second_call_is_noop(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            bootstrap,
+            "_load_init_telemetry",
+            lambda: (lambda *a, **kw: calls.append(kw)),
+        )
+        env = {"ZCODER_OTEL_ENDPOINT": "localhost:4317"}
+        bootstrap.bootstrap_from_env(env=env)
+        bootstrap.bootstrap_from_env(env=env)
+        assert len(calls) == 1
+
+    def test_sdk_missing_warns_and_continues(self, monkeypatch):
+        warnings = []
+
+        def no_sdk(*a, **kw):
+            raise ImportError("No module named 'opentelemetry'")
+
+        monkeypatch.setattr(bootstrap, "_load_init_telemetry", lambda: no_sdk)
+        monkeypatch.setattr(
+            bootstrap.logger, "warning", lambda msg, *a, **k: warnings.append(msg % a if a else msg)
+        )
+        result = bootstrap.bootstrap_from_env(env={"ZCODER_OTEL_ENDPOINT": "x:4317"})
+        assert result is None
+        assert any("Telemetry bootstrap skipped" in w for w in warnings)
