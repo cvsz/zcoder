@@ -38,6 +38,7 @@ Current controls include:
 - centralized canonical path containment through `zcoder.core.security.safe_resolve()` for user/model-controlled filesystem paths, including CodeAgent `Read`, `Write`, `Edit`, `Glob`, `Grep`, and `LS` workspace access;
 - conservative name/path validation and input-size limits;
 - secret detection/redaction helpers and structured logging boundaries;
+- child-process environment isolation (`is_secret_env_name()`/`build_child_env()`): model-controlled tools, hooks, and status-line commands run without inheriting credential-named variables or agent sockets;
 - HTTPS scheme validation and dedicated outbound-network security review requirements for fetch-style tools;
 - sandbox controls for executable/tool surfaces and regression coverage for filesystem/network escape classes;
 - explicit permission/approval boundaries for mutating operations;
@@ -71,7 +72,7 @@ Read-only classification does not by itself make a tool safe; reads and enumerat
 
 ## GitHub Actions and supply chain
 
-Workflows should use least-privilege `permissions`, bounded timeouts/concurrency, maintained action runtimes, dependency review, and provenance for published artifacts. Prefer immutable full-length action SHAs for security-sensitive workflows when practical and keep pinned actions updated through Dependabot.
+Workflows should use least-privilege `permissions`, bounded timeouts/concurrency, maintained action runtimes, dependency review, and provenance for published artifacts. All workflow `uses:` refs are pinned to immutable full-length commit SHAs (completed in PR #84) with version-tag comments preserved so Dependabot keeps the pins current.
 
 Release consumers should verify checksums and GitHub artifact attestations where provided.
 

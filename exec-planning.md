@@ -1,8 +1,8 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@6f6f4fec07778d2997bd044a7556423d21435d15`  
-**Last Updated:** 2026-08-20  
+**Current Baseline:** `main@d0bfee3` (SEC-008 sibling-sink closure, PR #85)  
+**Last Updated:** 2026-08-21  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
 ---
@@ -63,7 +63,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `815a10c53f925ecf615b8c8a15bdc4329a6cffca`; all 20 hosted checks green |
 | SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6`; all 20 hosted checks green |
 | SEC-007 | RAG/document trust + tenant isolation | PARTIAL | Tenant-scoped memory verified (Slice E.12); document-triggered actions + tenant-scoped indexes/caches remain |
-| **SEC-008** | **Secrets/environment inheritance** | **FIXED / VERIFIED / MERGED** | PR #83 exact head `1634d94` (17/17 green); merge `4a00c26` (19/19 green) |
+| **SEC-008** | **Secrets/environment inheritance** | **FIXED / VERIFIED / MERGED** | PR #83 exact head `1634d94`; merge `4a00c26` (19/19 green); sibling sinks (HookManager.fire, render_status_line) closed by PR #85 merge `d0bfee3` (19/19 green) |
 | SEC-009 | Authorization/approval boundaries | FIXED / VERIFIED / MERGED | Slice D — PR #65 at `95d8582`; deny/ask/allow precedence, fail-closed hooks, audit identity |
 | **SEC-010** | **CI/dependency/supply-chain** | **PARTIAL (SEC-010.1 MERGED)** | All 49 action refs SHA-pinned + release.yml least-privilege + persist-credentials:false (PR #84 at `d6c7280`); SBOM/cosign/uv.lock wiring remain |
 
@@ -223,7 +223,7 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **PR:** #65  
 **Verified Head:** `68ff355` (all 17 PR checks green)  
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
-**Next slice:** Slice E — **ALL ITEMS COMPLETE**. Full skills/commands lifecycle UX DONE (E.16).
+**Next slice:** Slice E — feature-parity items COMPLETE (E.16); residual parity polish (terminal/streaming UX depth, subagent team lifecycle) tracked as follow-ups under Slice F/roadmap, not security blockers.
 
 ### Slice E — Claude-Code-like Provider-Neutral Feature Parity
 
@@ -737,6 +737,15 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### SEC-008 Follow-up — Sibling Env Sinks (HookManager.fire, render_status_line)
+
+- PR: #85
+- verified head: merged directly from green PR checks
+- merge commit: `d0bfee3` (all 19 merged-head check runs success)
+- security result: HookManager.fire (enterprise/hooks_perms.py) and render_status_line (enterprise/settings.py) — the two dormant sinks flagged in the #83 review — now spawn children via build_child_env; ZCODER_* context vars applied as explicit overrides; 2 captured-env regressions
+- compatibility/rollback note: single-commit revert restores prior inheritance
+- next in queue: SEC-010.2 supply-chain completion / SEC-007 remainder
 
 ### SEC-010.1 — Action Pinning + Least-Privilege Workflows
 

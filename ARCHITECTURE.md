@@ -104,7 +104,7 @@ Rules:
 
 ### `zcoder.services`
 
-Coordinates application use cases such as generation, projects, artifacts, engineering orchestration, GitHub orchestration, maintenance intelligence, backup/restore, portfolio scheduling, skills, and release-gate behavior.
+Coordinates application use cases such as generation, projects, artifacts, engineering orchestration, GitHub orchestration, maintenance intelligence, backup/restore, portfolio scheduling, skills, and release-gate behavior. The GitHub orchestration service accesses the GitHub REST API through a port/adapter seam: `GitHubProviderProtocol` defines the interface on the service side and `GitHubProvider` implements it over `zcoder.core.resilience.safe_urlopen()` (HTTP(S)-only boundary), so tests substitute `FakeGitHubProvider` without network access.
 
 Services translate domain capabilities into workflows but do not own UI rendering.
 
@@ -191,7 +191,7 @@ Domain/application code must depend on storage interfaces rather than selecting 
 
 ## Reliability and security
 
-`zcoder.core.exceptions` defines typed error semantics. `zcoder.core.resilience` owns retry/backoff, HTTP error translation, and circuit breakers. `zcoder.config.logging` centralizes structured logging, correlation IDs, and secret redaction. `zcoder.core.security` owns path, URL, input, and size validation.
+`zcoder.core.exceptions` defines typed error semantics. `zcoder.core.resilience` owns retry/backoff, HTTP error translation, and circuit breakers. `zcoder.config.logging` centralizes structured logging, correlation IDs, and secret redaction. `zcoder.core.security` owns path, URL, input, and size validation, plus secrets/environment inheritance isolation: `is_secret_env_name()` classifies credential-bearing environment variable names and `build_child_env()` constructs a filtered environment for subprocesses — used by the Bash/run_python tools (`capabilities/code.py`, `tools/registry.py`), hook execution (`capabilities/code.py`, `enterprise/hooks_perms.py`), the status-line command (`enterprise/settings.py`), and backup/restore (`services/backup_restore.py`).
 
 Circuit breakers must be scoped to stable downstream dependencies. Calls to arbitrary user-selected hosts may use bounded retry but must not share a breaker whose state could block unrelated hosts.
 

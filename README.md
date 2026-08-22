@@ -24,7 +24,7 @@ ZCoder is designed around a few hard constraints:
 - **Autonomous engineering workflows** — inspect, plan, edit, test, validate, review, and orchestrate bounded coding jobs.
 - **Production architecture** — durable jobs, policy, tenant boundaries, auditability, queues, workers, observability, backup/restore, and deployment concerns are first-class.
 - **Evidence over claims** — catalog entries, mocks, contract tests, and real runtime verification are treated as different evidence levels.
-- **Backward compatibility** — the package keeps compatibility shims for legacy flat-module imports while the implementation is organized under `src/zcoder/`.
+- **Backward compatibility** — the implementation is organized under `src/zcoder/`; legacy flat-module import shims were removed after the canonical migration completed.
 
 ---
 

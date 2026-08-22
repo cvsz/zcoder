@@ -11,7 +11,7 @@ why env vars are preferred).
 | `ANTHROPIC_API_KEY`          | yes*     | —       | Anthropic API key (*not needed in `ZCODER_LOCAL_MODE`) |
 | `ZCODER_LOCAL_MODE`          | no       | —       | `1`/`true`/`yes` switches generation/git/live/prompt-optimization to deterministic offline synthesis with no network I/O |
 | `DATABASE_URL`               | no       | —       | PostgreSQL DSN for the control-plane/engineering stores; Prisma-style params (`?schema=public`) are stripped automatically before `psycopg2` connects |
-| `GITHUB_TOKEN`                | no       | —       | `claude_github.py` integration |
+| `GITHUB_TOKEN`                | no       | —       | `src/zcoder/claude/integrations/github.py` integration |
 | `VOYAGE_API_KEY`              | no       | —       | `claude_embeddings.py` |
 | `ZCODER_LOG_LEVEL`            | no       | `INFO`  | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
 | `ZCODER_LOG_FORMAT`           | no       | `text` (TTY) / `json` (non-TTY) | Force `json` or `text` |
@@ -86,10 +86,10 @@ single `--agent-orchestrate` run's log lines across modules.
 
 API keys, `Authorization`/`x-api-key` header values, and known env var
 names (`ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `VOYAGE_API_KEY`) are redacted
-automatically before any log line is emitted — see `logging_config.py`.
+automatically before any log line is emitted — see `src/zcoder/config/logging.py`.
 
-See `docs/observability.md` for metrics/tracing hooks (`claude_metrics.py`,
-`claude_observability.py`) that predate this pass and remain unchanged.
+See `docs/observability.md` for metrics/tracing hooks (`src/zcoder/claude/enterprise/metrics.py`,
+`src/zcoder/claude/observability.py`) that predate this pass and remain unchanged.
 
 ## Rollback
 

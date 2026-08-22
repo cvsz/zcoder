@@ -1,10 +1,10 @@
 # ROADMAP-NEXT.md
 
 **zcoder — Production Readiness, Release Engineering, and Completion Roadmap**  
-Execution baseline: **2026-08-14**  
-Primary delivery branch: `chore/complete-repository-hardening`  
+Execution baseline: **2026-08-14** (hardening merged); active planning now in [`exec-planning.md`](exec-planning.md)  
+Primary delivery branch: `main` (bounded slices via feature branches)  
 Primary integration target: `main`  
-Current hardening pull request: **PR #6**
+Hardening pull request: **PR #6 — MERGED**
 
 > This document is the forward-looking roadmap after the architecture/src-layout migration and post-migration consistency work. The historical `ROADMAP.md` remains an audit/history record and MUST NOT be rewritten to imply that current architecture existed in older releases.
 
@@ -39,12 +39,12 @@ Bring `zcoder` from the current hardening branch to a reproducible, security-rev
 
 ### Not complete yet
 
-- [ ] Permanent PR CI fully green.
-- [ ] Security findings resolved without lowering Bandit severity gates.
-- [ ] Test matrix green on Python 3.9–3.12.
-- [ ] Temporary migration tooling removed.
-- [ ] Hardening PR merged to `main`.
-- [ ] Post-merge `main` CI green.
+- [x] Permanent PR CI fully green.
+- [x] Security findings resolved without lowering Bandit severity gates.
+- [x] Test matrix green on Python 3.9–3.12.
+- [x] Temporary migration tooling removed.
+- [x] Hardening PR merged to `main`.
+- [x] Post-merge `main` CI green.
 - [ ] Clean-install package validation complete.
 - [ ] Docker runtime validation complete.
 - [ ] Dependency/security audit complete.
@@ -105,10 +105,10 @@ Bring `zcoder` from the current hardening branch to a reproducible, security-rev
 
 ### URL opening
 
-- [ ] Replace direct canonical `urllib.request.urlopen` calls with `safe_urlopen`.
-- [ ] Accept only HTTP/HTTPS.
-- [ ] Require hostname.
-- [ ] Keep any `# nosec B310` only on the validated primitive inside the helper.
+- [x] Replace direct canonical `urllib.request.urlopen` calls with `safe_urlopen`.
+- [x] Accept only HTTP/HTTPS.
+- [x] Require hostname.
+- [x] Keep any `# nosec B310` only on the validated primitive inside the helper.
 
 ### Generated/dynamic code
 
@@ -118,9 +118,9 @@ Bring `zcoder` from the current hardening branch to a reproducible, security-rev
 
 ### Temp paths
 
-- [ ] Remove hard-coded `/tmp/...` paths.
-- [ ] Use `tempfile.gettempdir()` plus sanitized path components.
-- [ ] Add traversal tests.
+- [x] Remove hard-coded `/tmp/...` paths.
+- [x] Use `tempfile.gettempdir()` plus sanitized path components.
+- [x] Add traversal tests.
 
 ### SQL
 
@@ -157,11 +157,11 @@ Bring `zcoder` from the current hardening branch to a reproducible, security-rev
 
 After all permanent generated changes are committed and verified, remove:
 
-- [ ] `.github/workflows/apply-repository-hardening.yml`
-- [ ] `scripts/apply_repository_hardening.py`
-- [ ] `scripts/run_repository_hardening.py`
+- [x] `.github/workflows/apply-repository-hardening.yml`
+- [x] `scripts/apply_repository_hardening.py`
+- [x] `scripts/run_repository_hardening.py`
 
-Then rerun all permanent checks on the new PR head SHA.
+Then rerun all permanent checks on the new PR head SHA. — DONE; permanent workflows only.
 
 **P0 release gate:** PR #6 has no required failing/pending checks and no temporary migration machinery remains.
 
@@ -456,7 +456,7 @@ PRODUCTION PASS / stable release
 
 # 6. Tracking Convention
 
-Use task IDs from `docs/exec-planning.md` in commits/PR comments when useful. Keep evidence for each gate as one of:
+Use task IDs from `exec-planning.md` (canonical, root) in commits/PR comments when useful. Keep evidence for each gate as one of:
 
 - GitHub Actions run URL/ID;
 - test/report artifact;
