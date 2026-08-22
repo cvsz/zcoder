@@ -39,4 +39,4 @@ jobs:
         with:
           enable-cache: true
       - name: Install dependencies from locked uv.lock
-        run: uv sync --locked --frozen
+        run: uv sync --locked
