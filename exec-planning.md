@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@91056c6` (fleet wave 2 #93-#99: backup gaps, health/metrics, cross-process E2E, SQLite parity, maintenance scheduler, admission seam, OTel bootstrap)  
+**Current Baseline:** `main@dbc85a2` (full-history re-signing pass #2; content identical to 91056c6 lineage)  
 **Last Updated:** 2026-08-21  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -898,4 +898,8 @@ Do not mark **Final Release Complete** until every release-blocking row in Secti
 **Date:** 2026-08-20
 
 All 227 commits on `main` were re-signed with GPG key `220A4C8CCC7D2D50` (commit signing, `commit.gpgsign=true`). This rewrote every commit object; the re-signed history is verified byte-identical in content (all 227 trees match the pre-sign history in order) and every commit now carries a valid Good signature. Old SHA references recorded in this document were rewritten to their re-signed equivalents (e.g. `375fbc7→fe9809b`, `ce4e8c5→95d8582`, `0f00977→4cb9c14`, `965ac74→815a10c`). CI check-run IDs and verification evidence remain valid (they bind to the exact commits at verification time). Pre-sign backup preserved at `refs/tags/backup/pre-sign-375fbc7`.
+
+### Pass 2 — 2026-08-22
+
+All 284 commits on `main` re-signed with GPG key `220A4C8CCC7D2D50`. Reason: commits merged via GitHub squash/merge flows (#48–#99) carried GitHub web-flow signatures that are unverifiable locally (`%G? = E`), breaking the uniform local-key chain. Method: `git filter-branch --commit-filter 'git commit-tree -S "$@"'` over the full history. Verified before force-push: all 284 commits `%G? = G`; tree hashes identical in order vs pre-resign lineage; author names/emails/dates and messages byte-identical; commit count unchanged (284). Pre-resign backup preserved at `refs/tags/backup/pre-resign-9e1a2be`. Force-push `9e1a2be → dbc85a2`. All SHA references in this document's ledger now refer to the pre-resign lineage; hosted check-run IDs remain valid as content-bound evidence (§8 pass-1 precedent).
 
