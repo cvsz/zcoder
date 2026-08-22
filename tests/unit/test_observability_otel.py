@@ -289,4 +289,4 @@ class TestBootstrapFromEnv:
         with caplog.at_level(_logging.WARNING, logger="zcoder.infrastructure.observability.bootstrap"):
             result = bootstrap.bootstrap_from_env(env={"ZCODER_OTEL_ENDPOINT": "x:4317"})
         assert result is None
-        assert any("Telemetry bootstrap skipped" in r.message for r in caplog.records)
+        assert any("Telemetry bootstrap skipped" in r.getMessage() for r in caplog.records)
