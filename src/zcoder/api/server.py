@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -38,6 +39,49 @@ router = PublicAPIV1Router()
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "zcoder-api-server", "version": "1.40.0"}
+
+
+@app.get("/metrics")
+def metrics():
+    from zcoder.infrastructure.observability.otel import get_metrics
+
+    return Response(
+        content=get_metrics().prometheus_exposition(),
+        media_type="text/plain; version=0.0.4",
+    )
+
+
+@app.get("/health/live")
+def liveness():
+    return {"status": "alive"}
+
+
+_db_probe_store: Any | None = None
+
+
+def _get_db_store() -> Any:
+    global _db_probe_store
+    if _db_probe_store is None:
+        from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
+
+        _db_probe_store = PostgresControlPlaneStore()
+    return _db_probe_store
+
+
+def check_database_ready() -> bool:
+    """Best-effort DB connectivity probe; fail-closed on any error."""
+    try:
+        store = _get_db_store()
+        return bool(store.health_check())
+    except Exception:
+        return False
+
+
+@app.get("/health/ready")
+def readiness():
+    if not check_database_ready():
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    return {"status": "ready"}
 
 
 @app.api_route("/api/v1/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
