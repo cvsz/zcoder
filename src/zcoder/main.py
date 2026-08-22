@@ -24,7 +24,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PERSONALITIES
 
-VERSION = "1.40.0"
+VERSION = "1.41.0"
 BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
@@ -2399,9 +2399,9 @@ def main():
             cmd_spend_limit_delete(args.spend_limit_delete, admin_key)
             return
         if args.spend_limit_requests_list:
-            from zcoder.claude.enterprise.admin_api import cmd_spend_limit_requests_list
+            from zcoder.claude.enterprise.admin_api import cmd_spend_limits_requests_list
 
-            cmd_spend_limit_requests_list(admin_key, status=args.spend_limit_status or None)
+            cmd_spend_limits_requests_list(admin_key, status=args.spend_limit_status or None)
             return
         if args.spend_limit_request_approve:
             from zcoder.claude.enterprise.admin_api import cmd_spend_limit_request_approve
