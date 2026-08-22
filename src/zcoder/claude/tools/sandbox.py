@@ -31,7 +31,6 @@ CLI flags:
 import re
 import shlex
 from pathlib import Path
-from typing import Optional
 
 NETWORK_BINARIES = {
     "curl",
@@ -88,7 +87,7 @@ def _tokenize(command: str) -> list:
         return command.split()
 
 
-def check_network(command: str) -> Optional[str]:
+def check_network(command: str) -> str | None:
     """Return a violation message if the command looks like a network call, else None.
 
     This is deliberately fail-closed for direct interpreter-eval entry points
@@ -129,7 +128,7 @@ def check_network(command: str) -> Optional[str]:
     return None
 
 
-def check_filesystem(command: str, allowed_roots: list) -> Optional[str]:
+def check_filesystem(command: str, allowed_roots: list) -> str | None:
     """
     Best-effort static check: reject filesystem targets that resolve outside
     the allowed roots when they appear as redirection targets or common
@@ -172,7 +171,7 @@ def check_filesystem(command: str, allowed_roots: list) -> Optional[str]:
     return None
 
 
-def enforce(command: str, cwd: str, allow_net: bool = False, extra_roots: Optional[list] = None) -> None:
+def enforce(command: str, cwd: str, allow_net: bool = False, extra_roots: list | None = None) -> None:
     """Raise SandboxViolation if the command violates sandbox policy."""
     roots = [cwd] + (extra_roots or [])
 

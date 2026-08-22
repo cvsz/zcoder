@@ -8,8 +8,9 @@ the Upgrade-20/24 execution and boundedness contracts stay authoritative.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from zcoder.services.maintenance_campaign_worker import (
     MAINTENANCE_CAMPAIGN_SUMMARY_ACTION,

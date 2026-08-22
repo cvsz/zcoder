@@ -70,7 +70,7 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -205,7 +205,7 @@ RETIRED_TOOL_VERSIONS: dict = {
 }
 
 
-def check_retired_tool_version(tool_type: str) -> Optional[dict]:
+def check_retired_tool_version(tool_type: str) -> dict | None:
     """Return the retirement/upgrade record for a dated tool-type string, or
     None if it isn't in RETIRED_TOOL_VERSIONS. Mirrors
     claude_models.check_retired() — an unmatched string is just not tracked
@@ -283,7 +283,7 @@ MID_CONVERSATION_TOOL_CHANGES_SUPPORTED = {
 }
 
 
-def validate_mid_conversation_tool_change(model_id: str) -> Optional[str]:
+def validate_mid_conversation_tool_change(model_id: str) -> str | None:
     """Return None if `model_id` supports mid-conversation tool changes
     (safe to send the beta header and vary `tools` between turns), or a
     warning string if it doesn't. Not a hard block — the platform itself
@@ -327,7 +327,7 @@ def build_context_management(
     keep_last_n_thinking_turns: int = 2,
     compact: bool = False,
     compact_trigger_tokens: int = 150000,
-    compact_instructions: Optional[str] = None,
+    compact_instructions: str | None = None,
     compact_pause_after: bool = False,
 ) -> dict:
     """Build a context_management payload for long agent loops.
@@ -377,7 +377,7 @@ def build_context_management(
 
 
 def resume_after_compaction(
-    messages: list, compaction_response: dict, extra_content: Optional[list] = None
+    messages: list, compaction_response: dict, extra_content: list | None = None
 ) -> list:
     """After a call made with compact_pause_after=True returns
     stop_reason:"compaction", the API expects the compaction block appended
@@ -597,7 +597,7 @@ class ToolCoder:
         self,
         prompt: str,
         tools: list[dict],
-        system: Optional[str] = None,
+        system: str | None = None,
         parallel: bool = True,
         strict: bool = False,
     ) -> dict:
@@ -625,7 +625,7 @@ class ToolCoder:
         self,
         prompt: str,
         registry: ToolRegistry,
-        system: Optional[str] = None,
+        system: str | None = None,
         max_turns: int = 10,
         verbose: bool = True,
         permission: str = "askPermission",
@@ -732,11 +732,11 @@ class ToolCoder:
         self,
         prompt: str,
         tool_names: list[str],
-        system: Optional[str] = None,
-        context_management: Optional[dict] = None,
-        task_budget: Optional[dict] = None,
-        extra_tools: Optional[list[dict]] = None,
-        response_inclusion: Optional[str] = None,
+        system: str | None = None,
+        context_management: dict | None = None,
+        task_budget: dict | None = None,
+        extra_tools: list[dict] | None = None,
+        response_inclusion: str | None = None,
     ) -> str:
         """Use Anthropic-hosted server tools (web_search, code_execution,
         memory, tool_search, etc.). Pass context_management (see
@@ -837,8 +837,8 @@ class ToolCoder:
         self,
         prompt: str,
         memory: "MemoryToolHandler",
-        extra_tools: Optional[list[dict]] = None,
-        system: Optional[str] = None,
+        extra_tools: list[dict] | None = None,
+        system: str | None = None,
         max_turns: int = 10,
         use_context_management: bool = True,
         verbose: bool = True,
@@ -917,7 +917,7 @@ class ToolCoder:
 # ── Pre-built tool examples ────────────────────────────────────────────────
 
 
-def build_code_tools_registry(cwd: Optional[str] = None) -> ToolRegistry:
+def build_code_tools_registry(cwd: str | None = None) -> ToolRegistry:
     """Example registry with useful coding tools, contained to ``cwd``.
 
     All file paths are resolved against ``cwd`` (default: the process
@@ -1028,9 +1028,9 @@ def cmd_server_tool(
     model: str,
     use_context_management: bool = False,
     use_compaction: bool = False,
-    task_budget_tokens: Optional[int] = None,
+    task_budget_tokens: int | None = None,
     use_ptc: bool = False,
-    extra_tool_defs: Optional[list[dict]] = None,
+    extra_tool_defs: list[dict] | None = None,
 ):
     """Call with Anthropic server tools. use_compaction and
     task_budget_tokens are independent of use_context_management — compaction

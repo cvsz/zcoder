@@ -77,10 +77,12 @@ def test_worker_crash_lease_expiry_drill(deploy_setup):
     import sqlite3
 
     with sqlite3.connect(store.db_path) as conn:
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO jobs (id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, claimed_by, claim_generation, lease_expires_at, metadata)
             VALUES ('job_crash_1', 'Crash recovery task', 'direct', 'RUNNING', '.', 100.0, 100.0, 'claude-sonnet-5', 5.0, 0.0, 'worker_A', 1, 9999999999.0, '{}')
-        """)
+        """
+        )
 
     reclaimed, details = engine.simulate_worker_crash_and_reclaim("worker_A", "job_crash_1")
     assert reclaimed is True

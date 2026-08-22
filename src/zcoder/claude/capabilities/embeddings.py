@@ -39,7 +39,6 @@ import math
 import os
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -57,7 +56,7 @@ DEFAULT_MODEL = "voyage-3.5"
 CODE_MODEL = "voyage-code-3"
 
 
-def _voyage_key(explicit: Optional[str] = None) -> str:
+def _voyage_key(explicit: str | None = None) -> str:
     key = explicit or os.getenv("VOYAGE_API_KEY", "")
     if not key:
         raise RuntimeError(
@@ -72,8 +71,8 @@ def _voyage_key(explicit: Optional[str] = None) -> str:
 def embed(
     texts: list[str],
     model: str = DEFAULT_MODEL,
-    input_type: Optional[str] = "document",
-    api_key: Optional[str] = None,
+    input_type: str | None = "document",
+    api_key: str | None = None,
 ) -> list[list[float]]:
     """Embed a list of strings, return one vector per input. input_type
     should be "document" when embedding things you'll search over, and
@@ -110,7 +109,7 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Voyage embeddings are normalized to length 1, so dot product equals
     cosine similarity and is cheaper — but this stays a true cosine
     similarity so it's correct even against non-Voyage vectors."""
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     mag_a = math.sqrt(sum(x * x for x in a))
     mag_b = math.sqrt(sum(y * y for y in b))
     if mag_a == 0 or mag_b == 0:
@@ -125,7 +124,7 @@ class EmbeddingIndex:
     .search() results into memory/RAG retrieval instead of (or blended
     with) keyword scoring."""
 
-    def __init__(self, model: str = DEFAULT_MODEL, api_key: Optional[str] = None):
+    def __init__(self, model: str = DEFAULT_MODEL, api_key: str | None = None):
         self.model = model
         self.api_key = api_key
         self._ids: list[str] = []
@@ -147,7 +146,7 @@ class EmbeddingIndex:
         [qvec] = embed([query], model=self.model, input_type="query", api_key=self.api_key)
         scored = [
             {"id": i, "text": t, "score": cosine_similarity(qvec, v)}
-            for i, t, v in zip(self._ids, self._texts, self._vecs)
+            for i, t, v in zip(self._ids, self._texts, self._vecs, strict=False)
         ]
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
@@ -177,7 +176,7 @@ def cmd_embed_file(path: str, model: str = DEFAULT_MODEL, input_type: str = "doc
     except RuntimeError as e:
         print(f"[ERROR] {e}")
         return
-    for line, vec in zip(lines, vecs):
+    for line, vec in zip(lines, vecs, strict=False):
         print(f"  [{len(vec)}d] {line[:60]}{'...' if len(line) > 60 else ''}")
     return vecs
 

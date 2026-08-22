@@ -16,7 +16,6 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -68,7 +67,7 @@ class CitationsCoder:
         self,
         question: str,
         documents: list[dict],  # [{"title": str, "content": str}, ...]
-        system: Optional[str] = None,
+        system: str | None = None,
     ) -> dict:
         """
         Answer a question with inline citations from the provided documents.

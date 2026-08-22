@@ -29,7 +29,6 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.resilience import shell_command_argv
 from zcoder.core.security import build_child_env
@@ -61,7 +60,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return out
 
 
-def load_settings(cli_overrides: Optional[dict] = None) -> dict:
+def load_settings(cli_overrides: dict | None = None) -> dict:
     """
     Merge settings in ascending precedence: user -> project -> local -> CLI.
     Returns the merged dict.

@@ -20,7 +20,6 @@ import os
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
@@ -37,7 +36,7 @@ LOCAL_REGISTRY = Path(os.path.expanduser("~/.zcoder/files_registry.json"))
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
-def _validate_filename(name: str) -> Optional[str]:
+def _validate_filename(name: str) -> str | None:
     """Mirror the API's documented Invalid filename (400) rule client-side.
     Returns an error message, or None if the filename is fine."""
     if not (1 <= len(name) <= 255):
@@ -134,9 +133,7 @@ class FilesAPI:
 
     # ── List ──────────────────────────────────────────────────────────────
 
-    def list_files(
-        self, limit: int = 20, before_id: Optional[str] = None, after_id: Optional[str] = None
-    ) -> dict:
+    def list_files(self, limit: int = 20, before_id: str | None = None, after_id: str | None = None) -> dict:
         """List one page of files. Returns {"data": [...], "has_more": bool,
         "first_id": ..., "last_id": ...} per the paginated List Files endpoint."""
         params = {"limit": str(limit)}
@@ -155,7 +152,7 @@ class FilesAPI:
         except ZCoderError as e:
             raise RuntimeError(f"List failed: {e.message}") from e
 
-    def list_files_all(self, max_items: Optional[int] = None) -> list:
+    def list_files_all(self, max_items: int | None = None) -> list:
         """Auto-paginate across all pages, bounded by max_items (None = unbounded)."""
         out, after_id = [], None
         while True:
@@ -337,7 +334,7 @@ def cmd_file_upload(file_path: str, api_key: str, model: str):
     return result["id"]
 
 
-def cmd_file_list(api_key: str, model: str, max_items: Optional[int] = None):
+def cmd_file_list(api_key: str, model: str, max_items: int | None = None):
     fa = FilesAPI(api_key=api_key, model=model)
     files = fa.list_files_all(max_items=max_items)
     local = fa.list_local()

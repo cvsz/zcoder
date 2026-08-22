@@ -30,7 +30,6 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -213,7 +212,7 @@ FAST_MODE_REMOVED_ERROR = {"claude-opus-4-7"}
 FAST_MODE_REMOVED_SILENT = {"claude-opus-4-6"}
 
 
-def validate_fast_mode(model_id: str) -> Optional[str]:
+def validate_fast_mode(model_id: str) -> str | None:
     """Return None if `speed: "fast"` is safe to send for model_id, or a
     human-readable reason string if it isn't (or won't do what the caller
     expects). Callers should treat FAST_MODE_REMOVED_ERROR as a hard stop
@@ -321,7 +320,7 @@ RETIRED_MODELS: dict = {
 }
 
 
-def check_retired(model_id: str) -> Optional[dict]:
+def check_retired(model_id: str) -> dict | None:
     """Return the retirement record for model_id, or None if it isn't a
     known-retired ID. Matched against RETIRED_MODELS only — an unknown ID
     that isn't in MODEL_CATALOG either is just unrecognized, not retired."""
@@ -346,7 +345,7 @@ DEPRECATED_MODELS: dict = {
 }
 
 
-def check_deprecated(model_id: str) -> Optional[dict]:
+def check_deprecated(model_id: str) -> dict | None:
     """Return the deprecation record for model_id if Anthropic has announced
     a future retirement date for it, or None. A model can appear here and
     still work fine today — this is an early-warning check, not a block.

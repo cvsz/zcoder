@@ -33,7 +33,8 @@ import subprocess
 import tempfile
 import time
 import urllib.request
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from zcoder.core.resilience import safe_urlopen
 

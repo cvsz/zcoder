@@ -33,7 +33,6 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.claude.models.registry import (
     FAST_MODE_SUPPORTED,
@@ -78,7 +77,7 @@ def resolve_model_id(model_id: str) -> str:
     return HAIKU45_MODEL_ID if model_id == HAIKU45_ALIAS else model_id
 
 
-def build_thinking_param(budget_tokens: Optional[int]) -> Optional[dict]:
+def build_thinking_param(budget_tokens: int | None) -> dict | None:
     """Build the `thinking` request block for Haiku 4.5, or None to omit
     it entirely. Always returns the *extended* (manual-budget) shape —
     {"type": "enabled", "budget_tokens": N} — never {"type": "adaptive"},
@@ -93,7 +92,7 @@ def build_thinking_param(budget_tokens: Optional[int]) -> Optional[dict]:
     return {"type": "enabled", "budget_tokens": budget_tokens}
 
 
-def validate_fast_mode(want_fast: bool) -> Optional[str]:
+def validate_fast_mode(want_fast: bool) -> str | None:
     if not want_fast:
         return None
     if HAIKU45_MODEL_ID in FAST_MODE_SUPPORTED:
@@ -104,7 +103,7 @@ def validate_fast_mode(want_fast: bool) -> Optional[str]:
     )
 
 
-def validate_inference_geo(use_geo: bool) -> Optional[str]:
+def validate_inference_geo(use_geo: bool) -> str | None:
     if not use_geo:
         return None
     if HAIKU45_MODEL_ID in INFERENCE_GEO_SUPPORTED:
@@ -150,8 +149,8 @@ class Haiku45Client:
     def call(
         self,
         prompt: str,
-        system: Optional[str] = None,
-        thinking_budget: Optional[int] = None,
+        system: str | None = None,
+        thinking_budget: int | None = None,
         fast: bool = False,
         use_geo: bool = False,
     ) -> dict:
@@ -210,10 +209,10 @@ def cmd_haiku45_info():
 def cmd_haiku45_call(
     prompt: str,
     api_key: str,
-    thinking_budget: Optional[int] = None,
+    thinking_budget: int | None = None,
     fast: bool = False,
     use_geo: bool = False,
-    system: Optional[str] = None,
+    system: str | None = None,
 ):
     client = Haiku45Client(api_key=api_key)
     try:

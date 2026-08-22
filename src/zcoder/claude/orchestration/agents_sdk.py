@@ -141,7 +141,6 @@ import urllib.error
 import urllib.request
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
@@ -262,8 +261,8 @@ class McpTunnel:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.tunnel_id: Optional[str] = None
-        self.public_url: Optional[str] = None
+        self.tunnel_id: str | None = None
+        self.public_url: str | None = None
 
     def _headers(self) -> dict:
         return {
@@ -273,7 +272,7 @@ class McpTunnel:
             "anthropic-beta": MCP_TUNNELS_BETA,
         }
 
-    def open(self, local_port: int, name: Optional[str] = None) -> dict:
+    def open(self, local_port: int, name: str | None = None) -> dict:
         """Open a tunnel to a local MCP server listening on local_port.
         Returns the API response, which includes the tunnel id and the
         public URL to hand to McpServerConfig.sse()/http()."""
@@ -333,7 +332,7 @@ class McpTunnel:
         return McpServerConfig(transport, name, url=self.public_url)
 
 
-def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: Optional[str] = None):
+def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: str | None = None):
     """CLI entry: open a tunnel and print the public URL."""
     tunnel = McpTunnel(api_key)
     result = tunnel.open(local_port, name=name)
@@ -549,7 +548,7 @@ def _encode_session_budget(usd_cents: int) -> dict:
     return {"type": "limit", "max_list_cost": {"amount": str(usd_cents), "currency": "USD"}}
 
 
-def _budget_to_dict(budget) -> Optional[dict]:
+def _budget_to_dict(budget) -> dict | None:
     """Normalize the SDK's budget object/dict/None into a plain dict for
     local use (e.g. `mac.get_session(...)["budget"]`), without assuming
     the SDK response object shape beyond attribute access."""
@@ -571,7 +570,7 @@ def _budget_to_dict(budget) -> Optional[dict]:
     }
 
 
-def _list_cost_cents(usage) -> Optional[int]:
+def _list_cost_cents(usage) -> int | None:
     """Best-effort extraction of usage.list_cost.amount (whole US cents,
     as a string per the API) from a session's usage object, if present.
     Returns None rather than raising when a session has no budget (and
@@ -635,7 +634,7 @@ DREAMING_SUPPORTED_MODELS = {
 DREAMING_INSTRUCTIONS_MAX_CHARS = 4096
 
 
-def validate_dreaming_model(model_id: str) -> Optional[str]:
+def validate_dreaming_model(model_id: str) -> str | None:
     """Return None if `model_id` is a supported Dreaming pipeline model, or
     a warning string if it isn't. Not a hard block — the platform itself is
     the source of truth for whether a request 400s — but every other
@@ -651,7 +650,7 @@ def validate_dreaming_model(model_id: str) -> Optional[str]:
     )
 
 
-def validate_dreaming_instructions(instructions: Optional[str]) -> Optional[str]:
+def validate_dreaming_instructions(instructions: str | None) -> str | None:
     """Return None if `instructions` is unset or within the documented
     4,096-character limit, or a warning string if it's over. Same
     not-a-hard-block convention as validate_dreaming_model() — the
@@ -695,7 +694,7 @@ MULTIAGENT_MAX_ROSTER = 20
 FILES_API_BETA = "files-api-2025-04-14"
 
 
-def build_multiagent_config(agents: list, advisor_model: Optional[str] = None) -> dict:
+def build_multiagent_config(agents: list, advisor_model: str | None = None) -> dict:
     """Build the {"type": "coordinator", "agents": [...]} dict passed as
     `multiagent` to create_agent(), per platform.claude.com/docs/en/
     managed-agents/multi-agent (checked 2026-07-08).
@@ -784,10 +783,10 @@ class ManagedAgentsClient:
         name: str,
         model: str = "claude-opus-4-8",
         system: str = "You are a helpful coding assistant.",
-        tools: Optional[list] = None,
-        multiagent: Optional[dict] = None,
-        effort: Optional[str] = None,
-        inference_geo: Optional[str] = None,
+        tools: list | None = None,
+        multiagent: dict | None = None,
+        effort: str | None = None,
+        inference_geo: str | None = None,
     ) -> dict:
         """Create a persisted, versioned Agent config. tools defaults to the
         full pre-built agent_toolset_20260401 (bash, file ops, web search,
@@ -851,7 +850,7 @@ class ManagedAgentsClient:
             "inference_geo": inference_geo,
         }
 
-    def get_agent(self, agent_id: str, version: Optional[int] = None) -> dict:
+    def get_agent(self, agent_id: str, version: int | None = None) -> dict:
         """Retrieve an agent's stored config. GET /v1/agents/{id}, or
         GET /v1/agents/{id}/versions/{version} when `version` is given to
         read a specific prior version rather than the current one (v1.38.0,
@@ -867,7 +866,7 @@ class ManagedAgentsClient:
             agent = self.client.beta.agents.retrieve(agent_id, **kwargs)
         return {"id": agent_id, "version": version, "raw": agent}
 
-    def list_agents(self, limit: int = 50, page: Optional[str] = None) -> dict:
+    def list_agents(self, limit: int = 50, page: str | None = None) -> dict:
         """List agents in the workspace, newest first (v1.38.0, public
         beta). GET /v1/agents. Pass the `page` cursor from a previous call
         to continue paginating."""
@@ -880,14 +879,14 @@ class ManagedAgentsClient:
     def update_agent(
         self,
         agent_id: str,
-        name: Optional[str] = None,
-        model: Optional[str] = None,
-        effort: Optional[str] = None,
-        system: Optional[str] = None,
-        tools: Optional[list] = None,
-        multiagent: Optional[dict] = None,
-        inference_geo: Optional[str] = None,
-        version: Optional[int] = None,
+        name: str | None = None,
+        model: str | None = None,
+        effort: str | None = None,
+        system: str | None = None,
+        tools: list | None = None,
+        multiagent: dict | None = None,
+        inference_geo: str | None = None,
+        version: int | None = None,
     ) -> dict:
         """Update a persisted agent's config, creating a new version. POST
         /v1/agents/{id} (v1.38.0, public beta). Any field left as None is
@@ -997,7 +996,7 @@ class ManagedAgentsClient:
             "workers_polling": stats.workers_polling,
         }
 
-    def create_memory_store(self, name: str, description: Optional[str] = None) -> dict:
+    def create_memory_store(self, name: str, description: str | None = None) -> dict:
         """Create a workspace-scoped, persistent Managed Agents memory
         store — a versioned collection of text documents that survives
         across sessions. Distinct from `claude_memory.py`'s client-side
@@ -1040,7 +1039,7 @@ class ManagedAgentsClient:
         return {"id": getattr(store, "id", memory_store_id), "raw": store}
 
     def list_memory_stores(
-        self, include_archived: bool = False, limit: int = 50, page: Optional[str] = None
+        self, include_archived: bool = False, limit: int = 50, page: str | None = None
     ) -> dict:
         """List memory stores in the workspace. GET /v1/memory_stores —
         memory store endpoint, MEMORY_STORE_BETA alone."""
@@ -1079,10 +1078,10 @@ class ManagedAgentsClient:
     def list_memories(
         self,
         memory_store_id: str,
-        path_prefix: Optional[str] = None,
-        depth: Optional[int] = None,
+        path_prefix: str | None = None,
+        depth: int | None = None,
         limit: int = 50,
-        page: Optional[str] = None,
+        page: str | None = None,
     ) -> dict:
         """List the individual memory entries inside a memory store (v1.24.0)
         — distinct from create_memory_store(), which only creates the store
@@ -1160,9 +1159,9 @@ class ManagedAgentsClient:
         self,
         memory_store_id: str,
         memory_id: str,
-        content: Optional[str] = None,
-        path: Optional[str] = None,
-        content_sha256: Optional[str] = None,
+        content: str | None = None,
+        path: str | None = None,
+        content_sha256: str | None = None,
     ) -> dict:
         """Update an existing memory's content and/or rename it (path).
         POST /v1/memory_stores/{id}/memories/{memory_id} — memory store
@@ -1203,11 +1202,11 @@ class ManagedAgentsClient:
         agent_id: str,
         environment_id: str,
         title: str = "",
-        memory_store_id: Optional[str] = None,
-        vault_ids: Optional[list] = None,
-        agent_overrides: Optional[dict] = None,
-        initial_events: Optional[list] = None,
-        budget_usd_cents: Optional[int] = None,
+        memory_store_id: str | None = None,
+        vault_ids: list | None = None,
+        agent_overrides: dict | None = None,
+        initial_events: list | None = None,
+        budget_usd_cents: int | None = None,
     ) -> dict:
         """Create a session. If `memory_store_id` is given, mount that
         memory store as a session resource so the agent can read/write it
@@ -1327,7 +1326,7 @@ class ManagedAgentsClient:
             "raw": session,
         }
 
-    def update_session_budget(self, session_id: str, budget_usd_cents: Optional[int] = "__unset__") -> dict:
+    def update_session_budget(self, session_id: str, budget_usd_cents: int | None = "__unset__") -> dict:
         """Replace or remove a session's spend budget (v1.39.0, public
         beta) — POST-equivalent of `client.beta.sessions.update`. Pass an
         int to replace the cap with a new max_list_cost (must be strictly
@@ -1358,7 +1357,7 @@ class ManagedAgentsClient:
         }
 
     # ── Vaults & credentials (v1.21.0, public beta) ──────────────────────
-    def create_vault(self, display_name: str, external_user_id: Optional[str] = None) -> dict:
+    def create_vault(self, display_name: str, external_user_id: str | None = None) -> dict:
         """Create a workspace-scoped vault — the collection of credentials
         for one end user. `external_user_id`, if given, is stored as
         metadata so the vault can be mapped back to your own user
@@ -1377,11 +1376,11 @@ class ManagedAgentsClient:
         self,
         vault_id: str,
         credential_type: str,
-        mcp_server_url: Optional[str] = None,
-        secret_name: Optional[str] = None,
+        mcp_server_url: str | None = None,
+        secret_name: str | None = None,
         secret_value: str = "",
-        allowed_domains: Optional[list] = None,
-        injection_location: Optional[str] = None,
+        allowed_domains: list | None = None,
+        injection_location: str | None = None,
     ) -> dict:
         """Add a credential to a vault. credential_type is one of
         "mcp_oauth", "static_bearer" (both keyed by mcp_server_url — the
@@ -1522,9 +1521,9 @@ class ManagedAgentsClient:
     def create_dream(
         self,
         memory_store_id: str,
-        session_ids: Optional[list] = None,
+        session_ids: list | None = None,
         model: str = "claude-opus-4-8",
-        instructions: Optional[str] = None,
+        instructions: str | None = None,
     ) -> dict:
         """Start a dream: curate `memory_store_id` (optionally alongside past
         `session_ids` transcripts) into a new output memory store. The input
@@ -1591,9 +1590,7 @@ class ManagedAgentsClient:
             ),
         }
 
-    def list_dreams(
-        self, include_archived: bool = False, limit: int = 20, page: Optional[str] = None
-    ) -> list:
+    def list_dreams(self, include_archived: bool = False, limit: int = 20, page: str | None = None) -> list:
         """List dreams in the workspace, newest first. `limit` defaults to
         20 (platform max 100); pass the `page` cursor from a previous call
         to continue paginating — both added in v1.35.0, matching
@@ -1644,7 +1641,7 @@ class ManagedAgentsClient:
         cron_expression: str,
         timezone: str = "UTC",
         task: str = "",
-        memory_store_id: Optional[str] = None,
+        memory_store_id: str | None = None,
         name: str = "",
     ) -> dict:
         """Attach a cron schedule to an agent + environment pair. Each time
@@ -1696,8 +1693,8 @@ class ManagedAgentsClient:
         self,
         session_id: str,
         description: str,
-        rubric_text: Optional[str] = None,
-        rubric_file_id: Optional[str] = None,
+        rubric_text: str | None = None,
+        rubric_file_id: str | None = None,
         max_iterations: int = 3,
     ) -> dict:
         """Send a user.define_outcome event: the agent starts working
@@ -1814,7 +1811,7 @@ class ManagedAgentsClient:
         }
 
     # ── Webhooks (v1.20.0, public beta) ─────────────────────────────────
-    def register_webhook(self, url: str, event_types: Optional[list] = None) -> dict:
+    def register_webhook(self, url: str, event_types: list | None = None) -> dict:
         """Subscribe a URL to Managed Agents lifecycle events (session,
         outcome, dream). If event_types is omitted, subscribes to all
         event types the endpoint supports."""
@@ -1830,15 +1827,15 @@ def cmd_managed_agent_run(
     task: str,
     api_key: str,
     model: str = "claude-opus-4-8",
-    memory_store: Optional[str] = None,
-    outcome_description: Optional[str] = None,
-    outcome_rubric: Optional[str] = None,
-    outcome_rubric_file_id: Optional[str] = None,
+    memory_store: str | None = None,
+    outcome_description: str | None = None,
+    outcome_rubric: str | None = None,
+    outcome_rubric_file_id: str | None = None,
     outcome_max_iterations: int = 3,
-    vault_id: Optional[str] = None,
-    agent_overrides: Optional[dict] = None,
+    vault_id: str | None = None,
+    agent_overrides: dict | None = None,
     stream_deltas: bool = False,
-    budget_usd_cents: Optional[int] = None,
+    budget_usd_cents: int | None = None,
 ):
     """End-to-end convenience: create a throwaway agent + environment +
     session, run one task, print the result. For anything beyond a single
@@ -1934,8 +1931,8 @@ def cmd_agent_memory_store_create(name: str, api_key: str) -> dict:
 def cmd_agent_memory_list(
     memory_store_id: str,
     api_key: str,
-    path_prefix: Optional[str] = None,
-    depth: Optional[int] = None,
+    path_prefix: str | None = None,
+    depth: int | None = None,
     limit: int = 50,
 ) -> dict:
     """List the memory entries inside a memory store (v1.24.0) — see
@@ -1987,9 +1984,7 @@ def cmd_agent_memory_store_archive(memory_store_id: str, api_key: str) -> dict:
     return result
 
 
-def cmd_agent_memory_store_delete(
-    memory_store_id: str, api_key: str, confirm: bool = False
-) -> Optional[dict]:
+def cmd_agent_memory_store_delete(memory_store_id: str, api_key: str, confirm: bool = False) -> dict | None:
     """Permanently delete a memory store and everything in it (v1.27.0).
     Requires --agent-memory-store-delete-yes (confirm=True) — dry-run by
     default, same confirmation pattern as claude_compliance_api.py's
@@ -2036,8 +2031,8 @@ def cmd_agent_memory_update(
     memory_store_id: str,
     memory_id: str,
     api_key: str,
-    content: Optional[str] = None,
-    path: Optional[str] = None,
+    content: str | None = None,
+    path: str | None = None,
 ) -> dict:
     """Update an existing memory's content and/or path (v1.27.0)."""
     mac = ManagedAgentsClient(api_key)
@@ -2048,7 +2043,7 @@ def cmd_agent_memory_update(
 
 def cmd_agent_memory_delete(
     memory_store_id: str, memory_id: str, api_key: str, confirm: bool = False
-) -> Optional[dict]:
+) -> dict | None:
     """Delete a single memory (v1.27.0). Requires
     --agent-memory-delete-yes (confirm=True) — dry-run by default. The
     memory's version history survives the deletion."""
@@ -2065,7 +2060,7 @@ def cmd_agent_memory_delete(
     return result
 
 
-def cmd_agent_vault_create(display_name: str, api_key: str, external_user_id: Optional[str] = None) -> dict:
+def cmd_agent_vault_create(display_name: str, api_key: str, external_user_id: str | None = None) -> dict:
     """Create a vault (v1.21.0, public beta) — a workspace-scoped
     collection of one end user's third-party credentials, referenced by
     vault_id from --agent-managed-run --agent-vault or from
@@ -2084,11 +2079,11 @@ def cmd_agent_vault_add_credential(
     vault_id: str,
     credential_type: str,
     api_key: str,
-    mcp_server_url: Optional[str] = None,
-    secret_name: Optional[str] = None,
+    mcp_server_url: str | None = None,
+    secret_name: str | None = None,
     secret_value: str = "",
-    allowed_domains: Optional[list] = None,
-    injection_location: Optional[str] = None,
+    allowed_domains: list | None = None,
+    injection_location: str | None = None,
 ) -> dict:
     """Add a credential to an existing vault. Never prints secret_value —
     it's write-only, matching the docs' framing of these fields as
@@ -2121,8 +2116,8 @@ def cmd_agent_dream(
     store_id: str,
     api_key: str,
     model: str = "claude-opus-4-8",
-    session_ids: Optional[list] = None,
-    instructions: Optional[str] = None,
+    session_ids: list | None = None,
+    instructions: str | None = None,
 ) -> dict:
     """Start a Dreaming pass over a memory store (research preview) and
     print the pending dream's id — dreams run asynchronously, poll with
@@ -2169,7 +2164,7 @@ def cmd_agent_dream_get(dream_id: str, api_key: str) -> dict:
 
 
 def cmd_agent_dream_list(
-    api_key: str, include_archived: bool = False, limit: int = 20, page: Optional[str] = None
+    api_key: str, include_archived: bool = False, limit: int = 20, page: str | None = None
 ) -> list:
     """List dreams, newest first. `limit`/`page` (v1.35.0) paginate
     through more than the platform's default first page; `include_archived`
@@ -2293,7 +2288,7 @@ def cmd_agent_env_work_stats(environment_id: str, api_key: str) -> dict:
     return stats
 
 
-def cmd_agent_webhook_register(url: str, api_key: str, events: Optional[list] = None) -> dict:
+def cmd_agent_webhook_register(url: str, api_key: str, events: list | None = None) -> dict:
     mac = ManagedAgentsClient(api_key)
     webhook = mac.register_webhook(url, event_types=events)
     print(f"\033[92m✓ webhook registered\033[0m  id={webhook['id']}  url={url}")
@@ -2307,8 +2302,8 @@ def cmd_agent_create(
     api_key: str,
     model: str = "claude-opus-4-8",
     system: str = "You are a helpful coding assistant.",
-    effort: Optional[str] = None,
-    inference_geo: Optional[str] = None,
+    effort: str | None = None,
+    inference_geo: str | None = None,
 ) -> dict:
     mac = ManagedAgentsClient(api_key)
     agent = mac.create_agent(name, model=model, system=system, effort=effort, inference_geo=inference_geo)
@@ -2320,7 +2315,7 @@ def cmd_agent_create(
     return agent
 
 
-def cmd_agent_get(agent_id: str, api_key: str, version: Optional[int] = None) -> dict:
+def cmd_agent_get(agent_id: str, api_key: str, version: int | None = None) -> dict:
     mac = ManagedAgentsClient(api_key)
     agent = mac.get_agent(agent_id, version=version)
     print(f"\033[92m✓ agent\033[0m  id={agent_id}" + (f"  version={version}" if version else ""))
@@ -2340,12 +2335,12 @@ def cmd_agent_list(api_key: str, limit: int = 50) -> dict:
 def cmd_agent_update(
     agent_id: str,
     api_key: str,
-    name: Optional[str] = None,
-    model: Optional[str] = None,
-    effort: Optional[str] = None,
-    system: Optional[str] = None,
-    version: Optional[int] = None,
-    inference_geo: Optional[str] = None,
+    name: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    system: str | None = None,
+    version: int | None = None,
+    inference_geo: str | None = None,
 ) -> dict:
     mac = ManagedAgentsClient(api_key)
     agent = mac.update_agent(

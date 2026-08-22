@@ -8,7 +8,8 @@ src-layout migration remains backward compatible.
 
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 from zcoder.domain.interfaces.engineering_store import EngineeringStore
 from zcoder.domain.models.engineering import EngineeringTask

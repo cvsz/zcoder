@@ -40,7 +40,6 @@ CLI flags added in main.py:
 """
 
 import sys
-from typing import Optional
 
 import anthropic
 
@@ -128,10 +127,10 @@ class ThinkingCoder:
     def generate_with_thinking(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         budget_tokens: int = 8_000,
-        effort: Optional[str] = None,
-        adaptive: Optional[bool] = None,
+        effort: str | None = None,
+        adaptive: bool | None = None,
         legacy_budget: bool = False,
         show_thinking: bool = False,
         display_omitted: bool = False,
@@ -209,7 +208,7 @@ class ThinkingCoder:
             "model": self.model,
         }
 
-    def _resolve_mode(self, adaptive: Optional[bool], legacy_budget: bool) -> bool:
+    def _resolve_mode(self, adaptive: bool | None, legacy_budget: bool) -> bool:
         """Returns True for adaptive mode, False for legacy manual mode.
         Raises ThinkingModeError instead of building a request known to
         fail with a 400."""
@@ -236,10 +235,10 @@ class ThinkingCoder:
     def stream_with_thinking(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         budget_tokens: int = 8_000,
-        effort: Optional[str] = None,
-        adaptive: Optional[bool] = None,
+        effort: str | None = None,
+        adaptive: bool | None = None,
         legacy_budget: bool = False,
         show_thinking: bool = False,
         display_omitted: bool = False,
@@ -312,7 +311,7 @@ def cmd_thinking(
     model: str,
     budget: int,
     effort: str,
-    adaptive: Optional[bool],
+    adaptive: bool | None,
     show_thinking: bool,
     stream: bool,
     system: str = None,

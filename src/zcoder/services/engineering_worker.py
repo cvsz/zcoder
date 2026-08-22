@@ -11,7 +11,8 @@ from __future__ import annotations
 import inspect
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from zcoder.domain.interfaces.engineering_store import EngineeringStore
 from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask, TaskStatus

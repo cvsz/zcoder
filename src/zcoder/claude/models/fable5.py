@@ -64,7 +64,6 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -139,7 +138,7 @@ FABLE_MYTHOS_INFO = {
 class RefusalError(Exception):
     """Raised when a Fable 5 call is refused and fallback is disabled/exhausted."""
 
-    def __init__(self, message: str, classifier: Optional[str] = None):
+    def __init__(self, message: str, classifier: str | None = None):
         super().__init__(message)
         self.classifier = classifier
 
@@ -172,7 +171,7 @@ class Fable5Client:
         self.fallback_chain = fallback_chain
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, payload: dict, extra_headers: Optional[dict] = None) -> dict:
+    def _call(self, payload: dict, extra_headers: dict | None = None) -> dict:
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
@@ -188,7 +187,7 @@ class Fable5Client:
         )
         return urlopen_json(req, timeout=300)
 
-    def _post(self, payload: dict, extra_headers: Optional[dict] = None) -> dict:
+    def _post(self, payload: dict, extra_headers: dict | None = None) -> dict:
         try:
             return self._call(payload, extra_headers)
         except ZCoderError as e:
@@ -202,8 +201,8 @@ class Fable5Client:
     def call(
         self,
         prompt: str,
-        system: Optional[str] = None,
-        model: Optional[str] = None,
+        system: str | None = None,
+        model: str | None = None,
         is_fallback_retry: bool = False,
     ) -> dict:
         """One raw call. Returns the parsed response dict (caller inspects stop_reason).
@@ -234,9 +233,7 @@ class Fable5Client:
             extra_headers = {"anthropic-beta": SERVER_SIDE_FALLBACK_DEFAULT_BETA_HEADER}
         return self._post(payload, extra_headers=extra_headers)
 
-    def call_with_fallback(
-        self, prompt: str, system: Optional[str] = None, allow_fallback: bool = True
-    ) -> dict:
+    def call_with_fallback(self, prompt: str, system: str | None = None, allow_fallback: bool = True) -> dict:
         """
         Call the configured model.
 
@@ -356,7 +353,7 @@ class Fable5Client:
         }
 
 
-def estimate_cost_usd(model_id: str, input_tokens: int, output_tokens: int) -> Optional[float]:
+def estimate_cost_usd(model_id: str, input_tokens: int, output_tokens: int) -> float | None:
     """Rough cost estimate using the static table above. Returns None for unknown models."""
     info = FABLE_MYTHOS_INFO.get(model_id)
     if not info:
@@ -394,8 +391,8 @@ def cmd_fable5_call(
     api_key: str,
     fallback_model: str = "claude-opus-4-8",
     allow_fallback: bool = True,
-    system: Optional[str] = None,
-    fallback_chain: Optional[list] = None,
+    system: str | None = None,
+    fallback_chain: list | None = None,
 ):
     client = Fable5Client(api_key=api_key, fallback_model=fallback_model, fallback_chain=fallback_chain)
     try:
@@ -415,7 +412,7 @@ def cmd_fable5_call(
     return result
 
 
-def parse_fallback_chain(raw: Optional[str]):
+def parse_fallback_chain(raw: str | None):
     """Parse the --fable5-fallback-chain CLI value into either the literal
     string "default" (Anthropic's own recommended fallback models by
     refusal category, added 2026-07-24 — requires

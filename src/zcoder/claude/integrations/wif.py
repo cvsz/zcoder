@@ -60,7 +60,6 @@ import os
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen, urlopen_json
@@ -79,7 +78,7 @@ class WIFExchangeError(Exception):
     SDKs' own typed FederationExchangeError. Never includes the JWT
     assertion or any access token in its message."""
 
-    def __init__(self, status: Optional[int], body: str):
+    def __init__(self, status: int | None, body: str):
         self.status = status
         self.body = body
         super().__init__(f"WIF token exchange failed: HTTP {status}")
@@ -96,8 +95,8 @@ class WIFCredentialExchanger:
         organization_id: str,
         service_account_id: str,
         identity_token: str,
-        workspace_id: Optional[str] = None,
-        token_lifetime_seconds: Optional[int] = None,
+        workspace_id: str | None = None,
+        token_lifetime_seconds: int | None = None,
     ) -> dict:
         """Returns the OAuth 2.0 token response: access_token, expires_in,
         token_type, and scope. Never logs `identity_token` or the
@@ -136,7 +135,7 @@ class WIFCredentialExchanger:
             raise WIFExchangeError(None, e.details.get("body", "")) from None
 
 
-def resolve_wif_env(env: Optional[dict] = None) -> Optional[dict]:
+def resolve_wif_env(env: dict | None = None) -> dict | None:
     """Mirrors the first-party SDKs' zero-argument-constructor behavior:
     reads ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID,
     ANTHROPIC_SERVICE_ACCOUNT_ID (all required), ANTHROPIC_WORKSPACE_ID
@@ -227,7 +226,7 @@ class WIFAdminClient:
         return self._get("/service_accounts")
 
     # ── Federation issuers ───────────────────────────────────────────
-    def create_federation_issuer(self, name: str, issuer_url: str, jwks: Optional[dict] = None) -> dict:
+    def create_federation_issuer(self, name: str, issuer_url: str, jwks: dict | None = None) -> dict:
         payload = {"name": name, "issuer_url": issuer_url, "jwks": jwks or {"type": "discovery"}}
         return self._post("/federation_issuers", payload)
 
@@ -241,8 +240,8 @@ class WIFAdminClient:
         issuer_id: str,
         service_account_id: str,
         match: dict,
-        oauth_scope: Optional[str] = None,
-        token_lifetime_seconds: Optional[int] = None,
+        oauth_scope: str | None = None,
+        token_lifetime_seconds: int | None = None,
     ) -> dict:
         payload = {
             "name": name,

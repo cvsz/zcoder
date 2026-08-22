@@ -51,7 +51,8 @@ def connection_scope():
 def ensure_schema() -> None:
     with connection_scope() as connection:
         with connection.cursor() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS engineering_tasks (
                     id TEXT PRIMARY KEY,
                     task_description TEXT NOT NULL,
@@ -60,7 +61,8 @@ def ensure_schema() -> None:
                     updated_at DOUBLE PRECISION NOT NULL,
                     metadata JSONB NOT NULL DEFAULT '{}'
                 )
-                """)
+                """
+            )
 
 
 def fetch_task(task_id: str):

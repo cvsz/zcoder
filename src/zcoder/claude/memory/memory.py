@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 MEMORY_DIR = Path.home() / ".zcoder" / "memory"
 
@@ -34,7 +34,7 @@ class MemEntry:
     tags: list[str] = field(default_factory=list)
     importance: int = 5  # 1–10; 10 = never auto-deleted
     created: str = field(default_factory=lambda: datetime.now().isoformat())
-    accessed: Optional[str] = None
+    accessed: str | None = None
 
     def to_dict(self):
         return {
@@ -82,7 +82,7 @@ class MemoryStore:
         self,
         content: str,
         mtype: MemType = MemType.FACT,
-        tags: Optional[list[str]] = None,
+        tags: list[str] | None = None,
         importance: int = 5,
     ) -> MemEntry:
         e = MemEntry(content=content, mtype=mtype, tags=tags or [], importance=importance)

@@ -67,9 +67,9 @@ def _check_config_writable() -> CheckResult:
 
 
 def _check_python_version() -> CheckResult:
-    ok = sys.version_info >= (3, 9)
+    ok = sys.version_info >= (3, 10)
     return CheckResult(
-        "python_version", ok, f"{sys.version.split()[0]} ({'ok' if ok else 'requires >= 3.9'})"
+        "python_version", ok, f"{sys.version.split()[0]} ({'ok' if ok else 'requires >= 3.10'})"
     )
 
 

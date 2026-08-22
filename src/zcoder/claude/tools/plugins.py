@@ -47,7 +47,6 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import TransientAPIError, ZCoderError
 from zcoder.core.resilience import retry, safe_urlopen
@@ -258,7 +257,7 @@ def _fetch_marketplace_source(url: str) -> bytes:
         raise TransientAPIError(f"could not fetch {url}: {e}") from e
 
 
-def marketplace_add(source: str, name: Optional[str] = None) -> dict:
+def marketplace_add(source: str, name: str | None = None) -> dict:
     """
     Register a marketplace from a local directory, a .zip, or a URL
     (URLs are fetched as a tarball/zip listing — git clone is not
@@ -483,7 +482,7 @@ def plugin_list() -> list:
     return out
 
 
-def plugin_info(name: str) -> Optional[dict]:
+def plugin_info(name: str) -> dict | None:
     reg = _load_registry()
     info = reg["installed"].get(name)
     if not info:
@@ -627,7 +626,7 @@ def plugin_bin_paths() -> list:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def cmd_plugin_marketplace_add(source: str, name: Optional[str] = None):
+def cmd_plugin_marketplace_add(source: str, name: str | None = None):
     try:
         info = marketplace_add(source, name)
         print(f"\033[92m✓ Marketplace added: {name or Path(source.rstrip('/')).stem}\033[0m")

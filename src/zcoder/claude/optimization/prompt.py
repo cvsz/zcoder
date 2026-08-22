@@ -19,7 +19,6 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -51,7 +50,7 @@ def _call(client: anthropic.Anthropic, model: str, system: str, user: str, max_t
     return resp.content[0].text.strip()
 
 
-def optimize(prompt: str, client: Optional[anthropic.Anthropic], model: str) -> str:
+def optimize(prompt: str, client: anthropic.Anthropic | None, model: str) -> str:
     if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes") or not client:
         # Offline rule-based prompt enhancement
         lines = [line.strip() for line in prompt.strip().splitlines() if line.strip()]
@@ -71,7 +70,7 @@ def optimize(prompt: str, client: Optional[anthropic.Anthropic], model: str) -> 
         return optimize(prompt, None, model)
 
 
-def score(prompt: str, client: Optional[anthropic.Anthropic], model: str) -> dict:
+def score(prompt: str, client: anthropic.Anthropic | None, model: str) -> dict:
     if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes") or not client:
         # High quality offline deterministic scoring heuristics
         words = prompt.strip().split()
@@ -187,7 +186,7 @@ def lib_list() -> list[dict]:
     return [{"tag": k, "added": v.get("added", ""), "preview": v["prompt"][:80]} for k, v in lib.items()]
 
 
-def lib_get(tag: str) -> Optional[str]:
+def lib_get(tag: str) -> str | None:
     return _load_lib().get(tag, {}).get("prompt")
 
 

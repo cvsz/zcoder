@@ -14,7 +14,6 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -147,7 +146,7 @@ def _save_index(idx: RAGIndex):
     _index_path(idx.name, idx.tenant_id).write_text(json.dumps(idx.to_dict(), indent=2))
 
 
-def load_index(name: str, tenant_id: str = "") -> Optional[RAGIndex]:
+def load_index(name: str, tenant_id: str = "") -> RAGIndex | None:
     if not tenant_id:
         # SEC-007: fail closed — an unnamed tenant may not resolve any index.
         raise ValueError("tenant_id is required to load a RAG index")

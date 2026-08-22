@@ -17,7 +17,6 @@ import json
 import os
 from datetime import date, datetime
 from pathlib import Path
-from typing import Optional
 
 LOG_PATH = Path(os.path.expanduser("~/.zcoder/metrics.jsonl"))
 
@@ -83,7 +82,7 @@ def record(
         f.write(json.dumps(entry) + "\n")
 
 
-def load_log(today_only: bool = False, model_filter: Optional[str] = None) -> list[dict]:
+def load_log(today_only: bool = False, model_filter: str | None = None) -> list[dict]:
     if not LOG_PATH.exists():
         return []
     today_str = date.today().isoformat()
@@ -139,7 +138,7 @@ def summarise(entries: list[dict]) -> dict:
     }
 
 
-def cmd_metrics_show(today_only: bool = False, model_filter: Optional[str] = None):
+def cmd_metrics_show(today_only: bool = False, model_filter: str | None = None):
     entries = load_log(today_only=today_only, model_filter=model_filter)
     s = summarise(entries)
     if not s.get("calls"):

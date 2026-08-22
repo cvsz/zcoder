@@ -48,7 +48,6 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -78,9 +77,9 @@ ADVISOR_EXECUTOR_MODELS = {
 
 def build_advisor_tool(
     advisor_model: str = "claude-opus-4-8",
-    max_uses: Optional[int] = None,
-    max_tokens: Optional[int] = None,
-    cache_ttl: Optional[str] = "5m",
+    max_uses: int | None = None,
+    max_tokens: int | None = None,
+    cache_ttl: str | None = "5m",
 ) -> dict:
     """Build the advisor tool definition. cache_ttl caches the advisor's own
     read of the conversation (ephemeral, 5m default) so repeated advisor
@@ -144,8 +143,8 @@ class AdvisorCoder:
         self,
         prompt: str,
         advisor_tool: dict,
-        extra_tools: Optional[list[dict]] = None,
-        system: Optional[str] = None,
+        extra_tools: list[dict] | None = None,
+        system: str | None = None,
         max_advisor_calls: int = 10,
         verbose: bool = True,
     ) -> str:
@@ -259,8 +258,8 @@ def cmd_advisor(
     api_key: str,
     executor_model: str,
     advisor_model: str = "claude-opus-4-8",
-    max_uses: Optional[int] = None,
-    advisor_max_tokens: Optional[int] = None,
+    max_uses: int | None = None,
+    advisor_max_tokens: int | None = None,
 ):
     print(f"\033[94mℹ Advisor tool | executor={executor_model} advisor={advisor_model}\033[0m\n")
     advisor_tool = build_advisor_tool(

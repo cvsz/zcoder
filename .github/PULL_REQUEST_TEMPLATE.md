@@ -12,10 +12,9 @@ Describe the bounded change and why it is needed.
 
 - [ ] Ruff
 - [ ] Black
-- [ ] Python 3.9
-- [ ] Python 3.10
-- [ ] Python 3.11
-- [ ] Python 3.12
+ - [ ] Python 3.10
+ - [ ] Python 3.11
+ - [ ] Python 3.12
 - [ ] Bandit / security
 - [ ] Docker build/smoke where applicable
 - [ ] CodeQL

@@ -8,10 +8,11 @@ import json
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import anthropic
 
@@ -51,8 +52,8 @@ def record_request(
     latency_ms: int,
     in_tokens: int,
     out_tokens: int,
-    error: Optional[str] = None,
-    tags: Optional[list[str]] = None,
+    error: str | None = None,
+    tags: list[str] | None = None,
 ):
     _log(
         {
@@ -73,7 +74,7 @@ def record_request(
 # ── Decorator for auto-instrumentation ───────────────────────────────────────
 
 
-def observe(model: str = "unknown", tags: Optional[list[str]] = None):
+def observe(model: str = "unknown", tags: list[str] | None = None):
     """Decorator: wrap any function that (a) takes prompt as first arg and
     (b) returns a string response, logging latency + token estimate."""
 

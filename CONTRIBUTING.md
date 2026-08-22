@@ -33,7 +33,7 @@ python -m bandit -r src/zcoder webapp scripts -ll
 python -m pytest --cov --cov-report=term-missing
 ```
 
-CI runs lint/security checks, pytest with coverage on Python 3.9–3.12, package/import smoke tests, and Docker validation. Hosted checks also include CodeQL, Dependency Review, Release Gate, Helm, and SDK/TypeScript validation.
+CI runs lint/security checks, pytest with coverage on Python 3.10–3.12, package/import smoke tests, and Docker validation. Hosted checks also include CodeQL, Dependency Review, Release Gate, Helm, and SDK/TypeScript validation.
 
 ## Pull request discipline
 

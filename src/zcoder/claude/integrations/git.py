@@ -7,7 +7,6 @@ ZCoder CLI v1.10.0
 import os
 import shlex
 import subprocess
-from typing import Optional
 
 import anthropic
 
@@ -152,7 +151,7 @@ def cmd_git_pr(base: str, head: str, api_key: str, model: str, cwd: str = "."):
     print(pr_description(base, head, cwd, api_key, model))
 
 
-def cmd_git_changelog(since_tag: str, api_key: str, model: str, cwd: str = ".", output: Optional[str] = None):
+def cmd_git_changelog(since_tag: str, api_key: str, model: str, cwd: str = ".", output: str | None = None):
     md = changelog(since_tag, cwd, api_key, model)
     if output:
         from pathlib import Path

@@ -37,7 +37,6 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.claude.models.fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
 from zcoder.core.exceptions import APIError, ZCoderError
@@ -101,7 +100,7 @@ class Mythos5Client:
         except Exception as e:
             return {"error": str(e)}
 
-    def call(self, prompt: str, system: Optional[str] = None) -> dict:
+    def call(self, prompt: str, system: str | None = None) -> dict:
         payload = {
             "model": MYTHOS5_MODEL_ID,
             "max_tokens": self.max_tokens,
@@ -111,7 +110,7 @@ class Mythos5Client:
             payload["system"] = system
         return self._post(payload)
 
-    def call_text(self, prompt: str, system: Optional[str] = None) -> str:
+    def call_text(self, prompt: str, system: str | None = None) -> str:
         """Convenience wrapper returning just the response text (or an
         [ERROR] string), for callers that don't need the raw response dict."""
         data = self.call(prompt, system=system)
@@ -140,7 +139,7 @@ def cmd_mythos5_info():
     print("  about Project Glasswing. See also: --fable5-info for the publicly available sibling model.\n")
 
 
-def cmd_mythos5_call(prompt: str, api_key: str, system: Optional[str] = None):
+def cmd_mythos5_call(prompt: str, api_key: str, system: str | None = None):
     client = Mythos5Client(api_key=api_key)
     try:
         text = client.call_text(prompt, system=system)

@@ -135,7 +135,8 @@ class DeploymentEngine:
     def record_deployment(self, record: DeploymentRecord) -> None:
         """Record a deployment event for rollback and audit purposes."""
         with sqlite3.connect(self.store.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS deployment_history (
                     deployment_id TEXT PRIMARY KEY,
                     version TEXT NOT NULL,
@@ -146,7 +147,8 @@ class DeploymentEngine:
                     result TEXT NOT NULL DEFAULT 'UNKNOWN',
                     notes TEXT
                 )
-            """)
+            """
+            )
             conn.execute(
                 """
                 INSERT OR REPLACE INTO deployment_history
@@ -168,7 +170,8 @@ class DeploymentEngine:
     def get_deployment_history(self, limit: int = 20) -> list[DeploymentRecord]:
         """Retrieve recent deployment history for rollback decisions."""
         with sqlite3.connect(self.store.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS deployment_history (
                     deployment_id TEXT PRIMARY KEY,
                     version TEXT NOT NULL,
@@ -179,7 +182,8 @@ class DeploymentEngine:
                     result TEXT NOT NULL DEFAULT 'UNKNOWN',
                     notes TEXT
                 )
-            """)
+            """
+            )
             cur = conn.cursor()
             cur.execute(
                 """
@@ -240,7 +244,8 @@ class DeploymentEngine:
         manifest.revoked = True
         manifest.revocation_reason = reason
         with sqlite3.connect(self.store.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS artifact_manifest (
                     artifact_id TEXT PRIMARY KEY,
                     artifact_type TEXT NOT NULL,
@@ -252,7 +257,8 @@ class DeploymentEngine:
                     revocation_reason TEXT,
                     created_at REAL NOT NULL
                 )
-            """)
+            """
+            )
             conn.execute(
                 """
                 INSERT OR REPLACE INTO artifact_manifest

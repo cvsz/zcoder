@@ -64,7 +64,6 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.claude.models.registry import (
     FAST_MODE_SUPPORTED,
@@ -112,7 +111,7 @@ OPUS5_INFO = {
 }
 
 
-def validate_effort_thinking(effort: Optional[str], disable_thinking: bool) -> Optional[str]:
+def validate_effort_thinking(effort: str | None, disable_thinking: bool) -> str | None:
     """Return None if this effort/thinking combination is safe to send to
     Opus 5, or a human-readable reason string if the API would 400 it.
     Callers should treat a non-None return as a hard stop, not a warning —
@@ -136,7 +135,7 @@ def validate_effort_thinking(effort: Optional[str], disable_thinking: bool) -> O
     return None
 
 
-def validate_inference_geo(use_geo: bool) -> Optional[str]:
+def validate_inference_geo(use_geo: bool) -> str | None:
     """Return None if inference_geo usage is safe for Opus 5, or a reason
     string if it is not supported. As of 2026-08-13, claude-opus-5 IS in
     INFERENCE_GEO_SUPPORTED (confirmed via live docs — the previous 'unconfirmed'
@@ -190,8 +189,8 @@ class Opus5Client:
     def call(
         self,
         prompt: str,
-        system: Optional[str] = None,
-        effort: Optional[str] = None,
+        system: str | None = None,
+        effort: str | None = None,
         disable_thinking: bool = False,
         fast: bool = False,
         use_geo: bool = False,
@@ -267,11 +266,11 @@ def cmd_opus5_info():
 def cmd_opus5_call(
     prompt: str,
     api_key: str,
-    effort: Optional[str] = None,
+    effort: str | None = None,
     disable_thinking: bool = False,
     fast: bool = False,
     use_geo: bool = False,
-    system: Optional[str] = None,
+    system: str | None = None,
 ):
     client = Opus5Client(api_key=api_key)
     try:

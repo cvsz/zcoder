@@ -53,7 +53,6 @@ Mid-conversation system messages vs. the top-level `system` field:
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -208,8 +207,8 @@ class CachingCoder:
         self.max_tokens = max_tokens
         self.ttl = ttl  # "5m" or "1h"
         self._last_usage: dict = {}
-        self._last_message_id: Optional[str] = None
-        self._last_cache_miss_reason: Optional[str] = None
+        self._last_message_id: str | None = None
+        self._last_cache_miss_reason: str | None = None
 
     def _post(self, payload: dict, diagnose: bool = False) -> dict:
         body = json.dumps(payload).encode()
@@ -243,11 +242,11 @@ class CachingCoder:
     def generate_cached(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         cached_docs: list[str] = None,
         history: list[dict] = None,
         diagnose: bool = False,
-        mid_system: Optional[str] = None,
+        mid_system: str | None = None,
     ) -> str:
         """
         Call Claude with cache breakpoints on system + docs.
@@ -347,7 +346,7 @@ class CachingCoder:
         self,
         prompt: str,
         tools: list[dict],
-        system: Optional[str] = None,
+        system: str | None = None,
     ) -> str:
         """Cache tool definitions at the tools level (invalidated only if tools change)."""
         if tools:
@@ -379,8 +378,8 @@ class CachingCoder:
     def multi_turn_cached(
         self,
         turns: list[str],
-        system: Optional[str] = None,
-        mid_system_updates: Optional[dict] = None,
+        system: str | None = None,
+        mid_system_updates: dict | None = None,
     ) -> list[str]:
         """
         Run a multi-turn conversation, caching the growing history each turn.

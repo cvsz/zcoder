@@ -105,7 +105,6 @@ import urllib.parse
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.resilience import safe_urlopen
 
@@ -141,7 +140,7 @@ class ComplianceApiError(Exception):
         status: int,
         error_type: str,
         message: str,
-        request_id: Optional[str] = None,
+        request_id: str | None = None,
         retryable: bool = False,
     ):
         self.status = status
@@ -181,7 +180,7 @@ def _is_retryable(status: int, headers: dict) -> bool:
     return False
 
 
-def _parse_content_disposition_filename(value: str) -> Optional[str]:
+def _parse_content_disposition_filename(value: str) -> str | None:
     """Extract the filename from a
     `Content-Disposition: attachment; filename*=utf-8''<percent-encoded>`
     header. The Compliance API always uses the RFC 5987 extended form
@@ -201,7 +200,7 @@ def _parse_content_disposition_filename(value: str) -> Optional[str]:
     return None
 
 
-def _safe_download_filename(filename: Optional[str], fallback: str) -> str:
+def _safe_download_filename(filename: str | None, fallback: str) -> str:
     """Sanitize a server-supplied filename to a bare basename.
 
     The filename is untrusted remote output: it must never be used to
@@ -249,7 +248,7 @@ class ComplianceApiClient:
     def _headers(self) -> dict:
         return {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
 
-    def _request(self, method: str, path: str, params: Optional[dict] = None, raw: bool = False):
+    def _request(self, method: str, path: str, params: dict | None = None, raw: bool = False):
         url = f"{COMPLIANCE_BASE}{path}"
         if params:
             # doseq=True so list-valued params (activity_types[], etc.)
@@ -289,7 +288,7 @@ class ComplianceApiClient:
                 # decide their own retry policy same as any network call.
                 raise ComplianceApiError(status=0, error_type="connection_error", message=str(e)) from e
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict:
+    def _get(self, path: str, params: dict | None = None) -> dict:
         return self._request("GET", path, params=params)
 
     def _get_raw(self, path: str) -> tuple:
@@ -303,15 +302,15 @@ class ComplianceApiClient:
     def list_activities(
         self,
         limit: int = 100,
-        after_id: Optional[str] = None,
-        before_id: Optional[str] = None,
-        activity_types: Optional[list] = None,
-        actor_ids: Optional[list] = None,
-        organization_ids: Optional[list] = None,
-        created_at_gte: Optional[str] = None,
-        created_at_gt: Optional[str] = None,
-        created_at_lte: Optional[str] = None,
-        created_at_lt: Optional[str] = None,
+        after_id: str | None = None,
+        before_id: str | None = None,
+        activity_types: list | None = None,
+        actor_ids: list | None = None,
+        organization_ids: list | None = None,
+        created_at_gte: str | None = None,
+        created_at_gt: str | None = None,
+        created_at_lte: str | None = None,
+        created_at_lt: str | None = None,
     ) -> dict:
         """GET /v1/compliance/activities — one page, newest first.
         Requires read:compliance_activities (Compliance Access Key or
@@ -332,14 +331,14 @@ class ComplianceApiClient:
 
     def iterate_activities(
         self,
-        activity_types: Optional[list] = None,
-        actor_ids: Optional[list] = None,
-        organization_ids: Optional[list] = None,
-        created_at_gte: Optional[str] = None,
-        created_at_gt: Optional[str] = None,
-        created_at_lte: Optional[str] = None,
-        created_at_lt: Optional[str] = None,
-        after_id: Optional[str] = None,
+        activity_types: list | None = None,
+        actor_ids: list | None = None,
+        organization_ids: list | None = None,
+        created_at_gte: str | None = None,
+        created_at_gt: str | None = None,
+        created_at_lte: str | None = None,
+        created_at_lt: str | None = None,
+        after_id: str | None = None,
         page_size: int = 100,
     ) -> Iterator[dict]:
         """Generator that pages through the *entire* matching Activity
@@ -375,15 +374,15 @@ class ComplianceApiClient:
     def list_chats(
         self,
         user_ids: list,
-        organization_ids: Optional[list] = None,
-        project_ids: Optional[list] = None,
+        organization_ids: list | None = None,
+        project_ids: list | None = None,
         limit: int = 100,
-        after_id: Optional[str] = None,
-        before_id: Optional[str] = None,
-        created_at_gte: Optional[str] = None,
-        created_at_lte: Optional[str] = None,
-        updated_at_gte: Optional[str] = None,
-        updated_at_lte: Optional[str] = None,
+        after_id: str | None = None,
+        before_id: str | None = None,
+        created_at_gte: str | None = None,
+        created_at_lte: str | None = None,
+        updated_at_gte: str | None = None,
+        updated_at_lte: str | None = None,
     ) -> dict:
         """GET /v1/compliance/apps/chats. `user_ids` is required (up to
         10 per call) — this is a documented constraint of the endpoint,
@@ -428,9 +427,9 @@ class ComplianceApiClient:
     def get_chat_messages(
         self,
         chat_id: str,
-        limit: Optional[int] = None,
-        after_id: Optional[str] = None,
-        before_id: Optional[str] = None,
+        limit: int | None = None,
+        after_id: str | None = None,
+        before_id: str | None = None,
     ) -> dict:
         """GET /v1/compliance/apps/chats/{id}/messages. Omitting `limit`
         returns the whole chat in one response (per the docs); pass it
@@ -448,7 +447,7 @@ class ComplianceApiClient:
     # ── Local sessions (Cowork / Claude Code, Compliance Access Key) ─
 
     def list_local_sessions(
-        self, user_ids: Optional[list] = None, limit: int = 100, page: Optional[str] = None
+        self, user_ids: list | None = None, limit: int = 100, page: str | None = None
     ) -> dict:
         """GET /v1/compliance/apps/sessions/local — lists local Cowork and
         Claude Code sessions across the organization. Requires
@@ -467,7 +466,7 @@ class ComplianceApiClient:
         return self._get(f"/apps/sessions/local/{session_id}")
 
     def get_local_session_messages(
-        self, session_id: str, limit: Optional[int] = None, page: Optional[str] = None
+        self, session_id: str, limit: int | None = None, page: str | None = None
     ) -> dict:
         """GET /v1/compliance/apps/sessions/local/{id}/messages — returns
         the full transcript (prompts, tool calls, responses) for a local
@@ -520,13 +519,13 @@ class ComplianceApiClient:
 
     # ── Projects (Compliance Access Key only) ───────────────────────
 
-    def list_projects(self, limit: int = 100, page: Optional[str] = None) -> dict:
+    def list_projects(self, limit: int = 100, page: str | None = None) -> dict:
         return self._get("/apps/projects", params={"limit": limit, "page": page})
 
     def get_project(self, project_id: str) -> dict:
         return self._get(f"/apps/projects/{project_id}")
 
-    def list_project_attachments(self, project_id: str, limit: int = 100, page: Optional[str] = None) -> dict:
+    def list_project_attachments(self, project_id: str, limit: int = 100, page: str | None = None) -> dict:
         """Each entry is a project_file (claude_file_* — download via
         download_file_content) or a project_doc (claude_proj_doc_* —
         fetch via get_project_document_content), discriminated by the
@@ -553,7 +552,7 @@ class ComplianceApiClient:
         every linked organization (up to 1,000) in one response."""
         return self._get("/organizations")
 
-    def list_organization_users(self, org_uuid: str, limit: int = 500, page: Optional[str] = None) -> dict:
+    def list_organization_users(self, org_uuid: str, limit: int = 500, page: str | None = None) -> dict:
         return self._get(f"/organizations/{org_uuid}/users", params={"limit": limit, "page": page})
 
     def list_roles(self, org_uuid: str) -> dict:
@@ -605,9 +604,9 @@ def _print_error(prefix: str, e: ComplianceApiError):
 
 def cmd_compliance_activities(
     api_key: str,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
-    activity_types: Optional[list] = None,
+    since: str | None = None,
+    until: str | None = None,
+    activity_types: list | None = None,
     limit: int = 100,
     all_pages: bool = False,
 ):
@@ -716,7 +715,7 @@ def cmd_compliance_chat_delete(api_key: str, chat_id: str, yes: bool = False):
     return result
 
 
-def cmd_compliance_file_download(api_key: str, file_id: str, output_path: Optional[str] = None):
+def cmd_compliance_file_download(api_key: str, file_id: str, output_path: str | None = None):
     client = ComplianceApiClient(api_key)
     try:
         content, filename, mime_type = client.download_file_content(file_id)
@@ -904,7 +903,7 @@ def cmd_compliance_group_members(api_key: str, group_id: str):
     return data
 
 
-def cmd_compliance_local_sessions_list(api_key: str, user_ids: Optional[list] = None, limit: int = 100):
+def cmd_compliance_local_sessions_list(api_key: str, user_ids: list | None = None, limit: int = 100):
     client = ComplianceApiClient(api_key)
     try:
         page = client.list_local_sessions(user_ids=user_ids, limit=limit)

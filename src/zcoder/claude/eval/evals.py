@@ -19,7 +19,7 @@ import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import anthropic
 
@@ -187,8 +187,8 @@ def cmd_eval(
     suite_path: str,
     api_key: str,
     model: str,
-    model2: Optional[str] = None,
-    output_path: Optional[str] = None,
+    model2: str | None = None,
+    output_path: str | None = None,
     verbose: bool = False,
 ):
     print(f"\n\033[94mRunning eval suite: {suite_path}\033[0m  model={model}")

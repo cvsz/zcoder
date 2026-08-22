@@ -12,10 +12,11 @@ ZCoder CLI v1.10.0
 import fnmatch
 import json
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from zcoder.core.resilience import shell_command_argv
 from zcoder.core.security import build_child_env
@@ -35,7 +36,7 @@ class HookEvent(Enum):
 class Hook:
     event: HookEvent
     command: str
-    tool_match: Optional[str] = None
+    tool_match: str | None = None
     description: str = ""
 
     def to_dict(self):
@@ -81,7 +82,7 @@ class HookManager:
         HOOKS_FILE.parent.mkdir(parents=True, exist_ok=True)
         HOOKS_FILE.write_text(json.dumps([h.to_dict() for h in self.hooks], indent=2))
 
-    def add(self, event: HookEvent, command: str, tool_match: Optional[str] = None, description: str = ""):
+    def add(self, event: HookEvent, command: str, tool_match: str | None = None, description: str = ""):
         self.hooks.append(Hook(event=event, command=command, tool_match=tool_match, description=description))
         self.save()
 
@@ -92,7 +93,7 @@ class HookManager:
             return True
         return False
 
-    def fire(self, event: HookEvent, tool_name: Optional[str] = None) -> list[HookResult]:
+    def fire(self, event: HookEvent, tool_name: str | None = None) -> list[HookResult]:
         # SEC-008: hooks must not inherit secret-named environment variables;
         # the ZCODER_* context vars are explicit, non-secret overrides.
         overrides = {"ZCODER_HOOK_EVENT": event.value}
@@ -136,7 +137,7 @@ class HookManager:
         return result
 
 
-def cmd_hooks_add(event: str, command: str, tool_match: Optional[str] = None):
+def cmd_hooks_add(event: str, command: str, tool_match: str | None = None):
     hm = HookManager()
     hm.add(HookEvent(event), command, tool_match)
     print(f"✓ Hook registered for {event}: {command}")
@@ -224,7 +225,7 @@ class PermissionEngine:
                 return r
         return PermRule("*", Decision.ASK, "No matching rule")
 
-    def is_allowed(self, tool_name: str, ask_cb: Optional[Callable] = None) -> bool:
+    def is_allowed(self, tool_name: str, ask_cb: Callable | None = None) -> bool:
         r = self.evaluate(tool_name)
         if r.decision == Decision.ALLOW:
             return True
@@ -258,7 +259,7 @@ import anthropic as _anthropic
 class PlanStep:
     number: int
     description: str
-    result: Optional[str] = None
+    result: str | None = None
     completed: bool = False
 
 
@@ -339,7 +340,7 @@ def cmd_plan(
     model: str,
     context: str = "",
     execute: bool = False,
-    output: Optional[str] = None,
+    output: str | None = None,
 ):
     agent = PlanModeAgent(api_key, model)
     plan = agent.propose(task, context)

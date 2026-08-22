@@ -76,7 +76,8 @@ class ControlPlaneStore:
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY,
                     task TEXT,
@@ -93,8 +94,10 @@ class ControlPlaneStore:
                     lease_expires_at REAL DEFAULT 0,
                     metadata TEXT
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS outbox (
                     id TEXT PRIMARY KEY,
                     action TEXT,
@@ -105,15 +108,19 @@ class ControlPlaneStore:
                     delivered_at REAL,
                     error TEXT
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS webhook_inbox (
                     delivery_id TEXT PRIMARY KEY,
                     event_type TEXT,
                     received_at REAL
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS installations (
                     installation_id INTEGER PRIMARY KEY,
                     account_login TEXT,
@@ -121,8 +128,10 @@ class ControlPlaneStore:
                     suspended INTEGER,
                     created_at REAL
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS repositories (
                     id TEXT PRIMARY KEY,
                     installation_id INTEGER,
@@ -132,7 +141,8 @@ class ControlPlaneStore:
                     automation_enabled INTEGER,
                     trust_level TEXT
                 )
-            """)
+            """
+            )
 
     def claim_job_with_fencing(self, worker_id: str, lease_duration: float = 60.0) -> tuple[Job, int] | None:
         """Atomic claim using transaction with monotonic fencing token."""

@@ -70,10 +70,10 @@ import os
 import subprocess
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Optional
 
 # ── Storage paths ──────────────────────────────────────────────────────────
 SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/code_sessions"))
@@ -645,7 +645,7 @@ class SubagentRegistry:
         except ImportError:
             pass
 
-    def _load_one(self, f: Path, plugin: Optional[str] = None, namespace: Optional[str] = None):
+    def _load_one(self, f: Path, plugin: str | None = None, namespace: str | None = None):
         try:
             check_file_size(f, MAX_AGENT_BYTES)
         except Exception:
@@ -750,7 +750,7 @@ class SkillsRegistry:
         self._skills: dict = {}
 
     @staticmethod
-    def _read_skill(path: Path, base: Path) -> Optional[str]:
+    def _read_skill(path: Path, base: Path) -> str | None:
         """Read a SKILL.md only if it resolves within base (no symlink escape)
         and within the size cap. Returns content, or None if unsafe/oversized."""
         try:
@@ -918,8 +918,8 @@ class MemoryManager:
         self,
         workspace: str = ".",
         *,
-        enterprise_dir: Optional[str] = None,
-        user_memory_path: Optional[str] = None,
+        enterprise_dir: str | None = None,
+        user_memory_path: str | None = None,
         tenant_id: str = "",
     ):
         self.workspace = Path(workspace).expanduser().resolve()
@@ -931,7 +931,7 @@ class MemoryManager:
         )
         self.tenant_id = tenant_id
 
-    def _read_scoped(self, candidate: Path, base: Path, scope: MemoryScope) -> Optional[MemoryLayer]:
+    def _read_scoped(self, candidate: Path, base: Path, scope: MemoryScope) -> MemoryLayer | None:
         # Containment: the resolved file must stay within the directory it was
         # discovered in. A symlink pointing outside (e.g. .claude/CLAUDE.md ->
         # /etc/shadow) is rejected (fail-closed).
@@ -1064,7 +1064,7 @@ class CodeAgent:
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, payload: dict, betas: Optional[list] = None) -> dict:
+    def _call(self, payload: dict, betas: list | None = None) -> dict:
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
@@ -1080,7 +1080,7 @@ class CodeAgent:
         )
         return urlopen_json(req, timeout=300)
 
-    def _post(self, payload: dict, betas: Optional[list] = None) -> dict:
+    def _post(self, payload: dict, betas: list | None = None) -> dict:
         try:
             return self._call(payload, betas)
         except ZCoderError as e:
@@ -1399,7 +1399,7 @@ class CodeAgent:
         can_use_tool: Callable = None,
         output_mode: str = "stream",
         system_extra: str = "",
-        context_management: Optional[dict] = None,
+        context_management: dict | None = None,
         load_project_memory: bool = True,
         max_cost_usd: float = None,
     ) -> str:

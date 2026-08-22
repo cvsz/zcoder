@@ -27,7 +27,8 @@ class SQLiteEngineeringStore(EngineeringStore):
 
     def _init_db(self):
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY,
                     task_description TEXT,
@@ -39,7 +40,8 @@ class SQLiteEngineeringStore(EngineeringStore):
                     claim_generation INTEGER NOT NULL DEFAULT 0,
                     lease_expires_at REAL NOT NULL DEFAULT 0
                 )
-            """)
+            """
+            )
             # Defensive migration for pre-existing database files created before
             # lease-claim columns were introduced.
             for column_def in (
@@ -51,11 +53,14 @@ class SQLiteEngineeringStore(EngineeringStore):
                     conn.execute(f"ALTER TABLE tasks ADD COLUMN {column_def}")
                 except sqlite3.OperationalError:
                     pass  # Column already exists.
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_tasks_status_created
                 ON tasks (status, created_at)
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS attempts (
                     id TEXT PRIMARY KEY,
                     task_id TEXT,
@@ -64,8 +69,10 @@ class SQLiteEngineeringStore(EngineeringStore):
                     started_at REAL,
                     completed_at REAL
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS checkpoints (
                     id TEXT PRIMARY KEY,
                     task_id TEXT,
@@ -75,7 +82,8 @@ class SQLiteEngineeringStore(EngineeringStore):
                     state_snapshot TEXT,
                     timestamp REAL
                 )
-            """)
+            """
+            )
 
     def claim_task(
         self,

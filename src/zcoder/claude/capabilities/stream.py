@@ -34,7 +34,6 @@ CLI flags:
 
 import json
 import sys
-from typing import Optional
 
 import anthropic
 
@@ -57,7 +56,7 @@ def with_eager_input_streaming(tools: list[dict], enabled: bool = True) -> list[
     return out
 
 
-def handle_refusal(response_or_stop_details) -> Optional[dict]:
+def handle_refusal(response_or_stop_details) -> dict | None:
     """Read stop_details off a (non-streaming) response dict or a
     message_delta event's stop_details field. Returns {"category": ...,
     "explanation": ...} when the response was a refusal with no output
@@ -90,7 +89,7 @@ class StreamCoder:
     def stream(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         tools: list = None,
         show_thinking: bool = False,
     ) -> str:
@@ -163,7 +162,7 @@ class StreamCoder:
 
         return full_text
 
-    def stream_file_analysis(self, file_content: str, prompt: str, system: Optional[str] = None) -> str:
+    def stream_file_analysis(self, file_content: str, prompt: str, system: str | None = None) -> str:
         """Stream analysis of a file."""
         full_prompt = f"```\n{file_content}\n```\n\n{prompt}"
         return self.stream(full_prompt, system=system)
@@ -172,7 +171,7 @@ class StreamCoder:
         self,
         prompt: str,
         tools: list[dict],
-        system: Optional[str] = None,
+        system: str | None = None,
         eager_input_streaming: bool = True,
         use_legacy_beta: bool = False,
         verbose: bool = True,

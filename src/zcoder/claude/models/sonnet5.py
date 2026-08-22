@@ -44,7 +44,6 @@ import json
 import urllib.error
 import urllib.request
 from datetime import date
-from typing import Optional
 
 from zcoder.claude.models.registry import (
     INFERENCE_GEO_PRICING_MULTIPLIER,
@@ -93,7 +92,7 @@ def current_pricing(as_of=None) -> dict:
 
 
 def estimate_cost_usd(
-    input_tokens: int, output_tokens: int, as_of: Optional[date] = None, use_geo: bool = False
+    input_tokens: int, output_tokens: int, as_of: date | None = None, use_geo: bool = False
 ) -> float:
     """Cost estimate using whichever pricing tier applies on `as_of`
     (default: today). Applies the data-residency multiplier on top if
@@ -107,7 +106,7 @@ def estimate_cost_usd(
     )
 
 
-def validate_service_tier(service_tier: Optional[str]) -> Optional[str]:
+def validate_service_tier(service_tier: str | None) -> str | None:
     """Return None if service_tier is safe to send for Sonnet 5 (i.e. not
     set at all), or a warning string if the caller is trying to use
     Priority Tier on a model that doesn't support it."""
@@ -124,8 +123,8 @@ def validate_service_tier(service_tier: Optional[str]) -> Optional[str]:
 
 
 def validate_sampling_params(
-    temperature: Optional[float] = None, top_p: Optional[float] = None, top_k: Optional[int] = None
-) -> Optional[str]:
+    temperature: float | None = None, top_p: float | None = None, top_k: int | None = None
+) -> str | None:
     """Sonnet 5 returns a 400 error if temperature, top_p, or top_k is set
     to a non-default value at all — unlike most other current-tier models,
     where non-default sampling values are simply accepted. Per the
@@ -187,12 +186,12 @@ class Sonnet5Client:
     def call(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         use_geo: bool = False,
-        service_tier: Optional[str] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
+        service_tier: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
     ) -> dict:
         warning = validate_service_tier(service_tier)
         sampling_error = validate_sampling_params(temperature, top_p, top_k)
@@ -240,8 +239,8 @@ def cmd_sonnet5_call(
     prompt: str,
     api_key: str,
     use_geo: bool = False,
-    service_tier: Optional[str] = None,
-    system: Optional[str] = None,
+    service_tier: str | None = None,
+    system: str | None = None,
 ):
     client = Sonnet5Client(api_key=api_key)
     data = client.call(prompt, system=system, use_geo=use_geo, service_tier=service_tier)

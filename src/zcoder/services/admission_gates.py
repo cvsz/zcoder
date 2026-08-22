@@ -20,8 +20,7 @@ Both adapters fail closed: any backend error yields a rejected decision.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable, Mapping
-from typing import Callable
+from collections.abc import Callable, Iterable, Mapping
 
 from zcoder.domain.services.admission import (
     REASON_ADMITTED,

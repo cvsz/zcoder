@@ -15,7 +15,6 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -32,7 +31,7 @@ class TokenCounter:
         self.model = model
 
     def count(
-        self, prompt: str, system: Optional[str] = None, tools: list[dict] = None, history: list[dict] = None
+        self, prompt: str, system: str | None = None, tools: list[dict] = None, history: list[dict] = None
     ) -> dict:
         messages = list(history or [])
         messages.append({"role": "user", "content": prompt})
@@ -63,7 +62,7 @@ class TokenCounter:
     def _call(self, req: "urllib.request.Request") -> dict:
         return urlopen_json(req, timeout=30)
 
-    def count_file(self, file_path: str, prompt: str, system: Optional[str] = None) -> dict:
+    def count_file(self, file_path: str, prompt: str, system: str | None = None) -> dict:
         content = Path(file_path).read_text()
         full = f"File:\n```\n{content}\n```\n\n{prompt}"
         return self.count(full, system=system)

@@ -26,7 +26,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -129,7 +128,7 @@ def classify_complexity(prompt: str) -> str:
     return "low"
 
 
-def select_model(complexity: str, force: Optional[str] = None) -> str:
+def select_model(complexity: str, force: str | None = None) -> str:
     if force:
         return force
     return {"low": TIER_MODELS[0], "medium": TIER_MODELS[1], "high": TIER_MODELS[2]}[complexity]
@@ -171,10 +170,10 @@ def optimized_call(
     prompt: str,
     api_key: str,
     system: str = "",
-    force_model: Optional[str] = None,
+    force_model: str | None = None,
     max_tokens: int = 2048,
-    service_tier: Optional[str] = None,
-    inference_geo: Optional[str] = None,
+    service_tier: str | None = None,
+    inference_geo: str | None = None,
 ) -> OptimizedResponse:
     complexity = classify_complexity(prompt)
     model = select_model(complexity, force_model)
@@ -233,7 +232,7 @@ def optimized_call(
 # ── CLI commands ──────────────────────────────────────────────────────────────
 
 
-def cmd_optimized(prompt: str, api_key: str, verbose: bool = False, force_model: Optional[str] = None):
+def cmd_optimized(prompt: str, api_key: str, verbose: bool = False, force_model: str | None = None):
     r = optimized_call(prompt, api_key, force_model=force_model)
     if verbose:
         print(

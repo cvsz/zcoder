@@ -51,7 +51,6 @@ import json
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -100,7 +99,7 @@ class SkillRef:
 
     skill_id: str
     type: str = "anthropic"
-    version: Optional[str] = None
+    version: str | None = None
 
     def to_dict(self) -> dict:
         d = {"type": self.type, "skill_id": self.skill_id}
@@ -162,7 +161,7 @@ class SkillsApiClient:
         except Exception as e:
             return {"error": str(e)}
 
-    def call_with_skills(self, prompt: str, skills: list, system: Optional[str] = None) -> dict:
+    def call_with_skills(self, prompt: str, skills: list, system: str | None = None) -> dict:
         """Call the model with a code-execution container carrying the
         given skills (list of SkillRef or short pre-built names like
         'pptx'). Returns the raw parsed response dict."""
@@ -182,9 +181,9 @@ class SkillsApiClient:
         self,
         messages: list,
         skills: list,
-        container_id: Optional[str] = None,
+        container_id: str | None = None,
         has_file_uploads: bool = False,
-        system: Optional[str] = None,
+        system: str | None = None,
     ) -> dict:
         """Multi-turn variant of call_with_skills, for chat-style callers
         (claude_excel.py / claude_powerpoint.py --*-native modes) that need
@@ -222,7 +221,7 @@ class SkillsApiClient:
         return self._post(payload, betas=betas)
 
 
-def build_user_content(text: str, file_ids: Optional[list] = None) -> list:
+def build_user_content(text: str, file_ids: list | None = None) -> list:
     """Build a user-turn content block list: the text plus a
     container_upload block per file_id, per the documented shape for
     attaching Files-API uploads to a code-execution container."""

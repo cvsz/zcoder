@@ -37,7 +37,6 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -100,9 +99,9 @@ class CodeExecutionCoder:
     def execute(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         file_ids: list[str] = None,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
     ) -> dict:
         """
         Ask Claude to write and run code.

@@ -24,7 +24,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PERSONALITIES
 
-VERSION = "1.40.0"
+VERSION = "1.41.0"
 BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 

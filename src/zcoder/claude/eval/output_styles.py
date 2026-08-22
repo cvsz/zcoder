@@ -25,7 +25,6 @@ CLI flags:
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.security import check_file_size, safe_resolve
 
@@ -70,7 +69,7 @@ BUILTIN_STYLES = {
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
 
 
-def _parse_style_file(path: Path, base_dir: Optional[Path] = None) -> Optional[dict]:
+def _parse_style_file(path: Path, base_dir: Path | None = None) -> dict | None:
     # SEC-004/SEC-007 containment idiom: resolve the style file against its
     # owning directory (rejecting symlink/path escapes) and cap its size
     # before reading model-bound prompt content.
@@ -137,7 +136,7 @@ def list_styles() -> list:
     return out
 
 
-def get_style(name: str) -> Optional[dict]:
+def get_style(name: str) -> dict | None:
     if name in BUILTIN_STYLES:
         return {"name": name, **BUILTIN_STYLES[name], "keep_coding_instructions": True}
     return discover_custom_styles().get(name)

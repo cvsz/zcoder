@@ -12,9 +12,9 @@ import hashlib
 import json
 import time
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 class WorkKind(str, enum.Enum):

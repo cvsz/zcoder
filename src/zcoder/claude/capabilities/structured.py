@@ -28,7 +28,6 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -73,7 +72,7 @@ class StructuredCoder:
 
     # ── JSON object mode ──────────────────────────────────────────────────
 
-    def json_object(self, prompt: str, system: Optional[str] = None) -> dict:
+    def json_object(self, prompt: str, system: str | None = None) -> dict:
         """Return any valid JSON object. No schema enforcement."""
         payload = {
             "model": self.model,
@@ -92,9 +91,7 @@ class StructuredCoder:
 
     # ── JSON schema mode ──────────────────────────────────────────────────
 
-    def json_schema(
-        self, prompt: str, schema: dict, name: str = "output", system: Optional[str] = None
-    ) -> dict:
+    def json_schema(self, prompt: str, schema: dict, name: str = "output", system: str | None = None) -> dict:
         """Return JSON validated against a JSON Schema."""
         payload = {
             "model": self.model,

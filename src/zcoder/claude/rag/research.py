@@ -10,7 +10,6 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 import anthropic
 
@@ -103,7 +102,7 @@ class DeepResearchAgent:
             qs = [l.lstrip("-· ").strip() for l in raw.splitlines() if l.strip()][:depth]
         return [SubQ(question=q) for q in qs[:depth]]
 
-    def gather(self, sq: SubQ, source_urls: Optional[list[str]] = None) -> SubQ:
+    def gather(self, sq: SubQ, source_urls: list[str] | None = None) -> SubQ:
         ctx_parts = []
         for url in source_urls or []:
             body = self._fetch(url)
@@ -134,7 +133,7 @@ class DeepResearchAgent:
             max_tokens=1024,
         )
 
-    def run(self, topic: str, depth: int = 4, source_urls: Optional[list[str]] = None) -> Report:
+    def run(self, topic: str, depth: int = 4, source_urls: list[str] | None = None) -> Report:
         sqs = self.plan(topic, depth)
         for sq in sqs:
             self.gather(sq, source_urls)
@@ -147,8 +146,8 @@ def cmd_research(
     api_key: str,
     model: str,
     depth: int = 4,
-    source_urls: Optional[list[str]] = None,
-    output: Optional[str] = None,
+    source_urls: list[str] | None = None,
+    output: str | None = None,
 ):
     print(f"🔎 Deep Research: {topic!r}  (depth={depth})\n")
     agent = DeepResearchAgent(api_key=api_key, model=model)

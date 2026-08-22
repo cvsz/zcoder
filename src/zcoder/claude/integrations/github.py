@@ -18,7 +18,6 @@ CLI flags:
 import os
 import urllib.error
 import urllib.request
-from typing import Optional
 
 import anthropic
 
@@ -68,7 +67,7 @@ def _gh_fetch_diff(diff_url: str, token: str, max_chars: int) -> str:
         raise RuntimeError(f"GitHub diff fetch error: {e.message}") from e
 
 
-def _gh_token(explicit: Optional[str]) -> str:
+def _gh_token(explicit: str | None) -> str:
     token = explicit or os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
     if not token:
         raise ValueError(
@@ -170,7 +169,7 @@ def generate_pr_description(
 # ── CLI entry points ─────────────────────────────────────────────────────────
 
 
-def cmd_gh_review_pr(repo_pr: str, gh_token_explicit: Optional[str], api_key: str, model: str):
+def cmd_gh_review_pr(repo_pr: str, gh_token_explicit: str | None, api_key: str, model: str):
     repo, _, num = repo_pr.rpartition("/")
     token = _gh_token(gh_token_explicit)
     client = anthropic.Anthropic(api_key=api_key)
@@ -178,21 +177,21 @@ def cmd_gh_review_pr(repo_pr: str, gh_token_explicit: Optional[str], api_key: st
     print(review_pr(repo, int(num), token, client, model))
 
 
-def cmd_gh_triage(repo: str, max_items: int, gh_token_explicit: Optional[str], api_key: str, model: str):
+def cmd_gh_triage(repo: str, max_items: int, gh_token_explicit: str | None, api_key: str, model: str):
     token = _gh_token(gh_token_explicit)
     client = anthropic.Anthropic(api_key=api_key)
     print(f"\n\033[94mTriaging open issues in {repo}\033[0m\n")
     print(triage_issues(repo, max_items, token, client, model))
 
 
-def cmd_gh_commits(repo: str, max_items: int, gh_token_explicit: Optional[str], api_key: str, model: str):
+def cmd_gh_commits(repo: str, max_items: int, gh_token_explicit: str | None, api_key: str, model: str):
     token = _gh_token(gh_token_explicit)
     client = anthropic.Anthropic(api_key=api_key)
     print(f"\n\033[94mCommit summary for {repo}\033[0m\n")
     print(summarise_commits(repo, max_items, token, client, model))
 
 
-def cmd_gh_pr_description(repo_pr: str, gh_token_explicit: Optional[str], api_key: str, model: str):
+def cmd_gh_pr_description(repo_pr: str, gh_token_explicit: str | None, api_key: str, model: str):
     repo, _, num = repo_pr.rpartition("/")
     token = _gh_token(gh_token_explicit)
     client = anthropic.Anthropic(api_key=api_key)

@@ -11,7 +11,6 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 SESSIONS_DIR = Path.home() / ".zcoder" / "sessions"
 CHECKPOINTS_DIR = Path.home() / ".zcoder" / "checkpoints"
@@ -39,9 +38,9 @@ class Turn:
 class Session:
     sid: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
     mode: str = "interactive"
-    title: Optional[str] = None
+    title: str | None = None
     model: str = "claude-sonnet-5"
-    persona: Optional[str] = None
+    persona: str | None = None
     turns: list[Turn] = field(default_factory=list)
     created: str = field(default_factory=lambda: datetime.now().isoformat())
     updated: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -134,14 +133,14 @@ def save_session(s: Session):
     _sess_path(s.sid).write_text(json.dumps(s.to_dict(), indent=2))
 
 
-def load_session(sid: str) -> Optional[Session]:
+def load_session(sid: str) -> Session | None:
     p = _sess_path(sid)
     if not p.exists():
         return None
     return Session.from_dict(json.loads(p.read_text()))
 
 
-def latest_session(mode: Optional[str] = None) -> Optional[Session]:
+def latest_session(mode: str | None = None) -> Session | None:
     if not SESSIONS_DIR.exists():
         return None
     sessions = []
@@ -155,7 +154,7 @@ def latest_session(mode: Optional[str] = None) -> Optional[Session]:
     return max(sessions, key=lambda s: s.updated) if sessions else None
 
 
-def list_sessions(mode: Optional[str] = None) -> list[Session]:
+def list_sessions(mode: str | None = None) -> list[Session]:
     if not SESSIONS_DIR.exists():
         return []
     out = []

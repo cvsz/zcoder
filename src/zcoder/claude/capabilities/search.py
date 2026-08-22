@@ -27,8 +27,6 @@ CLI flags:
                           web_fetch_20260318, both defaults as of v1.24.0
 """
 
-from typing import Optional
-
 import anthropic
 
 WEB_SEARCH_TOOL = {
@@ -53,12 +51,12 @@ class SearchCoder:
     def search(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
         web_search: bool = True,
         web_fetch: bool = False,
         max_searches: int = 5,
         show_citations: bool = True,
-        response_inclusion: Optional[str] = None,
+        response_inclusion: str | None = None,
     ) -> dict:
         """Run prompt with web search / fetch tools enabled.
 
@@ -137,7 +135,7 @@ def cmd_web_search(
     max_searches: int = 5,
     show_citations: bool = True,
     web_fetch: bool = False,
-    response_inclusion: Optional[str] = None,
+    response_inclusion: str | None = None,
 ):
     print(f"\033[94mℹ Web Search enabled | max_searches={max_searches}\033[0m\n")
     sc = SearchCoder(api_key=api_key, model=model)

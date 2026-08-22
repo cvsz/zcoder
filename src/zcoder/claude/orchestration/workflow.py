@@ -27,7 +27,6 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -44,7 +43,7 @@ class WorkflowStep:
     step_id: str
     instruction: str
     depends_on: list[str] = field(default_factory=list)
-    model: Optional[str] = None
+    model: str | None = None
     max_tokens: int = 2048
 
 
@@ -61,7 +60,7 @@ class StepResult:
     output: str
     latency_ms: int
     status: str = "ok"  # "ok" | "error"
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -112,7 +111,7 @@ def _fill(template: str, variables: dict[str, str]) -> str:
 
 
 def run_workflow(
-    wf: Workflow, api_key: str, initial_vars: Optional[dict[str, str]] = None, verbose: bool = False
+    wf: Workflow, api_key: str, initial_vars: dict[str, str] | None = None, verbose: bool = False
 ) -> WorkflowRun:
     client = anthropic.Anthropic(api_key=api_key)
     variables = dict(initial_vars or {})
@@ -177,7 +176,7 @@ def run_workflow(
 
 
 def cmd_workflow_run(
-    path: str, api_key: str, input_text: str = "", output: Optional[str] = None, verbose: bool = True
+    path: str, api_key: str, input_text: str = "", output: str | None = None, verbose: bool = True
 ):
     wf = _parse(_load(path))
     print(f"⚙  Running workflow '{wf.name}' ({len(wf.steps)} steps) …\n")

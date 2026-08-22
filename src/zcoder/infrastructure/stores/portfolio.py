@@ -18,22 +18,26 @@ class PortfolioStore(PortfolioStoreProtocol):
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS managed_repositories (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     local_path TEXT NOT NULL,
                     status TEXT NOT NULL
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS engineering_campaigns (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     status TEXT NOT NULL,
                     repositories TEXT NOT NULL
                 )
-            """)
+            """
+            )
 
     def add_repository(self, repo: ManagedRepository) -> None:
         with sqlite3.connect(self.db_path) as conn:

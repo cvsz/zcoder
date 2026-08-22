@@ -10,7 +10,6 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -200,7 +199,7 @@ def cmd_eval_run(
     model: str,
     judge_model: str = "claude-sonnet-5",
     threshold: float = 0.7,
-    output: Optional[str] = None,
+    output: str | None = None,
 ):
     """Run an eval suite (JSON file of [{case_id, prompt, expected, tags}])"""
     data = json.loads(Path(suite_path).read_text())
