@@ -11,7 +11,6 @@ ZCoder CLI v1.10.0
 
 import fnmatch
 import json
-import os
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
@@ -19,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from zcoder.core.resilience import shell_command_argv
+from zcoder.core.security import build_child_env
 
 HOOKS_FILE = Path.home() / ".zcoder" / "hooks.json"
 PERMS_FILE = Path.home() / ".zcoder" / "permissions.json"
@@ -93,10 +93,12 @@ class HookManager:
         return False
 
     def fire(self, event: HookEvent, tool_name: Optional[str] = None) -> list[HookResult]:
-        env = {**os.environ}
+        # SEC-008: hooks must not inherit secret-named environment variables;
+        # the ZCODER_* context vars are explicit, non-secret overrides.
+        overrides = {"ZCODER_HOOK_EVENT": event.value}
         if tool_name:
-            env["ZCODER_TOOL_NAME"] = tool_name
-        env["ZCODER_HOOK_EVENT"] = event.value
+            overrides["ZCODER_TOOL_NAME"] = tool_name
+        env = build_child_env(overrides)
         results = []
         for h in [h for h in self.hooks if h.event == event]:
             if h.tool_match and tool_name and h.tool_match not in tool_name:
