@@ -1,7 +1,7 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@65ca626` (SEC-010.2 SBOM + tool pinning, PR #86)  
+**Current Baseline:** `main@ddca6ec` (SEC-007.1 RAG tenant isolation, PR #87)  
 **Last Updated:** 2026-08-21  
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
@@ -62,7 +62,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | **SEC-004** | **CodeAgent Read/Write/Edit/Glob/Grep/LS workspace escape** | **FIXED / VERIFIED / MERGED** | PR #48 exact head `14842197ddedbcffe912f42033ce962974d00e0e`; squash merge `9e85e2362d38f898bf9ee388cddb63e358d4a5ba` |
 | **SEC-005** | **CodeAgent WebFetch SSRF** | **FIXED / VERIFIED / MERGED** | PRs #60 + #61; exact merged head `815a10c53f925ecf615b8c8a15bdc4329a6cffca`; all 20 hosted checks green |
 | SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6`; all 20 hosted checks green |
-| SEC-007 | RAG/document trust + tenant isolation | PARTIAL | Tenant-scoped memory verified (Slice E.12); document-triggered actions + tenant-scoped indexes/caches remain |
+| **SEC-007** | **RAG/document trust + tenant isolation** | **LARGELY CLOSED (E.12 + #87)** | Tenant-scoped memory (E.12) + tenant-isolated RAG index store + output-style containment (#87 `ddca6ec`); remaining: server-side RAG surfaces are DORMANT-NOT-PRESENT (guardrail test pins rag.engine out of api/services/worker) |
 | **SEC-008** | **Secrets/environment inheritance** | **FIXED / VERIFIED / MERGED** | PR #83 exact head `1634d94`; merge `4a00c26` (19/19 green); sibling sinks (HookManager.fire, render_status_line) closed by PR #85 merge `d0bfee3` (19/19 green) |
 | SEC-009 | Authorization/approval boundaries | FIXED / VERIFIED / MERGED | Slice D — PR #65 at `95d8582`; deny/ask/allow precedence, fail-closed hooks, audit identity |
 | **SEC-010** | **CI/dependency/supply-chain** | **PARTIAL (SEC-010.1+010.2 MERGED)** | Action pinning + least-privilege (#84 `d6c7280`) + SBOM generation & tool pinning (#86 `65ca626`); cosign signing + uv.lock reproducible-build wiring remain |
@@ -737,6 +737,16 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### SEC-007.1 — RAG Index Tenant Isolation + Output-Style Containment
+
+- PR: #87
+- verified head: `44c7126`
+- merge commit: `ddca6ec` (all 19 merged-head check runs success)
+- security result: RAGIndex requires explicit tenant (fail-closed build/save/load); per-tenant namespaced storage with identity verification on load; legacy un-namespaced indexes invisible to tenant loads; identifiers validated via centralized validate_name; --rag-tenant CLI wiring; output-style files load through safe_resolve + 256KiB containment idiom with fail-closed plugin_dir requirement; 14 regressions incl. architecture guardrail
+- discovery note: server-side RAG/vector surfaces confirmed DORMANT-NOT-PRESENT (no doc table, no vector store, all retrieval CLI-local under $HOME); citations.py/files.py/LocalRepositoryIndexer recorded as guardrail-only
+- behavior change (intentional): legacy indexes must be rebuilt with --rag-tenant
+- next in queue: SEC-010.3 reproducible builds / Slice F remainder
 
 ### SEC-010.2 — SBOM Generation + Ad-hoc Tool Pinning
 
