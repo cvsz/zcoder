@@ -1250,7 +1250,10 @@ class CodeAgent:
             else:
                 # In non-interactive mode, auto-approve reads, ask for writes
                 if name not in READ_ONLY_TOOLS:
-                    print(f"\n\033[93m  [permission] {name}({json.dumps(inputs)[:60]})\033[0m")
+                    input_keys = ", ".join(sorted(str(k) for k in inputs.keys()))[:60]
+                    print(
+                        f"\n\033[93m  [permission] {name}(keys=[{input_keys}], total={len(inputs)})\033[0m"
+                    )
                     try:
                         ans = input("  Approve? [Y/n] ").strip().lower()
                         if ans == "n":
