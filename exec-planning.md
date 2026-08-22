@@ -64,8 +64,8 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 | SEC-006 | MCP/tool-output trust boundary | FIXED / VERIFIED / MERGED | PR #64; exact merged head `4cb9c141dc55c8cd6165645fb2f3abef387dc9c6`; all 20 hosted checks green |
 | SEC-007 | RAG/document trust + tenant isolation | PARTIAL | Tenant-scoped memory verified (Slice E.12); document-triggered actions + tenant-scoped indexes/caches remain |
 | **SEC-008** | **Secrets/environment inheritance** | **FIXED / VERIFIED / MERGED** | PR #83 exact head `1634d94` (17/17 green); merge `4a00c26` (19/19 green) |
-| SEC-009 | Authorization/approval boundaries | QUEUED | Validate deny/ask/allow precedence, approval replay/expiry, mutating actions, audit identity |
-| SEC-010 | CI/dependency/supply-chain | QUEUED | Review workflow permissions, action pinning, provenance, SBOM, dependency pinning, artifact integrity |
+| SEC-009 | Authorization/approval boundaries | FIXED / VERIFIED / MERGED | Slice D — PR #65 at `95d8582`; deny/ask/allow precedence, fail-closed hooks, audit identity |
+| **SEC-010** | **CI/dependency/supply-chain** | **PARTIAL (SEC-010.1 MERGED)** | All 49 action refs SHA-pinned + release.yml least-privilege + persist-credentials:false (PR #84 at `d6c7280`); SBOM/cosign/uv.lock wiring remain |
 
 ### 4.1 SEC-004 Closure Evidence
 
@@ -737,6 +737,16 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - security result: /skill install|remove|info commands added; reuses SkillsRegistry with containment from E.8; skill installation placeholder for future; 3 regression tests
 - compatibility/rollback note: additive slash command; no behavior change for existing commands
 - next security hypothesis: SEC-008 (next in queue after SEC-007 closure)
+
+### SEC-010.1 — Action Pinning + Least-Privilege Workflows
+
+- PR: #84
+- verified head: `c78bf95` (all hosted PR checks green; deploy job skipping is expected on PRs)
+- merge commit: `d6c7280` (all 21 merged-head check runs success)
+- security result: all 49 `uses:` refs across 10 workflows pinned to immutable full-length commit SHAs resolved from each action's version tag (annotated tags dereferenced; per-pair audit OK); release.yml narrowed to workflow-level contents:read with contents/id-token/attestations write scoped only to publish-release; persist-credentials:false on all checkouts in ci.yml/codeql.yml/pages.yml. Implements SECURITY.md's own pinning policy.
+- deferred follow-ups: SBOM generation, uv.lock wiring for reproducible builds, cosign artifact signing, release-tag gate linkage, ad-hoc tool version pinning, chart packaging/checksums, setup-python v6→v7 drift in security-scan.yml
+- compatibility/rollback note: config-only; single-commit revert restores prior workflows
+- next in queue: Slice F remainder / SEC-010.2 supply-chain completion
 
 ### SEC-008 — Secrets/Environment Inheritance
 
