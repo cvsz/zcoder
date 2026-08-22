@@ -43,3 +43,37 @@ jobs:
 
       - name: Render Helm template
         run: helm template zcoder deploy/helm/zcoder
+
+  package-chart:
+    name: Package Helm Chart & Checksums
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        with:
+          version: v3.21.3
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p dist
+          helm package deploy/helm/zcoder --destination dist/
+
+      - name: Generate SHA256 checksums
+        working-directory: dist
+        run: sha256sum ./*.tgz > checksums.txt
+
+      - name: Upload chart packages and checksums
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: helm-chart-dist
+          path: |
+            dist/*.tgz
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 14
