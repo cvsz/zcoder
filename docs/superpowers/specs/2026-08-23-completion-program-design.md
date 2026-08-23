@@ -3,7 +3,7 @@
 **Date:** 2026-08-23  
 **Repository:** `cvsz/zcoder`  
 **Status:** Proposed design approved in chat; implementation not yet authorized  
-**Baseline:** current `main` at design time
+**Baseline:** `main@786579a048574dbf52d4807d3bc1c7923b08a27a`
 
 ## 1. Goal
 
@@ -138,7 +138,7 @@ Changes:
 - mark #88–#101 completed where evidence supports it;
 - remove obsolete “remaining” statements;
 - retain only verified residuals;
-- create a concise completion ledger mapping each residual to code owner/path, tests, hosted gates, and evidence requirement.
+- create a concise completion ledger mapping each residual to primary code path/owner, tests, hosted gates, and evidence requirement.
 
 Acceptance:
 
