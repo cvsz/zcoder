@@ -14,6 +14,7 @@ import json
 import sqlite3
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -74,8 +75,27 @@ class ControlPlaneStore:
         )
         self._init_db()
 
+    @contextmanager
+    def _connection(self):
+        """Open a short-lived SQLite transaction and always close its handle.
+
+        ``sqlite3.Connection`` supports the context-manager protocol for
+        commit/rollback, but exiting that context does not close the connection.
+        Explicitly closing each short-lived handle prevents repeated store calls
+        from retaining SQLite/Python allocator memory.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY,
@@ -136,7 +156,7 @@ class ControlPlaneStore:
 
     def claim_job_with_fencing(self, worker_id: str, lease_duration: float = 60.0) -> tuple[Job, int] | None:
         """Atomic claim using transaction with monotonic fencing token."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cur = conn.cursor()
             cur.execute(
                 """
@@ -187,7 +207,7 @@ class ControlPlaneStore:
         self, job_id: str, worker_id: str, fencing_token: int, status: JobStatus, cost_usd: float
     ) -> bool:
         """Reject mutations from stale workers possessing an outdated fencing token."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 UPDATE jobs
@@ -200,7 +220,7 @@ class ControlPlaneStore:
 
     def enqueue_outbox(self, action: str, payload: dict[str, Any]) -> OutboxMessage:
         msg = OutboxMessage(id=f"out_{uuid.uuid4().hex[:8]}", action=action, payload=payload)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO outbox (id, action, payload, status, attempts, created_at, delivered_at, error)
@@ -234,7 +254,7 @@ class ControlPlaneStore:
             raise ValueError("max_attempts must be >= 1")
 
         processed = 0
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cur = conn.cursor()
             query = "SELECT id, action, payload, attempts FROM outbox WHERE status = 'PENDING' ORDER BY created_at ASC"
             params: tuple[int, ...] = ()
@@ -268,7 +288,7 @@ class ControlPlaneStore:
 
     def record_webhook_delivery_atomic(self, delivery_id: str, event_type: str) -> bool:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO webhook_inbox (delivery_id, event_type, received_at)
@@ -281,7 +301,7 @@ class ControlPlaneStore:
             return False  # Duplicate delivery rejected
 
     def register_installation(self, inst: GitHubInstallation):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO installations (installation_id, account_login, account_type, suspended, created_at)
@@ -297,7 +317,7 @@ class ControlPlaneStore:
             )
 
     def register_repository(self, repo: FleetRepository):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO repositories (id, installation_id, owner, name, default_branch, automation_enabled, trust_level)

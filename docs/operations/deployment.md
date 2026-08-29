@@ -11,6 +11,12 @@ why env vars are preferred).
 | `ANTHROPIC_API_KEY`          | yes*     | —       | Anthropic API key (*not needed in `ZCODER_LOCAL_MODE`) |
 | `ZCODER_LOCAL_MODE`          | no       | —       | `1`/`true`/`yes` switches generation/git/live/prompt-optimization to deterministic offline synthesis with no network I/O |
 | `DATABASE_URL`               | no       | —       | PostgreSQL DSN for the control-plane/engineering stores; Prisma-style params (`?schema=public`) are stripped automatically before `psycopg2` connects |
+| `ZCODER_AUTH_ENABLED`        | production | `false` | Enable verified OIDC bearer-token authentication |
+| `ZCODER_OIDC_ISSUER`         | production | —       | OIDC issuer URL used to validate API tokens |
+| `ZCODER_OIDC_AUDIENCE`       | production | —       | Required OIDC audience claim |
+| `ZCODER_CORS_ORIGINS`        | no       | empty   | Comma-separated explicit HTTP(S) browser origins; wildcards are rejected |
+| `ZCODER_WORKER_ORGANIZATION_ID` | tenant worker | empty | Organization scope for a PostgreSQL worker; required to claim tenant jobs |
+| `ZCODER_WORKER_PROJECT_ID`    | no       | empty   | Optional project scope for a tenant worker |
 | `GITHUB_TOKEN`                | no       | —       | `src/zcoder/claude/integrations/github.py` integration |
 | `VOYAGE_API_KEY`              | no       | —       | `claude_embeddings.py` |
 | `ZCODER_LOG_LEVEL`            | no       | `INFO`  | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
@@ -25,6 +31,22 @@ pip install -r requirements.txt
 export ANTHROPIC_API_KEY=sk-ant-...
 python main.py -p "explain this repo"
 ```
+
+### Tenant-scoped API workers
+
+The public `/api/v1/jobs` routes use the durable PostgreSQL `tenant_jobs`
+queue. A worker must be assigned an explicit organization before it can claim
+those jobs:
+
+```bash
+export ZCODER_WORKER_ORGANIZATION_ID=org_example
+export DATABASE_URL='postgresql://...'
+python -m zcoder.worker.process --pool-type standard
+```
+
+Set `ZCODER_WORKER_PROJECT_ID` as well when the worker should process only one
+project. Leaving both values empty retains the legacy single-tenant worker
+path and does not claim tenant-scoped jobs.
 
 ## Running the test suite
 

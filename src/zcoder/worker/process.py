@@ -65,6 +65,8 @@ class Worker:
         shutdown_timeout: float = 60.0,
         database_url: str = "",
         use_postgres: bool = False,
+        organization_id: str = "",
+        project_id: str = "",
     ) -> None:
         self.worker_id = worker_id or f"worker_{uuid.uuid4().hex[:8]}"
         self.pool_type = pool_type
@@ -74,20 +76,45 @@ class Worker:
         self.shutdown_timeout = shutdown_timeout
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
+        self.organization_id = organization_id or os.environ.get("ZCODER_WORKER_ORGANIZATION_ID", "").strip()
+        self.project_id = project_id or os.environ.get("ZCODER_WORKER_PROJECT_ID", "").strip()
 
         self._state = WorkerState.IDLE
         self._state_lock = threading.Lock()
         self._active_jobs: dict[str, Any] = {}  # job_id → {job, fencing_token, thread}
         self._stop_event = threading.Event()
-        self._store: Any | None = None
-        self._metrics: Any | None = None
+        # Store implementations differ between SQLite, legacy PostgreSQL, and
+        # tenant PostgreSQL. Keep the runtime-selected handles dynamic while
+        # still allowing mypy to type-check the call sites.
+        self._store: Any = None
+        self._tenant_context: Any = None
+        self._metrics: Any = None
 
         # Set up store
         self._setup_store(database_url, use_postgres)
 
     def _setup_store(self, database_url: str, use_postgres: bool) -> None:
         """Initialize control plane store (SQLite or PostgreSQL)."""
-        if use_postgres or database_url:
+        if self.organization_id:
+            try:
+                from zcoder.domain.models.tenant import EnterpriseRole, RequestContext
+                from zcoder.infrastructure.stores.enterprise_postgres import EnterprisePostgresStore
+
+                self._store = EnterprisePostgresStore(dsn=database_url or os.environ.get("DATABASE_URL", ""))
+                self._tenant_context = RequestContext(
+                    principal_id=self.worker_id,
+                    organization_id=self.organization_id,
+                    project_id=self.project_id or None,
+                    role=EnterpriseRole.OPERATOR,
+                )
+                logger.info(
+                    f"Worker {self.worker_id} connected to tenant PostgreSQL "
+                    f"(organization={self.organization_id})"
+                )
+            except Exception as e:
+                logger.error(f"Failed to connect to tenant PostgreSQL: {e}")
+                raise
+        elif use_postgres or database_url:
             try:
                 from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 
@@ -166,9 +193,7 @@ class Worker:
 
                 # Attempt to claim a job
                 try:
-                    result = self._store.claim_job_with_fencing(
-                        self.worker_id, lease_duration=self.lease_duration
-                    )
+                    result = self._claim_job()
                     if result is not None:
                         job, fencing_token = result
                         self._start_job(job, fencing_token)
@@ -202,6 +227,57 @@ class Worker:
         if self._metrics:
             self._metrics.jobs_running.inc()
 
+    def _claim_job(self) -> Any:
+        if self._tenant_context is not None:
+            return self._store.claim_job_scoped(
+                self._tenant_context,
+                self.worker_id,
+                lease_duration=self.lease_duration,
+            )
+        return self._store.claim_job_with_fencing(self.worker_id, lease_duration=self.lease_duration)
+
+    def _mutate_job(self, job_id: str, fencing_token: int, status: Any, cost_usd: float) -> bool:
+        if self._tenant_context is not None:
+            return bool(
+                self._store.mutate_job_scoped(
+                    self._tenant_context,
+                    job_id,
+                    self.worker_id,
+                    fencing_token,
+                    status,
+                    cost_usd,
+                )
+            )
+        return bool(
+            self._store.mutate_with_fencing(
+                job_id,
+                self.worker_id,
+                fencing_token,
+                status,
+                cost_usd,
+            )
+        )
+
+    def _renew_job_lease(self, job_id: str, fencing_token: int) -> bool:
+        if self._tenant_context is not None:
+            return bool(
+                self._store.renew_lease(
+                    self._tenant_context,
+                    job_id,
+                    self.worker_id,
+                    fencing_token,
+                    lease_duration=self.lease_duration,
+                )
+            )
+        return bool(
+            self._store.renew_lease(
+                job_id,
+                self.worker_id,
+                fencing_token,
+                lease_duration=self.lease_duration,
+            )
+        )
+
     def _execute_job(self, job: Any, fencing_token: int) -> None:
         """Execute a single job. Called in a dedicated thread."""
         from zcoder.services.agent_runtime import JobStatus
@@ -223,9 +299,7 @@ class Worker:
 
             # Mark succeeded
             renew_stop.set()
-            success = self._store.mutate_with_fencing(
-                job.id, self.worker_id, fencing_token, JobStatus.SUCCEEDED, job.cost_usd
-            )
+            success = self._mutate_job(job.id, fencing_token, JobStatus.SUCCEEDED, job.cost_usd)
             if not success:
                 logger.warning(
                     f"Job {job.id} completed but fencing mutation rejected — "
@@ -239,9 +313,7 @@ class Worker:
         except Exception as e:
             logger.error(f"Job {job.id} FAILED: {e}")
             try:
-                self._store.mutate_with_fencing(
-                    job.id, self.worker_id, fencing_token, JobStatus.FAILED, job.cost_usd
-                )
+                self._mutate_job(job.id, fencing_token, JobStatus.FAILED, job.cost_usd)
             except Exception as ee:
                 logger.error(f"Could not mark job {job.id} FAILED: {ee}")
 
@@ -278,13 +350,8 @@ class Worker:
         interval = self.heartbeat_interval
         while not stop_event.wait(timeout=interval):
             try:
-                if hasattr(self._store, "renew_lease"):
-                    renewed = self._store.renew_lease(
-                        job_id,
-                        self.worker_id,
-                        fencing_token,
-                        lease_duration=self.lease_duration,
-                    )
+                if self._tenant_context is not None or hasattr(self._store, "renew_lease"):
+                    renewed = self._renew_job_lease(job_id, fencing_token)
                     if not renewed:
                         logger.warning(
                             f"Lease renewal REJECTED for job {job_id} "
@@ -346,13 +413,7 @@ class Worker:
             fencing_token = info["fencing_token"]
             logger.warning(f"Shutdown timeout exceeded — releasing job {job_id} back to READY state")
             try:
-                self._store.mutate_with_fencing(
-                    job_id,
-                    self.worker_id,
-                    fencing_token,
-                    JobStatus.READY,
-                    job.cost_usd,
-                )
+                self._mutate_job(job_id, fencing_token, JobStatus.READY, job.cost_usd)
             except Exception as e:
                 logger.error(f"Could not release job {job_id}: {e}")
 
@@ -413,6 +474,16 @@ def main() -> None:
     parser.add_argument("--heartbeat", type=float, default=30.0)
     parser.add_argument("--shutdown-timeout", type=float, default=60.0)
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL", ""))
+    parser.add_argument(
+        "--organization-id",
+        default=os.environ.get("ZCODER_WORKER_ORGANIZATION_ID", ""),
+        help="Enable tenant-scoped queue mode for this organization",
+    )
+    parser.add_argument(
+        "--project-id",
+        default=os.environ.get("ZCODER_WORKER_PROJECT_ID", ""),
+        help="Optional project scope for tenant-scoped queue mode",
+    )
     parser.add_argument("--postgres", action="store_true", help="Force PostgreSQL mode")
     args = parser.parse_args()
 
@@ -425,6 +496,8 @@ def main() -> None:
         shutdown_timeout=args.shutdown_timeout,
         database_url=args.database_url,
         use_postgres=args.postgres or bool(args.database_url),
+        organization_id=args.organization_id,
+        project_id=args.project_id,
     )
     worker.install_signal_handlers()
     worker.run()

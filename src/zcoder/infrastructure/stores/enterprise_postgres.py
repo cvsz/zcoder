@@ -33,11 +33,13 @@ from typing import Any
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
+from psycopg2 import sql
 
 from zcoder.domain.models.tenant import (
     ApiKey,
     EnterpriseAuditEvent,
     EnterpriseRole,
+    IdempotencyConflictError,
     Organization,
     OrgStatus,
     Project,
@@ -155,6 +157,15 @@ CREATE TABLE IF NOT EXISTS tenant_jobs (
     metadata JSONB NOT NULL DEFAULT '{}'
 );
 
+CREATE TABLE IF NOT EXISTS tenant_job_idempotency (
+    organization_id TEXT NOT NULL REFERENCES organizations(id),
+    idempotency_key TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL,
+    job_id TEXT NOT NULL UNIQUE REFERENCES tenant_jobs(id),
+    created_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
+    PRIMARY KEY (organization_id, idempotency_key)
+);
+
 -- 4. Metering & Quotas
 CREATE TABLE IF NOT EXISTS usage_ledger (
     id TEXT PRIMARY KEY,
@@ -198,6 +209,7 @@ CREATE TABLE IF NOT EXISTS enterprise_audit (
 
 -- Indexes for tenant routing and isolation
 CREATE INDEX IF NOT EXISTS idx_tenant_jobs_org ON tenant_jobs(organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_tenant_job_idempotency_job ON tenant_job_idempotency(job_id);
 CREATE INDEX IF NOT EXISTS idx_usage_ledger_org ON usage_ledger(organization_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_audit_org_time ON enterprise_audit(organization_id, timestamp);
 """
@@ -227,6 +239,9 @@ ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE tenant_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_jobs FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE tenant_job_idempotency ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_job_idempotency FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE usage_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage_ledger FORCE ROW LEVEL SECURITY;
@@ -259,6 +274,10 @@ CREATE POLICY tenant_isolation_api_keys ON api_keys
 
 DROP POLICY IF EXISTS tenant_isolation_tenant_jobs ON tenant_jobs;
 CREATE POLICY tenant_isolation_tenant_jobs ON tenant_jobs
+    USING (organization_id = current_setting('app.current_org', true));
+
+DROP POLICY IF EXISTS tenant_isolation_tenant_job_idempotency ON tenant_job_idempotency;
+CREATE POLICY tenant_isolation_tenant_job_idempotency ON tenant_job_idempotency
     USING (organization_id = current_setting('app.current_org', true));
 
 DROP POLICY IF EXISTS tenant_isolation_usage_ledger ON usage_ledger;
@@ -349,6 +368,7 @@ class EnterprisePostgresStore:
             "service_accounts",
             "api_keys",
             "tenant_jobs",
+            "tenant_job_idempotency",
             "usage_ledger",
             "tenant_quotas",
             "enterprise_audit",
@@ -489,11 +509,104 @@ class EnterprisePostgresStore:
 
     # ─── Scoped Job Claims & Execution ───────────────────────────────────
 
-    def enqueue_job(self, ctx: RequestContext, job: Job) -> Job:
+    @staticmethod
+    def _job_from_row(row: tuple[Any, ...]) -> Job:
+        (
+            job_id,
+            project_id,
+            task,
+            runtime,
+            status,
+            workspace,
+            created_at,
+            updated_at,
+            model,
+            budget,
+            cost,
+            metadata,
+        ) = row
+        try:
+            job_status: str | JobStatus = JobStatus(status)
+        except ValueError:
+            job_status = status
+        metadata_value = metadata if isinstance(metadata, dict) else json.loads(metadata or "{}")
+        return Job(
+            id=job_id,
+            task=task,
+            runtime=runtime,
+            status=job_status,
+            workspace=workspace,
+            created_at=created_at,
+            updated_at=updated_at,
+            model=model,
+            budget_usd=budget,
+            cost_usd=cost,
+            metadata=metadata_value,
+            project_id=project_id,
+        )
+
+    @staticmethod
+    def _job_select_sql() -> str:
+        return """
+            SELECT id, project_id, task, runtime, status, workspace, created_at, updated_at,
+                   model, budget_usd, cost_usd, metadata
+            FROM tenant_jobs
+        """
+
+    @classmethod
+    def _job_from_idempotency_row(cls, ctx: RequestContext, row: tuple[Any, ...]) -> Job:
+        job = cls._job_from_row(row)
+        if ctx.project_id is not None and job.project_id != ctx.project_id:
+            raise IdempotencyConflictError(
+                "Idempotency key is already associated with a different project scope"
+            )
+        return job
+
+    def enqueue_job(
+        self,
+        ctx: RequestContext,
+        job: Job,
+        *,
+        idempotency_key: str | None = None,
+        request_fingerprint: str | None = None,
+    ) -> Job:
         ctx.validate_tenant_access(ctx.organization_id)
         ctx.require_permission("job.create")
+        if idempotency_key and (not request_fingerprint or len(idempotency_key) > 256):
+            raise ValueError(
+                "idempotency_key requires a request fingerprint and must be at most 256 characters"
+            )
+
+        project_id = job.project_id or ctx.project_id
+        ctx.validate_tenant_access(ctx.organization_id, project_id)
+        status = job.status.value if isinstance(job.status, JobStatus) else str(job.status)
         with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:
+                if idempotency_key:
+                    cur.execute(
+                        """
+                        SELECT request_fingerprint, job_id
+                        FROM tenant_job_idempotency
+                        WHERE organization_id = %s AND idempotency_key = %s
+                        FOR UPDATE
+                        """,
+                        (ctx.organization_id, idempotency_key),
+                    )
+                    existing = cur.fetchone()
+                    if existing:
+                        if existing[0] != request_fingerprint:
+                            raise IdempotencyConflictError(
+                                "Idempotency key reused with a different request payload"
+                            )
+                        cur.execute(
+                            self._job_select_sql() + " WHERE id = %s AND organization_id = %s",
+                            (existing[1], ctx.organization_id),
+                        )
+                        row = cur.fetchone()
+                        if row is None:
+                            raise RuntimeError("idempotency record references a missing job")
+                        return self._job_from_idempotency_row(ctx, row)
+
                 cur.execute(
                     """
                     INSERT INTO tenant_jobs (
@@ -504,10 +617,10 @@ class EnterprisePostgresStore:
                     (
                         job.id,
                         ctx.organization_id,
-                        ctx.project_id,
+                        project_id,
                         job.task,
                         job.runtime,
-                        job.status.value,
+                        status,
                         job.workspace,
                         job.created_at,
                         job.updated_at,
@@ -517,6 +630,124 @@ class EnterprisePostgresStore:
                         json.dumps(job.metadata),
                     ),
                 )
+                if idempotency_key:
+                    cur.execute(
+                        """
+                        INSERT INTO tenant_job_idempotency (
+                            organization_id, idempotency_key, request_fingerprint, job_id
+                        ) VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (organization_id, idempotency_key) DO NOTHING
+                        RETURNING job_id
+                        """,
+                        (ctx.organization_id, idempotency_key, request_fingerprint, job.id),
+                    )
+                    inserted = cur.fetchone()
+                    if inserted is None:
+                        cur.execute(
+                            """
+                            SELECT request_fingerprint, job_id
+                            FROM tenant_job_idempotency
+                            WHERE organization_id = %s AND idempotency_key = %s
+                            """,
+                            (ctx.organization_id, idempotency_key),
+                        )
+                        existing = cur.fetchone()
+                        if existing is None:
+                            raise RuntimeError("idempotency record disappeared during enqueue")
+                        if existing[0] != request_fingerprint:
+                            raise IdempotencyConflictError(
+                                "Idempotency key reused with a different request payload"
+                            )
+                        cur.execute("DELETE FROM tenant_jobs WHERE id = %s", (job.id,))
+                        cur.execute(
+                            self._job_select_sql() + " WHERE id = %s AND organization_id = %s",
+                            (existing[1], ctx.organization_id),
+                        )
+                        row = cur.fetchone()
+                        if row is None:
+                            raise RuntimeError("idempotency record references a missing job")
+                        return self._job_from_idempotency_row(ctx, row)
+        return job
+
+    def get_job(self, ctx: RequestContext, job_id: str) -> Job | None:
+        ctx.validate_tenant_access(ctx.organization_id)
+        ctx.require_permission("job.read")
+        clauses = ["id = %s", "organization_id = %s"]
+        params: list[Any] = [job_id, ctx.organization_id]
+        if ctx.project_id:
+            clauses.append("project_id = %s")
+            params.append(ctx.project_id)
+        with self.scoped_conn(ctx) as conn:
+            with conn.cursor() as cur:
+                cur.execute(self._job_select_sql() + " WHERE " + " AND ".join(clauses), params)
+                row = cur.fetchone()
+        return self._job_from_row(row) if row else None
+
+    def list_jobs(self, ctx: RequestContext, limit: int, offset: int) -> tuple[list[Job], int]:
+        ctx.validate_tenant_access(ctx.organization_id)
+        ctx.require_permission("job.read")
+        clauses = ["organization_id = %s"]
+        params: list[Any] = [ctx.organization_id]
+        if ctx.project_id:
+            clauses.append("project_id = %s")
+            params.append(ctx.project_id)
+        where = " WHERE " + " AND ".join(clauses)
+        with self.scoped_conn(ctx) as conn:
+            with conn.cursor() as cur:
+                # `where` is composed only from the fixed predicates above; use
+                # psycopg2's SQL composer so the statement shape is explicit and
+                # values remain parameterized.
+                cur.execute(sql.SQL("SELECT COUNT(*) FROM tenant_jobs") + sql.SQL(where), params)
+                total = int(cur.fetchone()[0])
+                cur.execute(
+                    self._job_select_sql() + where + " ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                    [*params, limit, offset],
+                )
+                jobs = [self._job_from_row(row) for row in cur.fetchall()]
+        return jobs, total
+
+    def cancel_job(self, ctx: RequestContext, job_id: str) -> Job | None:
+        ctx.validate_tenant_access(ctx.organization_id)
+        ctx.require_permission("job.cancel")
+        clauses = ["id = %s", "organization_id = %s"]
+        params: list[Any] = [job_id, ctx.organization_id]
+        if ctx.project_id:
+            clauses.append("project_id = %s")
+            params.append(ctx.project_id)
+        with self.scoped_conn(ctx) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    self._job_select_sql() + " WHERE " + " AND ".join(clauses) + " FOR UPDATE",
+                    params,
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                job = self._job_from_row(row)
+                if job.status not in {
+                    JobStatus.SUCCEEDED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                }:
+                    now = time.time()
+                    cur.execute(
+                        "UPDATE tenant_jobs SET status = 'CANCELLED', updated_at = %s WHERE id = %s",
+                        (now, job_id),
+                    )
+                    job = Job(
+                        id=job.id,
+                        task=job.task,
+                        runtime=job.runtime,
+                        status=JobStatus.CANCELLED,
+                        workspace=job.workspace,
+                        created_at=job.created_at,
+                        updated_at=now,
+                        model=job.model,
+                        budget_usd=job.budget_usd,
+                        cost_usd=job.cost_usd,
+                        metadata=job.metadata,
+                        project_id=job.project_id,
+                    )
         return job
 
     def claim_job_scoped(
@@ -529,22 +760,37 @@ class EnterprisePostgresStore:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, task, runtime, status, workspace, created_at, updated_at,
+                    SELECT id, project_id, task, runtime, status, workspace, created_at, updated_at,
                            model, budget_usd, cost_usd, claim_generation, metadata
                     FROM tenant_jobs
                     WHERE organization_id = %s
                       AND (status = 'READY' OR (status = 'RUNNING' AND lease_expires_at < %s))
+                      AND (%s IS NULL OR project_id = %s)
                     ORDER BY created_at ASC
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
                     """,
-                    (ctx.organization_id, now),
+                    (ctx.organization_id, now, ctx.project_id, ctx.project_id),
                 )
                 row = cur.fetchone()
                 if not row:
                     return None
 
-                job_id, task, runtime, status, workspace, c_at, u_at, model, budget, cost, gen, meta = row
+                (
+                    job_id,
+                    project_id,
+                    task,
+                    runtime,
+                    status,
+                    workspace,
+                    c_at,
+                    u_at,
+                    model,
+                    budget,
+                    cost,
+                    gen,
+                    meta,
+                ) = row
 
                 new_gen = gen + 1
                 cur.execute(
@@ -552,10 +798,12 @@ class EnterprisePostgresStore:
                     UPDATE tenant_jobs
                     SET status = 'RUNNING', claimed_by = %s, claim_generation = %s,
                         lease_expires_at = %s, updated_at = %s
-                    WHERE id = %s AND claim_generation = %s
+                    WHERE id = %s AND organization_id = %s AND claim_generation = %s
                     """,
-                    (worker_id, new_gen, expires_at, now, job_id, gen),
+                    (worker_id, new_gen, expires_at, now, job_id, ctx.organization_id, gen),
                 )
+                if cur.rowcount != 1:
+                    return None
 
         meta_dict = meta if isinstance(meta, dict) else json.loads(meta or "{}")
         job = Job(
@@ -570,6 +818,7 @@ class EnterprisePostgresStore:
             budget_usd=budget,
             cost_usd=cost,
             metadata=meta_dict,
+            project_id=project_id,
         )
         return job, new_gen
 
@@ -588,12 +837,42 @@ class EnterprisePostgresStore:
                     """
                     UPDATE tenant_jobs
                     SET status = %s, cost_usd = %s, updated_at = %s
-                    WHERE id = %s AND organization_id = %s AND claimed_by = %s AND claim_generation = %s
+                    WHERE id = %s AND organization_id = %s AND claimed_by = %s
+                      AND claim_generation = %s AND status = 'RUNNING'
                     """,
                     (
                         status.value,
                         cost_usd,
                         time.time(),
+                        job_id,
+                        ctx.organization_id,
+                        worker_id,
+                        fencing_token,
+                    ),
+                )
+                return cur.rowcount > 0
+
+    def renew_lease(
+        self,
+        ctx: RequestContext,
+        job_id: str,
+        worker_id: str,
+        fencing_token: int,
+        lease_duration: float = 120.0,
+    ) -> bool:
+        now = time.time()
+        with self.scoped_conn(ctx) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE tenant_jobs
+                    SET lease_expires_at = %s, updated_at = %s
+                    WHERE id = %s AND organization_id = %s AND claimed_by = %s
+                      AND claim_generation = %s AND status = 'RUNNING'
+                    """,
+                    (
+                        now + lease_duration,
+                        now,
                         job_id,
                         ctx.organization_id,
                         worker_id,

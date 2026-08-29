@@ -23,7 +23,43 @@ from zcoder.api.auth import (  # noqa: E402
     authenticate_request,
     parse_cors_origins,
 )
-from zcoder.api.public.v1 import PublicAPIV1Router  # noqa: E402
+from zcoder.api.public.v1 import (  # noqa: E402
+    JobQueueUnavailable,
+    PublicAPIV1Router,
+)
+
+
+class _LazyEnterpriseJobStore:
+    """Load the tenant store on first queue request, not during app import."""
+
+    def __init__(self, dsn: str | None = None) -> None:
+        self._dsn = (dsn or os.environ.get("DATABASE_URL", "")).strip()
+        self._store: Any | None = None
+
+    def _get_store(self) -> Any:
+        if not self._dsn:
+            raise JobQueueUnavailable("DATABASE_URL is not configured")
+        if self._store is None:
+            try:
+                from zcoder.infrastructure.stores.enterprise_postgres import EnterprisePostgresStore
+
+                self._store = EnterprisePostgresStore(dsn=self._dsn)
+            except Exception as exc:
+                raise JobQueueUnavailable("Enterprise PostgreSQL store is unavailable") from exc
+        return self._store
+
+    def enqueue_job(self, ctx: Any, job: Any, **kwargs: Any) -> Any:
+        return self._get_store().enqueue_job(ctx, job, **kwargs)
+
+    def get_job(self, ctx: Any, job_id: str) -> Any:
+        return self._get_store().get_job(ctx, job_id)
+
+    def list_jobs(self, ctx: Any, limit: int, offset: int) -> tuple[list[Any], int]:
+        return self._get_store().list_jobs(ctx, limit, offset)
+
+    def cancel_job(self, ctx: Any, job_id: str) -> Any:
+        return self._get_store().cancel_job(ctx, job_id)
+
 
 app = FastAPI(
     title="ZCoder Public API & Control Plane",
@@ -41,7 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-router = PublicAPIV1Router()
+router = PublicAPIV1Router(job_store=_LazyEnterpriseJobStore())
 
 
 @app.get("/health")

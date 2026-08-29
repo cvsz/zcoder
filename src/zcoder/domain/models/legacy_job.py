@@ -40,6 +40,7 @@ class Job:
     budget_usd: float = 0.0
     cost_usd: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
+    project_id: str | None = None
 
 
 @dataclass

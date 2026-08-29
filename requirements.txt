@@ -5,7 +5,8 @@ anthropic>=0.75.0
 # talk to the Messages API directly over urllib and don't need the SDK at
 # all, so an older pin would still "work" for those — but --agent-managed-run
 # needs 0.75.0+ specifically.
-python-dotenv>=1.0.0
+python-dotenv>=1.2.2
+Pillow>=12.3.0
 
 # Vision / multimodal — no extra deps (base64 + urllib)
 # Batch API — no extra deps

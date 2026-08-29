@@ -64,6 +64,10 @@ workers:
     replicaCount: 3
     concurrency: 2
     poolType: standard
+    # Tenant-scoped workers only claim jobs for this explicit organization.
+    # Leave empty only when running the legacy single-tenant worker path.
+    organizationId: ""
+    projectId: ""
     resources:
       requests:
         cpu: 1000m
@@ -81,6 +85,7 @@ auth:
   enabled: true
   oidcIssuer: "https://auth.example.com"
   oidcAudience: "zcoder-prod"
+  corsOrigins: ""
   existingSecret: "zcoder-auth-secrets"
 
 telemetry:

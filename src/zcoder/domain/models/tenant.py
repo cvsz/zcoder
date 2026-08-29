@@ -215,6 +215,10 @@ class PermissionDeniedError(Exception):
     """Raised when principal lacks permission."""
 
 
+class IdempotencyConflictError(Exception):
+    """Raised when an idempotency key is reused with a different request."""
+
+
 # ─── Domain Entities ─────────────────────────────────────────────────────────
 
 

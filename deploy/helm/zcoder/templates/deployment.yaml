@@ -27,6 +27,14 @@ spec:
           env:
             - name: ZCODER_PROFILE
               value: "production"
+            - name: ZCODER_AUTH_ENABLED
+              value: {{ .Values.auth.enabled | quote }}
+            - name: ZCODER_OIDC_ISSUER
+              value: {{ .Values.auth.oidcIssuer | quote }}
+            - name: ZCODER_OIDC_AUDIENCE
+              value: {{ .Values.auth.oidcAudience | quote }}
+            - name: ZCODER_CORS_ORIGINS
+              value: {{ .Values.auth.corsOrigins | quote }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -78,5 +86,9 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.database.existingSecret }}
                   key: {{ .Values.database.secretKey }}
+            - name: ZCODER_WORKER_ORGANIZATION_ID
+              value: {{ .Values.workers.standard.organizationId | quote }}
+            - name: ZCODER_WORKER_PROJECT_ID
+              value: {{ .Values.workers.standard.projectId | quote }}
           resources:
             {{- toYaml .Values.workers.standard.resources | nindent 12 }}

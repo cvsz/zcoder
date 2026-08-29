@@ -9,3 +9,14 @@ def test_worker_overrides_image_entrypoint_with_packaged_module():
     assert 'command: ["python", "-m", "zcoder.worker.process"]' in template
     assert 'args: ["--pool-type", "standard"]' in template
     assert 'args: ["python", "worker_process.py"' not in template
+
+
+def test_chart_wires_authenticated_api_and_tenant_worker_configuration():
+    template = Path("deploy/helm/zcoder/templates/deployment.yaml").read_text()
+
+    assert "name: ZCODER_AUTH_ENABLED" in template
+    assert "name: ZCODER_OIDC_ISSUER" in template
+    assert "name: ZCODER_OIDC_AUDIENCE" in template
+    assert "name: ZCODER_CORS_ORIGINS" in template
+    assert "name: ZCODER_WORKER_ORGANIZATION_ID" in template
+    assert "name: ZCODER_WORKER_PROJECT_ID" in template

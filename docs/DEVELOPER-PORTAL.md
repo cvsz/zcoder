@@ -6,18 +6,21 @@ Welcome to the **zcoder Developer Portal**. This document provides the official 
 
 ## 1. Quickstart & Authentication
 
-All API requests require authentication via an API Key passed in the `Authorization` header as a Bearer token:
+All public API requests require a verified OIDC bearer token passed in the
+`Authorization` header. Tenant and role identity comes from the verified
+claims; request headers cannot select an organization or project:
 
 ```http
 GET /api/v1/health HTTP/1.1
 Host: api.zcoder.internal
-Authorization: Bearer zc_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
 Content-Type: application/json
 ```
 
-### 1.1 Generating API Keys
+### 1.1 API key data model
 
-API keys are created per tenant organization and assigned specific role ceilings:
+API keys remain stored per tenant organization and assigned specific role
+ceilings for the enterprise management surface:
 - `zc_live_...` — Production API keys (SHA-256 hashed in database).
 - `zc_test_...` — Sandbox / Mock environment keys.
 
@@ -33,7 +36,7 @@ API keys are created per tenant organization and assigned specific role ceilings
 ### 2.2 Engineering Tasks & Jobs
 - `POST /api/v1/jobs` — Submit an autonomous engineering or coding job.
 - `GET /api/v1/jobs/{job_id}` — Get job execution status, attempt counters, and logs.
-- `POST /api/v1/jobs/{job_id}/cancel` — Gracefully terminate an active job.
+- `DELETE /api/v1/jobs/{job_id}` — Gracefully terminate an active job.
 
 ### 2.3 Idempotency Keys
 All mutating POST/PUT requests support the `Idempotency-Key` header:
