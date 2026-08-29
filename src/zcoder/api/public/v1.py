@@ -25,6 +25,7 @@ import time
 import uuid
 from typing import Any
 
+from zcoder.core.outbound_security import validate_external_http_url
 from zcoder.domain.models.product import EntitlementService
 from zcoder.domain.models.tenant import RequestContext
 
@@ -161,16 +162,11 @@ class PublicAPIV1Router:
                 task = payload.get("task")
                 if not task:
                     raise APIError("VALIDATION_ERROR", "Field 'task' is required", status_code=422)
-                job_id = f"job_{uuid.uuid4().hex[:12]}"
-                return 201, {
-                    "id": job_id,
-                    "organization_id": ctx.organization_id,
-                    "project_id": payload.get("project_id", ctx.project_id),
-                    "task": task,
-                    "status": "CREATED",
-                    "created_at": time.time(),
-                    "request_id": req_id,
-                }
+                raise APIError(
+                    "JOB_QUEUE_UNAVAILABLE",
+                    "Job submission is unavailable until the tenant-scoped durable queue is configured",
+                    status_code=501,
+                )
             elif method == "GET":
                 limit = min(int(query.get("limit", 20)), 100)
                 offset = int(query.get("offset", 0))
@@ -191,13 +187,14 @@ class PublicAPIV1Router:
                 url = payload.get("url")
                 if not url:
                     raise APIError("VALIDATION_ERROR", "Field 'url' is required", status_code=422)
-                # SSRF protection: reject obvious private/loopback unless test
-                if "127.0.0.1" in url or "localhost" in url or "169.254.169.254" in url:
+                try:
+                    validate_external_http_url(url)
+                except (TypeError, ValueError):
                     raise APIError(
                         "SSRF_BLOCKED",
-                        "Webhook URL cannot point to localhost or metadata endpoints",
+                        "Webhook URL must resolve exclusively to a public HTTP(S) address",
                         status_code=400,
-                    )
+                    ) from None
                 wh_id = f"wh_{uuid.uuid4().hex[:12]}"
                 secret = f"whsec_{uuid.uuid4().hex}"
                 return 201, {

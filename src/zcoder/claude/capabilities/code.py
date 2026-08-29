@@ -75,6 +75,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from zcoder.claude.optimization.cost import estimate_cost
+
 # ── Storage paths ──────────────────────────────────────────────────────────
 SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/code_sessions"))
 HOOKS_DIR = Path(os.path.expanduser("~/.zcoder/hooks"))
@@ -262,9 +264,10 @@ class CodeSession:
         if usage:
             self.input_tokens += usage.get("input_tokens", 0)
             self.output_tokens += usage.get("output_tokens", 0)
-            # rough cost estimate (Sonnet 4.5 rates)
-            self.cost_usd += (
-                usage.get("input_tokens", 0) / 1e6 * 3.0 + usage.get("output_tokens", 0) / 1e6 * 15.0
+            self.cost_usd += estimate_cost(
+                self.model,
+                usage.get("input_tokens", 0),
+                usage.get("output_tokens", 0),
             )
 
     def add_tool_call(self, name: str, inputs: dict, result: str, approved: bool = True):

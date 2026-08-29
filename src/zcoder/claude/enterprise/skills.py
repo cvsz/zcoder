@@ -40,8 +40,7 @@ in a code-execution container) instead of the hand-rolled pandas/openpyxl
 or python-pptx exec loop. Confirmed against
 platform.claude.com/docs/en/build-with-claude/skills-guide (checked
 2026-07-04): container.id reuse for multi-turn, container_upload content
-blocks for attaching files, files-api-2025-04-14 beta whenever a file is
-attached or downloaded, and generated file_id values surfacing on either
+blocks for attaching files, and generated file_id values surfacing on either
 a code_execution_tool_result or bash_code_execution_tool_result block
 (Skills can run their work through either the Python or bash
 code-execution tool, so callers need to check both).
@@ -58,17 +57,13 @@ from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-# Skills require the code-execution tool container, gated behind its own
-# beta header, plus the Skills-specific beta for the `container.skills`
-# field itself.
+# The code-execution tool remains beta-gated. Skills and Files are GA, so their
+# historical constants remain importable for compatibility but are not sent.
 CODE_EXECUTION_BETA = "code-execution-2025-08-25"
+# Compatibility constant only; never add this to an outgoing request.
 SKILLS_BETA = "skills-2025-10-02"
 
-# Only needed when a turn attaches or downloads a file (container_upload
-# blocks / Files API). Mirrors claude_files.py's BETA_HEADER constant —
-# kept as a separate constant here rather than importing that module, to
-# avoid a hard dependency from this module on claude_files.py for callers
-# that only use text-only Skills calls.
+# Compatibility constant only; Files API is GA and no longer needs this beta.
 FILES_API_BETA = "files-api-2025-04-14"
 
 # Anthropic-provided pre-built Skills, per platform.claude.com/docs (checked
@@ -138,13 +133,14 @@ class SkillsApiClient:
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, payload: dict, betas: list) -> dict:
+    def _call(self, payload: dict, betas: list | None = None) -> dict:
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": ",".join(betas),
         }
+        if betas:
+            headers["anthropic-beta"] = ",".join(betas)
         req = urllib.request.Request(
             MESSAGES_ENDPOINT,
             data=json.dumps(payload).encode(),
@@ -153,7 +149,7 @@ class SkillsApiClient:
         )
         return urlopen_json(req, timeout=300)
 
-    def _post(self, payload: dict, betas: list) -> dict:
+    def _post(self, payload: dict, betas: list | None = None) -> dict:
         try:
             return self._call(payload, betas)
         except ZCoderError as e:
@@ -175,7 +171,7 @@ class SkillsApiClient:
         }
         if system:
             payload["system"] = system
-        return self._post(payload, betas=[CODE_EXECUTION_BETA, SKILLS_BETA])
+        return self._post(payload, betas=[CODE_EXECUTION_BETA])
 
     def call_with_skills_turn(
         self,
@@ -197,10 +193,8 @@ class SkillsApiClient:
         container_id: pass container.id from a previous response to reuse
         its container (and therefore anything the model already wrote to
         disk there) instead of starting fresh.
-        has_file_uploads: set True on any turn whose messages contain a
-        container_upload block, so the files-api beta gets attached —
-        required by the API whenever a file is being sent into or
-        expected out of the container.
+        has_file_uploads: accepted for call-shape compatibility; Files API is
+        GA and does not toggle a beta header.
         """
         refs = [s if isinstance(s, SkillRef) else SkillRef.prebuilt(s) for s in skills]
         container = build_container_skills(refs)
@@ -215,10 +209,7 @@ class SkillsApiClient:
         }
         if system:
             payload["system"] = system
-        betas = [CODE_EXECUTION_BETA, SKILLS_BETA]
-        if has_file_uploads:
-            betas.append(FILES_API_BETA)
-        return self._post(payload, betas=betas)
+        return self._post(payload, betas=[CODE_EXECUTION_BETA])
 
 
 def build_user_content(text: str, file_ids: list | None = None) -> list:

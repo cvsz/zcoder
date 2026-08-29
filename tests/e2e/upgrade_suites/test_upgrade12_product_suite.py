@@ -10,6 +10,8 @@ Verifies:
 
 import time
 
+import pytest
+
 from zcoder.api.public.v1 import PublicAPIV1Router
 from zcoder.domain.models.product import (
     CustomerWebhookEndpoint,
@@ -20,7 +22,7 @@ from zcoder.domain.models.product import (
     SubscriptionStatus,
 )
 from zcoder.domain.models.tenant import EnterpriseRole, RequestContext
-from zcoder.interfaces.sdk.client import ZCoderClient
+from zcoder.interfaces.sdk.client import ZCoderClient, ZCoderSDKException
 
 
 def test_entitlements_by_plan_tier():
@@ -91,30 +93,34 @@ def test_customer_webhook_hmac_signature_and_ssrf():
     assert body["error"]["code"] == "SSRF_BLOCKED"
 
 
-def test_public_api_idempotency_and_routing():
+def test_public_api_job_submission_fails_closed_until_queue_is_wired():
     router = PublicAPIV1Router()
     ctx = RequestContext(principal_id="user_1", organization_id="org_1", role=EnterpriseRole.OPERATOR)
 
-    # 1. First POST with Idempotency Key
+    # The old route returned an ID without persisting a job. Keep the API
+    # truthful until it is connected to the tenant-scoped durable queue.
     status1, body1 = router.handle_request(
         "POST", "/api/v1/jobs", ctx, payload={"task": "Run lint"}, idempotency_key="idem_abc_123"
     )
-    assert status1 == 201
-    job_id_1 = body1["id"]
+    assert status1 == 501
+    assert body1["error"]["code"] == "JOB_QUEUE_UNAVAILABLE"
+    assert "id" not in body1
 
-    # 2. Retry with exact same key and payload -> returns identical result
+    # A failed capability check is not cached as a successful idempotent result.
     status2, body2 = router.handle_request(
         "POST", "/api/v1/jobs", ctx, payload={"task": "Run lint"}, idempotency_key="idem_abc_123"
     )
-    assert status2 == 201
-    assert body2["id"] == job_id_1
+    assert status2 == 501
+    assert body2["error"]["code"] == "JOB_QUEUE_UNAVAILABLE"
+    assert router.idempotency_store == {}
 
-    # 3. Conflict: same key, different payload -> 409
+    # A different payload is still unavailable; no phantom prior request exists
+    # with which to manufacture an idempotency conflict.
     status3, body3 = router.handle_request(
         "POST", "/api/v1/jobs", ctx, payload={"task": "Run build"}, idempotency_key="idem_abc_123"
     )
-    assert status3 == 409
-    assert body3["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+    assert status3 == 501
+    assert body3["error"]["code"] == "JOB_QUEUE_UNAVAILABLE"
 
 
 def test_python_sdk_contract():
@@ -124,9 +130,8 @@ def test_python_sdk_contract():
     entitlements = client.get_entitlements()
     assert "max_projects" in entitlements
 
-    job = client.create_job("Build docs", idempotency_key="sdk_idem_1")
-    assert job["status"] == "CREATED"
-    assert job["task"] == "Build docs"
+    with pytest.raises(ZCoderSDKException, match="HTTP 501"):
+        client.create_job("Build docs", idempotency_key="sdk_idem_1")
 
     wh = client.register_webhook("https://myapp.com/zcoder-events")
     assert wh["status"] == "ACTIVE"

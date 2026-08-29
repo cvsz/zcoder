@@ -122,8 +122,8 @@ class TestZCoderFeaturesWithoutKey(unittest.TestCase):
         self.assertIn("entitlements", res)
 
         status, job_res = router.handle_request("POST", "/api/v1/jobs", ctx, payload={"task": "Offline Task"})
-        self.assertEqual(status, 201)
-        self.assertEqual(job_res["status"], "CREATED")
+        self.assertEqual(status, 501)
+        self.assertEqual(job_res["error"]["code"], "JOB_QUEUE_UNAVAILABLE")
 
     def test_08_autonomous_engineering_loop_init(self):
         """Verify AutonomousEngineeringLoop defaults to local Ollama zero-cost provider."""

@@ -2,7 +2,10 @@
 
 import json
 
+import pytest
+
 from zcoder.config.production import (
+    ConfigValidationError,
     ProductionConfig,
     _redact_dict,
     load_config,
@@ -84,6 +87,28 @@ class TestLoadConfig:
         assert cfg.auth.enabled is True
         assert cfg.auth.oidc_issuer == "https://issuer.example.com"
         assert cfg.auth.oidc_audience == "zcoder-prod"
+
+    def test_production_load_rejects_missing_required_auth(self, monkeypatch):
+        monkeypatch.setenv("ZCODER_PROFILE", "production")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db/zcoder")
+        monkeypatch.delenv("ZCODER_AUTH_ENABLED", raising=False)
+        monkeypatch.delenv("ZCODER_OIDC_ISSUER", raising=False)
+        monkeypatch.delenv("ZCODER_OIDC_AUDIENCE", raising=False)
+
+        with pytest.raises(ConfigValidationError, match="auth"):
+            load_config()
+
+    def test_valid_production_load_preserves_warning_only_issues(self, monkeypatch):
+        monkeypatch.setenv("ZCODER_PROFILE", "production")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@db/zcoder")
+        monkeypatch.setenv("ZCODER_AUTH_ENABLED", "true")
+        monkeypatch.setenv("ZCODER_OIDC_ISSUER", "https://issuer.example.com")
+        monkeypatch.setenv("ZCODER_OIDC_AUDIENCE", "zcoder-prod")
+
+        cfg = load_config()
+
+        assert cfg.profile == "production"
+        assert any("telemetry" in issue.lower() for issue in validate_config(cfg))
 
 
 class TestValidateConfig:

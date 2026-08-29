@@ -339,6 +339,10 @@ def load_config(config_file: str | None = None) -> ProductionConfig:
             print(f"WARN: failed to load config file {config_file}: {e}")
 
     cfg = _resolve_from_env(cfg)
+    validation = validate_config(cfg)
+    errors = [issue for issue in validation if issue.startswith("ERROR:")]
+    if errors:
+        raise ConfigValidationError("Configuration validation failed: " + "; ".join(errors))
     return cfg
 
 

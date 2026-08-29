@@ -1,5 +1,5 @@
 """
-claude_files.py — Files API (beta)
+claude_files.py — Files API
 ZCoder CLI v1.8.0
 
 Upload files once, reference by file_id in multiple Messages API calls.
@@ -18,7 +18,9 @@ import json
 import mimetypes
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from zcoder.core.exceptions import ZCoderError
@@ -34,6 +36,28 @@ _FORBIDDEN_FILENAME_CHARS = set('<>:"|?*\\/') | {chr(c) for c in range(32)}
 
 LOCAL_REGISTRY = Path(os.path.expanduser("~/.zcoder/files_registry.json"))
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
+
+
+def parse_expires_at(file_obj: dict | None, now: datetime | None = None) -> str | None:
+    """Return a normalized GA expiration timestamp, when one is available.
+
+    File objects expose an absolute ``expires_at`` while upload responses may
+    expose a relative ``expires_in_seconds`` value. Older responses have
+    neither field, and malformed provider data is treated as absent rather
+    than allowed to break local file handling.
+    """
+    if not isinstance(file_obj, dict):
+        return None
+
+    expires_at = file_obj.get("expires_at")
+    if isinstance(expires_at, str) and expires_at:
+        return expires_at
+
+    seconds = file_obj.get("expires_in_seconds")
+    if isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and seconds >= 0:
+        base = now or datetime.now(timezone.utc)
+        return (base + timedelta(seconds=seconds)).isoformat()
+    return None
 
 
 def _validate_filename(name: str) -> str | None:
@@ -60,7 +84,6 @@ class FilesAPI:
         return {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": BETA_HEADER,
             "Content-Type": content_type,
         }
 
@@ -127,21 +150,34 @@ class FilesAPI:
         except ZCoderError as e:
             raise RuntimeError(f"Upload failed: {e.message}") from e
 
+        if not isinstance(result, dict) or not result.get("id"):
+            raise RuntimeError("Upload failed: API returned no file id")
+        expires_at = parse_expires_at(result)
+        if expires_at and not result.get("expires_at"):
+            result["expires_at"] = expires_at
+
         # Save to local registry
         self._register(result, str(p))
         return result
 
     # ── List ──────────────────────────────────────────────────────────────
 
-    def list_files(self, limit: int = 20, before_id: str | None = None, after_id: str | None = None) -> dict:
-        """List one page of files. Returns {"data": [...], "has_more": bool,
-        "first_id": ..., "last_id": ...} per the paginated List Files endpoint."""
+    def list_files(
+        self,
+        limit: int = 20,
+        before_id: str | None = None,
+        after_id: str | None = None,
+        page: str | None = None,
+    ) -> dict:
+        """List one page using GA ``page`` or legacy ID cursors."""
         params = {"limit": str(limit)}
         if before_id:
             params["before_id"] = before_id
         if after_id:
             params["after_id"] = after_id
-        query = "&".join(f"{k}={v}" for k, v in params.items())
+        if page:
+            params["page"] = page
+        query = urllib.parse.urlencode(params)
         req = urllib.request.Request(
             f"{FILES_BASE}?{query}",
             headers=self._headers(),
@@ -153,17 +189,35 @@ class FilesAPI:
             raise RuntimeError(f"List failed: {e.message}") from e
 
     def list_files_all(self, max_items: int | None = None) -> list:
-        """Auto-paginate across all pages, bounded by max_items (None = unbounded)."""
-        out, after_id = [], None
+        """Auto-paginate across GA and legacy response shapes."""
+        out, after_id, next_page = [], None, None
         while True:
-            page = self.list_files(limit=100, after_id=after_id)
-            batch = page.get("data", [])
-            out.extend(batch)
+            result = self.list_files(limit=100, after_id=after_id, page=next_page)
+            if not isinstance(result, dict):
+                return out
+            batch = result.get("data") or []
+            if not isinstance(batch, list):
+                batch = []
+            for item in batch:
+                if isinstance(item, dict):
+                    expires_at = parse_expires_at(item)
+                    if expires_at and not item.get("expires_at"):
+                        item["expires_at"] = expires_at
+                out.append(item)
             if max_items is not None and len(out) >= max_items:
                 return out[:max_items]
-            if not page.get("has_more") or not batch:
+
+            ga_next = result.get("next_page")
+            if ga_next:
+                next_page, after_id = ga_next, None
+                continue
+
+            next_page = None
+            last = batch[-1] if batch else None
+            last_id = last.get("id") if isinstance(last, dict) else None
+            if not result.get("has_more") or not last_id:
                 return out
-            after_id = batch[-1]["id"]
+            after_id = last_id
 
     # ── Retrieve metadata ─────────────────────────────────────────────────
 
@@ -274,7 +328,6 @@ class FilesAPI:
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": BETA_HEADER,
         }
         req = urllib.request.Request(
             MESSAGES_BASE,

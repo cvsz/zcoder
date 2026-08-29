@@ -7,6 +7,7 @@ file_id extraction helper, and the two info-only CLI commands.
 
 import pytest
 
+import zcoder.claude.enterprise.skills as skills_module
 from zcoder.claude.enterprise.skills import (
     CODE_EXECUTION_BETA,
     FILES_API_BETA,
@@ -80,7 +81,9 @@ def test_call_with_skills_sends_expected_betas_and_container(monkeypatch):
     monkeypatch.setattr(client, "_post", fake_post)
     client.call_with_skills("do something", skills=["xlsx"])
 
-    assert captured["betas"] == [CODE_EXECUTION_BETA, SKILLS_BETA]
+    assert captured["betas"] == [CODE_EXECUTION_BETA]
+    assert SKILLS_BETA not in captured["betas"]
+    assert FILES_API_BETA not in captured["betas"]
     assert captured["payload"]["container"] == {"skills": [{"type": "anthropic", "skill_id": "xlsx"}]}
     assert captured["payload"]["tools"] == [{"type": "code_execution_20250825", "name": "code_execution"}]
 
@@ -101,10 +104,12 @@ def test_call_with_skills_turn_reuses_container_id(monkeypatch):
     )
 
     assert captured["payload"]["container"]["id"] == "cont_123"
+    assert captured["betas"] == [CODE_EXECUTION_BETA]
+    assert SKILLS_BETA not in captured["betas"]
     assert FILES_API_BETA not in captured["betas"]
 
 
-def test_call_with_skills_turn_adds_files_beta_when_uploading(monkeypatch):
+def test_call_with_skills_turn_does_not_add_files_or_skills_beta_when_uploading(monkeypatch):
     client = SkillsApiClient(api_key="k")
     captured = {}
     monkeypatch.setattr(
@@ -117,7 +122,38 @@ def test_call_with_skills_turn_adds_files_beta_when_uploading(monkeypatch):
         has_file_uploads=True,
     )
 
-    assert captured["betas"] == [CODE_EXECUTION_BETA, SKILLS_BETA, FILES_API_BETA]
+    assert captured["betas"] == [CODE_EXECUTION_BETA]
+    assert SKILLS_BETA not in captured["betas"]
+    assert FILES_API_BETA not in captured["betas"]
+
+
+def test_wire_request_never_sends_skills_or_files_beta(monkeypatch):
+    captured = {}
+
+    def fake_urlopen_json(request, timeout):
+        captured["headers"] = {key.lower(): value for key, value in request.header_items()}
+        return {"content": []}
+
+    monkeypatch.setattr(skills_module, "urlopen_json", fake_urlopen_json)
+    SkillsApiClient(api_key="k").call_with_skills("hi", skills=["xlsx"])
+
+    beta_header = captured["headers"].get("anthropic-beta", "")
+    assert CODE_EXECUTION_BETA in beta_header
+    assert SKILLS_BETA not in beta_header
+    assert FILES_API_BETA not in beta_header
+
+
+def test_wire_request_omits_empty_beta_header(monkeypatch):
+    captured = {}
+
+    def fake_urlopen_json(request, timeout):
+        captured["request"] = request
+        return {"content": []}
+
+    monkeypatch.setattr(skills_module, "urlopen_json", fake_urlopen_json)
+    SkillsApiClient(api_key="k")._call({"model": "m"}, betas=[])
+
+    assert "anthropic-beta" not in {key.lower() for key, _ in captured["request"].header_items()}
 
 
 # ── extract_output_file_ids ───────────────────────────────────────────────

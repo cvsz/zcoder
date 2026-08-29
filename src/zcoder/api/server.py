@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +17,13 @@ src_path = Path(__file__).resolve().parent.parent.parent
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
+from zcoder.api.auth import (  # noqa: E402
+    AuthenticationUnavailable,
+    RequestAuthenticationError,
+    authenticate_request,
+    parse_cors_origins,
+)
 from zcoder.api.public.v1 import PublicAPIV1Router  # noqa: E402
-from zcoder.domain.models.tenant import EnterpriseRole, RequestContext  # noqa: E402
 
 app = FastAPI(
     title="ZCoder Public API & Control Plane",
@@ -25,9 +31,11 @@ app = FastAPI(
     version="1.41.0",
 )
 
+CORS_ORIGINS = parse_cors_origins(os.environ.get("ZCODER_CORS_ORIGINS"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -88,6 +96,32 @@ def readiness():
 async def handle_v1_api(request: Request, path: str):
     method = request.method
     full_path = f"/api/v1/{path}"
+    request_id = request.headers.get("X-Request-Id") or f"req_{uuid.uuid4().hex[:12]}"
+
+    try:
+        ctx = authenticate_request(request.headers)
+    except AuthenticationUnavailable as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": {
+                    "code": "AUTHENTICATION_UNAVAILABLE",
+                    "message": exc.message,
+                    "request_id": request_id,
+                }
+            },
+        )
+    except RequestAuthenticationError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": exc.message,
+                    "request_id": request_id,
+                }
+            },
+        )
 
     # Extract query params
     query_params = dict(request.query_params)
@@ -100,19 +134,9 @@ async def handle_v1_api(request: Request, path: str):
         except Exception:
             payload = {}
 
-    # Extract headers for auth and idempotency
-    org_id = request.headers.get("X-Organization-Id", "org_default")
-    proj_id = request.headers.get("X-Project-Id", "proj_default")
-    principal_id = request.headers.get("X-Principal-Id", "usr_admin")
+    # Only request metadata is read from headers; tenant identity comes from
+    # the verified bearer-token claims in `ctx`.
     idempotency_key = request.headers.get("Idempotency-Key")
-    request_id = request.headers.get("X-Request-Id")
-
-    ctx = RequestContext(
-        principal_id=principal_id,
-        organization_id=org_id,
-        project_id=proj_id,
-        role=EnterpriseRole.ORG_ADMIN,
-    )
 
     status_code, body = router.handle_request(
         method=method,

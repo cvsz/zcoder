@@ -726,10 +726,52 @@ COMPUTER_USE_TOOLS = [
 ]
 
 COMPUTER_USE_BETA = "computer-use-2025-01-24"
+COMPUTER_USE_TOOLSET_GA = "computer_toolset_20260801"
+GA_COMPUTER_USE_SUPPORTED_MODELS = frozenset(
+    {
+        "claude-fable-5",
+        "claude-mythos-5",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "claude-opus-4-8",
+    }
+)
+DEFAULT_COMPUTER_USE_SHAPE = "ga"
+
+
+def computer_use_toolset_for_model(
+    model: str,
+    width: int = 1024,
+    height: int = 768,
+    configs: dict | None = None,
+) -> dict:
+    """Build the GA computer tool descriptor for a supported model."""
+    if model not in GA_COMPUTER_USE_SUPPORTED_MODELS:
+        supported = ", ".join(sorted(GA_COMPUTER_USE_SUPPORTED_MODELS))
+        raise ZCoderError(
+            f"{model} does not support the {COMPUTER_USE_TOOLSET_GA} toolset "
+            f"(GA, no beta header). Supported models: {supported}. "
+            "Use toolset='legacy' for pre-GA models."
+        )
+
+    return {
+        "type": COMPUTER_USE_TOOLSET_GA,
+        "name": "computer",
+        "display_width_px": width,
+        "display_height_px": height,
+        "zoom": True,
+        "batch_actions": True,
+        "configs": configs
+        if configs is not None
+        else {
+            "bash": {"enabled": True},
+            "text_editor": {"enabled": True},
+        },
+    }
 
 
 class ComputerUseCoder:
-    """Claude with computer use tools."""
+    """Claude computer-use client with GA and explicit legacy shapes."""
 
     def __init__(
         self,
@@ -738,21 +780,28 @@ class ComputerUseCoder:
         max_tokens: int = 4096,
         width: int = 1024,
         height: int = 768,
+        toolset: str = DEFAULT_COMPUTER_USE_SHAPE,
+        configs: dict | None = None,
     ):
+        if toolset not in ("ga", "legacy"):
+            raise ValueError(f"Unknown computer-use toolset '{toolset}' — expected 'ga' or 'legacy'")
         self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens
         self.width = width
         self.height = height
+        self.toolset = toolset
+        self.configs = configs
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, payload: dict) -> dict:
+    def _call(self, payload: dict, beta_header: str | None = None) -> dict:
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": COMPUTER_USE_BETA,
         }
+        if beta_header:
+            headers["anthropic-beta"] = beta_header
         req = urllib.request.Request(
             MESSAGES_ENDPOINT,
             data=json.dumps(payload).encode(),
@@ -761,19 +810,24 @@ class ComputerUseCoder:
         )
         return urlopen_json(req, timeout=120)
 
-    def _post(self, payload: dict) -> dict:
+    def _post(self, payload: dict, beta_header: str | None = None) -> dict:
         try:
-            return self._call(payload)
+            return self._call(payload, beta_header)
         except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
 
     def run_task(self, task: str, system: str = None) -> dict:
-        """Submit a computer use task. Returns tool calls for execution."""
-        tools = [dict(t) for t in COMPUTER_USE_TOOLS]
-        tools[0]["display_width_px"] = self.width
-        tools[0]["display_height_px"] = self.height
+        """Submit a computer-use task and preserve every returned tool call."""
+        if self.toolset == "ga":
+            tools = [computer_use_toolset_for_model(self.model, self.width, self.height, self.configs)]
+            beta_header = None
+        else:
+            tools = [dict(t) for t in COMPUTER_USE_TOOLS]
+            tools[0]["display_width_px"] = self.width
+            tools[0]["display_height_px"] = self.height
+            beta_header = COMPUTER_USE_BETA
 
         system_prompt = system or (
             "You have access to a computer with a display. "
@@ -788,7 +842,7 @@ class ComputerUseCoder:
             "tools": tools,
             "messages": [{"role": "user", "content": task}],
         }
-        data = self._post(payload)
+        data = self._post(payload, beta_header)
         if "error" in data:
             return {"text": f"[ERROR] {data['error']}", "tool_calls": []}
 
