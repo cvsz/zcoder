@@ -761,12 +761,14 @@ def computer_use_toolset_for_model(
         "display_height_px": height,
         "zoom": True,
         "batch_actions": True,
-        "configs": configs
-        if configs is not None
-        else {
-            "bash": {"enabled": True},
-            "text_editor": {"enabled": True},
-        },
+        "configs": (
+            configs
+            if configs is not None
+            else {
+                "bash": {"enabled": True},
+                "text_editor": {"enabled": True},
+            }
+        ),
     }
 
 

@@ -115,7 +115,10 @@ def test_authentication_translates_oidc_failures_to_401(monkeypatch):
     ("raw", "expected"),
     [
         (None, []),
-        ("https://console.example.com, http://localhost:3000", ["https://console.example.com", "http://localhost:3000"]),
+        (
+            "https://console.example.com, http://localhost:3000",
+            ["https://console.example.com", "http://localhost:3000"],
+        ),
     ],
 )
 def test_parse_cors_origins(raw, expected):
