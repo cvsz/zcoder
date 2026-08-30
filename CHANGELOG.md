@@ -48,6 +48,14 @@ this release; see "v1.12.0" below for exactly what came from where.
 
 ## Unreleased — offline/local-mode hardening, PostgreSQL store fixes
 
+### Dependencies
+* **Anthropic SDK:** raised the supported floor to `1.2.0` and capped the
+  dependency at `<2.0.0`; the locked SDK HTTP stack is refreshed alongside it.
+* **Mypy:** raised the development floor to `2.3.1` and capped it at
+  `<3.0.0` so local and packaged development installs use the same major line.
+* **Validation:** the locked dependency set passes the full 1,319-test suite
+  on Python 3.10 and 3.12 (28 PostgreSQL/optional-environment skips).
+
 **Offline / local mode (`ZCODER_LOCAL_MODE=1`):**
 * `coder.py` no longer conflates "no API key" with "local mode": a missing
   key is again a hard `[ERROR] No API key configured...` unless

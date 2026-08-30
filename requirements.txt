@@ -1,10 +1,10 @@
-anthropic>=0.75.0
-# 0.75.0+ needed for client.beta.agents / .environments / .sessions
+anthropic>=1.2.0,<2.0.0
+# 1.2.0+ needed for client.beta.agents / .environments / .sessions
 # (Claude Managed Agents — see claude_agents_sdk.ManagedAgentsClient) and
 # the streaming client used elsewhere. Most other modules in this project
 # talk to the Messages API directly over urllib and don't need the SDK at
 # all, so an older pin would still "work" for those — but --agent-managed-run
-# needs 0.75.0+ specifically.
+# needs 1.2.0+ specifically.
 python-dotenv>=1.2.2
 Pillow>=12.3.0
 
