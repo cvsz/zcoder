@@ -46,6 +46,7 @@ def test_corrupt_config_file_does_not_crash(isolated_config):
     cfg = Config()
     assert cfg.all() == {}
 
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX file permissions only")
 def test_set_creates_owner_only_config(isolated_config):
     Config().set("api_key", "sk-ant-test-value")
@@ -70,6 +71,7 @@ def test_failed_replace_keeps_previous_config_and_memory(isolated_config, monkey
     original = isolated_config.read_bytes()
 
     with monkeypatch.context() as patch:
+
         def fail_replace(*_args):
             raise OSError("simulated replace failure")
 
