@@ -34,6 +34,57 @@ def test_job_creation_does_not_fabricate_a_successful_job():
     assert "id" not in body
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "role", "payload", "required_permission"),
+    [
+        ("GET", "/api/v1/entitlements", EnterpriseRole.VIEWER, {}, "billing.read"),
+        ("GET", "/api/v1/entitlements", EnterpriseRole.OPERATOR, {}, "billing.read"),
+        (
+            "POST",
+            "/api/v1/webhooks",
+            EnterpriseRole.OPERATOR,
+            {"url": "http://127.0.0.1:8080/hook"},
+            "org.manage",
+        ),
+        (
+            "POST",
+            "/api/v1/webhooks",
+            EnterpriseRole.VIEWER,
+            {"url": "https://example.com/hook"},
+            "org.manage",
+        ),
+    ],
+)
+def test_sensitive_public_routes_require_permission_before_processing(
+    method, path, role, payload, required_permission
+):
+    ctx = RequestContext(principal_id="restricted-user", organization_id="org-1", role=role)
+
+    status, body = public_api.PublicAPIV1Router().handle_request(
+        method, path, ctx, payload=payload, request_id="req-denied"
+    )
+
+    assert status == 403
+    assert body["error"]["code"] == "FORBIDDEN"
+    assert required_permission in body["error"]["message"]
+
+
+@pytest.mark.parametrize(
+    "role",
+    [EnterpriseRole.ORG_OWNER, EnterpriseRole.ORG_ADMIN, EnterpriseRole.BILLING_ADMIN],
+)
+def test_billing_roles_can_read_entitlements(role):
+    ctx = RequestContext(principal_id="billing-user", organization_id="org-1", role=role)
+
+    status, body = public_api.PublicAPIV1Router().handle_request(
+        "GET", "/api/v1/entitlements", ctx, request_id="req-authorized"
+    )
+
+    assert status == 200
+    assert body["organization_id"] == "org-1"
+    assert "entitlements" in body
+
+
 def install_dns_result(monkeypatch, address):
     def fake_getaddrinfo(host, port, *, type):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port))]
