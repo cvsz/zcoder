@@ -144,7 +144,7 @@ class PublicAPIV1Router:
         p = path.rstrip("/")
         permission = None
         if p == "/api/v1/entitlements":
-            permission = {"GET": "billing.read"}.get(method)
+            permission = {"GET": "org.read"}.get(method)
         elif p == "/api/v1/webhooks":
             permission = {"POST": "org.manage"}.get(method)
         elif p == "/api/v1/jobs":
