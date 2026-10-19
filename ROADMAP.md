@@ -739,3 +739,27 @@ rather than as new sections in this file — this file's Part 2 gap-audit
 narrative wasn't kept current past v1.27.0 in practice, matching the same
 pattern `CHECKLIST.md` notes about itself. `CHANGELOG.md` is the
 authoritative index of every cycle in order.
+
+---
+
+## Part 3 — Claude Code product-parity audit (2026-10-19, Upgrade-54)
+
+Full audit in [`docs/upgrades/UPGRADE-54.md`](docs/upgrades/UPGRADE-54.md).
+Cross-referenced the `anthropics/claude-code` product changelog
+(423 entries, fetched 2026-10-19) against `src/zcoder/claude/` (65 modules)
+and the coverage tables in Part 1.
+
+Result: a 15-domain scorecard (four domains ⭐ ZCoder differentiators:
+providers/local-AI, enterprise control plane, release engineering, and
+local AI infrastructure; one ❌ client/IDE surfaces; nine 🟡 partial) and
+twelve prioritized workstreams (W1–W12) for evolving ZCoder toward full
+product-feature coverage — P0: context/compaction family, plan-mode UX,
+background execution, toolset robustness; P1: plugins/marketplace, MCP
+conformance, subagent semantics, GenAI observability conventions, terminal
+ergonomics; P2: self-hosted client surfaces, managed-settings precedence,
+Windows-native tooling.
+
+Anti-goals are part of the plan: no hosted-service clones (self-hosted
+analogs via the Web Console instead), no silent paid-provider fallback,
+and every future slice ships through the standard release gate with its
+own stated evidence tier.
