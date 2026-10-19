@@ -1048,7 +1048,13 @@ from zcoder.core.resilience import (
     shell_command_argv,
     urlopen_json,
 )
-from zcoder.core.security import build_child_env, check_file_size, safe_resolve, validate_url
+from zcoder.core.security import (
+    build_child_env,
+    check_file_size,
+    read_text_prefix,
+    safe_resolve,
+    validate_url,
+)
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
@@ -1279,7 +1285,7 @@ class CodeAgent:
         try:
             if name == "Read":
                 p = safe_resolve(inputs["path"], cwd)
-                return p.read_text()[:8000]
+                return read_text_prefix(p, max_chars=8000)
 
             elif name == "Write":
                 p = safe_resolve(inputs["path"], cwd)

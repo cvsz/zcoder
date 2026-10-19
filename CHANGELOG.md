@@ -6,6 +6,25 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## [1.41.3] — 2026-10-19 — Read Tool Hardening (Parity W4, Upgrade-55)
+
+### Security & Reliability
+* **Read-tool hardening:** a shared `read_text_prefix()` primitive in
+  `core/security.py` now backs every production Read path — the code-agent
+  `Read` tool and the registry example tool. Fail-closed rules:
+  regular-files only (FIFO/device/socket/directory refused by `stat`
+  *before* any descriptor is opened, so a workspace FIFO can no longer
+  block the agent forever), bounded 1 MiB prefix reads with an honest
+  truncation marker when a file is cut short (a multi-gigabyte input can
+  no longer be loaded wholesale into memory behind a `[:8000]` slice),
+  and binary refusal by extension (mirroring the claude-code
+  `.xlsm`/`.parquet`/`.epub`/`.heic` fix, extended to the other
+  container/media/data formats) plus NUL-byte content sniffing.
+* This lands the first P0 slice of the Claude Code product-parity update
+  plan recorded in Upgrade-54 (`docs/upgrades/UPGRADE-54.md`); the
+  remaining workstreams (W1–W3, W5–W12) follow the same bounded-slice
+  protocol.
+
 ## [1.41.2] — 2026-10-19 — Windows Dist Build Correctness
 
 ### CI / Release
