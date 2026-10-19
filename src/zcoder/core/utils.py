@@ -108,7 +108,6 @@ def sampling_kwargs(model, temperature=None, top_p=None, top_k=None):
     return out
 
 
-
 def sdk_sampling_kwargs(model, temperature=None, top_p=None, top_k=None):
     """Adapt legacy sampling parameters to Anthropic Python SDK 1.x.
 
