@@ -14,9 +14,9 @@ def test_newer_models_omit_sampling_parameters(model):
 
 
 def test_legacy_model_sampling_moves_to_extra_body():
-    assert sdk_sampling_kwargs(
-        "claude-sonnet-4-6", temperature=0.3, top_p=0.9, top_k=20
-    ) == {"extra_body": {"temperature": 0.3, "top_p": 0.9, "top_k": 20}}
+    assert sdk_sampling_kwargs("claude-sonnet-4-6", temperature=0.3, top_p=0.9, top_k=20) == {
+        "extra_body": {"temperature": 0.3, "top_p": 0.9, "top_k": 20}
+    }
 
 
 def test_absent_sampling_does_not_send_empty_extra_body():
