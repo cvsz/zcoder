@@ -6,7 +6,7 @@ def _source(path: str) -> str:
 
 
 def test_compliance_activity_does_not_print_sensitive_actor_fields():
-    source = _source("src/zcoder/claude/enterprise/compliance.py")
+    source = _source("src/zcoder/agent/enterprise/compliance.py")
     function = source.split("def _print_activity", 1)[1].split("\ndef ", 1)[0]
 
     assert 'actor.get("email_address")' not in function
@@ -17,7 +17,7 @@ def test_compliance_activity_does_not_print_sensitive_actor_fields():
 
 
 def test_admin_usage_report_does_not_print_sensitive_actor_fields():
-    source = _source("src/zcoder/claude/enterprise/admin_api.py")
+    source = _source("src/zcoder/agent/enterprise/admin_api.py")
     function = source.split("def cmd_claude_code_usage_report", 1)[1].split("\ndef ", 1)[0]
 
     assert 'actor.get("email_address")' not in function

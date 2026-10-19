@@ -108,7 +108,7 @@ def discover_custom_styles() -> dict:
                 if style:
                     out[style["name"]] = style
     try:
-        from zcoder.claude.tools.plugins import load_plugin_output_styles
+        from zcoder.agent.tools.plugins import load_plugin_output_styles
 
         for entry in load_plugin_output_styles():
             if not entry.get("plugin_dir"):

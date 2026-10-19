@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from zcoder.claude.capabilities.stream import StreamCoder
+from zcoder.agent.capabilities.stream import StreamCoder
 
 
 class _FakeStream:

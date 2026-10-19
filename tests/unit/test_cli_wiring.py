@@ -10,7 +10,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src"
-CLAUDE_ROOT = SRC_ROOT / "zcoder" / "claude"
+AGENT_ROOT = SRC_ROOT / "zcoder" / "agent"
 MAIN_PATH = SRC_ROOT / "zcoder" / "main.py"
 
 # The plural eval harness is intentionally superseded by eval/eval.py.
@@ -28,12 +28,12 @@ def _cmd_functions(path: Path) -> list[str]:
     ]
 
 
-def _claude_modules() -> list[Path]:
-    return sorted(path for path in CLAUDE_ROOT.rglob("*.py") if path.name != "__init__.py")
+def _agent_modules() -> list[Path]:
+    return sorted(path for path in AGENT_ROOT.rglob("*.py") if path.name != "__init__.py")
 
 
 def _module_key(path: Path) -> str:
-    return path.relative_to(CLAUDE_ROOT).as_posix()
+    return path.relative_to(AGENT_ROOT).as_posix()
 
 
 @pytest.fixture(scope="module")
@@ -43,11 +43,11 @@ def main_source() -> str:
 
 def test_canonical_cli_source_exists():
     assert MAIN_PATH.is_file()
-    assert CLAUDE_ROOT.is_dir()
-    assert _claude_modules(), "canonical Claude package must contain implementation modules"
+    assert AGENT_ROOT.is_dir()
+    assert _agent_modules(), "canonical Claude package must contain implementation modules"
 
 
-@pytest.mark.parametrize("module_path", _claude_modules(), ids=_module_key)
+@pytest.mark.parametrize("module_path", _agent_modules(), ids=_module_key)
 def test_every_cmd_function_is_referenced_in_main(module_path: Path, main_source: str):
     key = _module_key(module_path)
     for fn in _cmd_functions(module_path):
@@ -61,7 +61,7 @@ def test_every_cmd_function_is_referenced_in_main(module_path: Path, main_source
 
 def test_known_exceptions_still_point_at_real_functions():
     for relative_path, fn in KNOWN_EXCEPTIONS:
-        path = CLAUDE_ROOT / relative_path
+        path = AGENT_ROOT / relative_path
         assert path.is_file(), f"stale CLI-wiring exception: {relative_path}"
         assert fn in _cmd_functions(path), f"stale CLI-wiring exception: {relative_path}:{fn}"
 
@@ -125,7 +125,7 @@ def _run_main_with(monkeypatch, argv, api_key="sk-ant-test"):
 
 
 def test_route_list_dispatches(monkeypatch):
-    import zcoder.claude.orchestration.router as claude_router
+    import zcoder.agent.orchestration.router as claude_router
 
     called = {}
     monkeypatch.setattr(claude_router, "cmd_route_list", lambda *a, **k: called.setdefault("hit", True))
@@ -134,7 +134,7 @@ def test_route_list_dispatches(monkeypatch):
 
 
 def test_metrics_clear_dispatches(monkeypatch):
-    import zcoder.claude.enterprise.metrics as claude_metrics
+    import zcoder.agent.enterprise.metrics as claude_metrics
 
     called = {}
     monkeypatch.setattr(claude_metrics, "cmd_metrics_clear", lambda *a, **k: called.setdefault("hit", True))

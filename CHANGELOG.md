@@ -6,6 +6,129 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## [1.41.5] — 2026-10-19 — Agent Namespace Rename (Upgrade-57)
+
+### Changed
+* **Internal namespace rename (mechanical, zero behavior change):**
+  `src/zcoder/claude/` → `src/zcoder/agent/` (65 modules moved via
+  `git mv`, 367+ import sites updated across `src/`, `tests/`,
+  `webapp/`, `scripts/`, ruff/coverage config, and the live operational
+  docs). Our own implementation no longer masquerades under a
+  third-party product name: the wheel's internal tree is now
+  `zcoder/agent/…`, and the `services/claude_messaging_adapter.py`
+  stragglers became `services/agent_messaging_adapter.py` (+ rename of
+  its entrypoint `run_agent_messaging_turn_once` and its test module).
+* Network-facing "Claude Code Agent" runtime banner → **"ZCoder
+  Agent"** — user-visible strings are ours now.
+* Deliberately untouched:
+  - **API-level identifiers** — the 228 `claude-*` model-id strings and
+    the Anthropic endpoint constants are functional provider
+    identifiers; renaming them breaks the product.
+  - **Nominative references** — `CHANGELOG.md` (historical record),
+    archived upgrade plans (`UPGRADE-46…53`, docs/superpowers), and
+    parity docstrings/CHANGLOG mentions of the vendor CLI stay as-is.
+  - Archive-document paths were reverted to their original text to
+    preserve historical accuracy; only live-path references were
+    updated.
+* Layers policy (recorded during the audit cycle): API identifiers
+  functional / internal namespace ours / nominative docs allowed —
+  additional details in `docs/upgrades/UPGRADE-54.md` Naming note.
+
+### Validation
+* Full unit suite **1252 passed**; ruff/black clean across
+  `src`+`tests`+`webapp`; `zcoder.agent.capabilities.code` import
+  verified from the rewritten tree; residual scans (`grep
+  "zcoder.claude"`, `find claude_*`) read zero inside live code — only
+  generated artifacts (`egg-info`, caches) keep historical strings.
+
+## [1.41.4] — 2026-10-19 — Context Budget & Real /compact (Parity W1, Upgrade-56)
+
+### Features
+* **`/compact` is real:** the code-agent slash command — previously an
+  explicit stub ("compacts via PreCompact hook") — now performs honest
+  compaction. `CodeAgent.compact()` summarizes the session transcript
+  through the Messages API (terse completeness-preserving guidance,
+  optionally overridden by instructions, mirroring `/compact [instructions]`)
+  and replaces the session's turns with a single summary turn from which
+  the conversation continues. Fail-closed: fewer than 2 turns is a no-op
+  with no API call; an empty API summary raises and leaves the transcript
+  untouched; a failed call raises and leaves it untouched. The PreCompact
+  hook fires with turn/token counts before any call, a `compact` audit
+  event records before/after token estimates, and
+  `--code-agent-session <ID> --code-agent-slash compact` persists the
+  compacted state under the same session ID for resume
+  (same resume-or-create semantics as the agent loop).
+* **`/context` budget report:** new slash command rendering the estimated
+  context-window breakdown — system prompt, tool definitions, transcript,
+  free space, with a used-vs-window percentage bar. Estimates use a
+  documented ~4-chars/token heuristic rounded up (warnings come early,
+  never late); the window comes from a new `MODEL_CONTEXT_WINDOWS` table
+  in `optimization/cost.py` — the flat-1M current-model set with a
+  conservative 200K fallback — cross-checked against that file's own
+  pricing notes. `--code-agent-slash` becomes session-aware: with
+  `--code-agent-session` it runs against a live, saved session;
+  without one, /compact refuses honestly and /context falls back to
+  system/tools-only estimates.
+
+### Notes
+* Stable baseline behavior is unchanged: valid text reads (Upgrade-55),
+  server-side context editing (`build_context_management`, opt-in), and
+  the cost accounting are untouched; `/compact` is additive and only
+  deviates from the transcript when a summary succeeds end-to-end.
+* Mirror reference base extends with an external behavior-only source,
+  `x1xhlol/system-prompts-and-models-of-ai-tools` (GPL-3.0) — used for
+  behavioral/structural reading only; no prompt text is copied into
+  ZCoder (license boundary documented inside `UPGRADE-54.md`).
+
+## [1.41.3] — 2026-10-19 — Read Tool Hardening (Parity W4, Upgrade-55)
+
+### Security & Reliability
+* **Read-tool hardening:** a shared `read_text_prefix()` primitive in
+  `core/security.py` now backs every production Read path — the code-agent
+  `Read` tool and the registry example tool. Fail-closed rules:
+  regular-files only (FIFO/device/socket/directory refused by `stat`
+  *before* any descriptor is opened, so a workspace FIFO can no longer
+  block the agent forever), bounded 1 MiB prefix reads with an honest
+  truncation marker when a file is cut short (a multi-gigabyte input can
+  no longer be loaded wholesale into memory behind a `[:8000]` slice),
+  and binary refusal by extension (mirroring the claude-code
+  `.xlsm`/`.parquet`/`.epub`/`.heic` fix, extended to the other
+  container/media/data formats) plus NUL-byte content sniffing.
+* This lands the first P0 slice of the Claude Code product-parity update
+  plan recorded in Upgrade-54 (`docs/upgrades/UPGRADE-54.md`); the
+  remaining workstreams (W1–W3, W5–W12) follow the same bounded-slice
+  protocol.
+
+## [1.41.2] — 2026-10-19 — Windows Dist Build Correctness
+
+### CI / Release
+* **Windows standalone build:** the release workflow drove `scripts\build.bat`
+  from `shell: cmd` without `call`, so `cmd` chained into the batch script and
+  never returned to rename `dist\zcoder.exe` — the artifact upload then found
+  no file and the release publication was skipped (fail-closed; nothing
+  partial shipped). The step now `call`s the script, propagates the
+  ERRORLEVEL explicitly, and renames after a verified successful build.
+* Release candidate bumped to 1.41.2; `uv.lock` refreshed.
+
+## [1.41.1] — 2026-10-19 — Production Readiness Sweep & Release Pipeline
+
+### Security & Compliance
+* **Config hardening:** `Config.set()` now persists provider API keys through
+  atomic owner-only writes — the temp file is `fchmod`ed to 0600 before any
+  secret bytes are written, `fsync`ed before the final rename, and rolled back
+  (both disk and in-memory state) when rename or serialization fails. Legacy
+  permissive config files are tightened on the first write after upgrade.
+* **Web Console:** safe local defaults (127.0.0.1 bind, exact trusted hosts,
+  explicit CORS, no wildcard cross-origin) and the streaming chat endpoint now
+  honors `ANTHROPIC_API_KEY` with the same credential precedence as the
+  non-streaming path (request → stored config → environment).
+* **Release pipeline truthfulness:** hosted CI evidence is bound to the exact
+  release-candidate SHA via `scripts/import_release_evidence.py`; the gate
+  stays fail-closed (`--check` requires green, SHA-bound evidence), PITR and
+  the other post-migration gates promote only from evidence, and the full CI
+  suite now runs on release tags so tag qualification (await → import →
+  verify) precedes artifact build and publication.
+
 ## [1.41.0] — 2026-08-22 — exec-planning.md Implementation Sweep
 
 ### Security & Compliance

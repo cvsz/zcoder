@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from zcoder.claude.integrations.chrome import _fetch_retrying
+from zcoder.agent.integrations.chrome import _fetch_retrying
 
 
 def test_browse_fetch_blocks_loopback_literal():

@@ -6,8 +6,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-import zcoder.claude.integrations.files as files_module
-from zcoder.claude.integrations.files import FilesAPI, parse_expires_at
+import zcoder.agent.integrations.files as files_module
+from zcoder.agent.integrations.files import FilesAPI, parse_expires_at
 
 
 @pytest.fixture

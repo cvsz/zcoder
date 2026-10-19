@@ -14,6 +14,10 @@ Threat model covered:
   keys pasted into a prompt, `.env` contents included in a file upload).
 - Oversized input (a multi-GB file handed to --file / --file-upload
   exhausting memory before any API call is made).
+- Non-regular files (FIFOs, device nodes, sockets) and binary content
+  reaching text-reading tools: ``read_text`` on a workspace FIFO blocks
+  the agent forever; decoding an image or spreadsheet into text floods
+  the model context with mojibake.
 - Unvalidated shell/URL schemes reaching url-fetch-style tools.
 
 Not covered here (out of scope for a CLI security module): sandboxing of
@@ -62,6 +66,127 @@ def check_file_size(path: str | os.PathLike, max_bytes: int = MAX_FILE_SIZE_BYTE
             f"File too large ({size} bytes > {max_bytes} byte limit)",
             details={"path": str(path), "size": size, "limit": max_bytes},
         )
+
+
+# ── Bounded text reads ───────────────────────────────────────────────────
+
+# Extensions that must never be decoded as text into a model context.
+# The .xlsm/.parquet/.epub/.heic entries mirror the claude-code fix of
+# 2.1.3xx; the remainder covers the other container/media/data formats
+# a coding workspace realistically accumulates.
+BINARY_FILE_EXTENSIONS = frozenset(
+    {
+        ".epub",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".zst",
+        ".7z",
+        ".zip",
+        ".jar",
+        ".rar",
+        ".heic",
+        ".tiff",
+        ".bmp",
+        ".webp",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".wav",
+        ".flac",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".xlsm",
+        ".ppt",
+        ".pptx",
+        ".sqlite",
+        ".db",
+        ".class",
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".eot",
+        ".parquet",
+        ".pyc",
+    }
+)
+
+# A bounded prefix covers every caller whose output is sliced further
+# (the code-agent Read caps at 8000 chars); nothing justifies loading a
+# multi-gigabyte file behind that slice.
+READ_PREFIX_BYTES_DEFAULT = 1 * 1024 * 1024  # 1 MiB
+
+
+def read_text_prefix(
+    path: str | os.PathLike,
+    *,
+    max_bytes: int = READ_PREFIX_BYTES_DEFAULT,
+    max_chars: int | None = None,
+) -> str:
+    """Read at most ``max_bytes`` of a *text* file, refusing anything unsafe.
+
+    Fail-closed rules (Upgrade-55, parity workstream W4):
+
+    - the path must be a *regular* file — a FIFO, device node, socket, or
+      directory is refused by ``stat`` before any descriptor is opened,
+      so a workspace FIFO can no longer block the agent forever;
+    - only the first ``max_bytes`` bytes are ever read — a multi-GB
+      input can no longer be loaded wholesale into memory behind a small
+      character slice; a truncation marker naming the true size is
+      appended when the file was cut short;
+    - known binary extensions and NUL-bearing content are refused as
+      binary instead of being decoded into mojibake context.
+
+    ``max_chars`` additionally caps the returned text (after the
+    truncation marker is placed), matching the code-agent Read's
+    8000-character context budget without losing the marker.
+    """
+    from stat import S_ISREG
+
+    p = Path(path)
+    suffix = p.suffix.lower()
+    if suffix in BINARY_FILE_EXTENSIONS:
+        raise ValidationError(
+            f"Refusing to read binary file {p.name} as text",
+            details={"path": str(p), "suffix": suffix},
+        )
+    st = p.stat()
+    if not S_ISREG(st.st_mode):
+        kind = "directory" if os.path.isdir(p) else "non-regular file (pipe/device/socket)"
+        raise ValidationError(
+            f"Refusing to read {kind}: {p.name}",
+            details={"path": str(p), "mode": oct(st.st_mode)},
+        )
+    with p.open("rb") as fh:
+        prefix = fh.read(max_bytes + 1)
+    truncated = len(prefix) > max_bytes
+    prefix = prefix[:max_bytes]
+    if b"\x00" in prefix:
+        raise ValidationError(
+            f"Refusing to read {p.name}: binary content (NUL bytes)",
+            details={"path": str(p), "suffix": suffix, "bytes": len(prefix)},
+        )
+    text = prefix.decode("utf-8", errors="replace")
+    if truncated:
+        marker = f"\n[TRUNCATED — showing first {max_bytes} bytes of {st.st_size}-byte file]"
+        budget = (max_chars if max_chars is not None else len(text) + len(marker)) - len(marker)
+        text = text[: max(0, budget)] + marker
+    elif max_chars is not None and len(text) > max_chars:
+        text = text[:max_chars]
+    return text
 
 
 # ── Secret detection ─────────────────────────────────────────────────────

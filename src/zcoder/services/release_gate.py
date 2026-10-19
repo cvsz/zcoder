@@ -38,10 +38,15 @@ _PATH_REWRITES = {
 }
 
 # Evidence produced by scripts/import_release_evidence.py; one record per
-# candidate SHA, committed under docs/evidence/.
-EVIDENCE_DIR = Path(__file__).resolve().parents[2] / "docs" / "evidence"
+# candidate SHA, committed under docs/evidence/. Anchor arithmetic: from
+# src/zcoder/services/release_gate.py the repository root is parents[3].
+EVIDENCE_DIR = Path(__file__).resolve().parents[3] / "docs" / "evidence"
 
-# Hosted checks each promoted gate depends on.
+# Hosted checks each promoted gate depends on. PITR relies on the hosted
+# test matrix, which executes the backup/restore drill coverage; the
+# documented WAL-target limitation stays on the record after promotion.
+# "Production Release Gate Audit" is not referenced here: it is the
+# gate-keeper itself on tag builds, not evidence the gate can consume.
 _PROMOTION_REQUIREMENTS = {
     "VERSION_INTEGRITY": ["lint"],
     "TEST_ACCOUNTING": ["test (3.10)", "test (3.11)", "test (3.12)"],
@@ -51,9 +56,9 @@ _PROMOTION_REQUIREMENTS = {
         "Bandit and pip-audit",
         "Gitleaks secret scan",
     ],
+    "PITR": ["test (3.10)", "test (3.11)", "test (3.12)"],
     "FINAL": [
         "docker-build",
-        "Production Release Gate Audit",
         "Validate TypeScript SDK & Types",
         "lock-check",
         "sync-locked",
@@ -63,6 +68,7 @@ _PROMOTION_REQUIREMENTS = {
 _POST_MIGRATION_VALIDATION_GATES = (
     "VERSION_INTEGRITY",
     "TEST_ACCOUNTING",
+    "PITR",
     "SECURITY",
     "FINAL",
 )

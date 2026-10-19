@@ -65,7 +65,7 @@ import json
 import urllib.error
 import urllib.request
 
-from zcoder.claude.models.registry import (
+from zcoder.agent.models.registry import (
     FAST_MODE_SUPPORTED,
     INFERENCE_GEO_SUPPORTED,
     SERVICE_TIER_UNSUPPORTED,

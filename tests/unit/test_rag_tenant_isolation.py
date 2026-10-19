@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from zcoder.claude.rag import engine
+from zcoder.agent.rag import engine
 
 
 @pytest.fixture

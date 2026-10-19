@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from zcoder.claude.capabilities.code import CodeAgent, CodeSession
+from zcoder.agent.capabilities.code import CodeAgent, CodeSession
 
 
 def _make_agent(tool_response="stop"):

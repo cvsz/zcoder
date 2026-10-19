@@ -35,24 +35,64 @@ def test_hardware_profiler_and_fit_estimator():
     assert fit_huge == ModelFit.DOES_NOT_FIT
 
 
-def test_local_model_gateway_ollama_adapter():
+def test_local_model_gateway_ollama_adapter(monkeypatch):
+    """Both runtime paths are verified deterministic and network-free.
+
+    A real Ollama daemon appearing on the host must not change the outcome
+    (a daemon without the probed model installed would otherwise leak the
+    simulated marker into the live branch and flip this test between
+    machines). The adapter's `safe_urlopen` boundary is therefore replaced
+    with an in-memory fake for the live branch, and availability is forced
+    down for the offline branch.
+    """
+    import json
+
+    import zcoder.enterprise.local_ai_stack as local_ai_stack
+
+    class _FakeResponse:
+        def __init__(self, body: bytes):
+            self.status = 200
+            self._body = body
+
+        def read(self) -> bytes:
+            return self._body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info) -> bool:
+            return False
+
+    tags = json.dumps(
+        {"models": [{"name": "qwen2.5-coder:7b", "details": {"parameter_size": "7B"}}]}
+    ).encode()
+    generate = json.dumps({"response": "def addition(a, b):\n    return a + b\n"}).encode()
+
+    def fake_safe_urlopen(req, timeout=None):
+        url = getattr(req, "full_url", "")
+        if url.endswith("/api/tags"):
+            return _FakeResponse(tags)
+        if url.endswith("/api/generate"):
+            return _FakeResponse(generate)
+        raise AssertionError(f"unexpected URL in test: {url}")
+
+    monkeypatch.setattr(local_ai_stack, "safe_urlopen", fake_safe_urlopen)
     adapter = OllamaAdapter(base_url="http://127.0.0.1:11434")
+
+    # Live-adapter path: no simulated marker may ever leak into it.
     models = adapter.list_models()
     assert len(models) >= 1
     assert models[0].provider == "ollama"
+    assert adapter.is_available() is True
 
-    # Chat completion must be behavior-verified for both runtime states so the
-    # assertion stays deterministic regardless of whether a real Ollama server
-    # is listening on 127.0.0.1:11434.
     result = adapter.chat_complete("qwen2.5-coder:7b", "def add(a, b):")
-    if adapter.is_available():
-        # Live local runtime: a genuine completion is expected and the
-        # simulated marker must never appear on the live path.
-        assert result.strip(), "live Ollama runtime returned an empty response"
-        assert "LOCAL_AI:" not in result, "simulated marker leaked into live path"
-    else:
-        # Offline fallback: deterministic simulated marker for the model id.
-        assert "LOCAL_AI:qwen2.5-coder:7b" in result
+    assert result.strip(), "live adapter path returned an empty response"
+    assert "LOCAL_AI:" not in result, "simulated marker leaked into live path"
+
+    # Offline branch: forced down -> deterministic simulated marker.
+    monkeypatch.setattr(adapter, "is_available", lambda: False)
+    offline = adapter.chat_complete("qwen2.5-coder:7b", "def add(a, b):")
+    assert "LOCAL_AI:qwen2.5-coder:7b" in offline
 
 
 def test_local_repository_indexer_and_secret_redaction():

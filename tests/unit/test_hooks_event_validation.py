@@ -1,6 +1,6 @@
 """Regression tests for Slice E.9 — hook event name validation."""
 
-from zcoder.claude.capabilities.code import HOOK_EVENTS, HooksEngine
+from zcoder.agent.capabilities.code import HOOK_EVENTS, HooksEngine
 
 
 def test_known_events_preserved():

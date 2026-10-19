@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import urllib.request
 
-from zcoder.claude.models.registry import MODEL_CATALOG
+from zcoder.agent.models.registry import MODEL_CATALOG
 from zcoder.core.resilience import safe_urlopen
 
 

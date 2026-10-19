@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from zcoder.claude.eval import output_styles
+from zcoder.agent.eval import output_styles
 
 
 def _style(path: Path, name: str = "terse") -> None:
@@ -59,7 +59,7 @@ def test_plugin_style_contained_to_plugin_dir(tmp_path, monkeypatch):
     styles.mkdir(parents=True)
     _style(styles / "plug.md", name="plug")
 
-    import zcoder.claude.tools.plugins as plugins
+    import zcoder.agent.tools.plugins as plugins
 
     monkeypatch.setattr(
         plugins,

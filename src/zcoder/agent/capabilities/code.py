@@ -75,7 +75,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from zcoder.claude.optimization.cost import estimate_cost
+from zcoder.agent.optimization.cost import context_window, estimate_cost
 
 # ── Storage paths ──────────────────────────────────────────────────────────
 SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/code_sessions"))
@@ -174,6 +174,7 @@ HOOK_EVENTS = frozenset(
 BUILTIN_SLASH_COMMANDS = {
     "/clear": "Clear conversation history and start a new session",
     "/compact": "Compact message history to save context window",
+    "/context": "Show context window usage breakdown (system/tools/messages/free)",
     "/help": "Show available commands",
     "/model": "Switch or display current model",
     "/status": "Show current session status",
@@ -193,6 +194,7 @@ BUILTIN_SLASH_COMMANDS = {
 SLASH_COMMAND_ALIASES = {
     "clear": "/clear",
     "compact": "/compact",
+    "context": "/context",
     "help": "/help",
     "model": "/model",
     "status": "/status",
@@ -200,6 +202,69 @@ SLASH_COMMAND_ALIASES = {
     "memory": "/memory",
     "vim": "/vim",
 }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# CONTEXT BUDGET / COMPACTION (Upgrade-56, parity W1)
+# ══════════════════════════════════════════════════════════════════════════
+
+COMPACT_SUMMARY_PROMPT = (
+    "You are a compaction engine. Summarize the conversation transcript below "
+    "so an assistant can continue the task with ONLY this summary as context "
+    "instead of the full transcript. Preserve, tersely but without omission:\n"
+    "1. The user's original goal, constraints, and preferences.\n"
+    "2. Every decision made and its rationale.\n"
+    "3. Files touched and what was done to each (paths verbatim).\n"
+    "4. The current state of the work and data anyone would need to pick it up.\n"
+    "5. Immediate next steps, including anything pending or blocking.\n"
+    "Do not greet, do not explain that you are summarizing — output the "
+    "summary itself as plain text."
+)
+
+
+def estimate_tokens(text: str) -> int:
+    """Token estimate for budget bars (~4 characters per token heuristic).
+
+    Honest approximation, deliberately: an exact tokenizer would tie the
+    /context display to one vendor's tokenizer while the session can be
+    moved across models. Round up so warnings come early, never late.
+    """
+    return max(1, (len(text) + 3) // 4)
+
+
+def render_context_report(rep: dict, model: str = "", live: bool = True) -> str:
+    """Render a /context budget report (plain text bars, no ANSI state).
+
+    ``rep`` is a dict from :meth:`CodeSession.context_estimate`. Every
+    number is an *estimate* and the report says so — the window and the
+    breakdown come from ``estimate_tokens`` and MODEL_CONTEXT_WINDOWS,
+    not from a tokenizer.
+    """
+    window = rep.get("window") or 1
+
+    def bar(fraction: float, width: int = 20) -> str:
+        fraction = min(1.0, max(0.0, fraction))
+        filled = round(fraction * width)
+        return "█" * filled + "░" * (width - filled)
+
+    title = f"Context budget ({model or 'unknown model'})"
+    if not live:
+        title += " — estimates only (no live session)"
+    lines = [title]
+    rows = [
+        ("system", rep.get("system", 0)),
+        ("tools", rep.get("tools", 0)),
+        ("conversation", rep.get("conversation", 0)),
+        ("free", rep.get("free", 0)),
+    ]
+    for label, tokens in rows:
+        lines.append(f"  {label:<14}{bar(tokens / window)} {tokens:>9,} tok")
+    used_pct = round(100 * rep.get("used", 0) / window)
+    lines.append(f"  {'—' * 38}")
+    lines.append(
+        f"  {'used':<14}{bar(rep.get('used', 0) / window)} {rep.get('used', 0):>9,} tok ({used_pct}% of window)"
+    )
+    return "\n".join(lines)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -352,6 +417,29 @@ class CodeSession:
             f"cost≈${self.cost_usd:.4f}"
         )
 
+    def context_estimate(self, tool_defs: list | None = None) -> dict:
+        """Estimated context-window budget for this session (W1).
+
+        Returns counts of estimated tokens: ``system`` (session system
+        prompt), ``tools`` (an optional tool-def list, JSON size), and
+        ``conversation`` (the turns transcript), against the model's
+        known ``window``. ``used``/``free`` follow. All estimates are
+        heuristic (~4 chars/token) — see estimate_tokens().
+        """
+        conversation = sum(estimate_tokens(t["content"]) for t in self.turns)
+        system = estimate_tokens(self.system_prompt)
+        tools = estimate_tokens(json.dumps(tool_defs)) if tool_defs else 0
+        window = context_window(self.model)
+        used = conversation + system + tools
+        return {
+            "conversation": conversation,
+            "system": system,
+            "tools": tools,
+            "window": window,
+            "used": used,
+            "free": max(0, window - used),
+        }
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # HOOKS ENGINE
@@ -400,7 +488,7 @@ class HooksEngine:
     def with_plugins(cls, base: "HooksEngine") -> "HooksEngine":
         """Merge plugin-bundled hooks.json files into an existing engine's config."""
         try:
-            from zcoder.claude.tools.plugins import load_plugin_hooks
+            from zcoder.agent.tools.plugins import load_plugin_hooks
 
             plugin_hooks = load_plugin_hooks()
         except ImportError:
@@ -527,7 +615,7 @@ class McpConnector:
             except Exception as e:
                 print(f"  [WARN] .mcp.json parse error: {e}")
         try:
-            from zcoder.claude.tools.plugins import load_plugin_mcp_servers
+            from zcoder.agent.tools.plugins import load_plugin_mcp_servers
 
             for name, cfg in load_plugin_mcp_servers().items():
                 if not cls._validate_server_name(name):
@@ -627,7 +715,7 @@ class SubagentRegistry:
 
         # Plugin-bundled agents (.claude/plugins/installed/<plugin>/agents/*.md)
         try:
-            from zcoder.claude.tools.plugins import load_plugin_agents
+            from zcoder.agent.tools.plugins import load_plugin_agents
 
             for entry in load_plugin_agents():
                 name = entry["name"]
@@ -807,7 +895,7 @@ class SkillsRegistry:
                 "source": "anthropic",
             }
         try:
-            from zcoder.claude.tools.plugins import load_plugin_skills
+            from zcoder.agent.tools.plugins import load_plugin_skills
 
             for entry in load_plugin_skills():
                 name = entry["name"]
@@ -1048,7 +1136,13 @@ from zcoder.core.resilience import (
     shell_command_argv,
     urlopen_json,
 )
-from zcoder.core.security import build_child_env, check_file_size, safe_resolve, validate_url
+from zcoder.core.security import (
+    build_child_env,
+    check_file_size,
+    read_text_prefix,
+    safe_resolve,
+    validate_url,
+)
 
 MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
@@ -1279,7 +1373,7 @@ class CodeAgent:
         try:
             if name == "Read":
                 p = safe_resolve(inputs["path"], cwd)
-                return p.read_text()[:8000]
+                return read_text_prefix(p, max_chars=8000)
 
             elif name == "Write":
                 p = safe_resolve(inputs["path"], cwd)
@@ -1301,7 +1395,7 @@ class CodeAgent:
                 timeout = inputs.get("timeout", 30)
                 if os.environ.get("ZCODER_SANDBOX") == "1":
                     try:
-                        from zcoder.claude.tools.sandbox import SandboxViolation, enforce
+                        from zcoder.agent.tools.sandbox import SandboxViolation, enforce
 
                         roots = json.loads(os.environ.get("ZCODER_SANDBOX_ROOTS", "[]"))
                         allow_net = os.environ.get("ZCODER_SANDBOX_NET") == "1"
@@ -1385,6 +1479,73 @@ class CodeAgent:
         except Exception as e:
             return f"[Tool {name} error] {e}"
 
+    def compact(
+        self,
+        session: CodeSession,
+        hooks: "HooksEngine | None" = None,
+        instructions: str | None = None,
+    ) -> str | None:
+        """Summarize the transcript and replace it in place (W1 / Upgrade-56).
+
+        Parity: ``/compact``. A transcript of fewer than 2 turns is a
+        no-op (returns None — nothing worth summarizing, no API call,
+        the session is untouched). Otherwise the transcript is
+        summarized through the Messages API and the session's turns
+        become a single summary turn, from which the conversation
+        continues. An ``instructions`` string overrides the default
+        summary guidance (mirrors ``/compact [instructions]``).
+
+        Fail-closed: an empty or failed summary raises and leaves the
+        transcript completely untouched. The PreCompact hook fires with
+        turn/token counts before any API call, and a ``compact`` audit
+        event records before/after estimates afterwards.
+
+        Note: compaction is destructive by design — once the caller
+        saves the session the pre-compaction transcript is gone; that
+        is the trade of transcript detail for window headroom.
+        """
+        if len(session.turns) < 2:
+            return None
+        hooks = hooks or HooksEngine()
+        before_turns = len(session.turns)
+        before = session.context_estimate()
+        hooks.fire(
+            "PreCompact",
+            {
+                "session_id": session.id,
+                "turns": before_turns,
+                "estimated_conversation_tokens": before["conversation"],
+            },
+        )
+        transcript = "\n".join(f"{t['role'].upper()} {t['content']}" for t in session.turns)
+        system = COMPACT_SUMMARY_PROMPT
+        if instructions:
+            system = system + "\n\nAdditional compaction instructions:\n" + instructions
+        response = self._call(
+            payload={
+                "model": session.model or self.model,
+                "max_tokens": self.max_tokens,
+                "system": system,
+                "messages": [{"role": "user", "content": f"<transcript>\n{transcript}\n</transcript>"}],
+            }
+        )
+        summary = "".join(
+            b.get("text", "") for b in response.get("content", []) if b.get("type") == "text"
+        ).strip()
+        if not summary:
+            raise ZCoderError("Compaction produced an empty summary — transcript left untouched")
+        session.add_turn("user", f"[CONVERSATION COMPACTED — summary follows]\n\n{summary}")
+        session.turns = session.turns[-1:]
+        session.add_audit(
+            "compact",
+            {
+                "before_turns": before_turns,
+                "before_est_tokens": before["conversation"],
+                "after_est_tokens": session.context_estimate()["conversation"],
+            },
+        )
+        return summary
+
     # ── Main agent loop ────────────────────────────────────────────────────
 
     def query(
@@ -1460,7 +1621,7 @@ class CodeAgent:
             betas = []
             if context_management is not None:
                 payload["context_management"] = context_management
-                from zcoder.claude.tools.registry import CONTEXT_MANAGEMENT_BETA
+                from zcoder.agent.tools.registry import CONTEXT_MANAGEMENT_BETA
 
                 betas.append(CONTEXT_MANAGEMENT_BETA)
 
@@ -1631,7 +1792,7 @@ def cmd_code_agent(
     long-running session. See --agent-context-editing.
     """
     if not headless:
-        print(f"\033[94mℹ Claude Code Agent | tools={tools} | permission={permission}\033[0m")
+        print(f"\033[94mℹ ZCoder Agent | tools={tools} | permission={permission}\033[0m")
         print(f"  cwd: {Path(cwd).resolve()}\n")
 
     # Session
@@ -1659,7 +1820,7 @@ def cmd_code_agent(
     # Output style: append style instructions to the session's system prompt
     if output_style:
         try:
-            from zcoder.claude.eval.output_styles import system_prompt_fragment
+            from zcoder.agent.eval.output_styles import system_prompt_fragment
 
             fragment = system_prompt_fragment(output_style)
             if fragment:
@@ -1690,7 +1851,7 @@ def cmd_code_agent(
 
     # Plugin bin/ dirs onto PATH for the duration of this run
     try:
-        from zcoder.claude.tools.plugins import plugin_bin_paths
+        from zcoder.agent.tools.plugins import plugin_bin_paths
 
         extra_bins = plugin_bin_paths()
         if extra_bins:
@@ -1719,7 +1880,7 @@ def cmd_code_agent(
     # full context_management payload shape.
     cm = None
     if agent_context_editing:
-        from zcoder.claude.tools.registry import build_context_management
+        from zcoder.agent.tools.registry import build_context_management
 
         cm = build_context_management(clear_tool_uses=True)
         if not headless:
@@ -1816,8 +1977,22 @@ def cmd_code_todo(prompt: str, api_key: str, model: str):
         print(raw)
 
 
-def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", prompt: str = ""):
-    """Handle slash commands."""
+def cmd_code_slash(
+    command: str,
+    api_key: str,
+    model: str,
+    cwd: str = ".",
+    prompt: str = "",
+    session: CodeSession | None = None,
+):
+    """Handle slash commands.
+
+    ``session``: an optional live CodeSession (loaded by main.py when
+    ``--code-agent-session`` is passed alongside ``--code-agent-slash``).
+    Session-aware commands (/compact, /context) act honestly without
+    one: /compact refuses instead of pretending, /context falls back to
+    system/tools-only estimates.
+    """
     cmd = command.lstrip("/").lower()
     full_cmd = SLASH_COMMAND_ALIASES.get(cmd, f"/{cmd}")
 
@@ -1825,9 +2000,36 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
         print("\033[92m✓ Session cleared.\033[0m")
         return
 
+    if cmd == "context":
+        live = session is not None
+        budget_session = session or CodeSession(cwd=cwd, model=model)
+        tool_defs = CodeAgent(api_key=api_key, model=model)._build_tools("all", [])
+        rep = budget_session.context_estimate(tool_defs)
+        print(render_context_report(rep, model=model, live=live))
+        return
+
     if cmd == "compact":
+        if session is None:
+            print(
+                "\033[91m✗ /compact needs a live session — "
+                "pass --code-agent-session <ID> alongside --code-agent-slash compact\033[0m"
+            )
+            return
+        if len(session.turns) < 2:
+            print("  Nothing to compact — session has fewer than 2 turns.")
+            return
         print("\033[94mℹ Compacting message history (summarising)…\033[0m")
-        # Stub: in real SDK this compacts via PreCompact hook
+        try:
+            CodeAgent(api_key=api_key, model=session.model or model).compact(session)
+        except Exception as e:
+            print(f"\033[91m✗ Compact failed: {e} — transcript left unchanged\033[0m")
+            return
+        session.save()
+        rep = session.context_estimate()
+        print(
+            f"\033[92m✓ Compacted → 1 summary turn · "
+            f"est. conversation context now {rep['conversation']:,} tokens\033[0m"
+        )
         return
 
     if cmd in ("help", "?"):
@@ -1923,15 +2125,15 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
         elif cmd == "doctor":
             _run_doctor()
         elif cmd == "plugin":
-            from zcoder.claude.tools.plugins import cmd_plugin_list
+            from zcoder.agent.tools.plugins import cmd_plugin_list
 
             cmd_plugin_list()
         elif cmd == "output-style":
-            from zcoder.claude.eval.output_styles import cmd_list_output_styles
+            from zcoder.agent.eval.output_styles import cmd_list_output_styles
 
             cmd_list_output_styles()
         elif cmd == "statusline":
-            from zcoder.claude.enterprise.settings import cmd_status_line
+            from zcoder.agent.enterprise.settings import cmd_status_line
 
             cmd_status_line(model=model, cwd=cwd)
         return
@@ -1969,7 +2171,7 @@ def cmd_code_slash(command: str, api_key: str, model: str, cwd: str = ".", promp
                 return
 
     try:
-        from zcoder.claude.tools.plugins import load_plugin_commands
+        from zcoder.agent.tools.plugins import load_plugin_commands
 
         for entry in load_plugin_commands():
             if entry["name"] == cmd or entry["name"].split(":", 1)[-1] == cmd:
@@ -2084,7 +2286,7 @@ def _run_doctor():
         ("Sessions dir", SESSIONS_DIR.exists()),
     ]
     try:
-        from zcoder.claude.tools.plugins import marketplace_list, plugin_list
+        from zcoder.agent.tools.plugins import marketplace_list, plugin_list
 
         checks.append(("Plugins installed", len(plugin_list()) > 0))
         checks.append(("Marketplaces registered", len(marketplace_list()) > 0))

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zcoder"
-version = "1.41.0"
+version = "1.41.5"
 description = "ZCoder CLI — enterprise-grade edition"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -77,7 +77,7 @@ omit = [
     # surfaces packaged, but the release coverage gate measures the modern
     # durable core. Their dedicated suites still run; they are only excluded
     # from the aggregate percentage denominator.
-    "src/zcoder/claude/*",
+    "src/zcoder/agent/*",
     "src/zcoder/main.py",
     "src/zcoder/services/projects.py",
     "src/zcoder/services/cowork.py",
@@ -97,13 +97,13 @@ select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/zcoder/claude/capabilities/code.py" = ["E402", "E741"]
-"src/zcoder/claude/capabilities/embeddings.py" = ["E741"]
-"src/zcoder/claude/enterprise/hooks_perms.py" = ["E402", "E741"]
-"src/zcoder/claude/integrations/github.py" = ["E741"]
-"src/zcoder/claude/orchestration/sessions.py" = ["E741"]
-"src/zcoder/claude/rag/research.py" = ["E741"]
-"src/zcoder/claude/integrations/powerpoint.py" = ["F401"]
+"src/zcoder/agent/capabilities/code.py" = ["E402", "E741"]
+"src/zcoder/agent/capabilities/embeddings.py" = ["E741"]
+"src/zcoder/agent/enterprise/hooks_perms.py" = ["E402", "E741"]
+"src/zcoder/agent/integrations/github.py" = ["E741"]
+"src/zcoder/agent/orchestration/sessions.py" = ["E741"]
+"src/zcoder/agent/rag/research.py" = ["E741"]
+"src/zcoder/agent/integrations/powerpoint.py" = ["F401"]
 "src/zcoder/infrastructure/observability/otel.py" = ["F401"]
 "src/zcoder/infrastructure/stores/postgres.py" = ["F401"]
 "src/zcoder/interfaces/cli/tui.py" = ["F401"]

@@ -31,7 +31,7 @@ def search_mod(monkeypatch):
 
     import importlib
 
-    import zcoder.claude.capabilities.search as mod
+    import zcoder.agent.capabilities.search as mod
 
     importlib.reload(mod)
     return mod

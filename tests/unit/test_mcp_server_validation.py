@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from zcoder.claude.capabilities.code import McpConnector
+from zcoder.agent.capabilities.code import McpConnector
 
 
 def _write_mcp_json(path: Path, servers: dict) -> Path:

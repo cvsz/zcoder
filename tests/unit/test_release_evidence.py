@@ -7,11 +7,7 @@ import subprocess
 import pytest
 
 from zcoder.services import release_gate as release_gate_module
-from zcoder.services.release_gate import (
-    EVIDENCE_DIR,
-    GateVerdict,
-    ProductionReleaseGate,
-)
+from zcoder.services.release_gate import GateVerdict, ProductionReleaseGate
 
 
 def _head_sha() -> str:
@@ -57,7 +53,7 @@ def _gate(verdicts: set[GateVerdict] | None = None) -> ProductionReleaseGate:
 
 def test_gate_stays_unknown_without_evidence(evidence_dir):
     gate = ProductionReleaseGate()
-    for name in ("VERSION_INTEGRITY", "TEST_ACCOUNTING", "SECURITY", "FINAL"):
+    for name in ("VERSION_INTEGRITY", "TEST_ACCOUNTING", "PITR", "SECURITY", "FINAL"):
         assert gate.gates[name].verdict == GateVerdict.UNKNOWN
 
 
@@ -85,9 +81,17 @@ def test_gate_promotes_from_evidence_bound_to_head(evidence_dir):
     _write_evidence(evidence_dir / f"release-evidence-{sha[:8]}.json", record)
 
     gate = ProductionReleaseGate()
-    for name in ("VERSION_INTEGRITY", "TEST_ACCOUNTING", "SECURITY", "FINAL"):
+    for name in (
+        "VERSION_INTEGRITY",
+        "TEST_ACCOUNTING",
+        "PITR",
+        "SECURITY",
+        "FINAL",
+    ):
         assert gate.gates[name].verdict == GateVerdict.PASS, name
         assert f"bound to release-candidate {sha[:12]}" in gate.gates[name].notes
+    # The documented WAL-target limitation stays on the record after promotion.
+    assert "external object storage target" in " ".join(gate.gates["PITR"].limitations)
 
 
 def test_gate_ignores_stale_evidence_bound_to_another_sha(evidence_dir):
@@ -188,6 +192,98 @@ def test_importer_verify_version_integrity_passes(tmp_path, monkeypatch):
     assert len(set(values.values())) == 1
 
 
-def test_default_evidence_dir_is_repo_local():
-    assert EVIDENCE_DIR.name == "evidence"
-    assert EVIDENCE_DIR.parent.name == "docs"
+def test_default_evidence_dir_matches_importer_output():
+    """The gate loader must read exactly where the importer writes.
+
+    This binding is load-bearing: the anchor constant must resolve to the
+    repository root at runtime (src/zcoder/services/release_gate.py ->
+    <root>/docs/evidence), not to a nested src/docs directory that silently
+    misses every imported record and keeps the gate fail-closed UNKNOWN.
+    """
+    importer = _gate_aware_importer()
+    from pathlib import Path
+
+    assert release_gate_module.EVIDENCE_DIR == importer.REPO_ROOT / "docs" / "evidence"
+    # Class and module must observe the same directory (no stale copies).
+    assert release_gate_module.ProductionReleaseGate._load_bound_evidence is not None
+    assert Path(release_gate_module.__file__).resolve().parents[3] == importer.REPO_ROOT
+
+
+# ---------------------------------------------------------------------------
+# Await / exclusion semantics for tag-build qualification
+# ---------------------------------------------------------------------------
+
+
+def _gate_aware_importer():
+    from scripts import import_release_evidence as importer
+
+    return importer
+
+
+def test_required_checks_exclude_the_gate_itself():
+    """The gate-keeper job name must never be required inside its own evidence."""
+    importer = _gate_aware_importer()
+    assert "Production Release Gate Audit" not in importer.REQUIRED_CHECKS
+
+    from zcoder.services.release_gate import _PROMOTION_REQUIREMENTS
+
+    for required in _PROMOTION_REQUIREMENTS.values():
+        assert "Production Release Gate Audit" not in required
+
+
+def test_evaluate_check_runs_excludes_requested_checks():
+    importer = _gate_aware_importer()
+    excluded = {"docker-build"}
+    runs = [
+        {"name": name, "id": 1, "status": "completed", "conclusion": "success"}
+        for name in importer.required_check_names(excluded)
+    ]
+    checks = importer.evaluate_check_runs(runs, excluded=excluded)
+    assert "docker-build" not in checks
+    assert set(checks) == set(importer.required_check_names(excluded))
+
+
+def test_await_required_checks_polls_until_green(monkeypatch):
+    importer = _gate_aware_importer()
+    required = importer.REQUIRED_CHECKS
+
+    def make_runs(state: str, conclusion: str | None):
+        return [
+            {
+                "name": name,
+                "id": 1,
+                "status": state,
+                "conclusion": conclusion,
+            }
+            for name in required
+        ]
+
+    # First poll: everything still running. Second poll: all green.
+    polls = [make_runs("in_progress", None), make_runs("completed", "success")]
+    monkeypatch.setattr(importer, "fetch_check_runs", lambda sha: polls.pop(0))
+
+    importer.await_required_checks(
+        "a" * 40, timeout_seconds=30.0, poll_seconds=0.001
+    )  # must return without raising
+
+
+def test_await_required_checks_fails_fast_on_failure(monkeypatch):
+    importer = _gate_aware_importer()
+    required = importer.REQUIRED_CHECKS
+
+    failing = [
+        {"name": name, "id": 1, "status": "completed", "conclusion": "success"} for name in required[1:]
+    ]
+    failing.append({"name": required[0], "id": 2, "status": "completed", "conclusion": "failure"})
+    monkeypatch.setattr(importer, "fetch_check_runs", lambda sha: failing)
+
+    with pytest.raises(importer.EvidenceImportError, match="failing hosted checks"):
+        importer.await_required_checks("b" * 40, timeout_seconds=30.0, poll_seconds=0.001)
+
+
+def test_await_required_checks_times_out_fail_closed(monkeypatch):
+    importer = _gate_aware_importer()
+    monkeypatch.setattr(importer, "fetch_check_runs", lambda sha: [])
+
+    with pytest.raises(importer.EvidenceImportError, match="timed out"):
+        importer.await_required_checks("c" * 40, timeout_seconds=0.0, poll_seconds=0.001)

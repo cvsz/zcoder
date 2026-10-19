@@ -8,8 +8,8 @@ docs/36_upgrade_v1.24.0_audit_and_impl.md Finding 1.
 
 import json
 
-import zcoder.claude.tools.registry as mod
-from zcoder.claude.tools.registry import RETIRED_TOOL_VERSIONS, SERVER_TOOLS, ToolCoder
+import zcoder.agent.tools.registry as mod
+from zcoder.agent.tools.registry import RETIRED_TOOL_VERSIONS, SERVER_TOOLS, ToolCoder
 
 
 class _FakeResp:
@@ -144,14 +144,14 @@ def test_generate_with_server_tools_computer_use_builds_tool_without_crashing(mo
 
 
 def test_validate_mid_conversation_tool_change_supported_models():
-    from zcoder.claude.tools.registry import validate_mid_conversation_tool_change
+    from zcoder.agent.tools.registry import validate_mid_conversation_tool_change
 
     for model_id in ("claude-fable-5", "claude-mythos-5", "claude-opus-4-8", "claude-opus-5"):
         assert validate_mid_conversation_tool_change(model_id) is None
 
 
 def test_validate_mid_conversation_tool_change_unsupported_model_warns():
-    from zcoder.claude.tools.registry import validate_mid_conversation_tool_change
+    from zcoder.agent.tools.registry import validate_mid_conversation_tool_change
 
     warning = validate_mid_conversation_tool_change("claude-sonnet-5")
     assert warning is not None
@@ -159,7 +159,7 @@ def test_validate_mid_conversation_tool_change_unsupported_model_warns():
 
 
 def test_with_mid_conversation_tool_changes_adds_beta_header_for_supported_model():
-    from zcoder.claude.tools.registry import (
+    from zcoder.agent.tools.registry import (
         MID_CONVERSATION_TOOL_CHANGES_BETA,
         with_mid_conversation_tool_changes,
     )
@@ -169,7 +169,7 @@ def test_with_mid_conversation_tool_changes_adds_beta_header_for_supported_model
 
 
 def test_with_mid_conversation_tool_changes_appends_to_existing_beta_header():
-    from zcoder.claude.tools.registry import (
+    from zcoder.agent.tools.registry import (
         MID_CONVERSATION_TOOL_CHANGES_BETA,
         with_mid_conversation_tool_changes,
     )
@@ -180,7 +180,7 @@ def test_with_mid_conversation_tool_changes_appends_to_existing_beta_header():
 
 
 def test_with_mid_conversation_tool_changes_noop_for_unsupported_model():
-    from zcoder.claude.tools.registry import with_mid_conversation_tool_changes
+    from zcoder.agent.tools.registry import with_mid_conversation_tool_changes
 
     headers = {"anthropic-beta": "some-other-beta"}
     result = with_mid_conversation_tool_changes(headers, "claude-sonnet-5")

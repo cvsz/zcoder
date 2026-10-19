@@ -49,8 +49,8 @@ except ImportError as e:  # pragma: no cover - exercised only w/o textual instal
         "(or: pip install -r requirements.txt, it's an optional extra there)"
     ) from e
 
-from zcoder.claude.models.registry import MODEL_CATALOG
-from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
+from zcoder.agent.models.registry import MODEL_CATALOG
+from zcoder.agent.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
 from zcoder.config.settings import Config
 from zcoder.core.utils import sdk_sampling_kwargs
 from zcoder.interfaces.cli.streaming import StreamRenderGate
