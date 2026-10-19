@@ -174,3 +174,23 @@ This cycle adds one documentation file and one ROADMAP section. It changes
 no source, no tests, no workflow gates, and no release semantics. The
 workstreams above are proposals; each future slice passes through the
 standard GPG → PR → dual-account approval → merge → release-gate protocol.
+
+## Reference Sources (recorded 2026-10-19)
+
+- Primary mirror source: `anthropics/claude-code` CHANGELOG (9,197 lines /
+  423 versions at time of audit). Behavioral and sequencing reference only;
+  the implementation in ZCoder is original.
+- Secondary, **behavior-only**: `x1xhlol/system-prompts-and-models-of-ai-tools`
+  — a public collection of extracted system prompts and internal tool
+  definitions of agentic coding products. This repository is licensed
+  GPL-3.0. ZCoder therefore reads it for behavioral/structural insight
+  (how such agents structure tools, budgets, subagents) and **must not
+  copy prompt text or substantial expressiveness into ZCoder source**;
+  our module tree, docstrings, and prompts stay original. Referencing the
+  collection by name in this planning document is nominative use; the GPL
+  boundary must not leak into any file inside `src/`.
+- Naming note: API-level identifiers (`claude-*` model strings, the
+  Anthropic endpoint constants) are functional provider identifiers and
+  stay verbatim. Product-facing wording and the internal namespace are
+  ZCoder's own and are candidates for the dedicated rename cycle; see
+  ROADMAP Part 3 scheduling.

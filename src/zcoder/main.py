@@ -24,7 +24,7 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PERSONALITIES
 
-VERSION = "1.41.3"
+VERSION = "1.41.4"
 BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
@@ -4085,9 +4085,28 @@ def main():
         cmd_code_todo(args.code_agent_todo, key, model)
         return
     if args.code_agent_slash:
-        from zcoder.claude.capabilities.code import cmd_code_slash
+        from zcoder.claude.capabilities.code import CodeSession, cmd_code_slash
 
-        cmd_code_slash(args.code_agent_slash, key, model, cwd=args.code_agent_cwd, prompt=args.prompt or "")
+        slash_session = None
+        if args.code_agent_session:
+            try:
+                slash_session = CodeSession.load(args.code_agent_session)
+            except FileNotFoundError:
+                # Same resume-or-create semantics as the agent loop: a
+                # missing ID starts a fresh session under that name.
+                slash_session = CodeSession(
+                    session_id=args.code_agent_session,
+                    cwd=args.code_agent_cwd,
+                    model=model,
+                )
+        cmd_code_slash(
+            args.code_agent_slash,
+            key,
+            model,
+            cwd=args.code_agent_cwd,
+            prompt=args.prompt or "",
+            session=slash_session,
+        )
         return
     if args.code_agent_cost:
         from zcoder.claude.capabilities.code import cmd_code_cost

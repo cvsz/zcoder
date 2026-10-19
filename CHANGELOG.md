@@ -6,6 +6,45 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## [1.41.4] — 2026-10-19 — Context Budget & Real /compact (Parity W1, Upgrade-56)
+
+### Features
+* **`/compact` is real:** the code-agent slash command — previously an
+  explicit stub ("compacts via PreCompact hook") — now performs honest
+  compaction. `CodeAgent.compact()` summarizes the session transcript
+  through the Messages API (terse completeness-preserving guidance,
+  optionally overridden by instructions, mirroring `/compact [instructions]`)
+  and replaces the session's turns with a single summary turn from which
+  the conversation continues. Fail-closed: fewer than 2 turns is a no-op
+  with no API call; an empty API summary raises and leaves the transcript
+  untouched; a failed call raises and leaves it untouched. The PreCompact
+  hook fires with turn/token counts before any call, a `compact` audit
+  event records before/after token estimates, and
+  `--code-agent-session <ID> --code-agent-slash compact` persists the
+  compacted state under the same session ID for resume
+  (same resume-or-create semantics as the agent loop).
+* **`/context` budget report:** new slash command rendering the estimated
+  context-window breakdown — system prompt, tool definitions, transcript,
+  free space, with a used-vs-window percentage bar. Estimates use a
+  documented ~4-chars/token heuristic rounded up (warnings come early,
+  never late); the window comes from a new `MODEL_CONTEXT_WINDOWS` table
+  in `optimization/cost.py` — the flat-1M current-model set with a
+  conservative 200K fallback — cross-checked against that file's own
+  pricing notes. `--code-agent-slash` becomes session-aware: with
+  `--code-agent-session` it runs against a live, saved session;
+  without one, /compact refuses honestly and /context falls back to
+  system/tools-only estimates.
+
+### Notes
+* Stable baseline behavior is unchanged: valid text reads (Upgrade-55),
+  server-side context editing (`build_context_management`, opt-in), and
+  the cost accounting are untouched; `/compact` is additive and only
+  deviates from the transcript when a summary succeeds end-to-end.
+* Mirror reference base extends with an external behavior-only source,
+  `x1xhlol/system-prompts-and-models-of-ai-tools` (GPL-3.0) — used for
+  behavioral/structural reading only; no prompt text is copied into
+  ZCoder (license boundary documented inside `UPGRADE-54.md`).
+
 ## [1.41.3] — 2026-10-19 — Read Tool Hardening (Parity W4, Upgrade-55)
 
 ### Security & Reliability

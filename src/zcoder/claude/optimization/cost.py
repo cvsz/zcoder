@@ -74,6 +74,32 @@ LONG_CONTEXT_SURCHARGE: dict[str, dict[str, float]] = {
     "claude-sonnet-4-5": {"threshold": 200_000, "in_mult": 2.0, "out_mult": 1.5},
 }
 
+# ── Context windows ──────────────────────────────────────────────────────
+# Cross-checked against the pricing notes above: Claude Opus 5 / 4.8 /
+# 4.7 / 4.6, Sonnet 5 / 4.6, Fable 5 and Mythos 5 run a full 1M-token
+# window at flat pricing; claude-sonnet-4-5 reaches 1M through the
+# (retiring 2026-04-30) context-1m beta. Anything not mapped here falls
+# back to the conservative legacy 200K window — assuming too small a
+# window makes /context warn early, never late (Upgrade-56, parity W1).
+MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    "claude-opus-5": 1_000_000,
+    "claude-opus-4-8": 1_000_000,
+    "claude-opus-4-7": 1_000_000,
+    "claude-opus-4-6": 1_000_000,
+    "claude-sonnet-5": 1_000_000,
+    "claude-sonnet-4-6": 1_000_000,
+    "claude-sonnet-4-5": 1_000_000,  # via context-1m beta
+    "claude-fable-5": 1_000_000,
+    "claude-mythos-5": 1_000_000,
+}
+LEGACY_CONTEXT_WINDOW = 200_000
+
+
+def context_window(model: str) -> int:
+    """Best-known context window (tokens) for ``model``; 200K when unmapped."""
+    return MODEL_CONTEXT_WINDOWS.get(model, LEGACY_CONTEXT_WINDOW)
+
+
 # Data residency (inference_geo) pricing. Per platform.claude.com/docs
 # (Service tiers / Data residency, checked 2026-07-02, re-verified 2026-08-13): requests with
 # inference_geo:"us" on Claude Opus 4.6, Sonnet 4.6, and later models (including Opus 5) are
