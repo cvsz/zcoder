@@ -319,9 +319,9 @@ def chat_stream(req: ChatRequest, request: Request):
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
     system = _build_system_prompt(req)
-    api_key = req.api_key or Config().get("api_key")
+    api_key = req.api_key or Config().get("api_key") or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(400, "No API key configured. Set one via /api/config or pass api_key.")
+        raise HTTPException(400, "No API key. Set ANTHROPIC_API_KEY, use /api/config, or pass api_key.")
 
     def event_stream():
         import anthropic
