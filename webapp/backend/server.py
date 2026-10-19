@@ -45,6 +45,7 @@ from zcoder.claude.personalities import PersonalityManager  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
 from zcoder.config.settings import Config  # noqa: E402
 from zcoder.core.health import run_health_check  # noqa: E402
+from zcoder.core.utils import sdk_sampling_kwargs  # noqa: E402
 from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
 from zcoder.services.coder import Coder  # noqa: E402
 from zcoder.services.skills import SkillManager  # noqa: E402
@@ -332,8 +333,7 @@ def chat_stream(req: ChatRequest, request: Request):
             kwargs = dict(model=req.model, max_tokens=req.max_tokens, messages=messages)
             if system:
                 kwargs["system"] = system
-            if 0.0 <= req.temperature <= 1.0:
-                kwargs["temperature"] = req.temperature
+            kwargs.update(sdk_sampling_kwargs(req.model, temperature=req.temperature))
             with client.messages.stream(**kwargs) as stream:
                 for event in stream:
                     if getattr(event, "type", "") == "content_block_delta":

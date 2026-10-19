@@ -91,7 +91,14 @@ def test_run_tui_entry_point_exists():
     assert callable(tui.run_tui)
 
 
-def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch):
+@pytest.mark.parametrize(
+    "model,expected_extra_body",
+    [
+        ("claude-sonnet-5", None),
+        ("claude-sonnet-4-6", {"temperature": 0.3}),
+    ],
+)
+def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch, model, expected_extra_body):
     """A fast, short stream must flush its final unpainted deltas."""
     import sys
     import types
@@ -115,8 +122,11 @@ def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch):
         def __exit__(self, *args):
             return False
 
+    calls = []
+
     class Messages:
-        def stream(self, **kwargs):
+        def stream(self, *, model, max_tokens, messages, system=None, extra_body=None):
+            calls.append((model, extra_body))
             return Stream()
 
     class Client:
@@ -135,10 +145,11 @@ def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch):
     )
     widget = types.SimpleNamespace(update_text=updates.append)
 
-    result = tui.ZCoderTUI._stream_reply(owner, "hello", "test", None, 0.3, [], widget)
+    result = tui.ZCoderTUI._stream_reply(owner, "hello", model, None, 0.3, [], widget)
 
     assert result == "Hi there!"
     assert updates == ["Hi", "Hi there!"]
+    assert calls == [(model, expected_extra_body)]
 
 
 def _purge_tui_modules(modules):
