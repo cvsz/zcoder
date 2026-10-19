@@ -106,3 +106,15 @@ def sampling_kwargs(model, temperature=None, top_p=None, top_k=None):
     if top_k is not None:
         out["top_k"] = top_k
     return out
+
+
+
+def sdk_sampling_kwargs(model, temperature=None, top_p=None, top_k=None):
+    """Adapt legacy sampling parameters to Anthropic Python SDK 1.x.
+
+    SDK 1.x rejects temperature/top_p/top_k as direct Messages method
+    arguments. Older compatible models may receive them in extra_body;
+    models that disallow sampling omit the parameters altogether.
+    """
+    sampling = sampling_kwargs(model, temperature=temperature, top_p=top_p, top_k=top_k)
+    return {"extra_body": sampling} if sampling else {}
