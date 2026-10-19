@@ -143,7 +143,11 @@ class PublicAPIV1Router:
     def _authorize_request(method: str, path: str, ctx: RequestContext) -> None:
         p = path.rstrip("/")
         permission = None
-        if p == "/api/v1/jobs":
+        if p == "/api/v1/entitlements":
+            permission = {"GET": "billing.read"}.get(method)
+        elif p == "/api/v1/webhooks":
+            permission = {"POST": "org.manage"}.get(method)
+        elif p == "/api/v1/jobs":
             permission = {"GET": "job.read", "POST": "job.create"}.get(method)
         elif p.startswith("/api/v1/jobs/") and "/" not in p.removeprefix("/api/v1/jobs/"):
             permission = {"GET": "job.read", "DELETE": "job.cancel"}.get(method)
