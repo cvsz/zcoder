@@ -114,6 +114,7 @@ def test_chat_stream_requires_api_key(client, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     resp = client.post("/api/chat/stream", json={"prompt": "hi"})
     assert resp.status_code == 400
+    assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
 
 
 @pytest.mark.parametrize(
