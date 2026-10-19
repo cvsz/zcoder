@@ -85,7 +85,7 @@ def test_customer_webhook_hmac_signature_and_ssrf():
 
     # SSRF verification in Public API
     router = PublicAPIV1Router()
-    ctx = RequestContext(principal_id="user_1", organization_id="org_1", role=EnterpriseRole.OPERATOR)
+    ctx = RequestContext(principal_id="user_1", organization_id="org_1", role=EnterpriseRole.ORG_ADMIN)
     status, body = router.handle_request(
         "POST", "/api/v1/webhooks", ctx, payload={"url": "http://127.0.0.1:8080/hook"}
     )
