@@ -134,5 +134,6 @@ def test_python_sdk_contract(monkeypatch):
         client.create_job("Build docs", idempotency_key="sdk_idem_1")
 
     monkeypatch.setattr("zcoder.api.public.v1.validate_external_http_url", lambda url: None)
-    with pytest.raises(ZCoderSDKException, match="HTTP 501"):
+    # Operator SDK tokens cannot register organization-level webhooks.
+    with pytest.raises(ZCoderSDKException, match="HTTP 403"):
         client.register_webhook("https://hooks.example.com/zcoder-events")
