@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import urllib.request
 
-from zcoder.claude.orchestration import providers
+from zcoder.agent.orchestration import providers
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 from zcoder.core.utils import sampling_kwargs

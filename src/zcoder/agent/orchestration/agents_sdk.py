@@ -2415,7 +2415,7 @@ def cmd_agent_outcome_rubric_upload(file_path: str, api_key: str, model: str) ->
     invocations with --agent-outcome-rubric-file FILE_ID instead of
     re-reading the local file into the request body every time (v1.21.0,
     the file_id form of define_outcome()'s rubric)."""
-    from zcoder.claude.integrations.files import FilesAPI
+    from zcoder.agent.integrations.files import FilesAPI
 
     fa = FilesAPI(api_key=api_key, model=model)
     print(f"\033[94mℹ Uploading rubric {file_path}…\033[0m")

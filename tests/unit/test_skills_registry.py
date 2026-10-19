@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from zcoder.claude.capabilities.code import SkillsRegistry
+from zcoder.agent.capabilities.code import SkillsRegistry
 
 
 def _write_skill(root: Path, name: str, body: str, *, symlink_to: Path | None = None) -> Path:
@@ -84,7 +84,7 @@ def test_plugin_skill_loaded_via_plugin_dir(monkeypatch, tmp_path):
             }
         ]
 
-    monkeypatch.setattr("zcoder.claude.tools.plugins.load_plugin_skills", fake_load)
+    monkeypatch.setattr("zcoder.agent.tools.plugins.load_plugin_skills", fake_load)
     reg = SkillsRegistry(tmp_path)
     reg.load()
     key = "myplugin:pskill"
@@ -111,7 +111,7 @@ def test_plugin_skill_symlink_escape_rejected(monkeypatch, tmp_path):
             }
         ]
 
-    monkeypatch.setattr("zcoder.claude.tools.plugins.load_plugin_skills", fake_load)
+    monkeypatch.setattr("zcoder.agent.tools.plugins.load_plugin_skills", fake_load)
     reg = SkillsRegistry(tmp_path)
     reg.load()
     assert reg.get("myplugin:evil") is None

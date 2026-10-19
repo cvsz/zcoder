@@ -9,9 +9,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from zcoder.claude.enterprise import hooks_perms
-from zcoder.claude.enterprise.hooks_perms import Hook, HookEvent, HookManager
-from zcoder.claude.enterprise.settings import render_status_line
+from zcoder.agent.enterprise import hooks_perms
+from zcoder.agent.enterprise.hooks_perms import Hook, HookEvent, HookManager
+from zcoder.agent.enterprise.settings import render_status_line
 
 
 def test_hook_manager_fire_filters_env(monkeypatch, tmp_path):
@@ -48,7 +48,7 @@ def test_render_status_line_filters_env(monkeypatch, tmp_path):
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setenv("GITHUB_TOKEN", "gh-secret")
     monkeypatch.setattr(
-        "zcoder.claude.enterprise.settings.load_settings",
+        "zcoder.agent.enterprise.settings.load_settings",
         lambda: {"statusLine": {"command": "statusline-cmd"}},
     )
 

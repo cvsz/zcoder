@@ -1,4 +1,4 @@
-from zcoder.claude.capabilities.stream import cmd_stream_tools
+from zcoder.agent.capabilities.stream import cmd_stream_tools
 from zcoder.services.messaging_service import MessagingTurnResult
 
 
@@ -27,7 +27,7 @@ def test_cmd_stream_tools_delegates_once_and_preserves_cli_contract(monkeypatch,
         )
 
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.stream.StreamCoder",
+        "zcoder.agent.capabilities.stream.StreamCoder",
         fake_stream_coder,
     )
     monkeypatch.setattr(
@@ -84,7 +84,7 @@ def test_cmd_stream_tools_does_not_execute_returned_tool_calls(monkeypatch):
     }
 
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.stream.StreamCoder",
+        "zcoder.agent.capabilities.stream.StreamCoder",
         lambda **kwargs: object(),
     )
     monkeypatch.setattr(

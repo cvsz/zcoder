@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from zcoder.claude.models.registry import (
+from zcoder.agent.models.registry import (
     DEPRECATED_MODELS,
     RETIRED_MODELS,
     _upgrade_source_ids,
@@ -56,7 +56,7 @@ def test_cmd_model_info_warns_on_retired_id(capsys, monkeypatch):
                 "created_at": "2025-08-05T00:00:00Z",
             }
 
-    monkeypatch.setattr("zcoder.claude.models.registry.ModelsAPI", _FakeModelsAPI)
+    monkeypatch.setattr("zcoder.agent.models.registry.ModelsAPI", _FakeModelsAPI)
     cmd_model_info("claude-opus-4-1-20250805", api_key="k")
     out = capsys.readouterr().out
     assert "retired" in out.lower()

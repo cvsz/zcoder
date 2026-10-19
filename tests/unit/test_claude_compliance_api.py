@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from zcoder.claude.enterprise.compliance import (
+from zcoder.agent.enterprise.compliance import (
     ComplianceApiClient,
     ComplianceApiError,
     _is_retryable,
@@ -120,7 +120,7 @@ def test_request_retries_429_then_succeeds(monkeypatch):
     """Drive retry logic through the real _request() by monkeypatching
     urllib.request.urlopen so we exercise the actual retry loop, not a
     reimplementation of it."""
-    import zcoder.claude.enterprise.compliance as mod
+    import zcoder.agent.enterprise.compliance as mod
 
     calls = {"n": 0}
     sleeps = []
@@ -161,7 +161,7 @@ def test_request_retries_429_then_succeeds(monkeypatch):
 
 
 def test_request_does_not_retry_403(monkeypatch):
-    import zcoder.claude.enterprise.compliance as mod
+    import zcoder.agent.enterprise.compliance as mod
 
     calls = {"n": 0}
 
@@ -201,7 +201,7 @@ def test_request_does_not_retry_403(monkeypatch):
 
 
 def test_request_gives_up_after_max_retries(monkeypatch):
-    import zcoder.claude.enterprise.compliance as mod
+    import zcoder.agent.enterprise.compliance as mod
 
     calls = {"n": 0}
 
@@ -285,7 +285,7 @@ def test_cmd_chat_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("must not construct a client without --compliance-yes")
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", boom)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", boom)
 
     result = cmd_compliance_chat_delete("k", "claude_chat_1")
 
@@ -299,7 +299,7 @@ def test_cmd_file_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("must not construct a client without --compliance-yes")
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", boom)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", boom)
 
     result = cmd_compliance_file_delete("k", "claude_file_1")
 
@@ -311,7 +311,7 @@ def test_cmd_project_delete_dry_run_makes_no_client_call(monkeypatch, capsys):
     def boom(*a, **kw):
         raise AssertionError("must not construct a client without --compliance-yes")
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", boom)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", boom)
 
     result = cmd_compliance_project_delete("k", "claude_proj_1")
 
@@ -327,7 +327,7 @@ def test_cmd_chat_delete_with_yes_calls_client(monkeypatch, capsys):
         def delete_chat(self, chat_id):
             return {"id": chat_id, "type": "claude_chat_deleted"}
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", FakeClient)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", FakeClient)
 
     result = cmd_compliance_chat_delete("k", "claude_chat_1", yes=True)
 
@@ -343,7 +343,7 @@ def test_cmd_project_delete_with_yes_surfaces_409_hint(monkeypatch, capsys):
         def delete_project(self, project_id):
             raise ComplianceApiError(status=409, error_type="conflict_error", message="has chats attached")
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", FakeClient)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", FakeClient)
 
     result = cmd_compliance_project_delete("k", "claude_proj_1", yes=True)
 
@@ -402,7 +402,7 @@ def test_get_local_session_messages_endpoint(monkeypatch):
 
 
 def test_cmd_compliance_local_sessions_list(capsys, monkeypatch):
-    from zcoder.claude.enterprise.compliance import cmd_compliance_local_sessions_list
+    from zcoder.agent.enterprise.compliance import cmd_compliance_local_sessions_list
 
     class FakeClient:
         def __init__(self, api_key):
@@ -422,7 +422,7 @@ def test_cmd_compliance_local_sessions_list(capsys, monkeypatch):
                 "has_more": False,
             }
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", FakeClient)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", FakeClient)
     res = cmd_compliance_local_sessions_list("sk-ant-api01-test", user_ids=["usr_1"])
     out = capsys.readouterr().out
     assert "loc_sess_1" in out
@@ -431,7 +431,7 @@ def test_cmd_compliance_local_sessions_list(capsys, monkeypatch):
 
 
 def test_cmd_compliance_local_session_info(capsys, monkeypatch):
-    from zcoder.claude.enterprise.compliance import cmd_compliance_local_session_info
+    from zcoder.agent.enterprise.compliance import cmd_compliance_local_session_info
 
     class FakeClient:
         def __init__(self, api_key):
@@ -440,7 +440,7 @@ def test_cmd_compliance_local_session_info(capsys, monkeypatch):
         def get_local_session(self, session_id):
             return {"id": session_id, "app_type": "claude_code", "user_id": "usr_2"}
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", FakeClient)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", FakeClient)
     cmd_compliance_local_session_info("sk-ant-api01-test", "loc_sess_2")
     out = capsys.readouterr().out
     assert "loc_sess_2" in out
@@ -448,7 +448,7 @@ def test_cmd_compliance_local_session_info(capsys, monkeypatch):
 
 
 def test_cmd_compliance_local_session_messages(capsys, monkeypatch):
-    from zcoder.claude.enterprise.compliance import cmd_compliance_local_session_messages
+    from zcoder.agent.enterprise.compliance import cmd_compliance_local_session_messages
 
     class FakeClient:
         def __init__(self, api_key):
@@ -470,7 +470,7 @@ def test_cmd_compliance_local_session_messages(capsys, monkeypatch):
                 ]
             }
 
-    monkeypatch.setattr("zcoder.claude.enterprise.compliance.ComplianceApiClient", FakeClient)
+    monkeypatch.setattr("zcoder.agent.enterprise.compliance.ComplianceApiClient", FakeClient)
     cmd_compliance_local_session_messages("sk-ant-api01-test", "loc_sess_1")
     out = capsys.readouterr().out
     assert "Transcript for Local Session loc_sess_1" in out

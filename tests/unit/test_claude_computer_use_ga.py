@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-import zcoder.claude.models.registry as models_module
-from zcoder.claude.models.registry import (
+import zcoder.agent.models.registry as models_module
+from zcoder.agent.models.registry import (
     COMPUTER_USE_BETA,
     COMPUTER_USE_TOOLSET_GA,
     DEFAULT_COMPUTER_USE_SHAPE,

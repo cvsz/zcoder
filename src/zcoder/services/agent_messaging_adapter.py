@@ -11,11 +11,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from zcoder.claude.capabilities.stream import StreamCoder
+from zcoder.agent.capabilities.stream import StreamCoder
 from zcoder.services.messaging_service import MessagingTurnResult, run_messaging_turn_once
 
 
-def run_claude_messaging_turn_once(
+def run_agent_messaging_turn_once(
     api_key: str,
     prompt: str,
     *,

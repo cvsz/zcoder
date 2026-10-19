@@ -13,7 +13,7 @@ Previously this module (claude_cache.py) had zero test coverage at all.
 
 import pytest
 
-from zcoder.claude.memory.cache import (
+from zcoder.agent.memory.cache import (
     MID_SYSTEM_SUPPORTED_MODELS,
     CachingCoder,
     SystemMessagePlacementError,

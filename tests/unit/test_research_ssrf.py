@@ -2,7 +2,7 @@
 
 import pytest
 
-from zcoder.claude.rag.research import DeepResearchAgent
+from zcoder.agent.rag.research import DeepResearchAgent
 
 
 def test_research_source_url_blocks_loopback_before_network_access():

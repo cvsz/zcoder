@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from zcoder.claude.capabilities.code import SubagentRegistry
+from zcoder.agent.capabilities.code import SubagentRegistry
 
 
 def _write_agent(root: Path, name: str, frontmatter: str, body: str = "You are an agent.\n") -> Path:

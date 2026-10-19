@@ -8,7 +8,7 @@ and modules `main.py` already uses:
     coder.Coder              -> chat/generation
     personalities.py         -> PersonalityManager
     skills.py                -> SkillManager
-    claude_models.py         -> MODEL_CATALOG (dropdown list)
+    agent_models.py         -> MODEL_CATALOG (dropdown list)
     main.py                  -> VERSION, AGENT_SYSTEM_PROMPTS
     config.py                -> Config (persisted to ~/.zcoder-config.json)
     health.py                -> run_health_check (used for Docker/orchestrator
@@ -39,9 +39,9 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from zcoder.agent.models.registry import MODEL_CATALOG  # noqa: E402
+from zcoder.agent.personalities import PersonalityManager  # noqa: E402
 from zcoder.api.auth import parse_cors_origins  # noqa: E402
-from zcoder.claude.models.registry import MODEL_CATALOG  # noqa: E402
-from zcoder.claude.personalities import PersonalityManager  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
 from zcoder.config.settings import Config  # noqa: E402
 from zcoder.core.health import run_health_check  # noqa: E402
@@ -302,7 +302,7 @@ def chat_stream(req: ChatRequest, request: Request):
     """Server-Sent Events variant of /api/chat. Same request body and same
     session-history semantics; the difference is purely transport — tokens
     arrive as they're generated instead of after the full response. Reuses
-    claude_stream.py's event-handling shape (content_block_delta/text_delta)
+    agent_stream.py's event-handling shape (content_block_delta/text_delta)
     rather than reimplementing SSE parsing.
 
     Each SSE `data:` line is a small JSON object:

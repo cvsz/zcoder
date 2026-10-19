@@ -2,7 +2,7 @@
 
 import pytest
 
-from zcoder.claude.models.opus5 import (
+from zcoder.agent.models.opus5 import (
     OPUS5_EFFORT_LEVELS,
     OPUS5_MODEL_ID,
     Opus5Client,

@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from zcoder.claude.tools.plugins import validate_plugin
+from zcoder.agent.tools.plugins import validate_plugin
 
 
 def _write_manifest(plugin_dir: Path, data: dict) -> Path:

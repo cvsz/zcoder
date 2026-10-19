@@ -13,7 +13,7 @@ import types
 
 import pytest
 
-from zcoder.claude.capabilities.code import (
+from zcoder.agent.capabilities.code import (
     BUILTIN_SLASH_COMMANDS,
     SLASH_COMMAND_ALIASES,
     CodeAgent,
@@ -22,7 +22,7 @@ from zcoder.claude.capabilities.code import (
     estimate_tokens,
     render_context_report,
 )
-from zcoder.claude.optimization.cost import LEGACY_CONTEXT_WINDOW, context_window
+from zcoder.agent.optimization.cost import LEGACY_CONTEXT_WINDOW, context_window
 from zcoder.core.exceptions import ZCoderError
 
 
@@ -206,7 +206,7 @@ def test_slash_compact_end_to_end(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(CodeAgent, "_call", fake_call)
     sessions_dir = tmp_path / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("zcoder.claude.capabilities.code.SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr("zcoder.agent.capabilities.code.SESSIONS_DIR", sessions_dir)
 
     cmd_code_slash("compact", api_key="k", model="claude-sonnet-5", cwd=str(tmp_path), session=session)
 

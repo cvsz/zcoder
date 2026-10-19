@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from zcoder.claude.capabilities.code import CodeAgent, CodeSession
+from zcoder.agent.capabilities.code import CodeAgent, CodeSession
 
 
 def _agent() -> CodeAgent:

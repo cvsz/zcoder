@@ -1,6 +1,6 @@
 """Regression coverage for model-aware CodeSession cost accounting."""
 
-from zcoder.claude.capabilities.code import CodeSession
+from zcoder.agent.capabilities.code import CodeSession
 
 
 def test_code_session_uses_current_sonnet5_pricing():

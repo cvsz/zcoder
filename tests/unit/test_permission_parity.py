@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import subprocess
 
-from zcoder.claude.capabilities.code import CodeAgent, CodeSession, HooksEngine
+from zcoder.agent.capabilities.code import CodeAgent, CodeSession, HooksEngine
 
 
 def _agent() -> CodeAgent:
@@ -135,7 +135,7 @@ def _hook_engine() -> HooksEngine:
 
 def test_pre_tool_use_hook_exit_2_blocks(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.code.subprocess.run",
+        "zcoder.agent.capabilities.code.subprocess.run",
         lambda *a, **k: _FakeCompleted(2),
     )
     session = _session(tmp_path)
@@ -151,7 +151,7 @@ def test_pre_tool_use_hook_exit_2_blocks(tmp_path, monkeypatch) -> None:
 
 def test_pre_tool_use_hook_unknown_exit_blocks(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.code.subprocess.run",
+        "zcoder.agent.capabilities.code.subprocess.run",
         lambda *a, **k: _FakeCompleted(3),
     )
     session = _session(tmp_path)
@@ -169,7 +169,7 @@ def test_pre_tool_use_hook_timeout_blocks(tmp_path, monkeypatch) -> None:
     def hang(*a, **k):
         raise subprocess.TimeoutExpired("guard", timeout=30)
 
-    monkeypatch.setattr("zcoder.claude.capabilities.code.subprocess.run", hang)
+    monkeypatch.setattr("zcoder.agent.capabilities.code.subprocess.run", hang)
     session = _session(tmp_path)
     result = _agent()._execute_tool(
         "Read",
@@ -185,7 +185,7 @@ def test_pre_tool_use_hook_error_blocks(tmp_path, monkeypatch) -> None:
     def crash(*a, **k):
         raise OSError("boom")
 
-    monkeypatch.setattr("zcoder.claude.capabilities.code.subprocess.run", crash)
+    monkeypatch.setattr("zcoder.agent.capabilities.code.subprocess.run", crash)
     session = _session(tmp_path)
     result = _agent()._execute_tool(
         "Read",
@@ -203,7 +203,7 @@ def test_pre_tool_use_hook_exit_0_and_1_allow(tmp_path, monkeypatch) -> None:
     for code in (0, 1):
         fake = _FakeCompleted(code)
         monkeypatch.setattr(
-            "zcoder.claude.capabilities.code.subprocess.run",
+            "zcoder.agent.capabilities.code.subprocess.run",
             lambda *a, fake=fake, **k: fake,
         )
         result = _agent()._execute_tool(
@@ -220,7 +220,7 @@ def test_post_tool_use_hook_error_does_not_block(tmp_path, monkeypatch) -> None:
     def crash(*a, **k):
         raise OSError("boom")
 
-    monkeypatch.setattr("zcoder.claude.capabilities.code.subprocess.run", crash)
+    monkeypatch.setattr("zcoder.agent.capabilities.code.subprocess.run", crash)
     engine = HooksEngine({"PostToolUse": [{"command": "reporter"}]})
     session = _session(tmp_path)
     result = engine.fire("PostToolUse", {"session_id": session.id})
@@ -258,7 +258,7 @@ def test_plan_mode_denial_recorded_as_not_approved(tmp_path) -> None:
 
 def test_hook_block_recorded_as_not_approved(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.code.subprocess.run",
+        "zcoder.agent.capabilities.code.subprocess.run",
         lambda *a, **k: _FakeCompleted(2),
     )
     session = _session(tmp_path)

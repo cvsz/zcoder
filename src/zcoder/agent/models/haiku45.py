@@ -34,7 +34,7 @@ import json
 import urllib.error
 import urllib.request
 
-from zcoder.claude.models.registry import (
+from zcoder.agent.models.registry import (
     FAST_MODE_SUPPORTED,
     INFERENCE_GEO_SUPPORTED,
     SERVICE_TIER_UNSUPPORTED,
@@ -99,7 +99,7 @@ def validate_fast_mode(want_fast: bool) -> str | None:
         return None
     return (
         'fast mode (speed:"fast") is restricted to Opus models per '
-        "zcoder.claude.models.registry.FAST_MODE_SUPPORTED — not available on Haiku 4.5."
+        "zcoder.agent.models.registry.FAST_MODE_SUPPORTED — not available on Haiku 4.5."
     )
 
 
@@ -110,7 +110,7 @@ def validate_inference_geo(use_geo: bool) -> str | None:
         return None
     return (
         "inference_geo data residency is not supported on Haiku 4.5 per "
-        "zcoder.claude.models.registry.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
+        "zcoder.agent.models.registry.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
         "only as of the 2026-07-02 catalog check) — sending it will 400."
     )
 

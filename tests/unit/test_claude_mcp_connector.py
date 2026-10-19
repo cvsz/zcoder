@@ -1,6 +1,6 @@
 import pytest
 
-from zcoder.claude.tools.mcp import MCPConfigurationError, build_remote_mcp
+from zcoder.agent.tools.mcp import MCPConfigurationError, build_remote_mcp
 
 
 def test_builds_explicit_deferred_toolset(monkeypatch):

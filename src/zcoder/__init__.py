@@ -1,3 +1,3 @@
 """zcoder package."""
 
-__version__ = "1.41.4"
+__version__ = "1.41.5"

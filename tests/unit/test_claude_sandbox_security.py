@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from zcoder.claude.tools.sandbox import SandboxViolation, check_filesystem, check_network, enforce
+from zcoder.agent.tools.sandbox import SandboxViolation, check_filesystem, check_network, enforce
 
 
 def test_relative_redirection_cannot_escape_sandbox(tmp_path):
