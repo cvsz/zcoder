@@ -52,6 +52,7 @@ except ImportError as e:  # pragma: no cover - exercised only w/o textual instal
 from zcoder.claude.models.registry import MODEL_CATALOG
 from zcoder.claude.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
 from zcoder.config.settings import Config
+from zcoder.core.utils import sdk_sampling_kwargs
 from zcoder.interfaces.cli.streaming import StreamRenderGate
 from zcoder.services.skills import SkillManager
 
@@ -274,8 +275,7 @@ class ZCoderTUI(App):
         kwargs = dict(model=model, max_tokens=4096, messages=messages)
         if system:
             kwargs["system"] = system
-        if 0.0 <= temperature <= 1.0:
-            kwargs["temperature"] = temperature
+        kwargs.update(sdk_sampling_kwargs(model, temperature=temperature))
 
         full_text = ""
         render_gate = StreamRenderGate()
