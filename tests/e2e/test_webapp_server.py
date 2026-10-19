@@ -115,7 +115,14 @@ def test_chat_stream_requires_api_key(client, monkeypatch):
     assert resp.status_code == 400
 
 
-def test_chat_stream_yields_tokens_and_done(client, monkeypatch):
+@pytest.mark.parametrize(
+    "model,expected_extra_body",
+    [
+        ("claude-sonnet-5", None),
+        ("claude-sonnet-4-6", {"temperature": 0.3}),
+    ],
+)
+def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected_extra_body):
     class FakeDelta:
         def __init__(self, text):
             self.type = "text_delta"
@@ -136,8 +143,11 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch):
         def __exit__(self, *a):
             return False
 
+    calls = []
+
     class FakeMessages:
-        def stream(self, **kwargs):
+        def stream(self, *, model, max_tokens, messages, system=None, extra_body=None):
+            calls.append((model, extra_body))
             return FakeStreamCtx(["Hel", "lo", "!"])
 
     class FakeAnthropic:
@@ -149,8 +159,11 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch):
     fake_anthropic_module = types.SimpleNamespace(Anthropic=FakeAnthropic)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
 
-    resp = client.post("/api/chat/stream", json={"prompt": "hi", "api_key": "sk-ant-test"})
+    resp = client.post(
+        "/api/chat/stream", json={"prompt": "hi", "api_key": "sk-ant-test", "model": model}
+    )
     assert resp.status_code == 200
     body = resp.text
     assert '"type": "token"' in body or '"type":"token"' in body
     assert "done" in body
+    assert calls == [(model, expected_extra_body)]
