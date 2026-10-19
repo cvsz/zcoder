@@ -15,7 +15,8 @@ This importer collects that evidence:
 Usage:
     python scripts/import_release_evidence.py            # current HEAD
     python scripts/import_release_evidence.py --sha <sha>
-    python scripts/import_release_evidence.py --out <path>
+    python scripts/import_release_evidence.py --await    # tag builds: wait for
+        the concurrent hosted suite on this SHA to finish green, then import
 
 Exit codes: 0 = evidence imported, 1 = evidence missing or not qualified.
 """
@@ -37,7 +38,9 @@ EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence"
 EVIDENCE_SCHEMA_VERSION = 1
 
 # Hosted checks that must pass before a release candidate is qualified.
-# Keep in sync with .github/workflows/*.
+# Keep in sync with .github/workflows/*. "Production Release Gate Audit" is
+# intentionally not listed: it is the gate-keeper itself on tag builds and
+# cannot be required inside the evidence it produces.
 REQUIRED_CHECKS: tuple[str, ...] = (
     "lint",
     "security",
@@ -52,7 +55,6 @@ REQUIRED_CHECKS: tuple[str, ...] = (
     "Helm v3.21.3 Lint & Template Check",
     "Helm v4.2.3 Lint & Template Check",
     "Package Helm Chart & Checksums",
-    "Production Release Gate Audit",
     "Validate TypeScript SDK & Types",
     "lock-check",
     "sync-locked",
@@ -158,18 +160,22 @@ def _repo_slug() -> str:
     return match.group("slug")
 
 
-def evaluate_check_runs(runs: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
-    """Pick the most authoritative completed run per required check name."""
-    latest: dict[str, dict[str, Any]] = {}
-    for run in runs:
-        name = run.get("name") or ""
-        current = latest.get(name)
-        if current is None or int(run.get("id", 0)) > int(current.get("id", 0)):
-            latest[name] = run
+def required_check_names(excluded: frozenset[str] | set[str]) -> tuple[str, ...]:
+    """Effective required set after caller-requested exclusions."""
+    return tuple(name for name in REQUIRED_CHECKS if name not in excluded)
 
-    missing = [name for name in REQUIRED_CHECKS if name not in latest]
+
+def evaluate_check_runs(
+    runs: list[dict[str, Any]],
+    excluded: frozenset[str] | set[str] = frozenset(),
+) -> dict[str, dict[str, str]]:
+    """Pick the most authoritative completed run per required check name."""
+    required = required_check_names(excluded)
+    latest = _latest_by_name(runs, required)
+
+    missing = [name for name in required if name not in latest]
     failing: list[tuple[str, str]] = []
-    for name in REQUIRED_CHECKS:
+    for name in required:
         run = latest.get(name)
         if run is None:
             continue
@@ -192,8 +198,72 @@ def evaluate_check_runs(runs: list[dict[str, Any]]) -> dict[str, dict[str, str]]
             "conclusion": latest[name].get("conclusion") or "",
             "html_url": latest[name].get("html_url") or "",
         }
-        for name in REQUIRED_CHECKS
+        for name in required
     }
+
+
+def await_required_checks(
+    sha: str,
+    excluded: frozenset[str] | set[str] = frozenset(),
+    timeout_seconds: float = 1800.0,
+    poll_seconds: float = 20.0,
+) -> None:
+    """Block until every required hosted check on the candidate SHA is green.
+
+    Used inside a tag build where this very qualification starts concurrent
+    check runs bound to the same SHA. Any check that completes with a
+    non-success conclusion aborts immediately; the loop fails closed when the
+    deadline expires. Transient evidence-fetch failures are tolerated up to a
+    short consecutive-error budget before giving up.
+    """
+    required = required_check_names(excluded)
+    deadline = time.monotonic() + timeout_seconds
+    consecutive_errors = 0
+    while True:
+        try:
+            latest = _latest_by_name(fetch_check_runs(sha), required)
+            consecutive_errors = 0
+        except EvidenceImportError as exc:
+            consecutive_errors += 1
+            if consecutive_errors > 5:
+                raise EvidenceImportError(
+                    f"evidence unavailable from GitHub after repeated attempts: {exc}"
+                ) from exc
+            latest = {}
+
+        missing = [name for name in required if name not in latest]
+        pending = [name for name in required if name in latest and latest[name].get("status") != "completed"]
+        failed = [
+            (name, latest[name].get("conclusion"))
+            for name in required
+            if name in latest
+            and latest[name].get("status") == "completed"
+            and latest[name].get("conclusion") != "success"
+        ]
+        if failed:
+            detail = ", ".join(f"{name} (conclusion={conclusion})" for name, conclusion in failed)
+            raise EvidenceImportError(f"failing hosted checks: {detail}")
+        if not missing and not pending:
+            return
+        if time.monotonic() > deadline:
+            waiting = ", ".join([*missing, *pending])
+            raise EvidenceImportError(
+                f"timed out after {timeout_seconds / 60:.0f} min waiting for hosted checks: {waiting}"
+            )
+        time.sleep(poll_seconds)
+
+
+def _latest_by_name(runs: list[dict[str, Any]], required: tuple[str, ...]) -> dict[str, dict[str, Any]]:
+    """Fold the check-run list down to the newest run per required name."""
+    latest: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        name = run.get("name") or ""
+        if name not in required:
+            continue
+        current = latest.get(name)
+        if current is None or int(run.get("id", 0)) > int(current.get("id", 0)):
+            latest[name] = run
+    return latest
 
 
 def build_evidence(sha: str, checks: dict[str, dict[str, str]]) -> dict[str, Any]:
@@ -222,12 +292,55 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--print", action="store_true", help="print the evidence record instead of writing it"
     )
+    parser.add_argument(
+        "--await",
+        dest="await_checks",
+        action="store_true",
+        help="wait until hosted checks on the candidate SHA are green before importing "
+        "(for tag builds that trigger the suite concurrently)",
+    )
+    parser.add_argument(
+        "--exclude-check",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="skip a hosted check name from the required set (repeatable)",
+    )
+    parser.add_argument(
+        "--timeout-minutes",
+        type=float,
+        default=30.0,
+        help="deadline for --await (default: 30)",
+    )
+    parser.add_argument(
+        "--poll-seconds",
+        type=float,
+        default=20.0,
+        help="interval between evidence polls with --await (default: 20)",
+    )
     args = parser.parse_args(argv)
+
+    excluded = frozenset(args.exclude_check)
+    unknown_exclusions = sorted(set(excluded) - set(REQUIRED_CHECKS))
+    if unknown_exclusions:
+        print(
+            f"NOT QUALIFIED: --exclude-check names not in the required set: "
+            f"{', '.join(unknown_exclusions)}",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         sha = resolve_candidate_sha(args.sha)
+        if args.await_checks:
+            await_required_checks(
+                sha,
+                excluded=excluded,
+                timeout_seconds=args.timeout_minutes * 60.0,
+                poll_seconds=args.poll_seconds,
+            )
         runs = fetch_check_runs(sha)
-        checks = evaluate_check_runs(runs)
+        checks = evaluate_check_runs(runs, excluded=excluded)
         evidence = build_evidence(sha, checks)
     except EvidenceImportError as exc:
         print(f"NOT QUALIFIED: {exc}", file=sys.stderr)
