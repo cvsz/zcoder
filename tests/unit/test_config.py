@@ -1,6 +1,8 @@
 """tests/test_config.py"""
 
 import json
+import os
+import stat
 
 from zcoder.config.settings import Config
 
@@ -41,10 +43,6 @@ def test_corrupt_config_file_does_not_crash(isolated_config):
     isolated_config.write_text("{not valid json")
     cfg = Config()
     assert cfg.all() == {}
-
-
-import os
-import stat
 
 
 def test_set_writes_config_with_owner_only_permissions(isolated_config):
