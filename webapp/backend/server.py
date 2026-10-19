@@ -14,7 +14,7 @@ and modules `main.py` already uses:
     health.py                -> run_health_check (used for Docker/orchestrator
                                  probes and the CLI's --health-check flag)
 
-Run with:  uvicorn webapp.backend.server:app --host 127.0.0.1 --port 8420
+Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
 (or just `make start`, see the project Makefile).
 """
 
@@ -54,21 +54,32 @@ logger = get_logger("webapp.server")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
+
+def _allowed_web_hosts(raw: str | None) -> list[str]:
+    """Allow explicit hostnames, without wildcards or URL/port components."""
+    if raw is None:
+        return ["localhost", "127.0.0.1"]
+    hosts = [value.strip() for value in raw.split(",")]
+    if any(not host or any(char in host for char in "*:/\\@?#") or host.startswith(".") for host in hosts):
+        raise ValueError("ZCODER_WEB_ALLOWED_HOSTS must contain exact hostnames without ports")
+    return list(dict.fromkeys(hosts))
+
+
 app = FastAPI(title="zcoder web", version=VERSION)
 
-# The frontend is served as static files from the same origin by default
-# (see the StaticFiles mount at the bottom of this file), so CORS is only
-# needed for explicitly trusted frontend origins. Cross-origin access is denied
-# by default because this local developer console has no user authentication.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=parse_cors_origins(os.getenv("ZCODER_WEB_CORS_ORIGINS")),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# This console is local-only by default; external access requires an authenticated proxy.
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1"],
+    allowed_hosts=_allowed_web_hosts(os.environ.get("ZCODER_WEB_ALLOWED_HOSTS")),
+    www_redirect=False,
+)
+
+# Same-origin frontend requests need no CORS; optional development origins are explicit.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=parse_cors_origins(os.environ.get("ZCODER_WEB_CORS_ORIGINS")),
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type"],
 )
 
 _personality_mgr = PersonalityManager()
@@ -308,9 +319,9 @@ def chat_stream(req: ChatRequest, request: Request):
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
     system = _build_system_prompt(req)
-    api_key = req.api_key or Config().get("api_key")
+    api_key = req.api_key or Config().get("api_key") or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(400, "No API key configured. Set one via /api/config or pass api_key.")
+        raise HTTPException(400, "No API key. Set ANTHROPIC_API_KEY, use /api/config, or pass api_key.")
 
     def event_stream():
         import anthropic

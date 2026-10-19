@@ -133,6 +133,47 @@ class TestWorkerShutdown:
 
 
 class TestWorkerJobClaim:
+    @pytest.mark.parametrize("runtime", ["direct", "unconfigured-runtime"])
+    def test_unavailable_runtime_marks_job_failed(self, sqlite_worker, runtime):
+        worker, store = sqlite_worker
+        _insert_job(store, "job_unsupported_runtime", runtime=runtime)
+        job, fencing_token = store.claim_job_with_fencing(worker.worker_id, lease_duration=60.0)
+
+        worker._execute_job(job, fencing_token)
+
+        import sqlite3
+
+        with sqlite3.connect(store.db_path) as conn:
+            status = conn.execute("SELECT status FROM jobs WHERE id = ?", (job.id,)).fetchone()[0]
+        assert status == "FAILED"
+
+    def test_failed_job_stops_lease_renewal(self, sqlite_worker, monkeypatch):
+        worker, store = sqlite_worker
+        _insert_job(store, "job_runtime_failure")
+        job, fencing_token = store.claim_job_with_fencing(worker.worker_id, lease_duration=60.0)
+        renew_started = threading.Event()
+        renew_stopped = threading.Event()
+        captured = []
+
+        def renewal_loop(job_id, token, stop_event):
+            captured.append(stop_event)
+            renew_started.set()
+            if stop_event.wait(timeout=5.0):
+                renew_stopped.set()
+
+        def fail_runtime(job, token):
+            assert renew_started.wait(timeout=1.0)
+            raise RuntimeError("controlled runtime failure")
+
+        monkeypatch.setattr(worker, "_lease_renew_loop", renewal_loop)
+        monkeypatch.setattr(worker, "_run_job_runtime", fail_runtime)
+        try:
+            worker._execute_job(job, fencing_token)
+            assert renew_stopped.wait(timeout=0.2)
+        finally:
+            for stop_event in captured:
+                stop_event.set()
+
     def test_worker_claims_fake_job(self, sqlite_worker):
         worker, store = sqlite_worker
         _insert_job(store, "job_claim_test", runtime="fake")

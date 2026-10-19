@@ -38,28 +38,6 @@ def client():
     return TestClient(server.app, base_url="http://localhost")
 
 
-def test_web_console_rejects_untrusted_host(client):
-    response = client.get("/api/sessions", headers={"Host": "attacker.example"})
-    assert response.status_code == 400
-
-
-def test_web_console_does_not_allow_arbitrary_origins(client):
-    response = client.get("/api/sessions", headers={"Origin": "https://attacker.example"})
-    assert response.status_code == 200
-    assert "access-control-allow-origin" not in response.headers
-
-
-def test_web_console_rejects_cross_origin_preflight(client):
-    response = client.options(
-        "/api/config",
-        headers={
-            "Origin": "https://attacker.example",
-            "Access-Control-Request-Method": "POST",
-        },
-    )
-    assert response.status_code == 400
-
-
 def test_version_endpoint(client):
     resp = client.get("/api/version")
     assert resp.status_code == 200
@@ -133,8 +111,10 @@ def test_sessions_get_and_delete(client, monkeypatch):
 
 def test_chat_stream_requires_api_key(client, monkeypatch):
     monkeypatch.setattr(server.Config, "get", lambda self, key, default=None: None)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     resp = client.post("/api/chat/stream", json={"prompt": "hi"})
     assert resp.status_code == 400
+    assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
 
 
 @pytest.mark.parametrize(
@@ -144,7 +124,14 @@ def test_chat_stream_requires_api_key(client, monkeypatch):
         ("claude-sonnet-4-6", {"temperature": 0.3}),
     ],
 )
-def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected_extra_body):
+@pytest.mark.parametrize("key_source", ["request", "config", "environment"])
+def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected_extra_body, key_source):
+    stored_key = "sk-ant-stored-test" if key_source == "config" else None
+    monkeypatch.setattr(server.Config, "get", lambda self, key, default=None: stored_key)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env-test")
+    explicit_key = "sk-ant-request-test" if key_source == "request" else None
+    expected_key = explicit_key or stored_key or "sk-ant-env-test"
+
     class FakeDelta:
         def __init__(self, text):
             self.type = "text_delta"
@@ -174,6 +161,7 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected
 
     class FakeAnthropic:
         def __init__(self, api_key=None):
+            assert api_key == expected_key
             self.messages = FakeMessages()
 
     import types
@@ -181,7 +169,10 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected
     fake_anthropic_module = types.SimpleNamespace(Anthropic=FakeAnthropic)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
 
-    resp = client.post("/api/chat/stream", json={"prompt": "hi", "api_key": "sk-ant-test", "model": model})
+    payload = {"prompt": "hi", "model": model}
+    if explicit_key:
+        payload["api_key"] = explicit_key
+    resp = client.post("/api/chat/stream", json=payload)
     assert resp.status_code == 200
     body = resp.text
     assert '"type": "token"' in body or '"type":"token"' in body

@@ -44,6 +44,10 @@ dist/
 .web.pid
 logs/
 
+# Local review / transfer artifacts
+*.patch
+*:Zone.Identifier
+
 # Editors / OS
 .vscode/
 .idea/

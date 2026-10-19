@@ -23,7 +23,7 @@ from zcoder.services.backup_restore import (
 def backup_manager(tmp_path):
     """Create a BackupManager with a temp destination directory."""
     return BackupManager(
-        database_url="",  # No real DB for unit tests
+        database_url="postgresql://localhost/source",  # Controlled fixture; never connected
         backup_destination=str(tmp_path / "backups"),
         strategy="pg_dump",
         retention_days_daily=7,
@@ -72,6 +72,20 @@ class TestBackupManagerInit:
 
 
 class TestPgDumpBackup:
+    def test_successful_backup_persists_final_state(self, backup_manager, monkeypatch):
+        def fake_dump(argv, **kwargs):
+            dump_path = next(arg.split("=", 1)[1] for arg in argv if arg.startswith("--file="))
+            Path(dump_path).write_bytes(b"controlled backup fixture")
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_dump)
+        record = backup_manager.run_pg_dump_backup()
+
+        manifest = json.loads((backup_manager.backup_destination / f"{record.backup_id}.json").read_text())
+        assert record.success is True
+        assert manifest["success"] is True
+        assert manifest["completed_at"] == record.completed_at
+
     def test_backup_fails_without_database_url(self, backup_manager):
         """Backup must fail gracefully without a database URL."""
         backup_manager.database_url = ""
@@ -132,6 +146,40 @@ class TestPgDumpBackup:
 
 
 class TestRestoreDrill:
+    @pytest.mark.parametrize(
+        "target",
+        [
+            "postgresql://localhost/source",
+            "postgres://other:fixture@LOCALHOST:5432/source?sslmode=require",
+            "host=127.0.0.1 port=5432 dbname=source user=other password=fixture",
+            "postgresql://different-cluster/source",
+        ],
+    )
+    def test_restore_rejects_source_database_name(self, backup_manager, monkeypatch, target):
+        (backup_manager.backup_destination / "pgdump_guard.sql.gz").write_bytes(b"fixture")
+        invoked = []
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: invoked.append(a))
+
+        result = backup_manager.run_restore_drill("pgdump_guard", target_database_url=target)
+
+        assert result.success is False
+        assert "distinct" in result.error.lower()
+        assert invoked == []
+
+    def test_restore_rejects_implicit_source_database_name(self, backup_manager, monkeypatch):
+        (backup_manager.backup_destination / "pgdump_guard.sql.gz").write_bytes(b"fixture")
+        backup_manager.database_url = "host=localhost user=source_user"
+        monkeypatch.setenv("PGDATABASE", "source")
+        invoked = []
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: invoked.append(a))
+
+        result = backup_manager.run_restore_drill(
+            "pgdump_guard", target_database_url="postgresql://localhost/source"
+        )
+
+        assert result.success is False
+        assert invoked == []
+
     def test_restore_fails_without_backup_file(self, backup_manager):
         result = backup_manager.run_restore_drill("nonexistent_backup_id_xyz")
         assert result.success is False
@@ -279,6 +327,24 @@ class TestDryRunBackup:
 
 
 class TestRestoreDrillVerification:
+    def test_restore_nonzero_exit_fails_without_verification(self, backup_manager, monkeypatch):
+        backup_id = self._prepare(backup_manager, monkeypatch)
+        verified = []
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda argv, **kwargs: subprocess.CompletedProcess(argv, 1, stdout="", stderr="restore error"),
+        )
+        monkeypatch.setattr(backup_manager, "_verify_restored_state", lambda *args: verified.append(args))
+
+        result = backup_manager.run_restore_drill(
+            backup_id, target_database_url="postgresql://localhost/isolated_restore"
+        )
+
+        assert result.success is False
+        assert "rc=1" in result.error
+        assert verified == []
+
     """Fail-closed drill verification (gap fixes 1 and 3)."""
 
     def _prepare(self, backup_manager, monkeypatch):

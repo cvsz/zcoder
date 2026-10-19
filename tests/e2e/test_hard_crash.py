@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -10,14 +11,15 @@ from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringSto
 
 class TestHardCrash(unittest.TestCase):
     def setUp(self):
-        self.db_path = Path("crash_test.db").resolve()
-        if self.db_path.exists():
-            os.remove(self.db_path)
+        # Isolate the crash-prone database files inside a temp directory so test
+        # artifacts never pollute the repository working tree.
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="zcoder_crash_test_")
+        self.db_path = Path(self._tmpdir.name) / "crash_test.db"
         self.store = SQLiteEngineeringStore(db_path=self.db_path)
 
     def tearDown(self):
-        if self.db_path.exists():
-            os.remove(self.db_path)
+        self.store = None
+        self._tmpdir.cleanup()
 
     def test_hard_crash_persistence(self):
         # Script that writes 1000 times to stress concurrency and crash
