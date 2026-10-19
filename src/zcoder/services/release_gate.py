@@ -38,8 +38,9 @@ _PATH_REWRITES = {
 }
 
 # Evidence produced by scripts/import_release_evidence.py; one record per
-# candidate SHA, committed under docs/evidence/.
-EVIDENCE_DIR = Path(__file__).resolve().parents[2] / "docs" / "evidence"
+# candidate SHA, committed under docs/evidence/. Anchor arithmetic: from
+# src/zcoder/services/release_gate.py the repository root is parents[3].
+EVIDENCE_DIR = Path(__file__).resolve().parents[3] / "docs" / "evidence"
 
 # Hosted checks each promoted gate depends on. PITR relies on the hosted
 # test matrix, which executes the backup/restore drill coverage; the

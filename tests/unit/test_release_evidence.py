@@ -7,11 +7,7 @@ import subprocess
 import pytest
 
 from zcoder.services import release_gate as release_gate_module
-from zcoder.services.release_gate import (
-    EVIDENCE_DIR,
-    GateVerdict,
-    ProductionReleaseGate,
-)
+from zcoder.services.release_gate import GateVerdict, ProductionReleaseGate
 
 
 def _head_sha() -> str:
@@ -196,9 +192,21 @@ def test_importer_verify_version_integrity_passes(tmp_path, monkeypatch):
     assert len(set(values.values())) == 1
 
 
-def test_default_evidence_dir_is_repo_local():
-    assert EVIDENCE_DIR.name == "evidence"
-    assert EVIDENCE_DIR.parent.name == "docs"
+def test_default_evidence_dir_matches_importer_output():
+    """The gate loader must read exactly where the importer writes.
+
+    This binding is load-bearing: the anchor constant must resolve to the
+    repository root at runtime (src/zcoder/services/release_gate.py ->
+    <root>/docs/evidence), not to a nested src/docs directory that silently
+    misses every imported record and keeps the gate fail-closed UNKNOWN.
+    """
+    importer = _gate_aware_importer()
+    from pathlib import Path
+
+    assert release_gate_module.EVIDENCE_DIR == importer.REPO_ROOT / "docs" / "evidence"
+    # Class and module must observe the same directory (no stale copies).
+    assert release_gate_module.ProductionReleaseGate._load_bound_evidence is not None
+    assert Path(release_gate_module.__file__).resolve().parents[3] == importer.REPO_ROOT
 
 
 # ---------------------------------------------------------------------------
