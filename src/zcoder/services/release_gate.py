@@ -55,9 +55,9 @@ class ProductionReleaseGate(_LegacyProductionReleaseGate):
 
     def _mark_validation_pending(self) -> None:
         note = (
-            "Post-src-layout hosted validation has not executed because GitHub "
-            "Actions is rejecting jobs before runner startup due to the account "
-            "billing/Actions spending state. Previous evidence predates the migration."
+            "This catalog has no imported validation evidence bound to the current "
+            "release-candidate commit. Hosted checks and operational qualification "
+            "must be verified for that exact candidate before release approval."
         )
         for name in _POST_MIGRATION_VALIDATION_GATES:
             gate = self.gates.get(name)

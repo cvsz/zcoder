@@ -21,6 +21,7 @@ Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import uuid
@@ -28,6 +29,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
@@ -37,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.claude.models.registry import MODEL_CATALOG  # noqa: E402
 from zcoder.claude.personalities import PersonalityManager  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
@@ -51,16 +54,32 @@ logger = get_logger("webapp.server")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
+
+def _allowed_web_hosts(raw: str | None) -> list[str]:
+    """Allow explicit hostnames, without wildcards or URL/port components."""
+    if raw is None:
+        return ["localhost", "127.0.0.1"]
+    hosts = [value.strip() for value in raw.split(",")]
+    if any(not host or any(char in host for char in "*:/\\@?#") or host.startswith(".") for host in hosts):
+        raise ValueError("ZCODER_WEB_ALLOWED_HOSTS must contain exact hostnames without ports")
+    return list(dict.fromkeys(hosts))
+
+
 app = FastAPI(title="zcoder web", version=VERSION)
 
-# The frontend is served as static files from the same origin by default
-# (see the StaticFiles mount at the bottom of this file), so CORS is only
-# needed for local frontend dev servers hitting a separately-run backend.
+# This console is local-only by default; external access requires an authenticated proxy.
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=_allowed_web_hosts(os.environ.get("ZCODER_WEB_ALLOWED_HOSTS")),
+    www_redirect=False,
+)
+
+# Same-origin frontend requests need no CORS; optional development origins are explicit.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=parse_cors_origins(os.environ.get("ZCODER_WEB_CORS_ORIGINS")),
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type"],
 )
 
 _personality_mgr = PersonalityManager()

@@ -175,6 +175,48 @@ def test_invalid_idempotency_keys_are_rejected(idempotency_key: str) -> None:
     assert body["error"]["code"] == "VALIDATION_ERROR"
 
 
+@pytest.mark.parametrize("same_principal", [False, True])
+@pytest.mark.parametrize("method", ["POST", "DELETE"])
+def test_idempotent_replay_rechecks_current_permissions(same_principal: bool, method: str) -> None:
+    store = FakeTenantJobStore()
+    router = PublicAPIV1Router(job_store=store)
+    ctx = operator_context()
+    job = Job(id="job-replay", task="Run tests", status=JobStatus.READY, metadata={})
+    store.jobs[job.id] = job
+    store.job_organizations[job.id] = ctx.organization_id
+    path = "/api/v1/jobs" if method == "POST" else f"/api/v1/jobs/{job.id}"
+    payload = {"task": "Run tests"} if method == "POST" else {}
+
+    status, _ = router.handle_request(method, path, ctx, payload=payload, idempotency_key="replay-key")
+    assert status in {200, 201}
+
+    viewer = replace(
+        ctx,
+        principal_id=ctx.principal_id if same_principal else "viewer-1",
+        role=EnterpriseRole.VIEWER,
+        permissions=set(),
+    )
+    replay_status, replay_body = router.handle_request(
+        method, path, viewer, payload=payload, idempotency_key="replay-key"
+    )
+
+    assert replay_status == 403
+    assert replay_body["error"]["code"] == "FORBIDDEN"
+
+
+def test_router_rejects_job_creation_before_calling_an_unprivileged_store() -> None:
+    store = FakeTenantJobStore()
+    viewer = replace(operator_context(), role=EnterpriseRole.VIEWER, permissions=set())
+
+    status, body = PublicAPIV1Router(job_store=store).handle_request(
+        "POST", "/api/v1/jobs", viewer, payload={"task": "Run tests"}
+    )
+
+    assert status == 403
+    assert body["error"]["code"] == "FORBIDDEN"
+    assert store.enqueue_calls == []
+
+
 @pytest.mark.parametrize("task", ["", "   ", 123, None])
 def test_post_job_rejects_blank_or_non_string_tasks(task: object) -> None:
     router = PublicAPIV1Router(job_store=FakeTenantJobStore())

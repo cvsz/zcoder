@@ -116,18 +116,20 @@ class _JwksCache:
     """Simple TTL cache for JWKS endpoint keys."""
 
     def __init__(self, ttl_seconds: float = 3600) -> None:
-        self._cache: dict[str, Any] = {}
-        self._fetched_at: float = 0.0
+        self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._ttl = ttl_seconds
 
     def get(self, jwks_uri: str) -> dict[str, Any] | None:
-        if time.time() - self._fetched_at < self._ttl:
-            return self._cache
+        cached = self._cache.get(jwks_uri)
+        if cached is not None:
+            fetched_at, keys = cached
+            if time.monotonic() - fetched_at < self._ttl:
+                return keys
+            self._cache.pop(jwks_uri, None)
         return None
 
     def set(self, jwks_uri: str, keys: dict[str, Any]) -> None:
-        self._cache = keys
-        self._fetched_at = time.time()
+        self._cache[jwks_uri] = (time.monotonic(), keys)
 
 
 _jwks_cache = _JwksCache()
@@ -199,7 +201,12 @@ class OidcValidator:
                 algorithms=[alg],
                 audience=self.audience,
                 issuer=self.issuer,
-                options={"verify_exp": True, "verify_iss": True, "verify_aud": True},
+                options={
+                    "verify_exp": True,
+                    "verify_iss": True,
+                    "verify_aud": True,
+                    "require": ["exp", "iss", "aud", "sub"],
+                },
             )
 
         except jwt.ExpiredSignatureError:

@@ -6,7 +6,7 @@ WEB_PY := $(WEB_VENV)/bin/python
 WEB_UVICORN := $(WEB_VENV)/bin/uvicorn
 PID_FILE := .web.pid
 LOG_FILE := logs/web.log
-HOST ?= 0.0.0.0
+HOST ?= 127.0.0.1
 PORT ?= 8420
 
 install:

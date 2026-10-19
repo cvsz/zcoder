@@ -43,6 +43,9 @@ from zcoder.services.backup_restore import (
         "PGPASSWORD",
         "SOME_PASSWD",
         "DB_PASSWORD",
+        "DATABASE_URL",
+        "GIT_ASKPASS",
+        "SSH_ASKPASS",
     ],
 )
 def test_is_secret_env_name_matches(name):
@@ -100,6 +103,9 @@ def test_bash_tool_spawns_filtered_env(tmp_path, monkeypatch):
     monkeypatch.setattr("zcoder.claude.capabilities.code.subprocess.run", fake_run)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-secret")
     monkeypatch.setenv("GITHUB_TOKEN", "gh-secret")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://fixture:fixture@localhost/test")
+    monkeypatch.setenv("GIT_ASKPASS", "/tmp/fixture-credential-helper")
+    monkeypatch.setenv("SSH_ASKPASS", "/tmp/fixture-ssh-helper")
     monkeypatch.setenv("PATH", "/usr/bin")
 
     session = CodeSession(cwd=str(tmp_path), model="test-model")
@@ -114,6 +120,9 @@ def test_bash_tool_spawns_filtered_env(tmp_path, monkeypatch):
     assert captured["env"]["PATH"] == "/usr/bin"
     assert "ANTHROPIC_API_KEY" not in captured["env"]
     assert "GITHUB_TOKEN" not in captured["env"]
+    assert "DATABASE_URL" not in captured["env"]
+    assert "GIT_ASKPASS" not in captured["env"]
+    assert "SSH_ASKPASS" not in captured["env"]
 
 
 # ── F2: tool-registry run_python ──────────────────────────────────────────
@@ -178,6 +187,19 @@ def test_split_dsn_password_noop_without_password():
     safe_url, password = _split_dsn_password(url)
     assert safe_url == url
     assert password == ""
+
+
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "postgresql://localhost/db?password=fixture-secret",
+        "host=localhost dbname=db password=fixture-secret",
+    ],
+)
+def test_split_dsn_password_handles_all_libpq_forms(dsn):
+    safe_dsn, password = _split_dsn_password(dsn)
+    assert "fixture-secret" not in safe_dsn
+    assert password == "fixture-secret"
 
 
 def test_redact_removes_secret():

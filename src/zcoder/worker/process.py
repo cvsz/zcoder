@@ -28,6 +28,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from zcoder.core.exceptions import ConfigError
+
 logger = logging.getLogger(__name__)
 
 
@@ -284,9 +286,10 @@ class Worker:
 
         logger.info(f"Executing job {job.id} (task={job.task!r}, runtime={job.runtime})")
 
+        renew_stop = threading.Event()
+        renew_thread: threading.Thread | None = None
         try:
             # Start lease renewal for this specific job
-            renew_stop = threading.Event()
             renew_thread = threading.Thread(
                 target=self._lease_renew_loop,
                 args=(job.id, fencing_token, renew_stop),
@@ -320,6 +323,9 @@ class Worker:
             if self._metrics:
                 self._metrics.jobs_failed_total.inc()
         finally:
+            renew_stop.set()
+            if renew_thread is not None and renew_thread.is_alive():
+                renew_thread.join(timeout=1.0)
             self._active_jobs.pop(job.id, None)
             if self._metrics:
                 self._metrics.jobs_running.dec()
@@ -335,15 +341,10 @@ class Worker:
             time.sleep(0.1)
             return
 
-        if runtime == "direct":
-            # Direct execution — run task as a subprocess or built-in
-            logger.info(f"Job {job.id}: DirectRuntime task={task!r}")
-            # In a real implementation, call the appropriate handler
-            # For now, simulate work
-            time.sleep(1.0)
-            return
-
-        logger.warning(f"Job {job.id}: Unknown runtime {runtime!r} — treating as noop")
+        raise ConfigError(
+            "No execution adapter configured for the requested job runtime",
+            details={"runtime": runtime},
+        )
 
     def _lease_renew_loop(self, job_id: str, fencing_token: int, stop_event: threading.Event) -> None:
         """Periodically renew the lease while job is running."""

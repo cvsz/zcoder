@@ -123,7 +123,7 @@ def test_public_api_job_submission_fails_closed_until_queue_is_wired():
     assert body3["error"]["code"] == "JOB_QUEUE_UNAVAILABLE"
 
 
-def test_python_sdk_contract():
+def test_python_sdk_contract(monkeypatch):
     router = PublicAPIV1Router()
     client = ZCoderClient(api_key="zc_live_testkey123", organization_id="org_sdk", router=router)
 
@@ -133,6 +133,6 @@ def test_python_sdk_contract():
     with pytest.raises(ZCoderSDKException, match="HTTP 501"):
         client.create_job("Build docs", idempotency_key="sdk_idem_1")
 
-    wh = client.register_webhook("https://myapp.com/zcoder-events")
-    assert wh["status"] == "ACTIVE"
-    assert wh["url"] == "https://myapp.com/zcoder-events"
+    monkeypatch.setattr("zcoder.api.public.v1.validate_external_http_url", lambda url: None)
+    with pytest.raises(ZCoderSDKException, match="HTTP 501"):
+        client.register_webhook("https://hooks.example.com/zcoder-events")
