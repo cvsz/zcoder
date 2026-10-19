@@ -53,6 +53,7 @@ logger = get_logger("webapp.server")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
+
 def _allowed_web_hosts(raw: str | None) -> list[str]:
     """Allow explicit hostnames, without wildcards or URL/port components."""
     if raw is None:
