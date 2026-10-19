@@ -25,7 +25,10 @@ jobs:
   qualify-release:
     name: Qualify Exact Release Candidate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      checks: read
     steps:
       - name: Validate release tag
         run: |
@@ -42,6 +45,10 @@ jobs:
           python-version: "3.12"
       - name: Install release gate
         run: python -m pip install -e .
+      - name: Await hosted checks on the release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/import_release_evidence.py --await --timeout-minutes 30
       - name: Enforce production qualification
         run: python scripts/release_gate.py --check
 

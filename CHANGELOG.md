@@ -6,6 +6,25 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## [1.41.1] — 2026-10-19 — Production Readiness Sweep & Release Pipeline
+
+### Security & Compliance
+* **Config hardening:** `Config.set()` now persists provider API keys through
+  atomic owner-only writes — the temp file is `fchmod`ed to 0600 before any
+  secret bytes are written, `fsync`ed before the final rename, and rolled back
+  (both disk and in-memory state) when rename or serialization fails. Legacy
+  permissive config files are tightened on the first write after upgrade.
+* **Web Console:** safe local defaults (127.0.0.1 bind, exact trusted hosts,
+  explicit CORS, no wildcard cross-origin) and the streaming chat endpoint now
+  honors `ANTHROPIC_API_KEY` with the same credential precedence as the
+  non-streaming path (request → stored config → environment).
+* **Release pipeline truthfulness:** hosted CI evidence is bound to the exact
+  release-candidate SHA via `scripts/import_release_evidence.py`; the gate
+  stays fail-closed (`--check` requires green, SHA-bound evidence), PITR and
+  the other post-migration gates promote only from evidence, and the full CI
+  suite now runs on release tags so tag qualification (await → import →
+  verify) precedes artifact build and publication.
+
 ## [1.41.0] — 2026-08-22 — exec-planning.md Implementation Sweep
 
 ### Security & Compliance
