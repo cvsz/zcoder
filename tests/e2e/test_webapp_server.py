@@ -35,7 +35,7 @@ def _isolate_state():
 
 @pytest.fixture
 def client():
-    return TestClient(server.app)
+    return TestClient(server.app, base_url="http://localhost")
 
 
 def test_version_endpoint(client):
@@ -154,3 +154,35 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch):
     body = resp.text
     assert '"type": "token"' in body or '"type":"token"' in body
     assert "done" in body
+
+
+def test_untrusted_host_is_rejected(client):
+    response = client.get("/api/version", headers={"host": "untrusted.example"})
+    assert response.status_code == 400
+
+
+def test_cross_origin_preflight_is_rejected_by_default(client):
+    response = client.options(
+        "/api/chat",
+        headers={
+            "origin": "https://untrusted.example",
+            "access-control-request-method": "POST",
+        },
+    )
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_explicit_web_hosts_are_deduplicated():
+    assert server._allowed_web_hosts("localhost,console.example,localhost") == [
+        "localhost",
+        "console.example",
+    ]
+
+
+@pytest.mark.parametrize(
+    "value", ["", "*", "*.example.com", "https://example.com", "localhost:8420", "localhost,"]
+)
+def test_unsafe_web_host_configuration_is_rejected(value):
+    with pytest.raises(ValueError, match="exact hostnames"):
+        server._allowed_web_hosts(value)
