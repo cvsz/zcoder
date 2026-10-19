@@ -141,7 +141,10 @@ _SECRET_ENV_NAMES = frozenset(
         "AWS_SESSION_TOKEN",
         "AZURE_CLIENT_SECRET",
         "GOOGLE_APPLICATION_CREDENTIALS",
+        "DATABASE_URL",
+        "GIT_ASKPASS",
         "PGPASSWORD",
+        "SSH_ASKPASS",
         "SSH_AUTH_SOCK",
     }
 )
@@ -155,7 +158,8 @@ def is_secret_env_name(name: str) -> bool:
     ``*_PASSWD``, ``*_PASSPHRASE``, ``*_DSN``) or appears on the explicit
     credential-name list. Matching is case-insensitive.
 
-    Note: ``SSH_AUTH_SOCK`` and ``GIT_ASKPASS`` are filtered deliberately —
+    Note: ``DATABASE_URL`` can embed database credentials. ``SSH_AUTH_SOCK``,
+    ``GIT_ASKPASS``, and ``SSH_ASKPASS`` are also filtered deliberately —
     model-spawned children should not reach agent/credential-helper sockets.
     Re-inject them via explicit trusted config if a workflow requires it.
     """

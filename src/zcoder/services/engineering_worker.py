@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from zcoder.core.exceptions import ConfigError
 from zcoder.domain.interfaces.engineering_store import EngineeringStore
 from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask, TaskStatus
 
@@ -23,9 +24,8 @@ Handler = Callable[[EngineeringTask], Any]
 
 
 def _default_handler(task: EngineeringTask) -> dict[str, Any]:
-    """Default no-op execution preserving prior stub behavior."""
-    logger.info("Worker executed task %s (no handler injected)", task.id)
-    return {"status": "completed"}
+    """Reject execution until the caller supplies a runtime handler."""
+    raise ConfigError("No engineering task handler configured")
 
 
 class EngineeringWorker:

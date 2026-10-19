@@ -75,7 +75,7 @@ def test_webhook_rejects_non_http_scheme():
     assert body["error"]["code"] == "SSRF_BLOCKED"
 
 
-def test_webhook_accepts_resolved_public_target(monkeypatch):
+def test_webhook_does_not_fabricate_registration_without_a_registry(monkeypatch):
     install_dns_result(monkeypatch, "93.184.216.34")
 
     status, body = route(
@@ -85,5 +85,24 @@ def test_webhook_accepts_resolved_public_target(monkeypatch):
         {"url": "https://hooks.example.com/zcoder"},
     )
 
-    assert status == 201
-    assert body["url"] == "https://hooks.example.com/zcoder"
+    assert status == 501
+    assert body["error"]["code"] == "WEBHOOK_REGISTRY_UNAVAILABLE"
+    assert "id" not in body
+    assert "secret" not in body
+
+
+def test_unavailable_webhook_registration_is_not_cached(monkeypatch):
+    install_dns_result(monkeypatch, "93.184.216.34")
+    router = public_api.PublicAPIV1Router()
+
+    status, body = router.handle_request(
+        "POST",
+        "/api/v1/webhooks",
+        admin_context(),
+        payload={"url": "https://hooks.example.com/zcoder"},
+        idempotency_key="webhook-key",
+    )
+
+    assert status == 501
+    assert body["error"]["code"] == "WEBHOOK_REGISTRY_UNAVAILABLE"
+    assert router.idempotency_store == {}

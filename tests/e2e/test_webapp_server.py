@@ -35,7 +35,7 @@ def _isolate_state():
 
 @pytest.fixture
 def client():
-    return TestClient(server.app)
+    return TestClient(server.app, base_url="http://localhost")
 
 
 def test_version_endpoint(client):

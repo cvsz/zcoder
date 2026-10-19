@@ -54,7 +54,7 @@ class FakeStore:
 class TestEngineeringWorker(unittest.TestCase):
     def setUp(self):
         self.store = FakeStore()
-        self.worker = EngineeringWorker(self.store, "w1")
+        self.worker = EngineeringWorker(self.store, "w1", handler=lambda task: {"ok": True})
 
     def test_success_path_writes_attempt_and_checkpoint(self):
         self.store.seed("t1")
@@ -100,6 +100,16 @@ class TestEngineeringWorker(unittest.TestCase):
         self.assertEqual(self.store.tasks["good"].status, TaskStatus.SUCCEEDED)
         # A failed task produces no checkpoint.
         self.assertTrue(all(c.task_id != "bad" for c in self.store.checkpoints))
+
+    def test_missing_handler_marks_failed_without_completion_checkpoint(self):
+        self.store.seed("unconfigured")
+        worker = EngineeringWorker(self.store, "w1")
+
+        self.assertEqual(worker.run(), 1)
+
+        self.assertEqual(self.store.tasks["unconfigured"].status, TaskStatus.FAILED)
+        self.assertEqual(self.store.attempts[0].status, "FAILED")
+        self.assertEqual(self.store.checkpoints, [])
 
     def test_drain_exit_on_empty_queue(self):
         processed = self.worker.run()

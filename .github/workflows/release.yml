@@ -22,8 +22,32 @@ env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
+  qualify-release:
+    name: Qualify Exact Release Candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate release tag
+        run: |
+          if ! [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$ ]]; then
+            echo "::error::Invalid release tag"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - name: Install release gate
+        run: python -m pip install -e .
+      - name: Enforce production qualification
+        run: python scripts/release_gate.py --check
+
   build-python-dist:
     name: Build Python Wheel & Sdist
+    needs: [qualify-release]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -63,6 +87,7 @@ jobs:
 
   build-linux-binary:
     name: Build Linux Standalone Binary
+    needs: [qualify-release]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -83,18 +108,19 @@ jobs:
         run: |
           chmod +x scripts/build.sh
           ./scripts/build.sh
-          mv dist/ai-coder dist/ai-coder-linux-x86_64
+          mv dist/zcoder dist/zcoder-linux-x86_64
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: binary-linux
-          path: dist/ai-coder-linux-x86_64
+          path: dist/zcoder-linux-x86_64
           if-no-files-found: error
           retention-days: 14
 
   build-windows-binary:
     name: Build Windows Standalone Executable
+    needs: [qualify-release]
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -115,13 +141,13 @@ jobs:
         shell: cmd
         run: |
           scripts\build.bat
-          move dist\ai-coder.exe dist\ai-coder-windows-x86_64.exe
+          move dist\zcoder.exe dist\zcoder-windows-x86_64.exe
 
       - name: Upload Windows binary
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: binary-windows
-          path: dist/ai-coder-windows-x86_64.exe
+          path: dist/zcoder-windows-x86_64.exe
           if-no-files-found: error
           retention-days: 14
 

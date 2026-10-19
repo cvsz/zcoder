@@ -40,4 +40,9 @@ jobs:
           pip install -e .
 
       - name: Run Production Release Gate Report
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: python scripts/release_gate.py
+
+      - name: Enforce production release qualification
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python scripts/release_gate.py --check

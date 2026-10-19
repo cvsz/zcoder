@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,14 +10,14 @@ from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringSto
 
 class TestDurabilityRestart(unittest.TestCase):
     def setUp(self):
-        self.db_path = Path("durability_test.db").resolve()
-        if self.db_path.exists():
-            os.remove(self.db_path)
+        # Keep database files in a temp directory to avoid polluting the repo.
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="zcoder_durability_test_")
+        self.db_path = Path(self._tmpdir.name) / "durability_test.db"
         self.store = SQLiteEngineeringStore(db_path=self.db_path)
 
     def tearDown(self):
-        if self.db_path.exists():
-            os.remove(self.db_path)
+        self.store = None
+        self._tmpdir.cleanup()
 
     def test_subprocess_persistence(self):
         # Create a task ID

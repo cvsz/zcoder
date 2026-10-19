@@ -140,6 +140,17 @@ class PublicAPIV1Router:
         return self.job_store
 
     @staticmethod
+    def _authorize_request(method: str, path: str, ctx: RequestContext) -> None:
+        p = path.rstrip("/")
+        permission = None
+        if p == "/api/v1/jobs":
+            permission = {"GET": "job.read", "POST": "job.create"}.get(method)
+        elif p.startswith("/api/v1/jobs/") and "/" not in p.removeprefix("/api/v1/jobs/"):
+            permission = {"GET": "job.read", "DELETE": "job.cancel"}.get(method)
+        if permission:
+            ctx.require_permission(permission)
+
+    @staticmethod
     def _new_job(ctx: RequestContext, payload: dict[str, Any]) -> Job:
         task = payload.get("task")
         if not isinstance(task, str) or not task.strip() or len(task.strip()) > 100_000:
@@ -213,6 +224,8 @@ class PublicAPIV1Router:
         payload = payload or {}
 
         try:
+            # Cached results do not carry authority from an earlier request.
+            self._authorize_request(method, path, ctx)
             if idempotency_key is not None and (
                 not isinstance(idempotency_key, str)
                 or not idempotency_key.strip()
@@ -257,6 +270,8 @@ class PublicAPIV1Router:
 
             return status_code, response_body
 
+        except (PermissionDeniedError, CrossTenantViolationError) as exc:
+            return 403, APIError("FORBIDDEN", str(exc), status_code=403).to_dict(req_id)
         except APIError as e:
             return e.status_code, e.to_dict(req_id)
         except Exception:
@@ -424,17 +439,11 @@ class PublicAPIV1Router:
                         "Webhook URL must resolve exclusively to a public HTTP(S) address",
                         status_code=400,
                     ) from None
-                wh_id = f"wh_{uuid.uuid4().hex[:12]}"
-                secret = f"whsec_{uuid.uuid4().hex}"
-                return 201, {
-                    "id": wh_id,
-                    "url": url,
-                    "secret": secret,
-                    "event_types": payload.get("event_types", ["job.completed", "job.failed"]),
-                    "status": "ACTIVE",
-                    "created_at": time.time(),
-                    "request_id": req_id,
-                }
+                raise APIError(
+                    "WEBHOOK_REGISTRY_UNAVAILABLE",
+                    "Webhook registration is unavailable until a durable registry and delivery service are configured",
+                    status_code=501,
+                )
 
         # Default 404
         raise APIError("NOT_FOUND", f"Route {method} {path} not found", status_code=404)

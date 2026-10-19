@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
@@ -29,6 +30,13 @@ from zcoder.core.security import build_child_env
 
 logger = logging.getLogger(__name__)
 
+# Password assignments inside libpq keyword/value strings or URL query
+# strings. Captures single-quoted, double-quoted, and bare token values.
+_DSN_PASSWORD_RE = re.compile(
+    r"password\s*=\s*(?P<value>'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|\S+)",
+    re.IGNORECASE,
+)
+
 
 def _split_dsn_password(url: str) -> tuple[str, str]:
     """Split a database URL into (password-free URL, password).
@@ -37,26 +45,67 @@ def _split_dsn_password(url: str) -> tuple[str, str]:
     password travels via the ``PGPASSWORD`` environment override instead of
     being visible in ``/proc/*/cmdline``. URLs without a password are
     returned unchanged.
+
+    Handles every libpq DSN form: URL userinfo
+    (``postgresql://user:pw@host/db``), URL query-string passwords
+    (``postgresql://host/db?password=pw``), and libpq keyword/value
+    strings (``host=h dbname=d password=pw``).
     """
     try:
         parts = urlsplit(url)
         # urlsplit leaves userinfo percent-ENCODED; decode so libpq's
         # PGPASSWORD receives the literal password
         password = unquote(parts.password) if parts.password else ""
-        if not password:
-            return url, ""
-        host = parts.hostname or ""
-        if ":" in host and not host.startswith("["):
-            host = f"[{host}]"
-        # urlsplit leaves userinfo percent-encoded: keep the username as-is
-        # so encoded specials (us%2Fer) survive into the rebuilt URL
-        netloc = f"{parts.username}@{host}" if parts.username else host
-        if parts.port:
-            netloc = f"{netloc}:{parts.port}"
+        rebuilt = url
+        if password:
+            host = parts.hostname or ""
+            if ":" in host and not host.startswith("["):
+                host = f"[{host}]"
+            # urlsplit leaves userinfo percent-encoded: keep the username
+            # as-is so encoded specials (us%2Fer) survive into the URL
+            netloc = f"{parts.username}@{host}" if parts.username else host
+            if parts.port:
+                netloc = f"{netloc}:{parts.port}"
+            rebuilt = urlunsplit((parts.scheme, netloc, parts.path or "", parts.query, parts.fragment))
     except ValueError:
         return url, ""
-    rebuilt = urlunsplit((parts.scheme, netloc, parts.path or "", parts.query, parts.fragment))
+
+    # The password can also travel as a URL query parameter or as a libpq
+    # keyword/value pair; urlsplit never reports either form as userinfo.
+    if not password:
+        match = _DSN_PASSWORD_RE.search(rebuilt)
+        if match is not None:
+            # Keyword/value strings carry the bare token; URL query values
+            # may be percent-encoded, so unquote() is a no-op there.
+            password = unquote(match.group("value").strip("'\"").replace("\\'", "'").replace('\\"', '"'))
+    if password:
+        rebuilt = _DSN_PASSWORD_RE.sub("", rebuilt).strip()
+
     return rebuilt, password
+
+
+def _extract_database_name(dsn: str | None) -> str | None:
+    """Extract a database name from a URL or libpq keyword/value DSN.
+
+    Supports both URL paths (``postgresql://host/dbname``) and libpq
+    keyword/value strings (``host=h dbname=d``). Returns ``None`` when the
+    DSN does not carry an explicit database name.
+    """
+    if not dsn:
+        return None
+    try:
+        parts = urlsplit(dsn)
+        segment = parts.path.rstrip("/").rsplit("/", 1)[-1]
+        if segment and parts.scheme:
+            return unquote(segment)
+    except ValueError:
+        return None
+    match = re.search(
+        r"\bdbname\s*=\s*(?P<value>'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|\S+)", dsn, re.IGNORECASE
+    )
+    if match is None:
+        return None
+    return unquote(match.group("value").strip("'\"").replace("\\'", "'").replace('\\"', '"'))
 
 
 def _redact(text: str, secret: str) -> str:
@@ -224,11 +273,14 @@ class BackupManager:
             record.size_bytes = dump_file.stat().st_size
             record.destination = str(dump_file)
 
-            # Write manifest
-            self._write_manifest(backup_id, record)
-
+            # Mark success BEFORE writing the manifest so the persisted
+            # manifest matches the in-memory record (order matters for
+            # restore drills and DR evidence).
             record.success = True
             record.completed_at = time.time()
+
+            # Write manifest
+            self._write_manifest(backup_id, record)
 
             duration = record.completed_at - record.started_at
             logger.info(
@@ -299,6 +351,20 @@ class BackupManager:
             logger.error(result.error)
             return result
 
+        # Fail-closed guard: refuse to restore a dump into the live source
+        # database. PGDATABASE is treated as an implicit source fallback when
+        # the source DSN does not carry an explicit database name.
+        source_name = _extract_database_name(self.database_url) or os.environ.get("PGDATABASE")
+        target_name = _extract_database_name(restore_url)
+        if source_name and target_name and source_name.casefold() == target_name.casefold():
+            result.error = (
+                "Source and target database names must be distinct "
+                f"(source={source_name!r}) — never restore over the production database"
+            )
+            result.completed_at = time.time()
+            logger.error(result.error)
+            return result
+
         try:
             # Keep the password off the command line (SEC-008).
             target_url, password = _split_dsn_password(restore_url)
@@ -317,7 +383,10 @@ class BackupManager:
                 env=build_child_env({"PGPASSWORD": password} if password else None),
             )
 
-            if restore_result.returncode not in (0, 1):  # rc=1 may be warnings
+            # Fail-closed: pg_restore exit codes other than 0 are treated as
+            # drill failures and state verification never runs, so a partial
+            # or warning-bearing restore can never look like a verified DR drill.
+            if restore_result.returncode != 0:
                 result.error = (
                     f"pg_restore failed (rc={restore_result.returncode}): "
                     f"{_redact(restore_result.stderr, password)}"
@@ -394,7 +463,7 @@ class BackupManager:
         counted defensively — a restored database without it is tolerated
         (events_verified stays 0) but never masks other results.
         """
-        import psycopg2  # type: ignore[import]
+        import psycopg2
 
         from zcoder.core.utils import sanitize_dsn
 

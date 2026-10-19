@@ -41,9 +41,18 @@ def test_local_model_gateway_ollama_adapter():
     assert len(models) >= 1
     assert models[0].provider == "ollama"
 
-    # Chat completion simulation
+    # Chat completion must be behavior-verified for both runtime states so the
+    # assertion stays deterministic regardless of whether a real Ollama server
+    # is listening on 127.0.0.1:11434.
     result = adapter.chat_complete("qwen2.5-coder:7b", "def add(a, b):")
-    assert "LOCAL_AI:qwen2.5-coder:7b" in result
+    if adapter.is_available():
+        # Live local runtime: a genuine completion is expected and the
+        # simulated marker must never appear on the live path.
+        assert result.strip(), "live Ollama runtime returned an empty response"
+        assert "LOCAL_AI:" not in result, "simulated marker leaked into live path"
+    else:
+        # Offline fallback: deterministic simulated marker for the model id.
+        assert "LOCAL_AI:qwen2.5-coder:7b" in result
 
 
 def test_local_repository_indexer_and_secret_redaction():
@@ -90,7 +99,18 @@ def test_local_mcp_conformance_and_tool_call():
 
 
 def test_autonomous_coding_pipeline_zero_paid_calls():
-    pipeline = AutonomousLocalCodingPipeline()
+    # Use a deterministic in-process provider: this test verifies the
+    # pipeline's zero-paid-call guarantee and RAG wiring, not live network
+    # behavior (that path is exercised by the Ollama adapter test above).
+    class _SimulatedLocalProvider:
+        def chat_complete(self, model_id, prompt, tools=None):
+            return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
+
+    pipeline = AutonomousLocalCodingPipeline(
+        local_provider=_SimulatedLocalProvider(),
+        indexer=LocalRepositoryIndexer(),
+        mcp_server=LocalMCPServer(),
+    )
     codebase = {
         "calculator.py": "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b",
         "test_calc.py": "def test_add():\n    assert add(2, 3) == 5",
