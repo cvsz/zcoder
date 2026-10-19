@@ -6,6 +6,17 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## [1.41.2] — 2026-10-19 — Windows Dist Build Correctness
+
+### CI / Release
+* **Windows standalone build:** the release workflow drove `scripts\build.bat`
+  from `shell: cmd` without `call`, so `cmd` chained into the batch script and
+  never returned to rename `dist\zcoder.exe` — the artifact upload then found
+  no file and the release publication was skipped (fail-closed; nothing
+  partial shipped). The step now `call`s the script, propagates the
+  ERRORLEVEL explicitly, and renames after a verified successful build.
+* Release candidate bumped to 1.41.2; `uv.lock` refreshed.
+
 ## [1.41.1] — 2026-10-19 — Production Readiness Sweep & Release Pipeline
 
 ### Security & Compliance
