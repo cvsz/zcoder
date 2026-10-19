@@ -74,7 +74,7 @@ from collections.abc import Callable
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
-from zcoder.core.security import build_child_env, safe_resolve
+from zcoder.core.security import build_child_env, read_text_prefix, safe_resolve
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
 
@@ -948,7 +948,7 @@ def build_code_tools_registry(cwd: str | None = None) -> ToolRegistry:
 
     def read_file(path: str) -> str:
         try:
-            return safe_resolve(path, base).read_text()
+            return read_text_prefix(safe_resolve(path, base))
         except Exception as e:
             return f"[ERROR] {e}"
 
