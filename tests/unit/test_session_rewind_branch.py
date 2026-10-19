@@ -4,7 +4,7 @@ import tempfile
 
 import pytest
 
-from zcoder.claude.capabilities.code import CodeSession
+from zcoder.agent.capabilities.code import CodeSession
 
 
 def _save(session):

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from zcoder.claude.capabilities.code import MemoryLayer, MemoryManager, MemoryScope
+from zcoder.agent.capabilities.code import MemoryLayer, MemoryManager, MemoryScope
 
 
 def test_memory_layer_carries_tenant_id():

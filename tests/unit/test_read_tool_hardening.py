@@ -112,7 +112,7 @@ def test_oversized_custom_limit(tmp_path):
 
 
 def test_registry_example_read_file_is_hardened(tmp_path):
-    from zcoder.claude.tools.registry import build_code_tools_registry
+    from zcoder.agent.tools.registry import build_code_tools_registry
 
     reg = build_code_tools_registry(cwd=str(tmp_path))
     binary = tmp_path / "dump.xlsm"
@@ -126,7 +126,7 @@ def test_registry_example_read_file_is_hardened(tmp_path):
 
 
 def test_code_agent_read_tool_is_hardened(tmp_path):
-    from zcoder.claude.capabilities.code import CodeAgent
+    from zcoder.agent.capabilities.code import CodeAgent
 
     agent = CodeAgent(api_key="test-key")
     session = types.SimpleNamespace(cwd=str(tmp_path))

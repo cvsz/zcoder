@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from zcoder.claude.capabilities.code import SubagentRegistry
+from zcoder.agent.capabilities.code import SubagentRegistry
 
 
 def _write_agent(root: Path, name: str, body: str, *, symlink_to: Path | None = None) -> Path:
@@ -62,7 +62,7 @@ def test_plugin_agent_loaded_via_plugin_dir(monkeypatch, tmp_path):
             }
         ]
 
-    monkeypatch.setattr("zcoder.claude.tools.plugins.load_plugin_agents", fake_load)
+    monkeypatch.setattr("zcoder.agent.tools.plugins.load_plugin_agents", fake_load)
     reg = SubagentRegistry(tmp_path)
     reg.load()
     key = "myplugin:pagent"
@@ -88,7 +88,7 @@ def test_plugin_agent_symlink_escape_rejected(monkeypatch, tmp_path):
             }
         ]
 
-    monkeypatch.setattr("zcoder.claude.tools.plugins.load_plugin_agents", fake_load)
+    monkeypatch.setattr("zcoder.agent.tools.plugins.load_plugin_agents", fake_load)
     reg = SubagentRegistry(tmp_path)
     reg.load()
     assert reg.get("myplugin:evil") is None

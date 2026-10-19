@@ -38,7 +38,7 @@ import json
 import urllib.error
 import urllib.request
 
-from zcoder.claude.models.fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
+from zcoder.agent.models.fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
 from zcoder.core.exceptions import APIError, ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 

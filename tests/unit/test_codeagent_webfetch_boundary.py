@@ -6,8 +6,8 @@ import socket
 import urllib.request
 from pathlib import Path
 
-import zcoder.claude.capabilities.code as code_module
-from zcoder.claude.capabilities.code import CodeAgent, CodeSession
+import zcoder.agent.capabilities.code as code_module
+from zcoder.agent.capabilities.code import CodeAgent, CodeSession
 
 WEBFETCH_LIMIT = 1_048_576
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from zcoder.claude.capabilities.code import MemoryManager, MemoryScope
+from zcoder.agent.capabilities.code import MemoryManager, MemoryScope
 
 
 @pytest.fixture

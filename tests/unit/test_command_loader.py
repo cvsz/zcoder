@@ -6,8 +6,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from zcoder.claude.capabilities import code as code_module
-from zcoder.claude.capabilities.code import cmd_code_slash
+from zcoder.agent.capabilities import code as code_module
+from zcoder.agent.capabilities.code import cmd_code_slash
 
 
 def _write_command(root: Path, name: str, body: str, *, symlink_to: Path | None = None) -> Path:
@@ -22,11 +22,11 @@ def _write_command(root: Path, name: str, body: str, *, symlink_to: Path | None 
 def _invoke(cmd: str, cwd: Path, monkeypatch) -> MagicMock:
     mock_agent = MagicMock()
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.code.CodeAgent",
+        "zcoder.agent.capabilities.code.CodeAgent",
         lambda *a, **kw: mock_agent,
     )
     monkeypatch.setattr(
-        "zcoder.claude.capabilities.code.CodeSession",
+        "zcoder.agent.capabilities.code.CodeSession",
         lambda *a, **kw: MagicMock(),
     )
     cmd_code_slash(cmd, api_key="test", model="test", cwd=str(cwd))
@@ -82,7 +82,7 @@ def test_plugin_command_loaded_via_plugin_dir(monkeypatch):
             }
         ]
 
-    monkeypatch.setattr("zcoder.claude.tools.plugins.load_plugin_commands", fake_load)
+    monkeypatch.setattr("zcoder.agent.tools.plugins.load_plugin_commands", fake_load)
     mock_agent = _invoke("pcmd", Path("."), monkeypatch)
     assert mock_agent.query.called
     assert "Plugin!" in mock_agent.query.call_args[0][0]
@@ -106,6 +106,6 @@ def test_plugin_command_symlink_escape_rejected(monkeypatch, tmp_path):
             }
         ]
 
-    monkeypatch.setattr("zcoder.claude.tools.plugins.load_plugin_commands", fake_load)
+    monkeypatch.setattr("zcoder.agent.tools.plugins.load_plugin_commands", fake_load)
     mock_agent = _invoke("evil", Path("."), monkeypatch)
     assert not mock_agent.query.called

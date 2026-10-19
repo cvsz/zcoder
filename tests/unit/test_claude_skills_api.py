@@ -7,8 +7,8 @@ file_id extraction helper, and the two info-only CLI commands.
 
 import pytest
 
-import zcoder.claude.enterprise.skills as skills_module
-from zcoder.claude.enterprise.skills import (
+import zcoder.agent.enterprise.skills as skills_module
+from zcoder.agent.enterprise.skills import (
     CODE_EXECUTION_BETA,
     FILES_API_BETA,
     PREBUILT_SKILLS,

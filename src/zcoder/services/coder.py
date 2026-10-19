@@ -76,7 +76,7 @@ class Coder:
 
         if self.personality_style:
             try:
-                from zcoder.claude.personalities import PersonalityManager
+                from zcoder.agent.personalities import PersonalityManager
 
                 pm = PersonalityManager()
                 addition = pm.build_prompt_addition(self.personality_style)
@@ -105,7 +105,7 @@ class Coder:
         if self.inference_geo:
             payload["inference_geo"] = self.inference_geo
         if self.fast_mode:
-            from zcoder.claude.models.registry import FAST_MODE_REMOVED_ERROR, validate_fast_mode
+            from zcoder.agent.models.registry import FAST_MODE_REMOVED_ERROR, validate_fast_mode
 
             reason = validate_fast_mode(self.model)
             if self.model in FAST_MODE_REMOVED_ERROR:

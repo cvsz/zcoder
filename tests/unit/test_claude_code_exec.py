@@ -15,8 +15,8 @@ directly — this is what actually proves the anthropic-beta header is
 
 import json
 
-import zcoder.claude.capabilities.code_exec as mod
-from zcoder.claude.capabilities.code_exec import CodeExecutionCoder
+import zcoder.agent.capabilities.code_exec as mod
+from zcoder.agent.capabilities.code_exec import CodeExecutionCoder
 
 
 class _FakeResp:

@@ -9,7 +9,7 @@ tests lock the fail-closed approval and containment boundaries.
 
 from __future__ import annotations
 
-from zcoder.claude.tools.registry import ToolCoder, build_code_tools_registry
+from zcoder.agent.tools.registry import ToolCoder, build_code_tools_registry
 
 
 def _registry(tmp_path) -> tuple:
@@ -98,7 +98,7 @@ def test_can_use_tool_callback_is_authoritative() -> None:
 
 
 def test_run_agent_denies_unapproved_mutating_tool(tmp_path, monkeypatch) -> None:
-    from zcoder.claude.tools.registry import ToolRegistry
+    from zcoder.agent.tools.registry import ToolRegistry
 
     reg = ToolRegistry()
     executed = {"n": 0}

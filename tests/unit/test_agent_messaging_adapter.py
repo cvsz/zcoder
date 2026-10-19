@@ -1,4 +1,4 @@
-from zcoder.services.claude_messaging_adapter import run_claude_messaging_turn_once
+from zcoder.services.agent_messaging_adapter import run_agent_messaging_turn_once
 
 
 class FakeCapability:
@@ -11,7 +11,7 @@ class FakeCapability:
         return self.response
 
 
-def test_claude_messaging_adapter_constructs_once_and_delegates_once():
+def test_agent_messaging_adapter_constructs_once_and_delegates_once():
     constructed = []
     capability = FakeCapability(
         response={
@@ -26,7 +26,7 @@ def test_claude_messaging_adapter_constructs_once_and_delegates_once():
         constructed.append(kwargs)
         return capability
 
-    result = run_claude_messaging_turn_once(
+    result = run_agent_messaging_turn_once(
         "secret",
         "hello",
         model="claude-test",
@@ -54,7 +54,7 @@ def test_claude_messaging_adapter_constructs_once_and_delegates_once():
     assert result.stop_reason == "end_turn"
 
 
-def test_claude_messaging_adapter_forwards_explicit_verbose_mode_once():
+def test_agent_messaging_adapter_forwards_explicit_verbose_mode_once():
     capability = FakeCapability(
         response={
             "text": "streamed",
@@ -63,7 +63,7 @@ def test_claude_messaging_adapter_forwards_explicit_verbose_mode_once():
         }
     )
 
-    result = run_claude_messaging_turn_once(
+    result = run_agent_messaging_turn_once(
         "secret",
         "hello",
         verbose=True,
@@ -74,7 +74,7 @@ def test_claude_messaging_adapter_forwards_explicit_verbose_mode_once():
     assert result.text == "streamed"
 
 
-def test_claude_messaging_adapter_returns_tool_calls_without_executing_them():
+def test_agent_messaging_adapter_returns_tool_calls_without_executing_them():
     executed = []
     tool_call = {
         "name": "dangerous",
@@ -90,7 +90,7 @@ def test_claude_messaging_adapter_returns_tool_calls_without_executing_them():
         }
     )
 
-    result = run_claude_messaging_turn_once(
+    result = run_agent_messaging_turn_once(
         "secret",
         "request",
         capability_factory=lambda **_kwargs: capability,

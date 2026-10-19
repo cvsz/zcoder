@@ -19,8 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from zcoder.claude.capabilities.code import CodeAgent, CodeSession, HooksEngine
-from zcoder.claude.tools.registry import build_code_tools_registry
+from zcoder.agent.capabilities.code import CodeAgent, CodeSession, HooksEngine
+from zcoder.agent.tools.registry import build_code_tools_registry
 from zcoder.core.security import build_child_env, is_secret_env_name
 from zcoder.services.backup_restore import (
     BackupManager,
@@ -100,7 +100,7 @@ def test_bash_tool_spawns_filtered_env(tmp_path, monkeypatch):
         captured["env"] = kwargs.get("env")
         return subprocess.CompletedProcess(argv, 0, stdout="(ok)", stderr="")
 
-    monkeypatch.setattr("zcoder.claude.capabilities.code.subprocess.run", fake_run)
+    monkeypatch.setattr("zcoder.agent.capabilities.code.subprocess.run", fake_run)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-secret")
     monkeypatch.setenv("GITHUB_TOKEN", "gh-secret")
     monkeypatch.setenv("DATABASE_URL", "postgresql://fixture:fixture@localhost/test")

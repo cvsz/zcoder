@@ -9,8 +9,8 @@ from pathlib import Path
 src_dir = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(src_dir))
 
+from zcoder.agent.personalities import PERSONALITIES  # noqa: E402
 from zcoder.api.public.v1 import PublicAPIV1Router  # noqa: E402
-from zcoder.claude.personalities import PERSONALITIES  # noqa: E402
 from zcoder.domain.models.tenant import EnterpriseRole, RequestContext  # noqa: E402
 from zcoder.enterprise.local_ai_stack import (  # noqa: E402
     AutonomousEngineeringLoop,  # noqa: E402

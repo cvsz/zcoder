@@ -6,8 +6,8 @@ import urllib.parse
 
 import pytest
 
-import zcoder.claude.orchestration.providers as providers
-from zcoder.claude.orchestration.router import _call, _post, classify, route_and_call
+import zcoder.agent.orchestration.providers as providers
+from zcoder.agent.orchestration.router import _call, _post, classify, route_and_call
 
 # ── providers module ──────────────────────────────────────────────────────────
 
@@ -225,7 +225,7 @@ def test_router_call_uses_provider_endpoint(monkeypatch):
         captured["headers"] = dict(req.headers)
         return {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
 
-    monkeypatch.setattr("zcoder.claude.orchestration.router.urlopen_json", fake)
+    monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", fake)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     # gemini provider should hit the gemini endpoint with x-goog-api-key
     monkeypatch.setenv("GEMINI_API_KEY", "g-key")
@@ -246,7 +246,7 @@ def test_router_call_local_mode_no_network(monkeypatch):
     def _fail(*a, **kw):
         raise AssertionError("local provider must not make a network call")
 
-    monkeypatch.setattr("zcoder.claude.orchestration.router.urlopen_json", _fail)
+    monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", _fail)
     data = _call(
         "", {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}, provider="local", model="any"
     )
@@ -269,7 +269,7 @@ def test_classify_and_route_use_provider(monkeypatch):
     def fake_call(api_key, payload, provider=None, base_url=None, model=None):
         return {"content": [{"type": "text", "text": '{"agent": "research", "reason": "test"}'}]}
 
-    monkeypatch.setattr("zcoder.claude.orchestration.router._call", fake_call)
+    monkeypatch.setattr("zcoder.agent.orchestration.router._call", fake_call)
     agent, reason = classify(
         "do research",
         {"research": "desc", "code": "desc"},
@@ -288,7 +288,7 @@ def test_route_and_call_parallel_uses_provider(monkeypatch):
         calls.append({"provider": provider, "payload": payload})
         return {"content": [{"type": "text", "text": "ans"}]}
 
-    monkeypatch.setattr("zcoder.claude.orchestration.router._call", fake_call)
+    monkeypatch.setattr("zcoder.agent.orchestration.router._call", fake_call)
     result = route_and_call(
         "hi",
         "k",
@@ -308,5 +308,5 @@ def test_post_preserves_error_contract(monkeypatch):
     def raising_call(*a, **kw):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("zcoder.claude.orchestration.router._call", raising_call)
+    monkeypatch.setattr("zcoder.agent.orchestration.router._call", raising_call)
     assert "boom" in _post("k", {}, provider="anthropic", model="m")["error"]

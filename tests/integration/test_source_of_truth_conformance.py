@@ -5,13 +5,13 @@ Validates ZCoder runtime behavior and constants directly against independent
 authoritative Anthropic specifications, preventing regressions and false releases.
 """
 
-from zcoder.claude.models.registry import (
+from zcoder.agent.models.registry import (
     DEPRECATED_MODELS,
     INFERENCE_GEO_SUPPORTED,
     MODEL_CATALOG,
     RETIRED_MODELS,
 )
-from zcoder.claude.models.sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD, current_pricing
+from zcoder.agent.models.sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD, current_pricing
 from zcoder.core.resilience import extract_response_metadata
 
 

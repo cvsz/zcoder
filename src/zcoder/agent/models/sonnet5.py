@@ -45,7 +45,7 @@ import urllib.error
 import urllib.request
 from datetime import date
 
-from zcoder.claude.models.registry import (
+from zcoder.agent.models.registry import (
     INFERENCE_GEO_PRICING_MULTIPLIER,
     INFERENCE_GEO_SUPPORTED,
     SERVICE_TIER_UNSUPPORTED,

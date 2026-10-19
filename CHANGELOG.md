@@ -6,6 +6,41 @@ high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 single-`coder.py` CLI with its own PyInstaller packaging) were merged into
 this release; see "v1.12.0" below for exactly what came from where.
 
+## [1.41.5] — 2026-10-19 — Agent Namespace Rename (Upgrade-57)
+
+### Changed
+* **Internal namespace rename (mechanical, zero behavior change):**
+  `src/zcoder/claude/` → `src/zcoder/agent/` (65 modules moved via
+  `git mv`, 367+ import sites updated across `src/`, `tests/`,
+  `webapp/`, `scripts/`, ruff/coverage config, and the live operational
+  docs). Our own implementation no longer masquerades under a
+  third-party product name: the wheel's internal tree is now
+  `zcoder/agent/…`, and the `services/claude_messaging_adapter.py`
+  stragglers became `services/agent_messaging_adapter.py` (+ rename of
+  its entrypoint `run_agent_messaging_turn_once` and its test module).
+* Network-facing "Claude Code Agent" runtime banner → **"ZCoder
+  Agent"** — user-visible strings are ours now.
+* Deliberately untouched:
+  - **API-level identifiers** — the 228 `claude-*` model-id strings and
+    the Anthropic endpoint constants are functional provider
+    identifiers; renaming them breaks the product.
+  - **Nominative references** — `CHANGELOG.md` (historical record),
+    archived upgrade plans (`UPGRADE-46…53`, docs/superpowers), and
+    parity docstrings/CHANGLOG mentions of the vendor CLI stay as-is.
+  - Archive-document paths were reverted to their original text to
+    preserve historical accuracy; only live-path references were
+    updated.
+* Layers policy (recorded during the audit cycle): API identifiers
+  functional / internal namespace ours / nominative docs allowed —
+  additional details in `docs/upgrades/UPGRADE-54.md` Naming note.
+
+### Validation
+* Full unit suite **1252 passed**; ruff/black clean across
+  `src`+`tests`+`webapp`; `zcoder.agent.capabilities.code` import
+  verified from the rewritten tree; residual scans (`grep
+  "zcoder.claude"`, `find claude_*`) read zero inside live code — only
+  generated artifacts (`egg-info`, caches) keep historical strings.
+
 ## [1.41.4] — 2026-10-19 — Context Budget & Real /compact (Parity W1, Upgrade-56)
 
 ### Features
