@@ -159,9 +159,7 @@ def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected
     fake_anthropic_module = types.SimpleNamespace(Anthropic=FakeAnthropic)
     monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
 
-    resp = client.post(
-        "/api/chat/stream", json={"prompt": "hi", "api_key": "sk-ant-test", "model": model}
-    )
+    resp = client.post("/api/chat/stream", json={"prompt": "hi", "api_key": "sk-ant-test", "model": model})
     assert resp.status_code == 200
     body = resp.text
     assert '"type": "token"' in body or '"type":"token"' in body
