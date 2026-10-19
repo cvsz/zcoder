@@ -8,6 +8,7 @@ Verifies:
   5. Python SDK Client contract execution
 """
 
+import socket
 import time
 
 import pytest
@@ -123,7 +124,15 @@ def test_public_api_job_submission_fails_closed_until_queue_is_wired():
     assert body3["error"]["code"] == "JOB_QUEUE_UNAVAILABLE"
 
 
-def test_python_sdk_contract():
+def test_python_sdk_contract(monkeypatch):
+    # Webhook registration validates DNS, but this contract test must remain
+    # deterministic in offline CI and does not deliver a webhook.
+    def public_dns_address(host, port, *, type):
+        assert host == "myapp.com"
+        assert port == 443
+        return [(socket.AF_INET, type, 6, "", ("8.8.8.8", port))]
+
+    monkeypatch.setattr("zcoder.core.outbound_security.socket.getaddrinfo", public_dns_address)
     router = PublicAPIV1Router()
     client = ZCoderClient(api_key="zc_live_testkey123", organization_id="org_sdk", router=router)
 

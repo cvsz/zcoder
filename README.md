@@ -262,8 +262,10 @@ zcoder --code-agent "fix auth bug"    # Autonomous coding cycle
 zcoder --code-agent-permission ask   # Permission mode
 
 # Provider routing
-zcoder --provider anthropic           # anthropic | gemini | xai | ollama | local
-zcoder --base-url http://localhost:11434  # Custom gateway
+zcoder --route "Review this code" --provider groq --model "openai/gpt-oss-20b"
+zcoder --route "Explain this diff" --provider openrouter --model "openrouter/free"
+zcoder --route "Review this code" --provider openai_compatible --base-url http://localhost:1234/v1 --model "my-model"
+# --provider applies to --route only. See docs/guides/FREE-PROVIDER-ENDPOINTS.md.
 
 # GitHub
 zcoder --gh-issue 123                 # GitHub issue operations
@@ -294,11 +296,15 @@ zcoder --dr-rehearsal                 # DR rehearsal
 | `ANTHROPIC_API_KEY` | Anthropic Claude API key | Optional |
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google Gemini API key | Optional |
 | `XAI_API_KEY` | xAI Grok API key | Optional |
+| `GROQ_API_KEY` | Groq router API key | Optional |
+| `OPENROUTER_API_KEY` | OpenRouter router API key | Optional |
+| `CEREBRAS_API_KEY` | Cerebras router API key | Optional |
+| `OPENAI_COMPATIBLE_API_KEY` | Optional bearer token for a custom compatible server | Optional |
 | `OLLAMA_BASE_URL` | Ollama gateway URL | Optional |
 | `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |
 | `DATABASE_URL` | PostgreSQL connection string | Optional (SQLite default) |
 | `ZCODER_OTEL_ENDPOINT` | OpenTelemetry collector endpoint | Optional |
-| `ZCODER_PROVIDER` | Default provider (anthropic/gemini/xai/ollama/local) | Optional |
+| `ZCODER_PROVIDER` | Router provider: anthropic, gemini, xai, groq, openrouter, cerebras, openai_compatible, ollama, or local | Optional |
 | `ZCODER_BASE_URL` | Default API gateway URL | Optional |
 
 ### Cost Policy

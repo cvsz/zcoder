@@ -32,13 +32,22 @@ make update     # refresh dependencies (and git pull, if this is a git checkout)
 make upgrade    # update + restart a running server + health-check
 ```
 
-Override host/port with `make start HOST=127.0.0.1 PORT=9000`.
+Override the local port with `make start PORT=9000`. The default bind address
+is `127.0.0.1`, so the unauthenticated development console is not exposed on
+all network interfaces. Use an authenticated access layer before making the
+console available outside the local machine. The server also allows only local
+Host headers and disables cross-origin browser access by default.
+
+For a separately hosted local development frontend, configure an explicit
+`ZCODER_WEB_CORS_ORIGINS` allowlist (for example,
+`http://localhost:5173`). Do not use wildcard origins or expose the backend
+directly to the public internet.
 
 ## Without the Makefile
 
 ```bash
 pip install -r requirements.txt -r webapp/requirements-web.txt
-uvicorn webapp.backend.server:app --app-dir . --host 0.0.0.0 --port 8420
+uvicorn webapp.backend.server:app --app-dir . --host 127.0.0.1 --port 8420
 ```
 
 ## API surface

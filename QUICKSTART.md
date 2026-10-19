@@ -12,6 +12,34 @@ source venv/bin/activate
 python main.py -p "Write a function to reverse a string"
 ```
 
+### Choose the installation directory
+
+The destination is an exact virtual-environment path, not a parent directory.
+Choose it before installation; Python virtual environments are not generally
+relocatable after creation. Paths may contain spaces. Explicit relative paths
+are resolved against the directory from which you invoke the command.
+
+```bash
+./setup.sh --install-dir "$HOME/Apps/zcoder"
+"$HOME/Apps/zcoder/bin/zcoder" --version
+```
+
+On Windows (Command Prompt):
+
+```bat
+setup.bat --install-dir "D:\Apps\ZCoder"
+"D:\Apps\ZCoder\Scripts\zcoder.exe" --version
+```
+
+`--install-dir` installs a regular package rather than an editable checkout,
+so the CLI does not depend on keeping the cloned source directory. With no
+option, the existing `venv` + editable-install behavior is preserved; the
+existing `ZCODER_VENV` environment variable is also supported.
+
+Credentials must be provided through environment variables or an explicitly
+configured dotenv workflow when running outside the source checkout. The
+setup script never copies credentials into the selected destination.
+
 ## Run without an API key (offline / local mode)
 
 Set `ZCODER_LOCAL_MODE=1` (or `true`/`yes`) to run the CLI with no
@@ -42,6 +70,46 @@ No local Python needed to *run* the result — only to build it:
 export ANTHROPIC_API_KEY=sk-ant-...
 ./dist/zcoder -p "Create a Flask REST API"
 ```
+
+To choose the output directory and avoid overwriting an existing executable:
+
+```bash
+./build.sh --dist-dir "$HOME/Downloads/zcoder-release"
+"$HOME/Downloads/zcoder-release/zcoder" --version
+./build.sh --dist-dir "$HOME/Downloads/zcoder-release" --force  # intentional rebuild
+```
+
+```bat
+build.bat --dist-dir "D:\Releases\ZCoder"
+"D:\Releases\ZCoder\zcoder.exe" --version
+```
+
+`--work-dir` and `--build-venv` select intermediate build paths. Environment
+overrides `ZCODER_DIST_DIR`, `ZCODER_WORK_DIR` and `ZCODER_BUILD_VENV` remain
+available. Builds produce one platform-specific executable; create separate
+artifacts on Linux, macOS, and Windows. A standalone build bundles Python,
+not an AI model, API credentials, or operating-system libraries like glibc.
+macOS notarization, Windows code signing and release attestations are separate
+release requirements.
+
+## Free-tier and local inference endpoints
+
+The `--provider` flag applies to the **multi-agent router** (`--route`), not
+the regular `-p` generation command or every other CLI feature.
+
+```bash
+export GROQ_API_KEY="your-groq-key"
+zcoder --route "Review this function" --provider groq --model "openai/gpt-oss-20b"
+
+export OPENROUTER_API_KEY="your-openrouter-key"
+zcoder --route "Explain this diff" --provider openrouter --model "openrouter/free"
+
+zcoder --route "Review this function" --provider openai_compatible \
+  --base-url http://localhost:1234/v1 --model "my-loaded-model"
+```
+
+See [Free provider endpoint catalog](docs/guides/FREE-PROVIDER-ENDPOINTS.md)
+for exact URLs, required keys, pricing caveats, and local alternatives.
 
 ## A few places to start
 

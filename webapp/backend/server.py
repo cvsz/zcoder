@@ -14,13 +14,14 @@ and modules `main.py` already uses:
     health.py                -> run_health_check (used for Docker/orchestrator
                                  probes and the CLI's --health-check flag)
 
-Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
+Run with:  uvicorn webapp.backend.server:app --host 127.0.0.1 --port 8420
 (or just `make start`, see the project Makefile).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import uuid
@@ -28,6 +29,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
@@ -37,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.claude.models.registry import MODEL_CATALOG  # noqa: E402
 from zcoder.claude.personalities import PersonalityManager  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
@@ -55,12 +58,17 @@ app = FastAPI(title="zcoder web", version=VERSION)
 
 # The frontend is served as static files from the same origin by default
 # (see the StaticFiles mount at the bottom of this file), so CORS is only
-# needed for local frontend dev servers hitting a separately-run backend.
+# needed for explicitly trusted frontend origins. Cross-origin access is denied
+# by default because this local developer console has no user authentication.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=parse_cors_origins(os.getenv("ZCODER_WEB_CORS_ORIGINS")),
     allow_methods=["*"],
     allow_headers=["*"],
+)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1"],
 )
 
 _personality_mgr = PersonalityManager()

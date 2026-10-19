@@ -35,7 +35,29 @@ def _isolate_state():
 
 @pytest.fixture
 def client():
-    return TestClient(server.app)
+    return TestClient(server.app, base_url="http://localhost")
+
+
+def test_web_console_rejects_untrusted_host(client):
+    response = client.get("/api/sessions", headers={"Host": "attacker.example"})
+    assert response.status_code == 400
+
+
+def test_web_console_does_not_allow_arbitrary_origins(client):
+    response = client.get("/api/sessions", headers={"Origin": "https://attacker.example"})
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_web_console_rejects_cross_origin_preflight(client):
+    response = client.options(
+        "/api/config",
+        headers={
+            "Origin": "https://attacker.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 400
 
 
 def test_version_endpoint(client):

@@ -7,7 +7,7 @@ by asking a lightweight classifier call first, then forwarding to the
 winner. Supports fallback chains and parallel fan-out.
 
 Provider neutrality (Slice E):
-  --provider / ZCODER_PROVIDER selects the gateway (anthropic|gemini|xai|ollama|local)
+  --provider / ZCODER_PROVIDER selects a registered gateway
   --base-url / ZCODER_BASE_URL / OLLAMA_BASE_URL overrides the default gateway
   --api-key  / provider-specific env vars supply the credential
   local provider requires no network and returns a stub response.
@@ -18,7 +18,7 @@ CLI flags:
   --route-parallel        Fan-out to ALL agents and return the best answer
   --route-add-agent NAME  Register a custom agent description in the routing table
   --route-list            List all agents in the routing table
-  --provider NAME         Gateway provider (anthropic|gemini|xai|ollama|local)
+  --provider NAME         Gateway provider (see --help)
   --base-url URL          Override the provider gateway base URL
 """
 
@@ -76,6 +76,8 @@ def _call(
     prov, url, key = _resolve_provider_kwargs(provider, base_url, api_key, model)
     if prov == "local":
         return {"text": "[local mode] No upstream call — local stub response."}
+    if prov in {"groq", "openrouter", "cerebras"} and not key:
+        raise ValueError(f"{prov} requires an API key; check the provider-specific environment variable")
     mdl = model or "claude-sonnet-5"
     # Build provider-specific request
     # payload is the Anthropic-shaped dict produced by callers; decompose it
