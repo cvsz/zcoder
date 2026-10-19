@@ -24,7 +24,18 @@ PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://postgres:postgres@172
 
 
 def test_version_single_source_of_truth():
-    """Verify that main.py version matches pyproject.toml version exactly."""
+    """Verify that every canonical version source agrees exactly.
+
+    The check must stay version-agnostic: it enforces the consistency
+    contract (pyproject.toml == main.VERSION == zcoder.__init__.__version__),
+    not any particular release number, so releases do not need to edit this
+    test. The release-gate version integrity and the evidence importer rely
+    on the same invariant.
+    """
+    import re
+
+    import zcoder
+
     try:
         import tomllib
 
@@ -39,14 +50,13 @@ def test_version_single_source_of_truth():
                 pyproj = tomllib.load(f)
             toml_ver = pyproj["project"]["version"]
         except ImportError:
-            import re
-
-            with open("pyproject.toml", encoding="utf-8") as f:
-                content = f.read()
+            content = open("pyproject.toml").read()
             match = re.search(r'version\s*=\s*"([^"]+)"', content)
             toml_ver = match.group(1) if match else None
 
-    assert main.VERSION == toml_ver == "1.41.0"
+    assert main.VERSION == toml_ver == zcoder.__version__
+    assert isinstance(main.VERSION, str)
+    assert re.fullmatch(r"\d+\.\d+\.\d+", main.VERSION)
 
 
 def test_data_residency_policy_evaluation():
