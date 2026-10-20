@@ -65,6 +65,10 @@ bandit -r . -x ./tests       # security static analysis
 docker build -t zcoder .
 docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder -p "hello"
 
+# Run the API server (provide DATABASE_URL through a secret manager)
+docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
+  -e DATABASE_URL="$DATABASE_URL" zcoder
+
 # or via compose (reads ANTHROPIC_API_KEY from the environment or a .env file)
 docker compose run --rm zcoder -p "hello"
 ```

@@ -2162,6 +2162,9 @@ excel = [
     { name = "openpyxl" },
     { name = "pandas" },
 ]
+postgres = [
+    { name = "psycopg2-binary" },
+]
 pptx = [
     { name = "python-pptx" },
 ]
@@ -2202,6 +2205,7 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'excel'", specifier = ">=2.0.0" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "psycopg2-binary", marker = "extra == 'dev'", specifier = ">=2.9.9" },
+    { name = "psycopg2-binary", marker = "extra == 'postgres'", specifier = ">=2.9.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
@@ -2217,7 +2221,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'all'", specifier = ">=0.23.0" },
     { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.23.0" },
 ]
-provides-extras = ["web", "tui", "excel", "pptx", "all", "dev"]
+provides-extras = ["web", "tui", "excel", "pptx", "all", "postgres", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

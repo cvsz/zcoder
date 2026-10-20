@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 import zcoder.api.server as server  # noqa: E402
+from zcoder import __version__  # noqa: E402
 
 
 @pytest.fixture()
@@ -46,6 +47,13 @@ def test_liveness_always_200(client):
     resp = client.get("/health/live")
     assert resp.status_code == 200
     assert resp.json() == {"status": "alive"}
+
+
+def test_api_version_matches_package_version(client):
+    assert server.app.version == __version__
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["version"] == __version__
 
 
 def test_readiness_200_when_probe_ok(client, monkeypatch):
