@@ -50,6 +50,7 @@ REQUIRED_CHECKS: tuple[str, ...] = (
     "docker-build",
     "Analyze Python Code Security",
     "Bandit and pip-audit",
+    "Dependency Review & Vulnerability Check",
     "Gitleaks secret scan",
     "actionlint workflows",
     "Helm v3.21.3 Lint & Template Check",
@@ -118,6 +119,22 @@ def verify_version_integrity() -> dict[str, str]:
     if len(set(versions.values())) != 1:
         raise EvidenceImportError(f"version mismatch across sources: {versions}")
     return {**versions, "version": versions["pyproject"]}
+
+
+def verify_release_tag(tag: str) -> str:
+    """Require a valid SemVer tag whose version matches the checked-out source."""
+    semver = (
+        r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+        r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+        r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+        r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    )
+    if not re.fullmatch(semver, tag):
+        raise EvidenceImportError(f"invalid release tag: {tag}")
+    version = verify_version_integrity()["version"]
+    if tag != f"v{version}":
+        raise EvidenceImportError(f"release tag {tag} does not match source version v{version}")
+    return version
 
 
 def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
@@ -288,6 +305,7 @@ def write_evidence(evidence: dict[str, Any], out_path: Path | None) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", help="candidate commit SHA (defaults to HEAD)")
+    parser.add_argument("--release-tag", help="validate a SemVer tag against the source version")
     parser.add_argument("--out", type=Path, help="write evidence to an explicit path")
     parser.add_argument(
         "--print", action="store_true", help="print the evidence record instead of writing it"
@@ -331,6 +349,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        if args.release_tag:
+            verify_release_tag(args.release_tag)
         sha = resolve_candidate_sha(args.sha)
         if args.await_checks:
             await_required_checks(

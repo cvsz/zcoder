@@ -38,10 +38,10 @@ jobs:
       - name: Install release gate
         run: python -m pip install -e .
 
-      - name: Await hosted checks on the exact release candidate
+      - name: Validate tag and await hosted checks on the exact release candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/import_release_evidence.py --await --timeout-minutes 30
+        run: python scripts/import_release_evidence.py --release-tag "$GITHUB_REF_NAME" --await --timeout-minutes 30
 
       - name: Enforce production qualification
         run: python scripts/release_gate.py --check
@@ -58,6 +58,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
