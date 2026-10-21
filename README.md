@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
 
-**เวอร์ชันปัจจุบัน:** `1.41.0`
+**เวอร์ชันปัจจุบัน:** `1.41.5`
 
 ---
 
@@ -124,6 +124,7 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 ### ตrequirements
 
 - Python 3.10+
+- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. Use `--pptx-native` on Python 3.10 for the Anthropic-managed PPTX path.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
@@ -396,7 +397,15 @@ docker run --rm zcoder:local --version
 
 # Run with provider key
 docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder:local
+
+# Run the API server (set DATABASE_URL to a reachable PostgreSQL database)
+docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
+  -e DATABASE_URL=postgresql://user:password@host:5432/zcoder \
+  zcoder:local
 ```
+
+The image pins its Python and uv builder images by digest and installs the
+runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
 
 ---
 
@@ -448,7 +457,7 @@ success, msg = engine.rollback_to_version("v1.40.0")
 engine.revoke_artifact(manifest, "Supply chain compromise")
 
 # Deployment rehearsal
-result = engine.run_deployment_rehearsal("v1.41.0-rc1", dry_run=True)
+result = engine.run_deployment_rehearsal("v1.41.5-rc1", dry_run=True)
 ```
 
 ### DR Rehearsal

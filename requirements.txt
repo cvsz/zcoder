@@ -6,7 +6,7 @@ anthropic>=1.2.0,<2.0.0
 # all, so an older pin would still "work" for those — but --agent-managed-run
 # needs 1.2.0+ specifically.
 python-dotenv>=1.2.2
-Pillow>=12.3.0
+Pillow>=13.0.0; python_version >= "3.11"
 
 # Vision / multimodal — no extra deps (base64 + urllib)
 # Batch API — no extra deps
@@ -31,7 +31,8 @@ openpyxl>=3.1.0
 # Optional — --pptx conversational slide-deck chat (v1.15.0)
 # Not required for any other flag; claude_powerpoint.py raises a clear
 # error and exits if this isn't installed and --pptx is used.
-python-pptx>=0.6.23
+# Local PPTX support requires Python 3.11+ for security-fixed Pillow 13.
+python-pptx>=0.6.23; python_version >= "3.11"
 
 # --browse (v1.15.0) needs no extra deps: urllib + html.parser, both stdlib.
 

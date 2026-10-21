@@ -50,6 +50,7 @@ REQUIRED_CHECKS: tuple[str, ...] = (
     "docker-build",
     "Analyze Python Code Security",
     "Bandit and pip-audit",
+    "Dependency Review & Vulnerability Check",
     "Gitleaks secret scan",
     "actionlint workflows",
     "Helm v3.21.3 Lint & Template Check",
@@ -120,6 +121,22 @@ def verify_version_integrity() -> dict[str, str]:
     return {**versions, "version": versions["pyproject"]}
 
 
+def verify_release_tag(tag: str) -> str:
+    """Require a valid SemVer tag whose version matches the checked-out source."""
+    semver = (
+        r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+        r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+        r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+        r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    )
+    if not re.fullmatch(semver, tag):
+        raise EvidenceImportError(f"invalid release tag: {tag}")
+    version = verify_version_integrity()["version"]
+    if tag != f"v{version}":
+        raise EvidenceImportError(f"release tag {tag} does not match source version v{version}")
+    return version
+
+
 def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
     """Fetch completed GitHub check runs bound to the candidate SHA."""
     repo = os.environ.get("GITHUB_REPOSITORY") or _repo_slug()
@@ -149,7 +166,76 @@ def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
     for run in runs:
         if not run.get("name") or run.get("head_sha") != sha:
             raise EvidenceImportError("check-run evidence not bound to candidate SHA")
+    if not any(run.get("name") == "Dependency Review & Vulnerability Check" for run in runs):
+        runs.append(_dependency_review_for_merge(repo, sha))
     return runs
+
+
+def _dependency_review_for_merge(repo: str, sha: str) -> dict[str, Any]:
+    """Bind the PR-only dependency review to the exact squash merge commit."""
+    pulls = subprocess.run(
+        ["gh", "api", f"repos/{repo}/commits/{sha}/pulls", "--paginate", "--slurp"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if pulls.returncode != 0:
+        raise EvidenceImportError(
+            f"merged pull-request evidence unavailable: {(pulls.stderr or pulls.stdout).strip()[:300]}"
+        )
+    try:
+        pages = json.loads(pulls.stdout)
+        candidates = [pull for page in pages for pull in page]
+        merged = [
+            pull for pull in candidates if pull.get("merged_at") and pull.get("merge_commit_sha") == sha
+        ]
+        if len(merged) != 1:
+            raise ValueError("candidate SHA does not identify exactly one merged pull request")
+        pull = merged[0]
+        source_sha = pull["head"]["sha"]
+        pull_url = pull["html_url"]
+    except (json.JSONDecodeError, AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise EvidenceImportError(f"invalid merged pull-request evidence: {exc}") from exc
+
+    checks = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/commits/{source_sha}/check-runs?filter=latest&per_page=100",
+            "--paginate",
+            "--slurp",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if checks.returncode != 0:
+        raise EvidenceImportError(
+            f"pull-request dependency review unavailable: {(checks.stderr or checks.stdout).strip()[:300]}"
+        )
+    try:
+        pages = json.loads(checks.stdout)
+        runs = [run for page in pages for run in page.get("check_runs", [])]
+    except (json.JSONDecodeError, AttributeError, TypeError) as exc:
+        raise EvidenceImportError(f"invalid pull-request check evidence: {exc}") from exc
+    review_runs = [
+        run
+        for run in runs
+        if run.get("name") == "Dependency Review & Vulnerability Check"
+        and run.get("head_sha") == source_sha
+        and run.get("status") == "completed"
+    ]
+    if not review_runs:
+        raise EvidenceImportError(
+            f"merged pull request {pull_url} has no completed dependency review on head {source_sha}"
+        )
+    run = max(review_runs, key=lambda item: int(item.get("id", 0)))
+    return {
+        **run,
+        "head_sha": sha,
+        "pull_request_url": pull_url,
+        "source_head_sha": source_sha,
+    }
 
 
 def _repo_slug() -> str:
@@ -192,14 +278,18 @@ def evaluate_check_runs(
         detail = ", ".join(f"{name} ({reason})" for name, reason in failing)
         raise EvidenceImportError(f"failing hosted checks: {detail}")
 
-    return {
-        name: {
-            "id": str(latest[name].get("id")),
-            "conclusion": latest[name].get("conclusion") or "",
-            "html_url": latest[name].get("html_url") or "",
+    result: dict[str, dict[str, str]] = {}
+    for name in required:
+        run = latest[name]
+        result[name] = {
+            "id": str(run.get("id")),
+            "conclusion": run.get("conclusion") or "",
+            "html_url": run.get("html_url") or "",
         }
-        for name in required
-    }
+        for field in ("source_head_sha", "pull_request_url"):
+            if run.get(field):
+                result[name][field] = str(run[field])
+    return result
 
 
 def await_required_checks(
@@ -288,6 +378,7 @@ def write_evidence(evidence: dict[str, Any], out_path: Path | None) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", help="candidate commit SHA (defaults to HEAD)")
+    parser.add_argument("--release-tag", help="validate a SemVer tag against the source version")
     parser.add_argument("--out", type=Path, help="write evidence to an explicit path")
     parser.add_argument(
         "--print", action="store_true", help="print the evidence record instead of writing it"
@@ -331,6 +422,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        if args.release_tag:
+            verify_release_tag(args.release_tag)
         sha = resolve_candidate_sha(args.sha)
         if args.await_checks:
             await_required_checks(

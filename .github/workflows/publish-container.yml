@@ -2,15 +2,10 @@ name: Publish Container
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
 
 concurrency:
   group: publish-container-${{ github.ref }}
@@ -21,12 +16,52 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  qualify-release:
+    name: Qualify Exact Release Candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Install release gate
+        run: python -m pip install -e .
+
+      - name: Validate tag and await hosted checks on the exact release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/import_release_evidence.py --release-tag "$GITHUB_REF_NAME" --await --timeout-minutes 30
+
+      - name: Enforce production qualification
+        run: python scripts/release_gate.py --check
+
   build-and-push:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs: [qualify-release]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
@@ -47,7 +82,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

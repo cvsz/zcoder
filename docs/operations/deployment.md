@@ -65,6 +65,10 @@ bandit -r . -x ./tests       # security static analysis
 docker build -t zcoder .
 docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder -p "hello"
 
+# Run the API server (provide DATABASE_URL through a secret manager)
+docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
+  -e DATABASE_URL="$DATABASE_URL" zcoder
+
 # or via compose (reads ANTHROPIC_API_KEY from the environment or a .env file)
 docker compose run --rm zcoder -p "hello"
 ```
@@ -72,6 +76,11 @@ docker compose run --rm zcoder -p "hello"
 The image runs as a non-root user, has a `HEALTHCHECK` wired to
 `--health-check`, and never bakes `.env`/secrets into layers (see
 `.dockerignore`).
+
+Container publication to GHCR runs only for `v*` release tags and starts only
+after the exact tagged commit passes hosted-check import and the production
+release gate. Stable semantic-version tags update `latest`; prerelease tags do
+not. Merging to `main` does not publish or move container tags.
 
 ## Health checks
 

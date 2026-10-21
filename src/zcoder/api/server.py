@@ -17,6 +17,7 @@ src_path = Path(__file__).resolve().parent.parent.parent
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
+from zcoder import __version__  # noqa: E402
 from zcoder.api.auth import (  # noqa: E402
     AuthenticationUnavailable,
     RequestAuthenticationError,
@@ -64,7 +65,7 @@ class _LazyEnterpriseJobStore:
 app = FastAPI(
     title="ZCoder Public API & Control Plane",
     description="REST API interface for ZCoder autonomous engineering workflows, jobs, and tools.",
-    version="1.41.0",
+    version=__version__,
 )
 
 CORS_ORIGINS = parse_cors_origins(os.environ.get("ZCODER_CORS_ORIGINS"))
@@ -82,7 +83,7 @@ router = PublicAPIV1Router(job_store=_LazyEnterpriseJobStore())
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "zcoder-api-server", "version": "1.41.0"}
+    return {"status": "ok", "service": "zcoder-api-server", "version": __version__}
 
 
 @app.get("/metrics")
