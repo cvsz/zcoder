@@ -54,6 +54,7 @@ _PROMOTION_REQUIREMENTS = {
         "security",
         "Analyze Python Code Security",
         "Bandit and pip-audit",
+        "Dependency Review & Vulnerability Check",
         "Gitleaks secret scan",
     ],
     "PITR": ["test (3.10)", "test (3.11)", "test (3.12)"],

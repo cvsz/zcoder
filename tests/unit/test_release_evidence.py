@@ -69,6 +69,7 @@ def test_gate_promotes_from_evidence_bound_to_head(evidence_dir):
             "security",
             "Analyze Python Code Security",
             "Bandit and pip-audit",
+            "Dependency Review & Vulnerability Check",
             "Gitleaks secret scan",
             "docker-build",
             "Production Release Gate Audit",
@@ -115,6 +116,7 @@ def test_gate_rejects_evidence_with_failed_check(evidence_dir):
         "security": _required_check("security"),
         "Analyze Python Code Security": _required_check("Analyze Python Code Security"),
         "Bandit and pip-audit": _required_check("Bandit and pip-audit"),
+        "Dependency Review & Vulnerability Check": _required_check("Dependency Review & Vulnerability Check"),
         "Gitleaks secret scan": _required_check("Gitleaks secret scan"),
         "docker-build": _required_check("docker-build"),
         "Production Release Gate Audit": _required_check("Production Release Gate Audit"),
@@ -150,6 +152,7 @@ def test_partial_evidence_leaves_dependent_gate_unknown(evidence_dir):
         "security": _required_check("security"),
         "Analyze Python Code Security": _required_check("Analyze Python Code Security"),
         "Bandit and pip-audit": _required_check("Bandit and pip-audit"),
+        "Dependency Review & Vulnerability Check": _required_check("Dependency Review & Vulnerability Check"),
         "Gitleaks secret scan": _required_check("Gitleaks secret scan"),
     }
     record = _valid_evidence(sha, checks)
@@ -224,11 +227,89 @@ def test_required_checks_exclude_the_gate_itself():
     """The gate-keeper job name must never be required inside its own evidence."""
     importer = _gate_aware_importer()
     assert "Production Release Gate Audit" not in importer.REQUIRED_CHECKS
+    assert "Dependency Review & Vulnerability Check" in importer.REQUIRED_CHECKS
 
     from zcoder.services.release_gate import _PROMOTION_REQUIREMENTS
 
     for required in _PROMOTION_REQUIREMENTS.values():
         assert "Production Release Gate Audit" not in required
+    assert "Dependency Review & Vulnerability Check" in _PROMOTION_REQUIREMENTS["SECURITY"]
+
+
+def test_release_tag_must_be_semver_and_match_source(monkeypatch):
+    importer = _gate_aware_importer()
+    monkeypatch.setattr(
+        importer,
+        "verify_version_integrity",
+        lambda: {"version": "1.2.3", "pyproject": "1.2.3", "main": "1.2.3", "init": "1.2.3"},
+    )
+
+    assert importer.verify_release_tag("v1.2.3") == "1.2.3"
+    for invalid in ("vgarbage", "v1", "v1.2.4", "1.2.3", "v1.2.3-rc.1", "v01.2.3"):
+        with pytest.raises(importer.EvidenceImportError):
+            importer.verify_release_tag(invalid)
+
+    monkeypatch.setattr(
+        importer,
+        "verify_version_integrity",
+        lambda: {
+            "version": "1.2.3-rc.1+build.5",
+            "pyproject": "1.2.3-rc.1+build.5",
+            "main": "1.2.3-rc.1+build.5",
+            "init": "1.2.3-rc.1+build.5",
+        },
+    )
+    assert importer.verify_release_tag("v1.2.3-rc.1+build.5") == "1.2.3-rc.1+build.5"
+
+
+def test_dependency_review_is_bound_to_the_merged_pull_request(monkeypatch):
+    import json
+    import subprocess
+
+    importer = _gate_aware_importer()
+    candidate_sha = "a" * 40
+    source_sha = "b" * 40
+    responses = [
+        json.dumps(
+            [
+                [
+                    {
+                        "merged_at": "2026-10-21T00:00:00Z",
+                        "merge_commit_sha": candidate_sha,
+                        "head": {"sha": source_sha},
+                        "html_url": "https://github.com/cvsz/zcoder/pull/42",
+                    }
+                ]
+            ]
+        ),
+        json.dumps(
+            [
+                {
+                    "check_runs": [
+                        {
+                            "name": "Dependency Review & Vulnerability Check",
+                            "head_sha": source_sha,
+                            "status": "completed",
+                            "conclusion": "success",
+                            "id": 42,
+                            "html_url": "https://github.com/checks/42",
+                        }
+                    ]
+                }
+            ]
+        ),
+    ]
+
+    def fake_run(command, **kwargs):
+        assert command[0:2] == ["gh", "api"]
+        return subprocess.CompletedProcess(command, 0, responses.pop(0), "")
+
+    monkeypatch.setattr(importer.subprocess, "run", fake_run)
+    run = importer._dependency_review_for_merge("cvsz/zcoder", candidate_sha)
+    assert run["head_sha"] == candidate_sha
+    assert run["source_head_sha"] == source_sha
+    assert run["conclusion"] == "success"
+    assert run["pull_request_url"] == "https://github.com/cvsz/zcoder/pull/42"
 
 
 def test_evaluate_check_runs_excludes_requested_checks():

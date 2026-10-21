@@ -77,6 +77,11 @@ The image runs as a non-root user, has a `HEALTHCHECK` wired to
 `--health-check`, and never bakes `.env`/secrets into layers (see
 `.dockerignore`).
 
+Container publication to GHCR runs only for `v*` release tags and starts only
+after the exact tagged commit passes hosted-check import and the production
+release gate. Stable semantic-version tags update `latest`; prerelease tags do
+not. Merging to `main` does not publish or move container tags.
+
 ## Health checks
 
 ```bash
