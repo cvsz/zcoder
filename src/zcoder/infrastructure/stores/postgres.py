@@ -269,7 +269,7 @@ class PostgresControlPlaneStore:
                         job.id,
                         job.task,
                         job.runtime,
-                        job.status.value,
+                        job.status.value if isinstance(job.status, JobStatus) else job.status,
                         job.workspace,
                         job.created_at,
                         job.updated_at,

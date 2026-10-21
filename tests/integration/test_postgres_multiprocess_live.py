@@ -68,6 +68,20 @@ class TestRealPostgresMultiProcess:
     def test_schema_initialization_and_health(self, pg_store):
         assert pg_store.health_check() is True
 
+    def test_enqueue_job_accepts_default_string_status(self, pg_store):
+        job = Job(id=f"status_string_job_{time.time_ns()}", task="default status persistence")
+        pg_store.enqueue_job(job)
+        try:
+            with pg_store._get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT status FROM jobs WHERE id = %s", (job.id,))
+                    row = cur.fetchone()
+            assert row == (JobStatus.CREATED.value,)
+        finally:
+            with pg_store._get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM jobs WHERE id = %s", (job.id,))
+
     def test_multi_process_concurrent_claims_no_duplicates(self, pg_store):
         # Clean jobs table
         with pg_store._get_conn() as conn:
