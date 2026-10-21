@@ -124,6 +124,7 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 ### ตrequirements
 
 - Python 3.10+
+- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. Use `--pptx-native` on Python 3.10 for the Anthropic-managed PPTX path.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
