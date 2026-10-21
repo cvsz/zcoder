@@ -166,7 +166,76 @@ def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
     for run in runs:
         if not run.get("name") or run.get("head_sha") != sha:
             raise EvidenceImportError("check-run evidence not bound to candidate SHA")
+    if not any(run.get("name") == "Dependency Review & Vulnerability Check" for run in runs):
+        runs.append(_dependency_review_for_merge(repo, sha))
     return runs
+
+
+def _dependency_review_for_merge(repo: str, sha: str) -> dict[str, Any]:
+    """Bind the PR-only dependency review to the exact squash merge commit."""
+    pulls = subprocess.run(
+        ["gh", "api", f"repos/{repo}/commits/{sha}/pulls", "--paginate", "--slurp"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if pulls.returncode != 0:
+        raise EvidenceImportError(
+            f"merged pull-request evidence unavailable: {(pulls.stderr or pulls.stdout).strip()[:300]}"
+        )
+    try:
+        pages = json.loads(pulls.stdout)
+        candidates = [pull for page in pages for pull in page]
+        merged = [
+            pull for pull in candidates if pull.get("merged_at") and pull.get("merge_commit_sha") == sha
+        ]
+        if len(merged) != 1:
+            raise ValueError("candidate SHA does not identify exactly one merged pull request")
+        pull = merged[0]
+        source_sha = pull["head"]["sha"]
+        pull_url = pull["html_url"]
+    except (json.JSONDecodeError, AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise EvidenceImportError(f"invalid merged pull-request evidence: {exc}") from exc
+
+    checks = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/commits/{source_sha}/check-runs?filter=latest&per_page=100",
+            "--paginate",
+            "--slurp",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if checks.returncode != 0:
+        raise EvidenceImportError(
+            f"pull-request dependency review unavailable: {(checks.stderr or checks.stdout).strip()[:300]}"
+        )
+    try:
+        pages = json.loads(checks.stdout)
+        runs = [run for page in pages for run in page.get("check_runs", [])]
+    except (json.JSONDecodeError, AttributeError, TypeError) as exc:
+        raise EvidenceImportError(f"invalid pull-request check evidence: {exc}") from exc
+    review_runs = [
+        run
+        for run in runs
+        if run.get("name") == "Dependency Review & Vulnerability Check"
+        and run.get("head_sha") == source_sha
+        and run.get("status") == "completed"
+    ]
+    if not review_runs:
+        raise EvidenceImportError(
+            f"merged pull request {pull_url} has no completed dependency review on head {source_sha}"
+        )
+    run = max(review_runs, key=lambda item: int(item.get("id", 0)))
+    return {
+        **run,
+        "head_sha": sha,
+        "pull_request_url": pull_url,
+        "source_head_sha": source_sha,
+    }
 
 
 def _repo_slug() -> str:
@@ -209,14 +278,18 @@ def evaluate_check_runs(
         detail = ", ".join(f"{name} ({reason})" for name, reason in failing)
         raise EvidenceImportError(f"failing hosted checks: {detail}")
 
-    return {
-        name: {
-            "id": str(latest[name].get("id")),
-            "conclusion": latest[name].get("conclusion") or "",
-            "html_url": latest[name].get("html_url") or "",
+    result: dict[str, dict[str, str]] = {}
+    for name in required:
+        run = latest[name]
+        result[name] = {
+            "id": str(run.get("id")),
+            "conclusion": run.get("conclusion") or "",
+            "html_url": run.get("html_url") or "",
         }
-        for name in required
-    }
+        for field in ("source_head_sha", "pull_request_url"):
+            if run.get(field):
+                result[name][field] = str(run[field])
+    return result
 
 
 def await_required_checks(
