@@ -7,7 +7,7 @@ name = "zcoder"
 version = "1.41.5"
 description = "ZCoder CLI — enterprise-grade edition"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "anthropic>=1.2.0,<2.0.0",
