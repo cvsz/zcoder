@@ -1,21 +1,30 @@
 # syntax=docker/dockerfile:1
-FROM python:3.14-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.13.1@sha256:4a1f3666816dafadd20ceb71eac9a7d56d7ef30279f7d64048519ab901ada336 AS uv
+
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS builder
+
+COPY --from=uv /uv /uvx /bin/
 
 WORKDIR /build
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy
 
-FROM python:3.14-slim AS runtime
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+RUN uv sync --locked --no-dev --no-editable --extra web --extra postgres
+
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS runtime
 
 RUN groupadd --gid 1000 zcoder && \
     useradd --uid 1000 --gid zcoder --shell /bin/bash --create-home zcoder
 
-COPY --from=builder /install /usr/local
+COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
 COPY --chown=zcoder:zcoder . .
 
 ENV HOME=/home/zcoder \
+    PATH=/opt/venv/bin:$PATH \
     ZCODER_LOG_FORMAT=json \
     ZCODER_LOG_LEVEL=INFO \
     PYTHONPATH=/app/src \
