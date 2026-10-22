@@ -8,9 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from zcoder.core.resilience import safe_urlopen
 
 ROLES = frozenset({"admin", "operator", "auditor"})
 TASK_STATES = frozenset({"PENDING", "APPROVED", "REJECTED"})
@@ -218,20 +223,70 @@ class LocalControlStore:
             self._audit(db, actor, "task." + state.lower(), task_id)
 
 
+class LocalLlamaCppClient:
+    """Fail-closed OpenAI-compatible client restricted to loopback llama.cpp."""
+
+    def __init__(self, base_url: str | None = None, *, model: str | None = None):
+        self.base_url = (base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080")).rstrip("/")
+        self.model = model or os.getenv("ZCODER_MODEL", "local")
+        parsed = urlsplit(self.base_url)
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.username
+            or parsed.password
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("local inference endpoint must be an HTTP loopback origin")
+
+    def generate(self, prompt: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 4096,
+            "temperature": 0.2,
+            "stream": False,
+        }
+        request = urllib.request.Request(
+            f"{self.base_url}/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with safe_urlopen(request, timeout=120) as response:
+            raw = response.read(8 * 1024 * 1024 + 1)
+        if len(raw) > 8 * 1024 * 1024:
+            raise ValueError("local model response exceeded the size limit")
+        data = json.loads(raw)
+        content = data["choices"][0]["message"]["content"]
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("local model returned an empty or invalid response")
+        return content
+
+
 class LocalAgentRunner:
     """Run approved prompts once through the loopback llama.cpp provider."""
 
-    def __init__(self, store: LocalControlStore, *, model: str | None = None):
+    def __init__(
+        self,
+        store: LocalControlStore,
+        *,
+        model: str | None = None,
+        base_url: str | None = None,
+        inference_client: LocalLlamaCppClient | None = None,
+    ):
         self.store = store
-        self.model = model
+        self.inference_client = inference_client or LocalLlamaCppClient(base_url, model=model)
 
     def run(self, actor: str, task_id: str) -> str:
         description = self.store.consume_approved_task(actor, task_id)
-        from zcoder.services.coder import Coder
-
-        response = Coder(provider="llama_cpp", model=self.model).generate(description)
-        if response.startswith("[ERROR]"):
-            self.store.complete_task(actor, task_id, error=response)
-            raise RuntimeError(response)
+        try:
+            response = self.inference_client.generate(description)
+        except Exception as exc:
+            error = f"local inference failed: {type(exc).__name__}"
+            self.store.complete_task(actor, task_id, error=error)
+            raise RuntimeError(error) from exc
         self.store.complete_task(actor, task_id, result=response)
         return response

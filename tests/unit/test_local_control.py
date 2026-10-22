@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from zcoder.services.local_control import LocalAgentRunner, LocalControlStore
+from zcoder.services.local_control import LocalAgentRunner, LocalControlStore, LocalLlamaCppClient
 
 
 def test_bootstrap_roles_and_independent_approval(tmp_path):
@@ -59,15 +59,15 @@ def test_agent_runner_consumes_only_approved_task_once(tmp_path, monkeypatch):
     store.grant_role("admin", "worker", "operator")
     store.create_task("worker", "job-3", "Review the local patch")
 
-    class FakeCoder:
-        def __init__(self, **kwargs):
-            assert kwargs["provider"] == "llama_cpp"
+    class FakeClient:
+        def __init__(self, _base_url=None, *, model=None):
+            assert model is None
 
         def generate(self, prompt):
             assert prompt == "Review the local patch"
             return "review complete"
 
-    monkeypatch.setattr("zcoder.services.coder.Coder", FakeCoder)
+    monkeypatch.setattr("zcoder.services.local_control.LocalLlamaCppClient", FakeClient)
     runner = LocalAgentRunner(store)
     with pytest.raises(ValueError, match="unapproved"):
         runner.run("worker", "job-3")
@@ -83,3 +83,31 @@ def test_agent_runner_consumes_only_approved_task_once(tmp_path, monkeypatch):
         ).fetchone()
     assert state == "COMPLETED"
     assert result == "review complete"
+
+
+def test_local_model_client_uses_only_loopback(monkeypatch):
+    requested = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _size):
+            return b'{"choices":[{"message":{"content":"local result"}}]}'
+
+    def fake_open(request, timeout):
+        requested.append((request.full_url, timeout))
+        return Response()
+
+    monkeypatch.setattr("zcoder.services.local_control.safe_urlopen", fake_open)
+    client = LocalLlamaCppClient()
+    assert client.generate("prompt") == "local result"
+    assert requested == [("http://127.0.0.1:8080/v1/chat/completions", 120)]
+
+
+def test_local_model_client_rejects_non_loopback_endpoint():
+    with pytest.raises(ValueError, match="loopback"):
+        LocalLlamaCppClient("https://api.anthropic.com")

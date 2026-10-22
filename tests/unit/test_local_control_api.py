@@ -45,15 +45,15 @@ def test_local_admin_compliance_and_approved_agent_flow(client, monkeypatch):
     )
     assert response.status_code == 201
 
-    class FakeCoder:
-        def __init__(self, **kwargs):
-            assert kwargs["provider"] == "llama_cpp"
+    class FakeClient:
+        def __init__(self, _base_url=None, *, model=None):
+            assert model is None
 
         def generate(self, prompt):
             assert prompt == "Review a patch"
             return "review complete"
 
-    monkeypatch.setattr("zcoder.services.coder.Coder", FakeCoder)
+    monkeypatch.setattr("zcoder.services.local_control.LocalLlamaCppClient", FakeClient)
     identity["principal_id"] = "admin"
     response = http.post("/local/v1/tasks/task-1/decision", json={"approve": True})
     assert response.status_code == 200
