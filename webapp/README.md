@@ -35,6 +35,13 @@ make upgrade    # update + restart a running server + health-check
 The default bind address is `127.0.0.1`, not a public network interface. Override
 only the port with `make start PORT=9000` when needed.
 
+The console has no built-in user authentication. Only local Host headers are
+trusted by default; access from other hosts requires an authenticated reverse
+proxy and an explicit `ZCODER_WEB_ALLOWED_HOSTS` list. Same-origin requests need
+no CORS permissions. To use a separately hosted development frontend, set an
+explicit `ZCODER_WEB_CORS_ORIGINS` allowlist, such as
+`http://localhost:5173`. Do not expose the backend directly to the internet.
+
 ## Without the Makefile
 
 ```bash
