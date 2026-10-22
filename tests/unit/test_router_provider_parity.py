@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import urllib.parse
 
 import pytest
@@ -13,7 +14,17 @@ from zcoder.agent.orchestration.router import _call, _post, classify, route_and_
 
 
 def test_provider_choices_and_defaults():
-    assert set(providers.PROVIDER_CHOICES) == {"anthropic", "gemini", "xai", "ollama", "local"}
+    assert set(providers.PROVIDER_CHOICES) == {
+        "anthropic",
+        "gemini",
+        "xai",
+        "groq",
+        "openrouter",
+        "cerebras",
+        "openai_compatible",
+        "ollama",
+        "local",
+    }
     for name in providers.PROVIDER_CHOICES:
         assert name in providers.PROVIDER_DEFAULTS
     assert providers.PROVIDER_DEFAULTS["anthropic"]["base_url"] == "https://api.anthropic.com"
@@ -110,6 +121,22 @@ def test_resolve_base_url_rejects_file_scheme():
         providers.resolve_base_url("anthropic", "ftp://example.com")
 
 
+@pytest.mark.parametrize("url", ["https://", "http://user:pass@host", "https://host/v1?key=secret"])
+def test_resolve_base_url_rejects_malformed_gateway(url):
+    with pytest.raises(ValueError, match="Provider base URL must"):
+        providers.resolve_base_url("openai_compatible", url)
+
+
+def test_openai_compatible_requires_explicit_gateway(monkeypatch):
+    monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
+    with pytest.raises(ValueError, match="requires --base-url"):
+        providers.resolve_base_url("openai_compatible")
+    assert (
+        providers.resolve_base_url("openai_compatible", "http://localhost:1234/v1")
+        == "http://localhost:1234/v1"
+    )
+
+
 def test_endpoint_for_each_provider():
     assert (
         providers.endpoint_for("anthropic", "https://api.anthropic.com", "claude-sonnet-5")
@@ -129,6 +156,26 @@ def test_endpoint_for_each_provider():
     assert providers.endpoint_for("local", "", "any") == ""
 
 
+@pytest.mark.parametrize(
+    ("provider", "expected"),
+    [
+        ("groq", "https://api.groq.com/openai/v1/chat/completions"),
+        ("openrouter", "https://openrouter.ai/api/v1/chat/completions"),
+        ("cerebras", "https://api.cerebras.ai/v1/chat/completions"),
+    ],
+)
+def test_hosted_free_tier_provider_endpoints(provider, expected, monkeypatch):
+    monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
+    assert providers.endpoint_for(provider, providers.resolve_base_url(provider), "model") == expected
+
+
+def test_openai_compatible_endpoint():
+    assert (
+        providers.endpoint_for("openai_compatible", "http://localhost:1234/v1", "model")
+        == "http://localhost:1234/v1/chat/completions"
+    )
+
+
 def test_headers_for_each_provider():
     h = providers.headers_for("anthropic", "sk-123")
     assert h["x-api-key"] == "sk-123"
@@ -141,6 +188,77 @@ def test_headers_for_each_provider():
     assert "Authorization" not in h and "x-api-key" not in h
     h = providers.headers_for("local", "")
     assert "Authorization" not in h
+
+
+@pytest.mark.parametrize(
+    ("provider", "env_var"),
+    [("groq", "GROQ_API_KEY"), ("openrouter", "OPENROUTER_API_KEY"), ("cerebras", "CEREBRAS_API_KEY")],
+)
+def test_hosted_provider_auth_and_openai_protocol(provider, env_var, monkeypatch):
+    monkeypatch.setenv(env_var, "test-credential")
+    assert providers.resolve_api_key(provider) == "test-credential"
+    assert providers.headers_for(provider, "test-credential")["Authorization"] == "Bearer test-credential"
+    payload = providers.build_payload(provider, "model", [{"role": "user", "content": "hi"}], "sys", 64, {})
+    assert payload["messages"][0] == {"role": "system", "content": "sys"}
+    assert payload["max_tokens"] == 64
+    assert providers.parse_response(provider, {"choices": [{"message": {"content": "hello"}}]}) == "hello"
+
+
+def test_hosted_provider_missing_key_does_not_make_network_request(monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "zcoder.agent.orchestration.router.urlopen_json",
+        lambda *_a, **_kw: pytest.fail("request sent without key"),
+    )
+    with pytest.raises(ValueError, match="groq requires an API key"):
+        _call("", {"messages": []}, provider="groq", model="model")
+
+
+def test_cli_route_uses_selected_provider_key_without_anthropic_key(monkeypatch):
+    from zcoder.main import main
+
+    observed = {}
+
+    def fake_route(prompt, key, model, **kwargs):
+        observed.update(prompt=prompt, key=key, model=model, provider=kwargs["provider"])
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
+    monkeypatch.setattr(sys, "argv", ["zcoder", "--route", "test", "--provider", "groq", "--model", "model"])
+    monkeypatch.setattr("zcoder.agent.orchestration.router.cmd_route", fake_route)
+    main()
+    assert observed == {"prompt": "test", "key": "groq-test-key", "model": "model", "provider": "groq"}
+
+
+def test_cli_route_requires_model_for_nonanthropic_provider(monkeypatch, capsys):
+    from zcoder.main import main
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "key")
+    monkeypatch.setattr(sys, "argv", ["zcoder", "--route", "test", "--provider", "openrouter"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    assert "Specify --model" in capsys.readouterr().err
+
+
+def test_openai_compatible_router_integrates_with_local_server(monkeypatch):
+    captured = {}
+
+    def fake(req, timeout=60):
+        captured["url"] = req.full_url
+        return {"choices": [{"message": {"content": "local model response"}}]}
+
+    monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", fake)
+    response = _call(
+        "",
+        {"messages": [{"role": "user", "content": "hi"}]},
+        provider="openai_compatible",
+        base_url="http://127.0.0.1:1234/v1",
+        model="my-model",
+    )
+    assert captured["url"] == "http://127.0.0.1:1234/v1/chat/completions"
+    assert response["content"][0]["text"] == "local model response"
 
 
 def test_build_payload_anthropic():
