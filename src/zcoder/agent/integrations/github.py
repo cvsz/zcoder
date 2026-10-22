@@ -21,6 +21,7 @@ import urllib.request
 
 import anthropic
 
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json, urlopen_text
 from zcoder.core.utils import sampling_kwargs
@@ -172,21 +173,21 @@ def generate_pr_description(
 def cmd_gh_review_pr(repo_pr: str, gh_token_explicit: str | None, api_key: str, model: str):
     repo, _, num = repo_pr.rpartition("/")
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     print(f"\n\033[94mReviewing PR #{num} in {repo}\033[0m\n")
     print(review_pr(repo, int(num), token, client, model))
 
 
 def cmd_gh_triage(repo: str, max_items: int, gh_token_explicit: str | None, api_key: str, model: str):
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     print(f"\n\033[94mTriaging open issues in {repo}\033[0m\n")
     print(triage_issues(repo, max_items, token, client, model))
 
 
 def cmd_gh_commits(repo: str, max_items: int, gh_token_explicit: str | None, api_key: str, model: str):
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     print(f"\n\033[94mCommit summary for {repo}\033[0m\n")
     print(summarise_commits(repo, max_items, token, client, model))
 
@@ -194,6 +195,6 @@ def cmd_gh_commits(repo: str, max_items: int, gh_token_explicit: str | None, api
 def cmd_gh_pr_description(repo_pr: str, gh_token_explicit: str | None, api_key: str, model: str):
     repo, _, num = repo_pr.rpartition("/")
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     print(f"\n\033[94mGenerating PR description for #{num} in {repo}\033[0m\n")
     print(generate_pr_description(repo, int(num), token, client, model))

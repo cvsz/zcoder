@@ -112,7 +112,11 @@ def test_exchange_sends_jwt_bearer_grant(monkeypatch):
             ).encode()
         )
 
-    monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        wif,
+        "urlopen_json",
+        lambda req, timeout=None: json.loads(fake_urlopen(req, timeout).read().decode()),
+    )
     exchanger = wif.WIFCredentialExchanger()
 
     result = exchanger.exchange("fdrl_1", "org_1", "svac_1", "eyJhbGciOi.fake.jwt")
@@ -130,23 +134,23 @@ def test_exchange_includes_workspace_id_when_given(monkeypatch):
         captured["body"] = json.loads(req.data.decode())
         return _FakeResp(json.dumps({"access_token": "tok", "expires_in": 3600}).encode())
 
-    monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        wif,
+        "urlopen_json",
+        lambda req, timeout=None: json.loads(fake_urlopen(req, timeout).read().decode()),
+    )
     wif.WIFCredentialExchanger().exchange("fdrl_1", "org_1", "svac_1", "tok", workspace_id="wrkspc_1")
 
     assert captured["body"]["workspace_id"] == "wrkspc_1"
 
 
 def test_exchange_401_raises_wif_exchange_error_without_leaking_token(monkeypatch):
-    import urllib.error
+    from zcoder.core.exceptions import AuthenticationError
 
-    class FakeHTTPError(urllib.error.HTTPError):
-        def read(self):
-            return b'{"error": "invalid_grant"}'
+    def fake_urlopen_json(req, timeout=None):
+        raise AuthenticationError("API key rejected (401)", details={"body": "invalid_grant"})
 
-    def fake_urlopen(req, timeout=None):
-        raise FakeHTTPError(wif.OAUTH_TOKEN_ENDPOINT, 401, "unauthorized", {}, None)
-
-    monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(wif, "urlopen_json", fake_urlopen_json)
     secret_token = "super-secret-identity-token-value"
 
     with pytest.raises(wif.WIFExchangeError) as exc_info:
@@ -168,7 +172,7 @@ def _install_fake_admin_urlopen(monkeypatch, captured: dict, response_body: dict
             captured["body"] = json.loads(req.data.decode())
         return _FakeResp(json.dumps(response_body).encode())
 
-    monkeypatch.setattr(wif.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(wif, "safe_urlopen", fake_urlopen)
 
 
 def test_wif_admin_client_uses_bearer_not_api_key(monkeypatch):

@@ -27,8 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import anthropic
-
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
@@ -203,7 +202,7 @@ def optimized_call(
 ) -> OptimizedResponse:
     complexity = classify_complexity(prompt)
     model = select_model(complexity, force_model)
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     t0 = time.time()
     # NOTE: was hardcoded temperature=0.5, which 400s (invalid_request_error)
     # on claude-sonnet-5 and newer — those models reject explicit sampling

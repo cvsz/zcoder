@@ -41,7 +41,7 @@ CLI flags added in main.py:
 
 import sys
 
-import anthropic
+from zcoder.core.anthropic_disabled import create_anthropic_client
 
 # ── Effort → budget mapping (legacy manual mode only) ──────────────────────
 # "xhigh" (live since April 16, 2026 on Opus 4.7, and part of Opus 5's
@@ -118,7 +118,7 @@ class ThinkingCoder:
     """Claude client with extended / adaptive thinking support."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 8000):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
         self.max_tokens = max_tokens
 

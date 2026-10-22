@@ -14,6 +14,17 @@ def test_default_provider_uses_loopback_without_api_key(monkeypatch):
     coder = Coder()
     assert coder.provider == "llama_cpp"
     assert coder.api_key == ""
+    assert coder.model == "zcoder-qwen2.5-coder-7b"
+
+
+def test_local_inference_rejects_non_zcoder_model_without_network():
+    coder = Coder(provider="llama_cpp", model="claude-sonnet-5")
+    with patch(
+        "zcoder.services.coder.safe_local_urlopen", side_effect=AssertionError("network forbidden")
+    ) as opened:
+        result = coder.generate("hello")
+    assert "Unsupported local model" in result
+    opened.assert_not_called()
 
 
 def test_local_generate_sends_prompt_to_loopback_only():
@@ -45,7 +56,7 @@ def test_explicit_anthropic_provider_is_blocked_without_network():
     coder = Coder(provider="anthropic", api_key="unused", model="claude-sonnet-5")
     with patch("urllib.request.urlopen", side_effect=AssertionError("network forbidden")) as urlopen:
         result = coder.generate("hello")
-    assert "Anthropic calls are disabled" in result
+    assert "Remote model providers are disabled" in result
     urlopen.assert_not_called()
 
 

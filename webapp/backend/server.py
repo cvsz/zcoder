@@ -45,7 +45,6 @@ from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
 from zcoder.config.settings import Config  # noqa: E402
 from zcoder.core.health import run_health_check  # noqa: E402
-from zcoder.core.utils import sdk_sampling_kwargs  # noqa: E402
 from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
 from zcoder.services.coder import Coder  # noqa: E402
 from zcoder.services.skills import SkillManager  # noqa: E402
@@ -300,10 +299,8 @@ def chat(req: ChatRequest, request: Request):
 @app.post("/api/chat/stream")
 def chat_stream(req: ChatRequest, request: Request):
     """Server-Sent Events variant of /api/chat. Same request body and same
-    session-history semantics; the difference is purely transport — tokens
-    arrive as they're generated instead of after the full response. Reuses
-    agent_stream.py's event-handling shape (content_block_delta/text_delta)
-    rather than reimplementing SSE parsing.
+    session-history semantics. The local llama.cpp adapter currently returns
+    a complete response, so the SSE endpoint emits it as one text event.
 
     Each SSE `data:` line is a small JSON object:
       {"type": "token", "text": "..."}          — one delta, may repeat
@@ -319,29 +316,19 @@ def chat_stream(req: ChatRequest, request: Request):
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
     system = _build_system_prompt(req)
-    api_key = req.api_key or Config().get("api_key") or os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(400, "No API key. Set ANTHROPIC_API_KEY, use /api/config, or pass api_key.")
 
     def event_stream():
-        import anthropic
-
-        full_text = ""
         try:
-            client = anthropic.Anthropic(api_key=api_key)
-            messages = list(history) + [{"role": "user", "content": req.prompt}]
-            kwargs = dict(model=req.model, max_tokens=req.max_tokens, messages=messages)
-            if system:
-                kwargs["system"] = system
-            kwargs.update(sdk_sampling_kwargs(req.model, temperature=req.temperature))
-            with client.messages.stream(**kwargs) as stream:
-                for event in stream:
-                    if getattr(event, "type", "") == "content_block_delta":
-                        delta = event.delta
-                        if getattr(delta, "type", "") == "text_delta":
-                            text = getattr(delta, "text", "")
-                            full_text += text
-                            yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+            coder = Coder(
+                api_key=req.api_key or None,
+                model=req.model,
+                temperature=req.temperature,
+                max_tokens=req.max_tokens,
+                personality_style=req.personality,
+            )
+            full_text = coder.generate(req.prompt, system=system, history=history)
+            if full_text:
+                yield f"data: {json.dumps({'type': 'token', 'text': full_text})}\n\n"
         except Exception:
             logger.exception("stream_chat_failed", extra={"model": req.model})
             yield f"data: {json.dumps({'type': 'error', 'message': 'Upstream provider request failed'})}\n\n"

@@ -15,8 +15,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import anthropic
-
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.security import validate_name
 from zcoder.core.utils import sampling_kwargs
@@ -180,7 +179,7 @@ def retrieve(idx: RAGIndex, query: str, k: int = 5) -> list[Chunk]:
 
 
 def generate(query: str, chunks: list[Chunk], api_key: str, model: str = "claude-sonnet-5") -> str:
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     ctx = "\n\n".join(f"[{c.source}]\n{c.content}" for c in chunks)
     system = (
         "Answer based on the provided context. Cite sources using the "

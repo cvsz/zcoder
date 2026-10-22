@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from typing import TypeVar
 
 from zcoder.core.exceptions import (
+    AnthropicCallsDisabledError,
     APIError,
     AuthenticationError,
     CircuitOpenError,
@@ -141,7 +142,25 @@ def safe_urlopen(req, timeout: float):
     scheme = urllib.parse.urlparse(url).scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError(f"Unsupported URL scheme for outbound request: {scheme or '<missing>'}")
-    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 -- scheme checked above
+    _reject_anthropic_host(url)
+    opener = urllib.request.build_opener(_AnthropicRedirectHandler())
+    return opener.open(req, timeout=timeout)  # nosec B310 -- scheme checked above
+
+
+def _reject_anthropic_host(url: str) -> None:
+    host = (urllib.parse.urlsplit(url).hostname or "").lower().rstrip(".")
+    if host == "anthropic.com" or host.endswith(".anthropic.com"):
+        raise AnthropicCallsDisabledError(
+            "Anthropic API egress is disabled; use the local llama.cpp provider."
+        )
+
+
+class _AnthropicRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject redirects into Anthropic before urllib opens the target."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _reject_anthropic_host(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def safe_local_urlopen(req, timeout: float):

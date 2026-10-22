@@ -14,8 +14,7 @@ import threading
 import time
 from typing import Any
 
-import anthropic
-
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 LIVE_SYSTEM = (
@@ -60,7 +59,7 @@ class LiveSession:
         personality_prompt: str = "",
     ):
         try:
-            self.client = anthropic.Anthropic(api_key=api_key or "local-key")
+            self.client = create_anthropic_client(api_key=api_key or "local-key")
         except Exception:
             self.client = None
         self.model = model

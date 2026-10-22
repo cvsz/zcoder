@@ -18,7 +18,7 @@ VENV="${ZCODER_VENV:-venv}"
 
 if [ ! -f .env ]; then
     cp .env.example .env
-    echo "Created .env from .env.example; set ANTHROPIC_API_KEY before live calls."
+    echo "Created .env from .env.example. Configure a local llama.cpp server for inference."
 fi
 
 "$VENV/bin/python" main.py --version

@@ -1,10 +1,11 @@
 # Local GGUF mode for ZCoder prompt CLI
 
-This change makes the normal `zcoder -p` and `zcoder --agent ... -p` path use
-a **loopback-only** llama.cpp chat completion server by default. The normal
-`Coder` path refuses explicit Anthropic calls. Other legacy
-Anthropic-specific CLI features are not yet migrated or disabled and require
-a separate audit; do **not** interpret this patch as complete Anthropic removal.
+The normal `zcoder -p`, `zcoder --agent ... -p`, multi-agent router, and web
+chat paths use a **loopback-only** llama.cpp chat completion server by default.
+Anthropic egress is disabled across the shared URL transports and every
+in-repository Anthropic SDK client factory. Legacy administrative, compliance,
+managed-agent, and model-specific commands remain present for compatibility,
+but fail closed before opening a network connection.
 
 ## Model files on the user's Ubuntu/WSL instance
 
@@ -37,9 +38,14 @@ export ZCODER_BASE_URL=http://127.0.0.1:8080
 zcoder --agent security_auditor -p "Audit cvsz/zgpu source for vulnerabilities; cite files and recommend tests."
 ```
 
-The model server listens on `127.0.0.1:8080` only. No Anthropic key is
-required for this prompt path. Requests fail closed if the local server is
-missing; they must **never** fall back to a paid external provider.
+The model server listens on `127.0.0.1:8080` only. No API key is required for
+local generation. Requests fail closed if the local server is missing; they
+must **never** fall back to a paid external provider. Legacy provider routing
+rejects `anthropic` as a selectable provider, and API requests to any
+`*.anthropic.com` host are blocked by the shared transport boundary.
+The public model identifiers are `zcoder-qwen2.5-coder-7b` and
+`zcoder-qwen2.5-coder-1.5b`; the launcher configures the matching llama.cpp
+server alias.
 
 The first test should be a short text completion. A prompt containing just
 a GitHub repository name does not automatically give ZCoder access to its
@@ -58,7 +64,9 @@ that relied on the old implicit Anthropic mock. Those tests must explicitly
 request their intended legacy provider or be migrated. Do not merge until
 the full suite and independent review pass.
 
-**Limit:** This is a preliminary cutover for the normal prompt CLI path.
-A full repository-wide eradication of Anthropic integrations, SDK imports,
-admin/compliance endpoints, and specialized model features is a separate,
-potentially breaking migration requiring an audited compatibility matrix.
+**Limit:** Anthropic-specific modules and model metadata have not been deleted.
+Their outbound requests are blocked, so those features are unavailable until
+they are replaced with local or other explicitly supported providers. The
+Anthropic SDK remains an installed dependency for compatibility and test
+fixtures; its production client factory uses a transport that refuses network
+requests. This is runtime egress prevention, not source-code eradication.

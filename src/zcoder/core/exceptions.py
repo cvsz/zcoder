@@ -42,6 +42,12 @@ class ZCoderError(Exception):
         }
 
 
+class AnthropicCallsDisabledError(ZCoderError):
+    """Raised when a legacy path tries to use the retired Anthropic API."""
+
+    error_code = "ANTHROPIC_EGRESS_DISABLED"
+
+
 class ConfigError(ZCoderError):
     """Missing or invalid configuration (API key, malformed config file, ...)."""
 

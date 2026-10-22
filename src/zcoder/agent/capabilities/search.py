@@ -27,7 +27,7 @@ CLI flags:
                           web_fetch_20260318, both defaults as of v1.24.0
 """
 
-import anthropic
+from zcoder.core.anthropic_disabled import create_anthropic_client
 
 WEB_SEARCH_TOOL = {
     "type": "web_search_20260318",
@@ -44,7 +44,7 @@ class SearchCoder:
     """Claude with web search and fetch tools."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 4096):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
         self.max_tokens = max_tokens
 

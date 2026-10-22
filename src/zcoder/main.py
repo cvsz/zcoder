@@ -29,37 +29,12 @@ BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
 def _api_key(args):
-    provider = getattr(args, "provider", None) or os.getenv("ZCODER_PROVIDER", "llama_cpp")
-    if provider == "llama_cpp":
-        legacy_anthropic_mode = any(
-            getattr(args, name, False)
-            for name in (
-                "stream",
-                "stream_tools",
-                "thinking",
-                "adaptive",
-                "effort_legacy_budget",
-                "interactive",
-            )
-        )
-        if not legacy_anthropic_mode:
-            return ""
-        key = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
-        if not key or key == "local-mode-no-key-required":
-            print("[ERROR] ANTHROPIC_API_KEY is required for this legacy Anthropic command.", file=sys.stderr)
-            sys.exit(1)
-        return key
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
-        return os.getenv("ANTHROPIC_API_KEY", "local-mode-no-key-required")
-    k = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
-    if not k:
-        print("[ERROR] ANTHROPIC_API_KEY not set.", file=sys.stderr)
-        sys.exit(1)
-    return k
+    """Return no cloud credential; runtime inference is local-only."""
+    return ""
 
 
 def _model(args):
-    return getattr(args, "model", "claude-sonnet-5") or "claude-sonnet-5"
+    return getattr(args, "model", None) or "zcoder-qwen2.5-coder-7b"
 
 
 def _read_file(path):
@@ -109,7 +84,7 @@ def build_parser():
         "--provider",
         default=None,
         dest="provider",
-        choices=["anthropic", "gemini", "xai", "ollama", "local", "llama_cpp"],
+        choices=["local", "llama_cpp"],
         help="Model gateway provider (default for prompt CLI: llama_cpp on loopback)",
     )
     g.add_argument(
@@ -3091,7 +3066,7 @@ def main():
     if args.tui:
         from zcoder.interfaces.cli.tui import run_tui
 
-        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
+        run_tui(api_key="")
         return
 
     # ── API key required ──

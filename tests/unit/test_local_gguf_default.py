@@ -15,25 +15,20 @@ def test_default_prompt_provider_is_local(monkeypatch):
     assert _api_key(args) == ""
 
 
-def test_legacy_stream_requires_anthropic_key_even_with_local_default(monkeypatch):
+def test_legacy_stream_does_not_require_anthropic_key_with_local_default(monkeypatch):
     monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     args = build_parser().parse_args(["--stream", "-p", "hello"])
 
-    with patch("sys.exit", side_effect=SystemExit) as exit_call:
-        try:
-            _api_key(args)
-        except SystemExit:
-            pass
-    exit_call.assert_called_once_with(1)
+    assert _api_key(args) == ""
 
 
-def test_legacy_stream_preserves_explicit_anthropic_key(monkeypatch):
+def test_legacy_stream_ignores_explicit_anthropic_key(monkeypatch):
     monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     args = build_parser().parse_args(["--stream", "--api-key", "explicit-key", "-p", "hello"])
 
-    assert _api_key(args) == "explicit-key"
+    assert _api_key(args) == ""
 
 
 def test_local_chat_calls_only_loopback(monkeypatch):

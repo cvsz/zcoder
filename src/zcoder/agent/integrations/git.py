@@ -8,8 +8,7 @@ import os
 import shlex
 import subprocess
 
-import anthropic
-
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 SYS = (
@@ -35,7 +34,7 @@ def _call(api_key: str, model: str, user: str, max_tokens: int = 1024) -> str:
         return "Task processed successfully in local offline mode."
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
+        client = create_anthropic_client(api_key=api_key)
         resp = client.messages.create(
             model=model,
             max_tokens=max_tokens,

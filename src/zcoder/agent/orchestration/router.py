@@ -7,10 +7,10 @@ by asking a lightweight classifier call first, then forwarding to the
 winner. Supports fallback chains and parallel fan-out.
 
 Provider neutrality (Slice E):
-  --provider / ZCODER_PROVIDER selects the gateway (anthropic|gemini|xai|ollama|local)
+  --provider / ZCODER_PROVIDER selects the gateway (gemini|xai|ollama|local)
   --base-url / ZCODER_BASE_URL / OLLAMA_BASE_URL overrides the default gateway
   --api-key  / provider-specific env vars supply the credential
-  local provider requires no network and returns a stub response.
+  local provider requires a loopback llama.cpp server.
 
 CLI flags:
   --route PROMPT          Auto-route PROMPT to the best specialist agent
@@ -18,7 +18,7 @@ CLI flags:
   --route-parallel        Fan-out to ALL agents and return the best answer
   --route-add-agent NAME  Register a custom agent description in the routing table
   --route-list            List all agents in the routing table
-  --provider NAME         Gateway provider (anthropic|gemini|xai|ollama|local)
+  --provider NAME         Gateway provider (gemini|xai|ollama|local)
   --base-url URL          Override the provider gateway base URL
 """
 
@@ -29,7 +29,7 @@ import urllib.request
 
 from zcoder.agent.orchestration import providers
 from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.resilience import CircuitBreaker, retry, safe_local_urlopen, urlopen_json
 from zcoder.core.utils import sampling_kwargs
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -74,9 +74,7 @@ def _call(
     model: str | None = None,
 ) -> dict:
     prov, url, key = _resolve_provider_kwargs(provider, base_url, api_key, model)
-    if prov == "local":
-        return {"text": "[local mode] No upstream call — local stub response."}
-    mdl = model or "claude-sonnet-5"
+    mdl = providers.resolve_model(model)
     # Build provider-specific request
     # payload is the Anthropic-shaped dict produced by callers; decompose it
     # into normalized fields so the provider adapter can translate.
@@ -93,11 +91,13 @@ def _call(
         headers=headers,
         method="POST",
     )
-    raw = urlopen_json(req, timeout=60)
+    if prov == "local":
+        with safe_local_urlopen(req, timeout=60) as response:
+            raw = json.loads(response.read().decode())
+    else:
+        raw = urlopen_json(req, timeout=60)
     # Normalize provider responses to an Anthropic-shaped dict so downstream
     # _text/parse logic keeps working; also stash the raw provider payload.
-    if prov == "anthropic":
-        return raw
     text = providers.parse_response(prov, raw)
     return {"content": [{"type": "text", "text": text}], "_provider": prov, "_raw": raw}
 
@@ -121,10 +121,7 @@ def _post(
 
 
 def _text(data: dict) -> str:
-    # Local stub already returns {"text": ...}; keep that fast path.
-    if "text" in data and "content" not in data:
-        return data.get("text", "") or ""
-    # Provider-normalized shape from _call, or native Anthropic shape
+    # Provider-normalized shape from _call.
     if "content" in data:
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
     # Fallback to provider parse (e.g. when _call was bypassed in tests)

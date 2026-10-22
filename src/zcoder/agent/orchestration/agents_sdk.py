@@ -142,6 +142,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
 
@@ -774,9 +775,8 @@ class ManagedAgentsClient:
     — older pinned SDK versions won't have these."""
 
     def __init__(self, api_key: str):
-        import anthropic
 
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
 
     def create_agent(
         self,

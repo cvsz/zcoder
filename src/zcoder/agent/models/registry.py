@@ -366,15 +366,7 @@ class ModelsAPI:
         return urlopen_json(req, timeout=30)
 
     def _get(self, url: str) -> dict:
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(url, headers=headers, method="GET")
-        try:
-            return self._call(req)
-        except ZCoderError as e:
-            raise RuntimeError(f"Models API error: {e.message}") from e
+        raise RuntimeError("Live model API lookups are disabled; use the local catalog metadata.")
 
     def list_models(self) -> list:
         data = self._get(MODELS_ENDPOINT)
@@ -385,118 +377,48 @@ class ModelsAPI:
 
 
 def cmd_list_models(api_key: str, include_legacy: bool = False):
-    ma = ModelsAPI(api_key=api_key)
-    try:
-        models = ma.list_models()
-        print(f"\n{'MODEL ID':<35}{'DISPLAY NAME':<35}{'CONTEXT'}")
-        print("─" * 85)
-        for m in models:
-            mid = m.get("id", "")
-            name = m.get("display_name", "")[:34]
-            ctx = m.get("context_window", 0)
-            ctx_str = f"{ctx // 1000}K" if ctx else "—"
-            print(f"{mid:<35}{name:<35}{ctx_str}")
-        print(f"\n{len(models)} models available")
-    except RuntimeError as e:
-        # Offline: show the local catalog
-        print(f"\n\033[93m⚠ Could not reach Models API: {e}\033[0m")
-        print("\nKnown models (local catalog, verify against --model-info when online):")
-        tiers = TIER_ORDER if include_legacy else ["mythos", "current"]
-        for tier in tiers:
-            rows = [(mid, info) for mid, info in MODEL_CATALOG.items() if info["tier"] == tier]
-            if not rows:
-                continue
-            label = {
-                "mythos": "Mythos-class (above Opus)",
-                "current": "Current",
-                "legacy": "Legacy (superseded, still callable)",
-            }[tier]
-            print(f"\n  \033[1m{label}\033[0m")
-            for mid, info in rows:
-                ctx = f"{info['context_window'] // 1000}K"
-                print(
-                    f"    {mid:<32}{info['display_name']:<24}{ctx:<7}"
-                    f"${info['price_in']}/${info['price_out']} per MTok"
-                )
-        if not include_legacy:
-            print("\n  (legacy models hidden — pass --list-models-legacy to include them)")
-        print("\n  Mythos-tier note: Fable 5 and Mythos 5 share the same underlying model;")
-        print("  Fable 5 additionally has safety classifiers for bio/cyber/LLM-R&D topics.")
-        print("  Both were briefly suspended 2026-06-12 -> 2026-07-01 for US export-control")
-        print("  compliance; access is restored. See anthropic.com/news/fable-mythos-access.")
-        print("\n  Run --fable5-info / --mythos5-info for pricing, retention, and refusal-handling details.")
+    del api_key
+    del include_legacy
+    print("\nKnown local models (remote model APIs are disabled):")
+    print("  zcoder-qwen2.5-coder-7b       Qwen2.5 Coder 7B (GGUF via llama.cpp)")
+    print("  zcoder-qwen2.5-coder-1.5b    Qwen2.5 Coder 1.5B (GGUF via llama.cpp)")
 
 
 def cmd_model_info(model_id: str, api_key: str):
+    del api_key
     retired = check_retired(model_id)
     if retired:
-        print(f"\n  \033[91m✗ {model_id} was retired on {retired['retired']}\033[0m")
-        print(f"    Was:         {retired['display_name']}")
-        print(f"    Migrate to:  {retired['replacement']}")
-        print(f"    Notes:       {retired['notes']}")
-        print(
-            "\n  API calls to this ID will fail — this isn't a live lookup, "
-            "just the local retirement record. Continuing to check the live "
-            "API and local catalog below in case the record above is stale:\n"
-        )
-
+        print(f"\n  {model_id} was retired on {retired['retired']}")
+        print(f"  Replacement: {retired['replacement']}")
+        print(f"  Notes: {retired['notes']}")
+        return
     deprecated = check_deprecated(model_id)
     if deprecated:
-        print(f"\n  \033[93m⚠ {model_id} is deprecated, retiring {deprecated['retirement_scheduled']}\033[0m")
-        print(f"    Was:            {deprecated['display_name']}")
-        print(f"    Announced:      {deprecated['deprecation_announced']}")
-        print(f"    Migrate to:     {deprecated['replacement']}")
-        print(f"    Notes:          {deprecated['notes']}")
-        print("\n  Still works today — this is an early warning, not a failure. Continuing below:\n")
-
-    ma = ModelsAPI(api_key=api_key)
-    try:
-        m = ma.get_model(model_id)
-        print(f"\n  ID:             {m.get('id')}")
-        print(f"  Display name:   {m.get('display_name')}")
-        print(f"  Context window: {m.get('context_window', 0):,} tokens")
-        print(f"  Created:        {m.get('created_at', '')[:10]}")
-        caps = m.get("capabilities")
-        if caps:
-            print("  Capabilities:")
-            print(f"    Vision:              {caps.get('image_input', {}).get('supported')}")
-            think = caps.get("thinking", {})
-            types = think.get("types", {})
-            print(f"    Adaptive thinking:    {types.get('adaptive', {}).get('supported', False)}")
-            print(f"    Extended thinking:    {types.get('enabled', {}).get('supported', False)}")
-            print(f"    Structured outputs:   {caps.get('structured_outputs', {}).get('supported')}")
-            effort = caps.get("effort")
-            if effort:
-                levels = effort.get("levels") or effort.get("supported_levels")
-                default = effort.get("default")
-                if levels:
-                    print(
-                        f"    Effort levels:       {', '.join(levels)}"
-                        f"{f' (default: {default})' if default else ''}"
-                    )
-                elif default:
-                    print(f"    Effort default:      {default}")
-    except RuntimeError as e:
-        # Offline / unrecognized ID via API — fall back to the local catalog
-        info = MODEL_CATALOG.get(model_id)
-        if not info:
-            if retired:
-                # Already printed the retirement record above; the live-API
-                # error here is expected (retired IDs 404/400), not new info.
-                return
-            print(f"[ERROR] {e}")
-            return
-        print("\n  \033[93m⚠ Live API unreachable — showing local catalog entry\033[0m")
-        print(f"  ID:              {model_id}")
-        print(f"  Display name:    {info['display_name']}")
-        print(f"  Tier:            {info['tier']}")
-        print(f"  Context window:  {info['context_window']:,} tokens")
-        print(f"  Max output:      {info['max_output']:,} tokens")
-        print(f"  Pricing:         ${info['price_in']}/MTok in, ${info['price_out']}/MTok out")
-        print(f"  Thinking mode:   {info['thinking']}")
-        if info["effort_default"]:
-            print(f"  Effort default:  {info['effort_default']}")
-        print(f"  Notes:           {info['notes']}")
+        print(
+            f"\n  {model_id} is deprecated and scheduled for retirement on {deprecated['retirement_scheduled']}"
+        )
+        print(f"  Replacement: {deprecated['replacement']}")
+        print(f"  Notes: {deprecated['notes']}")
+        return
+    info = MODEL_CATALOG.get(model_id)
+    local_models = {
+        "zcoder-qwen2.5-coder-7b": "Qwen2.5 Coder 7B (GGUF via llama.cpp)",
+        "zcoder-qwen2.5-coder-1.5b": "Qwen2.5 Coder 1.5B (GGUF via llama.cpp)",
+    }
+    if model_id in local_models:
+        print(f"\n  ID:           {model_id}")
+        print(f"  Display name: {local_models[model_id]}")
+        print("  Provider:     Local llama.cpp")
+        return
+    if info is None:
+        print(f"[ERROR] {model_id} is not present in the local model catalog.")
+        return
+    print(f"\n  ID:              {model_id}")
+    print(f"  Display name:    {info['display_name']}")
+    print(f"  Context window:  {info['context_window']:,} tokens")
+    print(f"  Max output:      {info['max_output']:,} tokens")
+    print(f"  Tier:            {info['tier']}")
+    print(f"  Notes:           {info['notes']}")
 
 
 def cmd_check_deprecated(path: str):

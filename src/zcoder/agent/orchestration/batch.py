@@ -29,7 +29,7 @@ import time
 import uuid
 from pathlib import Path
 
-import anthropic
+from zcoder.core.anthropic_disabled import create_anthropic_client
 
 BATCH_STORE = Path(os.path.expanduser("~/.zcoder/batches"))
 
@@ -54,7 +54,7 @@ class BatchCoder:
     """Claude Batch API client."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5", use_300k_output: bool = False):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
         # Opt-in per-instance rather than per-request: the beta header is
         # sent on the whole batches.create() call, so mixing 300k-output and

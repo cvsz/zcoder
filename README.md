@@ -21,7 +21,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 |---|---|
 | **Local-First** | รันได้เต็มรูปแบบบน infrastructure ของคุณ ไม่ต้องพึ่ง cloud |
 | **Zero-Cost First** | แยก cost classification จาก runtime availability — ไม่ silent fallback ไป paid provider |
-| **Provider-Neutral** | รองรับ Anthropic, Gemini, xAI, Ollama, local model พร้อมกัน |
+| **Local-First Routing** | llama.cpp GGUF เป็นค่าเริ่มต้น; ไม่มี cloud inference provider |
 | **Production-Ready** | Durable jobs, policy, tenant isolation, audit, queues, workers, observability, backup/restore |
 | **Security-First** | 11 ช่องบ่อน vulnerability ที่ปิดครบ (SEC-001 ถึง SEC-010) |
 | **Evidence-Based** | роверинг แบบ tiered: source → unit → integration → live-runtime → production |
@@ -70,8 +70,8 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
                v                               v
      +-------------------+         +--------------------+
      | Core / Domain     |         | Provider Adapters  |
-     | jobs / policy /   |         | local / Claude /   |
-     | tenants / models  |         | external optional  |
+     | jobs / policy /   |         | local llama.cpp   |
+     | tenants / models  |         | GGUF inference     |
      +---------+---------+         +---------+----------+
                |                               |
                +---------------+---------------+
@@ -124,7 +124,7 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 ### ตrequirements
 
 - Python 3.10+
-- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. Use `--pptx-native` on Python 3.10 for the Anthropic-managed PPTX path.
+- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. `--pptx-native` remains unavailable while its legacy Anthropic transport is disabled.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
@@ -160,8 +160,9 @@ python main.py --help
 ### การใช้งานพื้นฐาน
 
 ```bash
-# Coding request with Anthropic
-export ANTHROPIC_API_KEY='sk-ant-...'
+# Coding request with the local GGUF server
+export ZCODER_PROVIDER=llama_cpp
+export ZCODER_BASE_URL=http://127.0.0.1:8080
 zcoder -p 'Write a Python function to reverse a string'
 
 # File analysis
@@ -263,7 +264,7 @@ zcoder --code-agent "fix auth bug"    # Autonomous coding cycle
 zcoder --code-agent-permission ask   # Permission mode
 
 # Provider routing
-zcoder --provider anthropic           # anthropic | gemini | xai | ollama | local
+zcoder --provider llama_cpp           # llama.cpp server on loopback
 zcoder --base-url http://localhost:11434  # Custom gateway
 
 # GitHub
@@ -292,15 +293,12 @@ zcoder --dr-rehearsal                 # DR rehearsal
 
 | Variable | Description | Required |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic Claude API key | Optional |
-| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google Gemini API key | Optional |
-| `XAI_API_KEY` | xAI Grok API key | Optional |
-| `OLLAMA_BASE_URL` | Ollama gateway URL | Optional |
+| `ANTHROPIC_API_KEY` | Retained for legacy configuration; Anthropic API egress is disabled | Ignored |
+| `ZCODER_PROVIDER` | Local provider (`llama_cpp` or `local`) | Optional |
+| `ZCODER_BASE_URL` | Loopback llama.cpp server URL | Optional |
 | `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |
 | `DATABASE_URL` | PostgreSQL connection string | Optional (SQLite default) |
 | `ZCODER_OTEL_ENDPOINT` | OpenTelemetry collector endpoint | Optional |
-| `ZCODER_PROVIDER` | Default provider (anthropic/gemini/xai/ollama/local) | Optional |
-| `ZCODER_BASE_URL` | Default API gateway URL | Optional |
 
 ### Cost Policy
 
@@ -389,8 +387,9 @@ docker build -t zcoder:local .
 # Verify
 docker run --rm zcoder:local --version
 
-# Run with provider key
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder:local
+# Local inference in a container requires a llama.cpp endpoint reachable on
+# the container's loopback interface. The default 127.0.0.1 endpoint is
+# intentionally not widened to a host or LAN address.
 
 # Run the API server (set DATABASE_URL to a reachable PostgreSQL database)
 docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
