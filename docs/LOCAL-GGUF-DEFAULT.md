@@ -2,10 +2,9 @@
 
 The normal `zcoder -p`, `zcoder --agent ... -p`, multi-agent router, and web
 chat paths use a **loopback-only** llama.cpp chat completion server by default.
-Anthropic egress is disabled across the shared URL transports and every
-in-repository Anthropic SDK client factory. Legacy administrative, compliance,
-managed-agent, and model-specific commands remain present for compatibility,
-but fail closed before opening a network connection.
+Inference transports are restricted to local model endpoints. Legacy
+administrative, compliance, managed-agent, and model-specific commands remain
+present for compatibility, but are unavailable in this local-only build.
 
 ## Model files on the user's Ubuntu/WSL instance
 
@@ -40,9 +39,8 @@ zcoder --agent security_auditor -p "Audit cvsz/zgpu source for vulnerabilities; 
 
 The model server listens on `127.0.0.1:8080` only. No API key is required for
 local generation. Requests fail closed if the local server is missing; they
-must **never** fall back to a paid external provider. Legacy provider routing
-rejects `anthropic` as a selectable provider, and API requests to any
-`*.anthropic.com` host are blocked by the shared transport boundary.
+must **never** fall back to an external provider. Legacy cloud providers are
+not selectable from the inference router.
 The public model identifiers are `zcoder-qwen2.5-coder-7b` and
 `zcoder-qwen2.5-coder-1.5b`; the launcher configures the matching llama.cpp
 server alias.
@@ -64,9 +62,8 @@ that relied on the old implicit Anthropic mock. Those tests must explicitly
 request their intended legacy provider or be migrated. Do not merge until
 the full suite and independent review pass.
 
-**Limit:** Anthropic-specific modules and model metadata have not been deleted.
-Their outbound requests are blocked, so those features are unavailable until
-they are replaced with local or other explicitly supported providers. The
-Anthropic SDK remains an installed dependency for compatibility and test
-fixtures; its production client factory uses a transport that refuses network
-requests. This is runtime egress prevention, not source-code eradication.
+**Limit:** Legacy provider modules and model metadata have not been deleted.
+Those features are unavailable until replaced with local implementations. The
+SDK dependency remains for compatibility, while its application client factory
+uses a transport that refuses network requests. This is runtime enforcement,
+not source-code eradication.

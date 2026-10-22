@@ -293,7 +293,7 @@ zcoder --dr-rehearsal                 # DR rehearsal
 
 | Variable | Description | Required |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Retained for legacy configuration; Anthropic API egress is disabled | Ignored |
+| `ANTHROPIC_API_KEY` | Legacy compatibility variable; not used by local inference | Ignored |
 | `ZCODER_PROVIDER` | Local provider (`llama_cpp` or `local`) | Optional |
 | `ZCODER_BASE_URL` | Loopback llama.cpp server URL | Optional |
 | `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |

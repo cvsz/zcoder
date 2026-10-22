@@ -26,8 +26,8 @@ export ZCODER_BASE_URL=http://127.0.0.1:8080
 python main.py -p "Write a function to reverse a string"
 ```
 
-Anthropic API egress is disabled. Legacy cloud-specific commands fail closed;
-the prompt, agent, router, and web chat paths use local llama.cpp inference.
+Legacy cloud-specific commands are unavailable in local-only mode; prompt,
+agent, router, and web chat paths use local llama.cpp inference.
 
 ## Build a standalone executable
 
