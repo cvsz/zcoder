@@ -15,6 +15,27 @@ def test_default_prompt_provider_is_local(monkeypatch):
     assert _api_key(args) == ""
 
 
+def test_legacy_stream_requires_anthropic_key_even_with_local_default(monkeypatch):
+    monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    args = build_parser().parse_args(["--stream", "-p", "hello"])
+
+    with patch("sys.exit", side_effect=SystemExit) as exit_call:
+        try:
+            _api_key(args)
+        except SystemExit:
+            pass
+    exit_call.assert_called_once_with(1)
+
+
+def test_legacy_stream_preserves_explicit_anthropic_key(monkeypatch):
+    monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    args = build_parser().parse_args(["--stream", "--api-key", "explicit-key", "-p", "hello"])
+
+    assert _api_key(args) == "explicit-key"
+
+
 def test_local_chat_calls_only_loopback(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "should-not-be-used")
     c = Coder(provider="llama_cpp", base_url="http://127.0.0.1:8080", model="local")
@@ -37,7 +58,7 @@ def test_local_chat_calls_only_loopback(monkeypatch):
         assert "x-api-key" not in {name.lower() for name, _value in request.header_items()}
         return Response()
 
-    with patch("urllib.request.urlopen", side_effect=fake_open):
+    with patch("zcoder.services.coder.safe_local_urlopen", side_effect=fake_open):
         assert c.generate("scan") == "local answer"
     assert len(seen) == 1
 

@@ -31,7 +31,24 @@ BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 def _api_key(args):
     provider = getattr(args, "provider", None) or os.getenv("ZCODER_PROVIDER", "llama_cpp")
     if provider == "llama_cpp":
-        return ""
+        legacy_anthropic_mode = any(
+            getattr(args, name, False)
+            for name in (
+                "stream",
+                "stream_tools",
+                "thinking",
+                "adaptive",
+                "effort_legacy_budget",
+                "interactive",
+            )
+        )
+        if not legacy_anthropic_mode:
+            return ""
+        key = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
+        if not key or key == "local-mode-no-key-required":
+            print("[ERROR] ANTHROPIC_API_KEY is required for this legacy Anthropic command.", file=sys.stderr)
+            sys.exit(1)
+        return key
     if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
         return os.getenv("ANTHROPIC_API_KEY", "local-mode-no-key-required")
     k = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")

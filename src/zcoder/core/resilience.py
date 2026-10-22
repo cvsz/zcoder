@@ -144,6 +144,18 @@ def safe_urlopen(req, timeout: float):
     return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 -- scheme checked above
 
 
+def safe_local_urlopen(req, timeout: float):
+    """Open a validated loopback request without inheriting proxy settings."""
+    url = req.full_url if isinstance(req, urllib.request.Request) else str(req)
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme.lower() != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("Local requests must use HTTP loopback")
+    if parsed.username or parsed.password:
+        raise ValueError("Credentials are not allowed in local request URLs")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(req, timeout=timeout)
+
+
 def shell_command_argv(command: str) -> list[str]:
     """Return an explicit platform shell argv for trusted hook/Bash boundaries.
 

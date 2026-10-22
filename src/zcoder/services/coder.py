@@ -11,7 +11,7 @@ import urllib.request
 from zcoder.config.logging import get_logger
 from zcoder.config.settings import Config
 from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
-from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen
+from zcoder.core.resilience import CircuitBreaker, retry, safe_local_urlopen, safe_urlopen
 from zcoder.core.utils import sampling_kwargs
 
 logger = get_logger("coder")
@@ -99,7 +99,7 @@ class Coder:
             method="POST",
         )
         try:
-            with safe_urlopen(req, timeout=120) as response:
+            with safe_local_urlopen(req, timeout=120) as response:
                 data = json.loads(response.read(8 * 1024 * 1024 + 1))
             content = data["choices"][0]["message"]["content"]
             if not isinstance(content, str):
@@ -111,6 +111,15 @@ class Coder:
 
     def generate(self, prompt, system=None, file_content=None, history=None):
         """Generate a response from the AI model."""
+        if self.personality_style:
+            try:
+                from zcoder.agent.personalities import PersonalityManager
+
+                addition = PersonalityManager().build_prompt_addition(self.personality_style)
+                if addition:
+                    system = f"{system}\n\n{addition}" if system else addition
+            except Exception:
+                logger.exception("personality_prompt_failed")
         if self.provider == "llama_cpp":
             return self._generate_local(prompt, system=system, file_content=file_content, history=history)
         if self.provider == "anthropic":
@@ -128,19 +137,6 @@ class Coder:
         user_content = prompt
         if file_content:
             user_content = f"File content:\n```\n{file_content}\n```\n\n{prompt}"
-
-        if self.personality_style:
-            try:
-                from zcoder.agent.personalities import PersonalityManager
-
-                pm = PersonalityManager()
-                addition = pm.build_prompt_addition(self.personality_style)
-                if addition and system:
-                    system = system + "\n\n" + addition
-                elif addition:
-                    system = addition
-            except Exception:
-                pass
 
         messages.append({"role": "user", "content": user_content})
 
