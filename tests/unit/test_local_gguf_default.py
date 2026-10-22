@@ -1,6 +1,5 @@
 """Local GGUF integration: CLI defaults and no Anthropic network fallback."""
 
-import io
 import json
 from unittest.mock import patch
 
@@ -35,7 +34,7 @@ def test_local_chat_calls_only_loopback(monkeypatch):
     def fake_open(request, timeout):
         seen.append(request.full_url)
         assert request.full_url == "http://127.0.0.1:8080/v1/chat/completions"
-        assert "x-api-key" not in {name.lower() for name in request.header_items() for name in [name[0]]}
+        assert "x-api-key" not in {name.lower() for name, _value in request.header_items()}
         return Response()
 
     with patch("urllib.request.urlopen", side_effect=fake_open):
