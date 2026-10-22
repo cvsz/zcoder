@@ -8,8 +8,8 @@ a separate audit; do **not** interpret this patch as complete Anthropic removal.
 
 ## Model files on the user's Ubuntu/WSL instance
 
-- `/home/cvsz/zgpu/qwen2.5-coder-7b-instruct-q4_k_m.gguf`
-- `/home/cvsz/zgpu/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf`
+- `/home/cvsz/zgpu/qwen-7b-q4km.gguf`
+- `/home/cvsz/zgpu/qwen-1.5b-q4km.gguf`
 
 The Windows `\\wsl.localhost\...` path is **not** an appropriate Linux CLI
 path. Do not copy GGUF model files into the repository.
