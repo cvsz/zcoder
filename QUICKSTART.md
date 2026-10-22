@@ -62,7 +62,7 @@ python main.py --memory-agent "Remember that this project uses pytest"
 # Advisor tool — a stronger model consulted mid-generation
 python main.py --advisor "Refactor auth.py to use JWT, then write tests"
 
-# Real hosted Claude Managed Agents (cloud sandbox, not local)
+# Real hosted provider Managed Agents (cloud sandbox, not local)
 python main.py --agent-managed-run "Set up a FastAPI project with tests"
 
 # Embeddings (needs VOYAGE_API_KEY — see .env.example)
@@ -72,7 +72,7 @@ python main.py --embed-similarity "cat" "kitten"
 python main.py --help
 ```
 
-Anthropic Admin and Compliance API commands are unavailable while Anthropic
+PROVIDER_CREDENTIAL_OR_CONFIG Admin and Compliance API commands are unavailable while PROVIDER_CREDENTIAL_OR_CONFIG
 egress is disabled. Their local replacements are not implemented yet.
 
 See `README.md` for the full feature list and `docs/` for the detailed,

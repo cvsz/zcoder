@@ -6,7 +6,7 @@ Prepare the Upgrade-46 provider-neutral messaging boundary for migration of one 
 
 ## Contract
 
-`run_messaging_turn_once()` and `run_claude_messaging_turn_once()` now accept an explicit `verbose` flag. The default remains `False`, preserving the quiet application-service boundary established by Upgrade-47. When an interactive caller explicitly passes `verbose=True`, that value is forwarded exactly once to the existing provider capability; the service still performs exactly one capability call and does not add output loops of its own.
+`run_messaging_turn_once()` and `run_provider-specific identifier()` now accept an explicit `verbose` flag. The default remains `False`, preserving the quiet application-service boundary established by Upgrade-47. When an interactive caller explicitly passes `verbose=True`, that value is forwarded exactly once to the existing provider capability; the service still performs exactly one capability call and does not add output loops of its own.
 
 ## Upgrade-20/24 invariants
 
@@ -14,7 +14,7 @@ This slice adds no polling, retry loop, sleep, scheduler, daemon, recursive agen
 
 ## Regression guards
 
-Focused service and Claude-adapter tests prove:
+Focused service and provider model ID tests prove:
 
 - the existing default remains `verbose=False`;
 - `verbose=True` is forwarded exactly once;
@@ -27,4 +27,4 @@ Existing application callers require no changes because the new argument default
 
 ## Next boundary
 
-Migrate exactly one existing interactive CLI caller to `run_claude_messaging_turn_once(..., verbose=True)` while preserving its banner, real-time text streaming, tool-call summary, model/system/tool forwarding, and returned result. Keep that caller migration isolated in its own regression-tested vertical slice.
+Migrate exactly one existing interactive CLI caller to `run_provider-specific identifier(..., verbose=True)` while preserving its banner, real-time text streaming, tool-call summary, model/system/tool forwarding, and returned result. Keep that caller migration isolated in its own regression-tested vertical slice.

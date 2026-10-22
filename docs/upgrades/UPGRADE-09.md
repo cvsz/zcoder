@@ -14,7 +14,7 @@ Upgrade-09 transforms ZCoder into a production-grade distributed system with mea
 
 3. **OpenTelemetry & Prometheus Observability**:
    - `observability_otel.py` exports bounded-cardinality metrics (`jobs_queued`, `worker_active`, `outbox_pending`, RED API metrics, backup freshness).
-   - OTel trace spans for job lifecycle, GitHub API, and Anthropic invocations.
+   - OTel trace spans for job lifecycle, GitHub API, and PROVIDER_CREDENTIAL_OR_CONFIG invocations.
 
 4. **Production Configuration Schema**:
    - `production_config.py` provides typed configuration sections, precedence resolution (defaults -> config file -> env -> CLI), and secret redaction.

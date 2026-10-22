@@ -8,8 +8,8 @@ Current expected baseline:
 * full default pytest suite executes without ignored test files
 * optional Web/TUI dependencies may skip explicitly
 * wheel and sdist build successfully
-* Anthropic conformance manifest exists
-* Anthropic source-truth release gate exists
+* PROVIDER_CREDENTIAL_OR_CONFIG conformance manifest exists
+* PROVIDER_CREDENTIAL_OR_CONFIG source-truth release gate exists
 * pricing/model/header truth audit has been completed
 * ZCoder already contains substantial Messages API, Agent SDK, Managed Agents, tools, skills, MCP, compliance, model routing, CLI, TUI and web support
 
@@ -19,7 +19,7 @@ Do NOT assume any of these claims are true without checking the repository.
 
 # MISSION
 
-Transform ZCoder from a collection of Anthropic integrations and CLI commands into a coherent **production-grade autonomous coding-agent runtime**.
+Transform ZCoder from a collection of PROVIDER_CREDENTIAL_OR_CONFIG integrations and CLI commands into a coherent **production-grade autonomous coding-agent runtime**.
 
 The resulting architecture must support three distinct execution modes without conflating them:
 
@@ -30,12 +30,12 @@ ZCoder Runtime
 │   └── Messages API / custom tool loop
 │
 ├── LOCAL
-│   └── Claude Agent SDK
+│   └── provider Agent SDK
 │       └── agent loop runs in ZCoder-controlled process/runtime
 │
 └── MANAGED
-    └── Claude Managed Agents
-        └── Anthropic-hosted agent/session/sandbox infrastructure
+    └── provider Managed Agents
+        └── PROVIDER_CREDENTIAL_OR_CONFIG-hosted agent/session/sandbox infrastructure
 ```
 
 ZCoder should expose one coherent job/session/operator experience while preserving the different semantics and capabilities of each backend.
@@ -83,7 +83,7 @@ Before implementing:
 
 1. inspect the repository
 2. run the baseline
-3. fetch current official Anthropic documentation
+3. fetch current official PROVIDER_CREDENTIAL_OR_CONFIG documentation
 4. map existing capabilities
 5. reuse working abstractions
 6. avoid duplicate modules
@@ -92,7 +92,7 @@ Before implementing:
 9. do not silently weaken security
 10. do not claim functionality merely because a class or CLI flag exists
 
-Use first-party Anthropic documentation as source-of-truth for:
+Use first-party PROVIDER_CREDENTIAL_OR_CONFIG documentation as source-of-truth for:
 
 * Agent SDK
 * Managed Agents
@@ -139,19 +139,19 @@ Also inspect:
 ```text
 main.py
 coder.py
-claude_agents_sdk.py
-claude_tools.py
-claude_code_exec.py
-claude_memory.py
-claude_skills_api.py
-claude_wif.py
+provider-specific module
+provider-specific module
+provider-specific module
+provider-specific module
+provider-specific module
+provider-specific module
 resilience.py
 security.py
 config.py
 exceptions.py
 logging_config.py
-anthropic_conformance.py
-anthropic-conformance.yaml
+PROVIDER_CREDENTIAL_OR_CONFIG.py
+PROVIDER_CREDENTIAL_OR_CONFIG-conformance.yaml
 tui.py
 webapp*
 tests/
@@ -422,12 +422,12 @@ Never depend only on wall-clock ordering.
 
 # 8. EVENT NORMALIZATION
 
-Do not expose Anthropic-specific Managed Agents event shapes as the ZCoder internal domain model.
+Do not expose PROVIDER_CREDENTIAL_OR_CONFIG-specific Managed Agents event shapes as the ZCoder internal domain model.
 
 Introduce normalization:
 
 ```text
-Anthropic Managed Agent Event
+PROVIDER_CREDENTIAL_OR_CONFIG Managed Agent Event
           │
           ▼
 ManagedAgentRuntime adapter
@@ -529,7 +529,7 @@ Implement or consolidate:
 AgentSDKRuntime
 ```
 
-Use current official Claude Agent SDK behavior.
+Use current official provider Agent SDK behavior.
 
 Support where available:
 
@@ -562,7 +562,7 @@ Implement:
 ManagedAgentRuntime
 ```
 
-as a true adapter over Anthropic Managed Agents.
+as a true adapter over PROVIDER_CREDENTIAL_OR_CONFIG Managed Agents.
 
 Do not treat it as Agent SDK over HTTP.
 
@@ -790,7 +790,7 @@ Do not hardcode these as mandatory.
 
 Allow strategy templates.
 
-For Managed Agents, use Anthropic's actual current multiagent semantics rather than simulating them with independent sessions when unnecessary.
+For Managed Agents, use PROVIDER_CREDENTIAL_OR_CONFIG's actual current multiagent semantics rather than simulating them with independent sessions when unnecessary.
 
 For Agent SDK runtime, use its legitimate subagent mechanisms where appropriate.
 
@@ -836,7 +836,7 @@ Do not rely on terminal scraping.
 
 For Managed Agents:
 
-correctly handle session/thread streaming and reconnect semantics according to current Anthropic documentation.
+correctly handle session/thread streaming and reconnect semantics according to current PROVIDER_CREDENTIAL_OR_CONFIG documentation.
 
 On reconnect:
 
@@ -1253,7 +1253,7 @@ Never claim local enforcement has the same guarantees as a provider-side hard ca
 
 # 39. MANAGED AGENTS HARD BUDGET
 
-When runtime is Managed Agents and current Anthropic API supports provider-native session budget:
+When runtime is Managed Agents and current PROVIDER_CREDENTIAL_OR_CONFIG API supports provider-native session budget:
 
 use it.
 
@@ -1280,7 +1280,7 @@ Verify exact current API semantics first.
 
 For Managed Agents multiagent sessions, accurately account for shared session budget semantics and per-thread model usage.
 
-Do not invent per-thread hard caps unless current Anthropic API supports them.
+Do not invent per-thread hard caps unless current PROVIDER_CREDENTIAL_OR_CONFIG API supports them.
 
 ---
 
@@ -1296,7 +1296,7 @@ project memory
 user memory
 runtime session context
 Managed Agents memory store
-Claude Code / Agent SDK project memory
+external coding assistant / Agent SDK project memory
 ```
 
 Do not collapse these into one dictionary.
@@ -1364,7 +1364,7 @@ Never make persistent memory writes invisible.
 
 Dreams or analogous memory consolidation features must remain optional.
 
-If current official Anthropic status is research preview or gated:
+If current official PROVIDER_CREDENTIAL_OR_CONFIG status is research preview or gated:
 
 classify it accurately.
 
@@ -1572,7 +1572,7 @@ Managed hosted and self-hosted environments must remain distinguishable.
 
 # 56. SELF-HOSTED MANAGED SANDBOX
 
-If current public Anthropic functionality supports self-hosted Managed Agent environments:
+If current public PROVIDER_CREDENTIAL_OR_CONFIG functionality supports self-hosted Managed Agent environments:
 
 audit it.
 
@@ -1626,10 +1626,10 @@ Prefer a clear project configuration such as:
 Do not interfere with:
 
 ```text
-.claude/
+.provider/
 ```
 
-Claude Code and Agent SDK should remain able to consume their native configuration.
+external coding assistant and Agent SDK should remain able to consume their native configuration.
 
 ---
 
@@ -1773,7 +1773,7 @@ Default CLI watch view should display compact information:
 
 ```text
 JOB job_123
-RUNNING · managed · claude-opus-5
+RUNNING · managed · provider model ID
 
 [03:12] planner      plan created
 [03:14] implementer  editing auth.py
@@ -1794,7 +1794,7 @@ Keep raw debug mode available separately.
 
 Extend TUI only after core services work.
 
-The TUI should consume JobStore/EventStore interfaces rather than directly invoking Anthropic clients.
+The TUI should consume JobStore/EventStore interfaces rather than directly invoking PROVIDER_CREDENTIAL_OR_CONFIG clients.
 
 Views:
 
@@ -1829,7 +1829,7 @@ Not:
 ```text
 Web UI
   ↓
-Anthropic API directly
+PROVIDER_CREDENTIAL_OR_CONFIG API directly
 ```
 
 Add live event streaming through the shared event layer.
@@ -2032,7 +2032,7 @@ Do not spawn unlimited subagents/processes.
 
 # 76. RATE LIMITING
 
-Integrate existing Anthropic rate-limit knowledge.
+Integrate existing PROVIDER_CREDENTIAL_OR_CONFIG rate-limit knowledge.
 
 Avoid creating a retry storm when many jobs hit 429 simultaneously.
 
@@ -2102,7 +2102,7 @@ review complete
 
 This improves recovery and operator visibility.
 
-Do not confuse checkpoints with Anthropic session internals.
+Do not confuse checkpoints with PROVIDER_CREDENTIAL_OR_CONFIG session internals.
 
 ---
 
@@ -2234,7 +2234,7 @@ cancel
 resume
 ```
 
-Most orchestration tests should not require Anthropic credentials.
+Most orchestration tests should not require PROVIDER_CREDENTIAL_OR_CONFIG credentials.
 
 ---
 
@@ -2364,7 +2364,7 @@ inspect:
   final state
 ```
 
-No Anthropic key required.
+No PROVIDER_CREDENTIAL_OR_CONFIG key required.
 
 ---
 
@@ -2380,9 +2380,9 @@ Managed Agents
 Example:
 
 ```bash
-pytest -m anthropic_live_agent_sdk
+pytest -m PROVIDER_CREDENTIAL_OR_CONFIG
 
-pytest -m anthropic_live_managed
+pytest -m PROVIDER_CREDENTIAL_OR_CONFIG
 ```
 
 They must be disabled by default.
@@ -2471,7 +2471,7 @@ Keep old flags working.
 Do NOT:
 
 * rewrite the whole repository
-* create duplicate Anthropic clients
+* create duplicate PROVIDER_CREDENTIAL_OR_CONFIG clients
 * implement fake provider APIs
 * claim resume where impossible
 * hide tests
@@ -2601,7 +2601,7 @@ Upgrade-06 is complete only when:
 * [ ] CLI exposes coherent job/operator commands
 * [ ] TUI/Web use shared job services where implemented
 * [ ] release gate includes agent-runtime correctness
-* [ ] normal CI requires no Anthropic credential
+* [ ] normal CI requires no PROVIDER_CREDENTIAL_OR_CONFIG credential
 * [ ] docs match actual implementation
 * [ ] no P0/P1 runtime/security defects remain
 

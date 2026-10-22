@@ -1,17 +1,17 @@
-# Selective zcoder-claude Port Implementation Plan
+# Selective zcoder-provider Port Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Port the architecture-compatible Anthropic GA and correctness improvements from the clean `zcoder-claude` reference into canonical `zcoder`, while adding the identified fail-closed API/deployment safeguards.
+**Goal:** Port the architecture-compatible PROVIDER_CREDENTIAL_OR_CONFIG GA and correctness improvements from the clean `zcoder-provider` reference into canonical `zcoder`, while adding the identified fail-closed API/deployment safeguards.
 
-**Architecture:** Keep `zcoder`'s `src/zcoder` package and durable control-plane direction. Adapt wire-level behavior in existing Claude modules, use the existing OIDC validator for verified API identity, reuse the existing outbound URL security boundary, and do not introduce the alternate repository's flat storage or web-console architecture.
+**Architecture:** Keep `zcoder`'s `src/zcoder` package and durable control-plane direction. Adapt wire-level behavior in existing provider modules, use the existing OIDC validator for verified API identity, reuse the existing outbound URL security boundary, and do not introduce the alternate repository's flat storage or web-console architecture.
 
-**Tech Stack:** Python 3.10+, urllib-based Anthropic adapters, pytest, Ruff, FastAPI optional web extra, PostgreSQL/SQLite control-plane backends, Helm templates.
+**Tech Stack:** Python 3.10+, urllib-based PROVIDER_CREDENTIAL_OR_CONFIG adapters, pytest, Ruff, FastAPI optional web extra, PostgreSQL/SQLite control-plane backends, Helm templates.
 
 ## Global Constraints
 
 - Work in `/home/cvsz/platforms/zcoder` on the current `main` checkout because the user approved implementation in the named target; do not create a second mutating worker.
-- Preserve the seven pre-existing untracked target entries and do not inspect or modify the dirty `zcoder-claude` worktree.
+- Preserve the seven pre-existing untracked target entries and do not inspect or modify the dirty `zcoder-provider` worktree.
 - Use tests first for every behavior change: add or change the focused test, run it to observe the expected failure, implement the smallest compatible change, then rerun it green.
 - Do not merge repository histories, copy the alternate flat architecture, update release claims, refresh dependencies, make provider calls, commit, or push.
 - Never report local fake HTTP, skipped PostgreSQL, or absent OIDC-provider verification as live integration proof.
@@ -22,16 +22,16 @@
 
 **Files:**
 
-- Add `tests/unit/test_claude_files_ga.py`.
-- Modify `src/zcoder/claude/integrations/files.py`.
+- Add `tests/unit/test_provider-specific module`.
+- Modify `src/zcoder/provider/integrations/files.py`.
 
 ### Test-first steps
 
 - [x] Add fake `urlopen_json` coverage for absolute `expires_at`, relative `expires_in_seconds`, malformed expiration values, and legacy responses.
-- [x] Add assertions that `_headers()` and `ask_about_file()` omit `anthropic-beta` while keeping authentication and version headers.
+- [x] Add assertions that `_headers()` and `ask_about_file()` omit `PROVIDER_CREDENTIAL_OR_CONFIG-beta` while keeping authentication and version headers.
 - [x] Add upload tests requiring a returned file ID and normalizing relative expiry before local registration.
 - [x] Add `page` query support tests and pagination tests for GA `next_page` cursors plus legacy `has_more`/`after_id` fallback.
-- [x] Run `.venv/bin/python -m pytest -q tests/unit/test_claude_files_ga.py`; observe failures for the missing GA behavior.
+- [x] Run `.venv/bin/python -m pytest -q tests/unit/test_provider-specific module`; observe failures for the missing GA behavior.
 
 ### Implementation steps
 
@@ -45,28 +45,28 @@
 
 **Files:**
 
-- Modify `tests/unit/test_claude_skills_api.py`.
-- Modify `src/zcoder/claude/enterprise/skills.py`.
+- Modify `tests/unit/test_provider-specific module`.
+- Modify `src/zcoder/provider/enterprise/skills.py`.
 
 ### Test-first steps
 
 - [x] Change expected beta lists so Skills and Files beta constants are absent while `CODE_EXECUTION_BETA` remains.
 - [x] Add a wire-level fake request test proving the header contains no Skills/Files beta strings.
-- [x] Add a test proving `_call(..., betas=[])` omits `anthropic-beta` entirely.
+- [x] Add a test proving `_call(..., betas=[])` omits `PROVIDER_CREDENTIAL_OR_CONFIG-beta` entirely.
 - [x] Run the focused Skills tests and observe the pre-change failures.
 
 ### Implementation steps
 
 - [x] Make `_call` and `_post` accept optional beta lists and only add the header when the list is non-empty.
 - [x] Keep the compatibility constants importable, but send only the code-execution beta from single- and multi-turn Skills calls; keep `has_file_uploads` accepted without reintroducing the Files beta.
-- [x] Run the focused Skills tests and existing Claude tool tests.
+- [x] Run the focused Skills tests and existing provider tool tests.
 
 ## Task 3: Add GA computer-use request shape with legacy rollback
 
 **Files:**
 
-- Add `tests/unit/test_claude_computer_use_ga.py`.
-- Modify `src/zcoder/claude/models/registry.py`.
+- Add `tests/unit/test_provider-specific module`.
+- Modify `src/zcoder/provider/models/registry.py`.
 
 ### Test-first steps
 
@@ -86,8 +86,8 @@
 
 **Files:**
 
-- Add or extend `tests/unit/test_claude_code_session_cost.py`.
-- Modify `src/zcoder/claude/capabilities/code.py`.
+- Add or extend `tests/unit/test_provider-specific module`.
+- Modify `src/zcoder/provider/capabilities/code.py`.
 
 ### Test-first steps
 
@@ -97,7 +97,7 @@
 
 ### Implementation steps
 
-- [x] Import `estimate_cost` from `zcoder.claude.optimization.cost` and replace the local arithmetic with `estimate_cost(self.model, input_tokens, output_tokens)`.
+- [x] Import `estimate_cost` from `zcoder.provider.optimization.cost` and replace the local arithmetic with `estimate_cost(self.model, input_tokens, output_tokens)`.
 - [x] Preserve cumulative token and cost accounting and run the focused plus existing cost optimizer tests.
 
 ## Task 5: Harden public API identity and CORS configuration

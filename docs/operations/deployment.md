@@ -8,7 +8,7 @@ why env vars are preferred).
 
 | Variable                    | Required | Default | Purpose |
 |------------------------------|----------|---------|---------|
-| `ANTHROPIC_API_KEY`          | yes*     | —       | Anthropic API key (*not needed in `ZCODER_LOCAL_MODE`) |
+| `PROVIDER_CREDENTIAL_OR_CONFIG`          | yes*     | —       | PROVIDER_CREDENTIAL_OR_CONFIG API key (*not needed in `ZCODER_LOCAL_MODE`) |
 | `ZCODER_LOCAL_MODE`          | no       | —       | `1`/`true`/`yes` switches generation/git/live/prompt-optimization to deterministic offline synthesis with no network I/O |
 | `DATABASE_URL`               | no       | —       | PostgreSQL DSN for the control-plane/engineering stores; Prisma-style params (`?schema=public`) are stripped automatically before `psycopg2` connects |
 | `ZCODER_AUTH_ENABLED`        | production | `false` | Enable verified OIDC bearer-token authentication |
@@ -17,8 +17,8 @@ why env vars are preferred).
 | `ZCODER_CORS_ORIGINS`        | no       | empty   | Comma-separated explicit HTTP(S) browser origins; wildcards are rejected |
 | `ZCODER_WORKER_ORGANIZATION_ID` | tenant worker | empty | Organization scope for a PostgreSQL worker; required to claim tenant jobs |
 | `ZCODER_WORKER_PROJECT_ID`    | no       | empty   | Optional project scope for a tenant worker |
-| `GITHUB_TOKEN`                | no       | —       | `src/zcoder/claude/integrations/github.py` integration |
-| `VOYAGE_API_KEY`              | no       | —       | `claude_embeddings.py` |
+| `GITHUB_TOKEN`                | no       | —       | `src/zcoder/provider/integrations/github.py` integration |
+| `VOYAGE_API_KEY`              | no       | —       | `provider-specific module` |
 | `ZCODER_LOG_LEVEL`            | no       | `INFO`  | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
 | `ZCODER_LOG_FORMAT`           | no       | `text` (TTY) / `json` (non-TTY) | Force `json` or `text` |
 | `ZCODER_MAX_FILE_SIZE_BYTES`  | no       | `26214400` (25MB) | Upper bound for `--file`/`--file-upload` |
@@ -28,7 +28,7 @@ why env vars are preferred).
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
+export PROVIDER_CREDENTIAL_OR_CONFIG=sk-ant-...
 python main.py -p "explain this repo"
 ```
 
@@ -63,13 +63,13 @@ bandit -r . -x ./tests       # security static analysis
 
 ```bash
 docker build -t zcoder .
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder -p "hello"
+docker run --rm -e PROVIDER_CREDENTIAL_OR_CONFIG=sk-ant-... zcoder -p "hello"
 
 # Run the API server (provide DATABASE_URL through a secret manager)
 docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
   -e DATABASE_URL="$DATABASE_URL" zcoder
 
-# or via compose (reads ANTHROPIC_API_KEY from the environment or a .env file)
+# or via compose (reads PROVIDER_CREDENTIAL_OR_CONFIG from the environment or a .env file)
 docker compose run --rm zcoder -p "hello"
 ```
 
@@ -116,11 +116,11 @@ that's stable for the lifetime of one CLI invocation, so you can trace a
 single `--agent-orchestrate` run's log lines across modules.
 
 API keys, `Authorization`/`x-api-key` header values, and known env var
-names (`ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `VOYAGE_API_KEY`) are redacted
+names (`PROVIDER_CREDENTIAL_OR_CONFIG`, `GITHUB_TOKEN`, `VOYAGE_API_KEY`) are redacted
 automatically before any log line is emitted — see `src/zcoder/config/logging.py`.
 
-See `docs/observability.md` for metrics/tracing hooks (`src/zcoder/claude/enterprise/metrics.py`,
-`src/zcoder/claude/observability.py`) that predate this pass and remain unchanged.
+See `docs/observability.md` for metrics/tracing hooks (`src/zcoder/provider/enterprise/metrics.py`,
+`src/zcoder/provider/observability.py`) that predate this pass and remain unchanged.
 
 ## Rollback
 
@@ -144,4 +144,4 @@ within a major version (flat JSON files, no schema migrations as of
 | Every call returns `[API ERROR 429]` | Rate limited, retries exhausted | Check `retry_after` in logs; consider `--service-tier auto` if you have a Priority Tier commitment |
 | Every call returns `[API ERROR 401]` | Key rotated/revoked | Rotate key in secrets manager, redeploy |
 | PostgreSQL connect fails with `invalid dsn: invalid URI query parameter: "schema"` | DSN carries a Prisma-style `?schema=...` param | DSNs are sanitized automatically since the v1.40.0 post-pass; upgrade the installed build, or drop `?schema=` from `DATABASE_URL` |
-| Circuit breaker open (`circuit_breaker_open` in logs) | Sustained upstream errors | Check Anthropic status page before assuming a local bug |
+| Circuit breaker open (`circuit_breaker_open` in logs) | Sustained upstream errors | Check PROVIDER_CREDENTIAL_OR_CONFIG status page before assuming a local bug |

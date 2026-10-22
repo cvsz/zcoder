@@ -5,9 +5,9 @@ a deep-dive across all three of zcoder's non-argparse front ends: a new
 terminal TUI, and an upgrade to the existing web console's frontend and
 backend (added in v1.28.0).
 
-This was a feature deep-dive, not a `platform.claude.com/docs` gap-audit
-cycle — no new Anthropic API surface is involved here beyond what
-`coder.py`/`claude_stream.py` already wrapped. `ROADMAP.md`'s "last
+This was a feature deep-dive, not a `platform.provider.com/docs` gap-audit
+cycle — no new PROVIDER_CREDENTIAL_OR_CONFIG API surface is involved here beyond what
+`coder.py`/`provider-specific module` already wrapped. `ROADMAP.md`'s "last
 audited" date is unchanged.
 
 ## 1. CLI TUI — `tui.py` (new)
@@ -20,15 +20,15 @@ three that gives a real widget/layout/event model.
 **What it reuses, unchanged:**
 - `coder.Coder` — non-streaming path (`--stream` switch off)
 - `personalities.PersonalityManager`, `skills.SkillManager`
-- `claude_models.MODEL_CATALOG`
+- `provider-specific identifier.MODEL_CATALOG`
 - `main.AGENT_SYSTEM_PROMPTS` (imported lazily inside a function, not at
   module scope — `main.py` imports `tui.py` for `--tui`, so a top-level
   `from main import ...` in `tui.py` would be circular)
 
 **What's new:** the streaming path doesn't go through `coder.Coder`
-(which is non-streaming only) or `claude_stream.StreamCoder` (which
+(which is non-streaming only) or `provider-specific identifier.StreamCoder` (which
 prints to stdout, wrong for a TUI widget) — `tui.py` has its own
-`_stream_reply()` using the `anthropic` SDK directly, structurally
+`_stream_reply()` using the `PROVIDER_CREDENTIAL_OR_CONFIG` SDK directly, structurally
 identical to `StreamCoder.stream()`'s `content_block_delta`/`text_delta`
 event handling, but pushing each delta into a `ChatMessage` widget via
 `call_from_thread()` instead of `print()`. Generation runs on a Textual
@@ -74,7 +74,7 @@ in the installed `textual==8.2.8`; toggling now goes through the
 - **Validation** — `ChatRequest` gained three `field_validator`s:
   `temperature` in `[0.0, 1.0]`, `max_tokens` in `[1, 64000]`, `prompt`
   under 200k chars. Previously any float/int went straight into the
-  Messages API payload and surfaced as an opaque 400 from Anthropic;
+  Messages API payload and surfaced as an opaque 400 from PROVIDER_CREDENTIAL_OR_CONFIG;
   now it's a same-process 422 with a field-level message.
 - **Rate limiting** — `_check_rate_limit()`, a fixed-window counter
   keyed by `request.client.host`, 30 req/min, 429 past that. In-memory
@@ -120,13 +120,13 @@ CLI's own environment, not the web console's `.web-venv/`.
   (`pytest-asyncio` added to `requirements-dev.txt`, `asyncio_mode =
   "auto"` set in `pyproject.toml`). Covers: sidebar/transcript mount,
   missing-API-key warning, a full submit → user+assistant message
-  round trip (generation mocked via a fake `anthropic.Anthropic`),
+  round trip (generation mocked via a fake `PROVIDER_CREDENTIAL_OR_CONFIG.PROVIDER_CREDENTIAL_OR_CONFIG`),
   new-session reset, combined system-prompt building from
   agent+skill+personality, temperature-input fallback/clamping, and
   the missing-`textual` `ImportError` message.
 - `tests/test_webapp_server.py` — FastAPI `TestClient`. Covers the
   new streaming/sessions endpoints, validation 422s, rate-limit 429,
-  and (for streaming) a fake `anthropic` module injected via
+  and (for streaming) a fake `PROVIDER_CREDENTIAL_OR_CONFIG` module injected via
   `monkeypatch.setitem(sys.modules, ...)` so no real SDK/network call
   happens.
 - Full suite after this cycle: **248 tests, regression-clean.**

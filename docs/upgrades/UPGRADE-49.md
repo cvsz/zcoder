@@ -6,7 +6,7 @@ Complete the Upgrade-48 next boundary by migrating exactly one existing interact
 
 ## Contract
 
-`cmd_stream_tools()` now delegates exactly once to `run_claude_messaging_turn_once(..., verbose=True)` instead of constructing `StreamCoder` and invoking `stream_with_tools()` directly.
+`cmd_stream_tools()` now delegates exactly once to `run_provider-specific identifier(..., verbose=True)` instead of constructing `StreamCoder` and invoking `stream_with_tools()` directly.
 
 The CLI continues to preserve:
 
@@ -34,7 +34,7 @@ Focused tests prove:
 
 ## Compatibility
 
-`main.py` remains unchanged and continues importing `cmd_stream_tools` through the existing `claude_stream` compatibility surface. `StreamCoder.stream_with_tools()` remains available for other callers.
+`main.py` remains unchanged and continues importing `cmd_stream_tools` through the existing `provider-specific identifier` compatibility surface. `StreamCoder.stream_with_tools()` remains available for other callers.
 
 ## Next boundary
 

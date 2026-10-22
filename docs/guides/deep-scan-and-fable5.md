@@ -1,4 +1,4 @@
-# v1.9.1 — Deep Scan Report + Claude Fable 5 / Mythos 5 Support
+# v1.9.1 — Deep Scan Report + provider Fable 5 / Mythos 5 Support
 
 ## What I Did
 
@@ -6,7 +6,7 @@ You uploaded `zcoder-cli-v1_9_0.zip`. Before touching anything, I extracted
 it and read through it properly rather than re-zipping it blind:
 
 1. **Read every file name and size** — 33 files, 7,750 lines, organized as
-   one `claude_*.py` module per Anthropic API feature area (Models, Tokens,
+   one `provider_*.py` module per PROVIDER_CREDENTIAL_OR_CONFIG API feature area (Models, Tokens,
    Search, Vision, Citations, Thinking, Streaming, Batch, Files, Cache, Code
    Execution, Tools, Settings, Output Styles, Plugins, Code Agent/SDK,
    Sandbox), plus `cowork.py`, `projects.py`, `artifacts.py`, `coder.py`,
@@ -15,17 +15,17 @@ it and read through it properly rather than re-zipping it blind:
 2. **Grepped every file for execution/network primitives** (`exec`, `eval`,
    `subprocess`, `os.system`, `importlib`, `urlopen`, etc.) and read each
    call site in context. Every network call hits a real, correctly-formed
-   `api.anthropic.com` endpoint with legitimate, accurate beta headers
+   `external API host` endpoint with legitimate, accurate beta headers
    (`code-execution-2025-05-22`, `files-api-2025-04-14`). The one place
-   that fetches arbitrary URLs (`claude_plugins.py`'s marketplace-add) does
+   that fetches arbitrary URLs (`provider-specific module`'s marketplace-add) does
    so because that's the entire point of a plugin marketplace feature — the
    same trust model as `pip install` from a URL. No exfiltration, no
    obfuscation, no suspicious domains.
 
-3. **Read `claude_sandbox.py` and `claude_code_exec.py` in full** (the two
+3. **Read `provider-specific module` and `provider-specific module` in full** (the two
    files with the most safety relevance, since they touch sandboxing and
    code execution) — both are honestly self-documenting about their own
-   limits (`claude_sandbox.py`'s docstring explicitly says "best-effort...
+   limits (`provider-specific module`'s docstring explicitly says "best-effort...
    not a substitute for a real OS sandbox").
 
 4. **Full `py_compile` across every module** — clean, no errors.
@@ -40,17 +40,17 @@ built earlier in our conversation, so I treated it as the authoritative
 current state of the project going forward rather than trying to merge two
 divergent codebases.
 
-## About "Claude Fable 5"
+## About "provider Fable 5"
 
 I want to be upfront about how I handled this part, since it's the more
 uncertain piece.
 
 I searched the web rather than relying on memory (my training cutoff is
 August 2025, and a lot can ship in a year). I got consistent, detailed hits
-from sources presenting as Anthropic's own site/docs, AWS, CNBC, TechCrunch,
+from sources presenting as PROVIDER_CREDENTIAL_OR_CONFIG's own site/docs, AWS, CNBC, TechCrunch,
 Slashdot, and a named independent blogger — all describing a real product:
-**Claude Fable 5**, a "Mythos-class" model launched ~June 9, 2026, alongside
-a more restricted **Claude Mythos 5** (limited to approved Project Glasswing
+**provider Fable 5**, a "Mythos-class" model launched ~June 9, 2026, alongside
+a more restricted **provider Mythos 5** (limited to approved Project Glasswing
 participants). Pricing, context window, and safety-classifier/refusal
 mechanics were consistent across sources.
 
@@ -76,8 +76,8 @@ Given that, here's how I scoped the work:
   access, calling it just returns a normal API error, the same as typing
   any other invalid model string.
 - **Every place this shows up carries an explicit confidence caveat** —
-  `claude_fable5.py`'s docstring, `--fable5-info`'s output, and the README
-  section all say plainly: verify against platform.claude.com/docs and your
+  `provider-specific module`'s docstring, `--fable5-info`'s output, and the README
+  section all say plainly: verify against platform.provider.com/docs and your
   own Console before relying on pricing/availability for anything that
   matters financially.
 
@@ -87,20 +87,20 @@ Given that, here's how I scoped the work:
 python main.py --fable5-info
 python main.py --fable5 "your prompt"
 python main.py --fable5 "your prompt" --fable5-no-fallback
-python main.py --fable5 "your prompt" --fallback-model claude-sonnet-4-6
+python main.py --fable5 "your prompt" --fallback-model provider model ID
 ```
 
 `--fable5-info` needs no API key or network call — it just prints the
 static reference table. `--fable5` makes a real API call and will simply
-fail clearly if `claude-fable-5` isn't a valid model for your account,
+fail clearly if `provider model ID` isn't a valid model for your account,
 rather than pretending success.
 
 ## What I'd Suggest
 
 Run `python main.py --fable5-info`, then check
-[platform.claude.com/docs](https://platform.claude.com/docs) directly for
+[platform.provider.com/docs](provider documentation) directly for
 the current, authoritative status before you rely on any of this for
 production use. If it turns out the model name or details are wrong, the
-fix is a one-line edit to the `FABLE_MYTHOS_INFO` dict in `claude_fable5.py`
+fix is a one-line edit to the `FABLE_MYTHOS_INFO` dict in `provider-specific module`
 — I built it as a small, isolated, easily-correctable module specifically
 because of that uncertainty.

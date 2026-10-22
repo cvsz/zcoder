@@ -58,7 +58,7 @@ python -m pytest tests/unit/test_local_gguf_default.py -q
 ```
 
 Changing the default backend is a compatibility-breaking change for tests
-that relied on the old implicit Anthropic mock. Those tests must explicitly
+that relied on the old implicit PROVIDER_CREDENTIAL_OR_CONFIG mock. Those tests must explicitly
 request their intended legacy provider or be migrated. Do not merge until
 the full suite and independent review pass.
 

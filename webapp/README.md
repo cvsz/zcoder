@@ -48,7 +48,7 @@ uvicorn webapp.backend.server:app --app-dir . --host 127.0.0.1 --port 8420
 |-----------------------------|------------------------------------------|
 | `POST /api/chat`            | `coder.Coder.generate()`                 |
 | `GET  /api/health`          | `health.run_health_check()`              |
-| `GET  /api/models`          | `claude_models.MODEL_CATALOG`            |
+| `GET  /api/models`          | `provider-specific identifier.MODEL_CATALOG`            |
 | `GET  /api/personalities`   | `personalities.PersonalityManager`       |
 | `GET  /api/skills`          | `skills.SkillManager`                    |
 | `GET  /api/agents`          | `main.AGENT_SYSTEM_PROMPTS`              |

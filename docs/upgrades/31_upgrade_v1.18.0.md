@@ -1,7 +1,7 @@
 # v1.18.0 upgrade notes — Mid-conversation system messages + Cache diagnostics CLI wiring
 
 This release comes from re-running `ROADMAP.md`'s own gap-audit
-methodology against the live docs at platform.claude.com/docs. The
+methodology against the live docs at platform.provider.com/docs. The
 previous audit was dated 2026-07-04; this one is dated 2026-07-08. Two
 real findings, both closed here — plus a correction to `ROADMAP.md`
 itself, which had drifted from what was actually true in the codebase.
@@ -9,7 +9,7 @@ itself, which had drifted from what was actually true in the codebase.
 ## Finding 1 — Mid-conversation system messages (new, genuinely missing)
 
 **What it is:** on Opus 4.8, you can append a `{"role": "system", ...}`
-message into the middle of `messages` to update Claude's instructions
+message into the middle of `messages` to update provider's instructions
 partway through a conversation — no beta header required. The key
 property: unlike editing the top-level `system` field, this doesn't
 touch the hashed system/tools prefix that prompt caching keys off of, so
@@ -22,7 +22,7 @@ top-level `system` field — right for instructions that apply from turn
 one. A mid-conversation system message is for instructions that only
 become relevant later, without invalidating everything cached before it.
 
-**What was built**, all in `claude_cache.py`:
+**What was built**, all in `provider-specific module`:
 
 - `build_mid_system_message(text)` — builds the message block. Content is
   text-only (no images, documents, tool blocks, or citations, per docs).
@@ -43,7 +43,7 @@ become relevant later, without invalidating everything cached before it.
   misplaced system message fails fast with a specific message instead of
   spending a round trip on the API's 400.
 
-- `MID_SYSTEM_SUPPORTED_MODELS = {"claude-opus-4-8"}` — a model gate.
+- `MID_SYSTEM_SUPPORTED_MODELS = {"provider model ID"}` — a model gate.
   Everything else raises `ValueError` pointing at `--cache-system`
   instead.
 - `mid_system` param on `generate_cached()`, `mid_system_updates`
@@ -56,7 +56,7 @@ become relevant later, without invalidating everything cached before it.
 ```bash
 python main.py --cache --cache-multi-turn "First question" "Follow-up question" \
     --cache-mid-system "From now on, answer in bullet points." \
-    --cache-mid-system-after 0 --model claude-opus-4-8
+    --cache-mid-system-after 0 --model provider model ID
 ```
 
 Security note carried through from the general operator-authority
@@ -71,7 +71,7 @@ docstring says this explicitly.
 
 The audit's first pass — grepping for `cache_diagnostic` /
 `cache.diagnostic` — found nothing and looked exactly like Finding 1: a
-fresh, real gap. It wasn't. Reading `claude_cache.py` directly (per the
+fresh, real gap. It wasn't. Reading `provider-specific module` directly (per the
 "confirm with a second, differently-worded grep" correction this cycle
 added to the Methodology note) turned up a fully-built feature: the
 `diagnose=` parameter on `generate_cached()`, the
@@ -98,7 +98,7 @@ up rather than built from scratch.
 ## Drift check
 
 This cycle's methodology also explicitly checks for drift, not just
-net-new features. `claude_models.py`'s model catalog (Fable 5, Mythos 5,
+net-new features. `provider-specific module`'s model catalog (Fable 5, Mythos 5,
 Opus 4.8, Sonnet 5, Haiku 4.5, and the legacy tiers) was compared against
 the live Models overview and found to match exactly — no stale entries,
 no missing releases, no `requirements.txt` version drift. Nothing to fix
@@ -120,9 +120,9 @@ checklists, and the header/audit-date now read v1.18.0 / 2026-07-08.
 
 ## Tests
 
-`claude_cache.py` had zero test coverage before this release —
+`provider-specific module` had zero test coverage before this release —
 surprising given every other module in the tree has a matching
-`tests/test_claude_*.py`. Added `tests/test_claude_cache.py`, 18 tests
+`tests/test_provider_*.py`. Added `tests/test_provider-specific module`, 18 tests
 covering: basic cache-breakpoint behavior (pre-existing), the `diagnose=`
 request shape on both the first call (`previous_message_id: None`) and a
 follow-up call (references the prior message ID, surfaces

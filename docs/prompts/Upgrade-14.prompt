@@ -19,7 +19,7 @@ NO-COST FIRST.
 The objective is to prove that a useful autonomous coding workflow can
 run from beginning to end without:
 
-* Anthropic API key
+* PROVIDER_CREDENTIAL_OR_CONFIG API key
 * OpenAI API key
 * paid LLM API
 * Stripe
@@ -116,7 +116,7 @@ Specifically inspect:
 no_cost_platform.py
 agent_runtime.py
 coder.py
-claude_router.py
+provider-specific module
 config.py
 skills.py
 MCP-related modules
@@ -622,7 +622,7 @@ best compatible local
 
 If local inference fails:
 
-do not automatically fall back to paid Anthropic/OpenAI.
+do not automatically fall back to paid PROVIDER_CREDENTIAL_OR_CONFIG/OpenAI.
 
 Policy evaluation first.
 
@@ -1226,7 +1226,7 @@ Create/consolidate:
 
 LocalAgentRuntime
 
-independent from Anthropic Agent SDK.
+independent from PROVIDER_CREDENTIAL_OR_CONFIG Agent SDK.
 
 It may use ZCoder's own safe tool loop around LocalModelProvider.
 
@@ -1353,7 +1353,7 @@ max_cost=0
 
 Assert:
 
-Anthropic calls = 0
+PROVIDER_CREDENTIAL_OR_CONFIG calls = 0
 OpenAI paid calls = 0
 Stripe calls = 0
 hosted embedding calls = 0
@@ -1869,7 +1869,7 @@ Local Free Quickstart
 
 before:
 
-Anthropic/OpenAI paid provider setup
+PROVIDER_CREDENTIAL_OR_CONFIG/OpenAI paid provider setup
 
 when product direction is no-cost-first.
 

@@ -1,7 +1,7 @@
 # v1.19.0 upgrade notes — Managed Agents memory stores
 
 This release comes from re-running `ROADMAP.md`'s own gap-audit
-methodology against the live docs at platform.claude.com/docs. The
+methodology against the live docs at platform.provider.com/docs. The
 previous audit was dated 2026-07-08; this one is also dated 2026-07-08
 (same day, next cycle). One real finding, closed here.
 
@@ -9,10 +9,10 @@ previous audit was dated 2026-07-08; this one is also dated 2026-07-08
 
 **How it was found:** not from a direct grep against the docs' feature
 list, but from step 6 of the audit methodology — checking for drift in
-the pinned `anthropic` SDK. `requirements.txt` pins `anthropic>=0.75.0`,
+the pinned `PROVIDER_CREDENTIAL_OR_CONFIG` SDK. `requirements.txt` pins `PROVIDER_CREDENTIAL_OR_CONFIG>=0.75.0`,
 which is a floor rather than an exact version, so the pin string itself
 hadn't drifted. But checking the SDK's *own* changelog turned up
-`anthropic-sdk-python` v0.116.0's release note: "api: add
+`PROVIDER_CREDENTIAL_OR_CONFIG-sdk-python` v0.116.0's release note: "api: add
 agent-memory-2026-07-22 beta header." That led to the Managed Agents
 memory-store docs pages, which describe a workspace-scoped, persistent,
 FUSE-mounted file directory (`memory_store`) that can be attached to a
@@ -29,17 +29,17 @@ Only then was this written up as a real gap.
 zcoder already has two things with "memory" in the name, and it mattered
 to rule both out before concluding this was new:
 
-- `claude_memory.py`'s `memory_20250818` client-side tool — the caller's
+- `provider-specific module`'s `memory_20250818` client-side tool — the caller's
   own application implements the file-operation handlers; scope is a
   single Messages API conversation; storage is wherever the caller wires
   it (local disk, database, etc.).
-- Claude Code's local `.claude`/auto-generated `MEMORY.md` — never
-  leaves the developer's own machine; loaded into a Claude Code session's
+- external coding assistant's local `.provider`/auto-generated `MEMORY.md` — never
+  leaves the developer's own machine; loaded into a external coding assistant session's
   context at the start of each session.
 
 Neither implements a `memory_store` resource type or talks to a
 `memory_stores` endpoint. The new feature is the only one of the three
-that's Anthropic-hosted, versioned, and shared across a Managed Agents
+that's PROVIDER_CREDENTIAL_OR_CONFIG-hosted, versioned, and shared across a Managed Agents
 agent's sessions — genuinely additive, not a rename of something already
 there.
 
@@ -50,7 +50,7 @@ survive past that single session. For a CLI whose stated use case
 includes multi-session agentic coding, that's a capability gap, not a
 reporting/admin convenience.
 
-**What was built**, all in `claude_agents_sdk.py`:
+**What was built**, all in `provider-specific module`:
 
 - `MEMORY_STORE_BETA = "agent-memory-2026-07-22"` — a second beta header,
   sent alongside `MANAGED_AGENTS_BETA` only when a memory store is
@@ -86,20 +86,20 @@ python main.py --agent-managed-run "Continue the refactor from last time" \
 ## Drift check
 
 Also checked for drift (not just net-new features) per this cycle's
-methodology: `claude_models.py`'s catalog (Fable 5, Mythos 5, Opus 4.8,
+methodology: `provider-specific module`'s catalog (Fable 5, Mythos 5, Opus 4.8,
 Sonnet 5, Haiku 4.5, legacy tiers) still matches the live Models overview
 exactly — no stale entries, no missing releases, no deprecation-date
 changes. Nothing to fix there this cycle. The `requirements.txt` pin
-itself (`anthropic>=0.75.0`) needed no edit — it's a floor, and the
+itself (`PROVIDER_CREDENTIAL_OR_CONFIG>=0.75.0`) needed no edit — it's a floor, and the
 installed SDK is well above it — but it was the process of checking the
 SDK's changelog for drift, rather than trusting the pin string alone,
 that surfaced the finding above.
 
 ## Tests
 
-`claude_agents_sdk.py` had zero test coverage before this release —
-matching the pattern the v1.18.0 cycle found in `claude_cache.py`. Added
-`tests/test_claude_agents_sdk.py`, 10 tests covering: `PermissionMode`
+`provider-specific module` had zero test coverage before this release —
+matching the pattern the v1.18.0 cycle found in `provider-specific module`. Added
+`tests/test_provider-specific module`, 10 tests covering: `PermissionMode`
 and `TOOL_PRESETS` constants (pre-existing behavior), a regression guard
 on the `MANAGED_AGENTS_BETA` header string, `MEMORY_STORE_BETA`'s value,
 `create_memory_store()`'s request shape, `create_session()` both with

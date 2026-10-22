@@ -1,9 +1,9 @@
 # v1.39.0 — Managed Agents session budgets, `inference_geo`, advisor roster, and a CLI wiring gap
 
 Scope note up front: this was commissioned as an exhaustive audit against
-~20 categories of the Anthropic platform (Managed Agents budgets/advisor/
+~20 categories of the PROVIDER_CREDENTIAL_OR_CONFIG platform (Managed Agents budgets/advisor/
 inference_geo/GitHub skills, Enterprise inference hooks, Compliance API
-remote + local session transcripts, `anthropic-workspace-id` metadata,
+remote + local session transcripts, `PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id` metadata,
 model retirement sweep, Sonnet 5 tokenizer/cost correctness, SDK
 modernization, and more). That full scope was **not** completed in this
 cycle — it would be dishonest to claim otherwise. What follows is the
@@ -14,15 +14,15 @@ actually implemented, plus an explicit list of what's still open and why.
 
 Via live web search, not from training-data memory:
 
-- `platform.claude.com/docs/en/managed-agents/budgets` — session budgets
-- `platform.claude.com/docs/en/managed-agents/session-operations` — budget update/removal semantics
-- `platform.claude.com/cookbook/managed-agents-cma-cap-session-spend`
-- `platform.claude.com/docs/en/release-notes/overview` (Aug 7, 2026 entry — budgets; Sonnet 5 migration notes)
-- `platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool` — Managed Agents advisor roster entry
-- `platform.claude.com/docs/en/managed-agents/multiagent-orchestration` / `multi-agent` — advisor pairing rules, roster shape
-- `platform.claude.com/docs/en/managed-agents/agent-setup` — `inference_geo` on agent model config
-- `platform.claude.com/docs/en/managed-agents/quickstart`, `/tools`, `/overview` — general current-state cross-checks
-- A ClaudeDevs release-notes thread (secondary, corroborating only) confirming the same four Aug-2026 Managed Agents features the docs describe: budgets, `inference_geo`, GitHub-repo skill discovery, and the advisor roster.
+- `platform.provider.com/docs/en/managed-agents/budgets` — session budgets
+- `platform.provider.com/docs/en/managed-agents/session-operations` — budget update/removal semantics
+- `platform.provider.com/cookbook/managed-agents-cma-cap-session-spend`
+- `platform.provider.com/docs/en/release-notes/overview` (Aug 7, 2026 entry — budgets; Sonnet 5 migration notes)
+- `platform.provider.com/docs/en/agents-and-tools/tool-use/advisor-tool` — Managed Agents advisor roster entry
+- `platform.provider.com/docs/en/managed-agents/multiagent-orchestration` / `multi-agent` — advisor pairing rules, roster shape
+- `platform.provider.com/docs/en/managed-agents/agent-setup` — `inference_geo` on agent model config
+- `platform.provider.com/docs/en/managed-agents/quickstart`, `/tools`, `/overview` — general current-state cross-checks
+- A providerDevs release-notes thread (secondary, corroborating only) confirming the same four Aug-2026 Managed Agents features the docs describe: budgets, `inference_geo`, GitHub-repo skill discovery, and the advisor roster.
 
 I did **not** get to Admin API, Compliance API, WIF, Enterprise inference
 hooks, or a fresh models-table pull this cycle — see §7.
@@ -40,8 +40,8 @@ python3 -m pytest -q     → 507 passed, 1 failed (after installing
 The one failure:
 
 ```
-FAILED tests/test_cli_wiring.py::test_every_cmd_function_is_referenced_in_main[claude_agents_sdk.py]
-AssertionError: claude_agents_sdk.py.cmd_agent_create() is defined but
+FAILED tests/test_cli_wiring.py::test_every_cmd_function_is_referenced_in_main[provider-specific module]
+AssertionError: provider-specific module.cmd_agent_create() is defined but
 never referenced in main.py
 ```
 
@@ -60,12 +60,12 @@ class of bug `test_cli_wiring.py` was written in v1.31.0 to catch.
 |---|---|---|---|---|
 | P0 | Managed Agents session budgets | MISSING | No `budget` param anywhere in `create_session`/session lifecycle; grep confirmed | **Implemented** |
 | P0 | `cmd_agent_create/get/list/update` CLI wiring | COMPLETE BUT UNWIRED | `test_cli_wiring.py` failure; confirmed via grep against `main.py` | **Fixed** |
-| P1 | Managed Agents session advisor roster | MISSING | `build_multiagent_config()` had no advisor path; `claude_advisor.py` only covers the Messages API tool form | **Implemented** (roster-building helper only — see §6 for what's deferred) |
-| P1 | Managed Agents `inference_geo` (agent model config) | MISSING | Existing `inference_geo` in `coder.py`/`claude_sonnet5.py`/`claude_haiku45.py` is Messages-API-only, a different request shape | **Implemented** |
-| P2 | GitHub-repo Agent Skills discovery (`.claude/skills/` auto-pickup) | MISSING | No `resources` entry type or CLI surface for this | **Deferred** — see §7 |
+| P1 | Managed Agents session advisor roster | MISSING | `build_multiagent_config()` had no advisor path; `provider-specific module` only covers the Messages API tool form | **Implemented** (roster-building helper only — see §6 for what's deferred) |
+| P1 | Managed Agents `inference_geo` (agent model config) | MISSING | Existing `inference_geo` in `coder.py`/`provider-specific module`/`provider-specific module` is Messages-API-only, a different request shape | **Implemented** |
+| P2 | GitHub-repo Agent Skills discovery (`.provider/skills/` auto-pickup) | MISSING | No `resources` entry type or CLI surface for this | **Deferred** — see §7 |
 | P2 | Enterprise inference hooks | UNVERIFIED | Not independently re-checked this cycle | **Deferred** — see §7 |
 | P2 | Compliance API remote/local session transcripts | UNVERIFIED | Not independently re-checked this cycle | **Deferred** — see §7 |
-| P2 | `anthropic-workspace-id` response metadata | UNVERIFIED | Not independently re-checked this cycle | **Deferred** — see §7 |
+| P2 | `PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id` response metadata | UNVERIFIED | Not independently re-checked this cycle | **Deferred** — see §7 |
 | P2 | Model retirement/alias health re-sweep | UNVERIFIED | Not independently re-checked this cycle | **Deferred** — see §7 |
 | P2 | SDK modernization / transport audit | UNVERIFIED | Not independently re-checked this cycle | **Deferred** — see §7 |
 
@@ -74,8 +74,8 @@ class of bug `test_cli_wiring.py` was written in v1.31.0 to catch.
 - **Sonnet 5 migration restrictions** (adaptive thinking default-on,
   manual `thinking.budget_tokens` 400s, non-default sampling params
   400s): the release-notes doc I fetched for the budgets item also
-  restated these same three restrictions, and `claude_sonnet5.py` /
-  `claude_thinking.py` already encode them (confirmed by reading, not
+  restated these same three restrictions, and `provider-specific module` /
+  `provider-specific module` already encode them (confirmed by reading, not
   re-derived from scratch this cycle — this matches what v1.30.0's
   gap-audit already fixed per `main.py`'s own header comment). No new
   gap found here on the surface area I actually re-checked.
@@ -87,7 +87,7 @@ class of bug `test_cli_wiring.py` was written in v1.31.0 to catch.
 
 ## 5. Implemented changes
 
-**`claude_agents_sdk.py`**
+**`provider-specific module`**
 - `_encode_session_budget()`, `_budget_to_dict()`, `_list_cost_cents()` —
   helpers for the `{"type": "limit", "max_list_cost": {"amount": <str>,
   "currency": "USD"}}` budget shape (amount is always a cents-string,
@@ -138,16 +138,16 @@ class of bug `test_cli_wiring.py` was written in v1.31.0 to catch.
 These were named in the mission brief and I did not implement them this
 cycle. Listed honestly rather than silently dropped:
 
-- **GitHub-repo Agent Skills discovery** (`.claude/skills/` auto-pickup
-  by Managed Agents sessions): confirmed real via the ClaudeDevs
+- **GitHub-repo Agent Skills discovery** (`.provider/skills/` auto-pickup
+  by Managed Agents sessions): confirmed real via the providerDevs
   secondary source, but I did not fetch the primary
-  `platform.claude.com/docs` page for its exact `resources`/config
+  `platform.provider.com/docs` page for its exact `resources`/config
   field shape before running out of scope for this cycle. Implementing
   from the secondary source alone risks inventing a field name — exactly
   what the mission brief prohibits. **Reason for deferral: primary
   source not yet fetched.**
 - **Enterprise inference hooks, Compliance API remote/local session
-  transcripts, `anthropic-workspace-id` response metadata**: not
+  transcripts, `PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id` response metadata**: not
   investigated this cycle at all — no searches were run against these
   topics, so there is no evidence basis yet for either "implement" or
   "confirmed non-gap." **Reason for deferral: not yet researched.**
@@ -161,15 +161,15 @@ cycle. Listed honestly rather than silently dropped:
   server-side with a 400): `build_multiagent_config()` does not
   replicate this check client-side. **Reason for deferral: doing this
   correctly requires the same capability-tier data the existing
-  Messages-API advisor validation in `claude_advisor.py` uses, and
+  Messages-API advisor validation in `provider-specific module` uses, and
   reusing vs. duplicating that needs a closer read of
-  `claude_advisor.py` than this cycle had room for** — a real
+  `provider-specific module` than this cycle had room for** — a real
   correctness gap, not a false negative, and flagged rather than
   quietly shipped as "handled."
 
 ## 8. Tests
 
-New tests, all in `tests/test_claude_agents_sdk.py`:
+New tests, all in `tests/test_provider-specific module`:
 - 6 tests for `_encode_session_budget` (valid encode, string-not-float
   regression guard, zero/negative/float/bool rejection)
 - 2 tests for `create_session`'s budget kwarg (omitted vs. sent)
@@ -187,7 +187,7 @@ New tests, all in `tests/test_claude_agents_sdk.py`:
 
 **33 new tests. Suite total: 507 → 531 passed, 0 failed.**
 
-`tests/test_cli_wiring.py` now passes for `claude_agents_sdk.py`
+`tests/test_cli_wiring.py` now passes for `provider-specific module`
 (previously the one failure).
 
 ## 9. Migration concerns

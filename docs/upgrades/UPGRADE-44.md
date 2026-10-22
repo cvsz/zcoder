@@ -20,4 +20,4 @@ Unit coverage proves exactly-one delegation, result preservation including `max_
 
 ## Next boundary
 
-After this slice is green, adapt the existing Claude streaming capability to the service boundary at one caller while retaining the legacy entry point. Separately, complete the already-evidenced PostgreSQL store delegation from Upgrade-43 when the production store body can be changed mechanically without widening the slice.
+After this slice is green, adapt the existing provider streaming capability to the service boundary at one caller while retaining the legacy entry point. Separately, complete the already-evidenced PostgreSQL store delegation from Upgrade-43 when the production store body can be changed mechanically without widening the slice.

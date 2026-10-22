@@ -298,7 +298,7 @@ LEAVE_UNCHANGED
 Never overwrite existing:
 
 AGENTS.md
-CLAUDE.md
+provider.md
 GEMINI.md
 README
 CI configuration
@@ -642,7 +642,7 @@ Do not initialize Git silently.
 Look for:
 
 AGENTS.md
-CLAUDE.md
+provider.md
 GEMINI.md
 CONTRIBUTING.md
 README
@@ -1407,7 +1407,7 @@ local-free
 
 Requires no:
 
-Anthropic
+PROVIDER_CREDENTIAL_OR_CONFIG
 OpenAI
 Stripe
 cloud object storage
@@ -2446,7 +2446,7 @@ Actual changes:
 
 ## 22. Zero-Paid Proof
 
-Anthropic:
+PROVIDER_CREDENTIAL_OR_CONFIG:
 OpenAI paid:
 Stripe:
 Hosted embeddings:

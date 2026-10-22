@@ -721,7 +721,7 @@ Example:
 
 worker = eu-west
 database = eu-central
-Anthropic inference_geo = us
+PROVIDER_CREDENTIAL_OR_CONFIG inference_geo = us
 
 This may violate policy even though ZCoder infrastructure itself is EU.
 
@@ -748,7 +748,7 @@ retention
 Paths include:
 
 GitHub -> ZCoder
-ZCoder -> Anthropic
+ZCoder -> PROVIDER_CREDENTIAL_OR_CONFIG
 worker -> PostgreSQL
 worker -> artifact storage
 telemetry
@@ -823,7 +823,7 @@ worker region lost
 API region lost
 database region lost
 artifact region unavailable
-Anthropic geography unavailable
+PROVIDER_CREDENTIAL_OR_CONFIG geography unavailable
 
 Do not claim automatic recovery where not implemented.
 
@@ -869,7 +869,7 @@ Do not call it HA failover if only the process restarted on the same DB.
 
 Document behavior:
 
-worker can reach Anthropic but not PostgreSQL
+worker can reach PROVIDER_CREDENTIAL_OR_CONFIG but not PostgreSQL
 worker can reach PostgreSQL but not GitHub
 API cannot reach DB
 regional network partially fails

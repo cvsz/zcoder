@@ -1737,7 +1737,7 @@ Local validation only unless explicitly configured.
 
 Every quality run under zero-cost profile:
 
-Anthropic calls = 0
+PROVIDER_CREDENTIAL_OR_CONFIG calls = 0
 OpenAI paid calls = 0
 Stripe = 0
 hosted embeddings = 0
@@ -2281,7 +2281,7 @@ Policy bypass:
 
 ## 21. Offline / Zero-Paid Proof
 
-Anthropic:
+PROVIDER_CREDENTIAL_OR_CONFIG:
 OpenAI paid:
 Stripe:
 Hosted embeddings:

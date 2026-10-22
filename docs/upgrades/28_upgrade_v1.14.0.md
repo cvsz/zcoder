@@ -6,7 +6,7 @@ feature, and `--excel`/`--excel-output`/`--excel-sheet` are new.
 
 ## New modules
 
-- **`claude_interactive.py`** — `cmd_interactive()`: a persistent,
+- **`provider-specific module`** — `cmd_interactive()`: a persistent,
   multi-turn chat REPL against `Coder.generate()`. `-i`/`--interactive`
   has been an argparse flag since v1.7.0 (`main.py:72`) but was never read
   anywhere — passing it fell through every branch in `main()` to
@@ -15,7 +15,7 @@ feature, and `--excel`/`--excel-output`/`--excel-sheet` are new.
   `--code-agent` is for. Slash commands: `/help`, `/reset`, `/system
   [TEXT]`, `/model [NAME]`, `/save FILE`, `/history`, `/exit`/`/quit`.
 
-- **`claude_excel.py`** — `ExcelSession` + `cmd_excel_chat()`: a
+- **`provider-specific module`** — `ExcelSession` + `cmd_excel_chat()`: a
   conversational spreadsheet assistant. Each turn, the user's request and
   a summary of the current sheets (shape, columns, dtypes, a head()
   preview) go to the model with a system prompt asking it to respond with
@@ -40,13 +40,13 @@ feature, and `--excel`/`--excel-output`/`--excel-sheet` are new.
 ## Changed
 
 - **`main.py`**:
-  - `-i`/`--interactive` now dispatches to `claude_interactive.cmd_interactive()`
+  - `-i`/`--interactive` now dispatches to `provider-specific identifier.cmd_interactive()`
     instead of falling through to help text. New `--interactive-system
     TEXT` sets the starting system prompt.
   - New `--excel [FILE]` (nargs, so bare `--excel` starts an empty
     workbook and `--excel data.csv` loads one), `--excel-output FILE`,
     and `--excel-sheet NAME` (pick a sheet out of a multi-sheet input
-    workbook) dispatch to `claude_excel.cmd_excel_chat()`.
+    workbook) dispatch to `provider-specific identifier.cmd_excel_chat()`.
   - Both new branches sit right after `key = _api_key(args)` /
     `model = _model(args)` — same "API key required" section every other
     generate-backed flag lives in — and both `return` immediately after,
@@ -82,9 +82,9 @@ malicious actor — treat `--excel` with the same trust level as
   `_write_charts()` anchors every chart two columns right of the last data
   column, which can overlap if several charts target sheets with very
   different widths.
-- `claude_interactive.py`'s `/save` transcript format is plain Markdown
+- `provider-specific module`'s `/save` transcript format is plain Markdown
   headers, not a session format any other command in this CLI reads back
   (contrast `--code-agent-session`/`--sessions-list`, which use the real
-  session store in `claude_sessions.py`). Wiring plain chat sessions into
+  session store in `provider-specific module`). Wiring plain chat sessions into
   that same store is a reasonable follow-up if `-i` sessions need to be
   resumable later.

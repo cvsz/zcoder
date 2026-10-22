@@ -47,7 +47,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 - **Subagents** — bounded budgets, permissions, frontmatter validation
 - **Hooks** — lifecycle events แบบ fail-closed
 - **MCP** — server discovery, tool trust policy, resource validation
-- **Memory** — scoped CLAUDE.md hierarchy (enterprise → user → project)
+- **Memory** — scoped provider.md hierarchy (enterprise → user → project)
 - **Skills & Commands** — loader containment, install/remove/info lifecycle
 
 ### 🏗️ Architecture
@@ -124,7 +124,7 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 ### ตrequirements
 
 - Python 3.10+
-- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. `--pptx-native` remains unavailable while its legacy Anthropic transport is disabled.
+- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. `--pptx-native` remains unavailable while its legacy PROVIDER_CREDENTIAL_OR_CONFIG transport is disabled.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
@@ -293,7 +293,7 @@ zcoder --dr-rehearsal                 # DR rehearsal
 
 | Variable | Description | Required |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Legacy compatibility variable; not used by local inference | Ignored |
+| `PROVIDER_CREDENTIAL_OR_CONFIG` | Legacy compatibility variable; not used by local inference | Ignored |
 | `ZCODER_PROVIDER` | Local provider (`llama_cpp` or `local`) | Optional |
 | `ZCODER_BASE_URL` | Loopback llama.cpp server URL | Optional |
 | `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |

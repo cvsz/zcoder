@@ -1,9 +1,9 @@
-# Selective zcoder-claude Port Design
+# Selective zcoder-provider Port Design
 
 ## Goal
 
 Make `zcoder` the canonical implementation while selectively adopting the
-useful, architecture-compatible changes identified in `zcoder-claude`.
+useful, architecture-compatible changes identified in `zcoder-provider`.
 The work must preserve `zcoder`'s package layout, durable control-plane
 direction, tenant boundaries, and existing local changes.
 
@@ -11,7 +11,7 @@ direction, tenant boundaries, and existing local changes.
 
 The port has three bounded workstreams:
 
-1. Anthropic compatibility: Files API GA response and pagination handling,
+1. PROVIDER_CREDENTIAL_OR_CONFIG compatibility: Files API GA response and pagination handling,
    Skills API GA headers, GA computer-use request construction with an
    explicit legacy path, and model-aware session cost estimation.
 2. Runtime safety: fail-closed public API authentication, configured CORS,
@@ -22,8 +22,8 @@ The port has three bounded workstreams:
 
 ## Architecture
 
-`zcoder` remains the source of truth. Anthropic wire changes stay in the
-existing `zcoder.claude` modules and reuse its retry, error, and cost helpers.
+`zcoder` remains the source of truth. PROVIDER_CREDENTIAL_OR_CONFIG wire changes stay in the
+existing `zcoder.provider` modules and reuse its retry, error, and cost helpers.
 The API boundary uses the existing OIDC validator and maps verified identity
 claims into the existing immutable `RequestContext`; request headers cannot
 select an organization, principal, role, or project. An API request without
@@ -36,7 +36,7 @@ or executed. Webhook registration remains an API operation, but its URL is
 checked by the existing outbound security boundary, including DNS-resolved
 private-address rejection.
 
-The existing flat local-state and devtools modules in `zcoder-claude` have no
+The existing flat local-state and devtools modules in `zcoder-provider` have no
 corresponding target abstraction and are not introduced as a second storage
 architecture.
 
@@ -60,7 +60,7 @@ architecture.
 Each behavior change is covered test-first with focused unit tests and fake
 HTTP or validator boundaries. The final gates are the complete local pytest
 suite, Ruff, diff whitespace checks, and a review of the final diff and
-preserved worktree entries. Live Anthropic, PostgreSQL, and OIDC provider
+preserved worktree entries. Live PROVIDER_CREDENTIAL_OR_CONFIG, PostgreSQL, and OIDC provider
 verification remains separate evidence and is not claimed by local tests.
 
 ## Explicit exclusions

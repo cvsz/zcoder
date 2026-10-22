@@ -1604,7 +1604,7 @@ No code mutation.
 
 For zero-cost task persist counters:
 
-Anthropic = 0
+PROVIDER_CREDENTIAL_OR_CONFIG = 0
 OpenAI paid = 0
 Stripe = 0
 hosted embedding = 0
@@ -2810,7 +2810,7 @@ Final:
 
 ## 24. Offline / Zero-Paid Proof
 
-Anthropic:
+PROVIDER_CREDENTIAL_OR_CONFIG:
 OpenAI paid:
 Stripe:
 Hosted embeddings:

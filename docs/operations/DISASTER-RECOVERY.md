@@ -48,6 +48,6 @@ This runbook provides actionable standard operating procedures (SOP) for recover
 
 ---
 
-### 4. GitHub / Anthropic Outage Handling
+### 4. GitHub / PROVIDER_CREDENTIAL_OR_CONFIG Outage Handling
 **GitHub Outage**: Outbox messages buffer mutations with exponential backoff up to 5 attempts before DEAD-lettering. Replay via `POST /api/v1/outbox/retry`.
-**Anthropic Outage**: Jobs enter `RETRYING` state with bounded jittered backoff; no infinite token consumption loops.
+**PROVIDER_CREDENTIAL_OR_CONFIG Outage**: Jobs enter `RETRYING` state with bounded jittered backoff; no infinite token consumption loops.

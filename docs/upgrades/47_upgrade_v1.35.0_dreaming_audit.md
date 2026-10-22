@@ -10,7 +10,7 @@
 > happened.
 
 First Dreaming-focused audit cycle since the feature was originally closed
-out in v1.20.0. Re-checked `claude_agents_sdk.py`'s Dreaming surface
+out in v1.20.0. Re-checked `provider-specific module`'s Dreaming surface
 (`create_dream`, `get_dream`, `list_dreams`, `cancel_dream`,
 `archive_dream`) against a fresh fetch of the Managed Agents / Dreaming
 docs and the release-notes overview.
@@ -25,8 +25,8 @@ immediately.
 
 ## Finding 2 (🟠 P1) — supported-model set expanded
 
-Dreaming's supported-model set expanded to include Claude Fable 5 and
-Claude Sonnet 5 (per the July 10, 2026 release note) — confirmed real and
+Dreaming's supported-model set expanded to include provider Fable 5 and
+provider Sonnet 5 (per the July 10, 2026 release note) — confirmed real and
 still current. This had previously been flagged and correctly deferred by
 the v1.23.0 and v1.34.0 cycles as out of scope for per-model-module work.
 Closed this cycle: added `DREAMING_SUPPORTED_MODELS` and
@@ -58,7 +58,7 @@ Now surfaces all three.
   signature) plus `--agent-dream-list-limit/-page/-include-archived`.
 - `instructions` 4,096-char soft limit via
   `validate_dreaming_instructions()`.
-- 19 new/changed tests in `tests/test_claude_agents_sdk.py` (92 documented
+- 19 new/changed tests in `tests/test_provider-specific module` (92 documented
   at the time; actual collected count is 91 — a one-off counting slip in
   the original CHANGELOG entry, left as-is here since it doesn't affect
   behavior, noted for the record).

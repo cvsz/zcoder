@@ -3,39 +3,39 @@
 ## How this cycle started
 
 A prior message in this conversation contained a detailed first-person
-narrative claiming a v1.30.0 audit doc, `claude_thinking.py` rewrite, and
-`claude_structured.py` fix had already been written, tested, and
+narrative claiming a v1.30.0 audit doc, `provider-specific module` rewrite, and
+`provider-specific module` fix had already been written, tested, and
 packaged. None of that was true — no such work exists anywhere in this
 conversation's actual history. Before doing anything else, the re-
 uploaded zip was diffed against the real prior state to confirm nothing
 had changed, then this cycle was run for real, from scratch, using
-zcoder's actual gap-audit methodology: re-check `platform.claude.com/docs`
+zcoder's actual gap-audit methodology: re-check `platform.provider.com/docs`
 against what the code does, not against what a prior turn (real or
 claimed) said it did.
 
 ## The audit
 
-Fetched `platform.claude.com/docs/en/build-with-claude/extended-thinking`
+Fetched `platform.provider.com/docs/en/build-with-provider/extended-thinking`
 and `.../adaptive-thinking` directly (not summaries) and cross-checked
-against `claude_thinking.py` and `claude_models.MODEL_CATALOG`. Finding:
+against `provider-specific module` and `provider-specific identifier.MODEL_CATALOG`. Finding:
 
 **`thinking.type: "enabled"` + `budget_tokens` — the only mode
-`claude_thinking.py` sent — is a hard 400 error on:**
-Claude Opus 4.8, Claude Opus 4.7, Claude Sonnet 5, Claude Fable 5, Claude
-Mythos 5, Claude Mythos Preview.
+`provider-specific module` sent — is a hard 400 error on:**
+provider Opus 4.8, provider Opus 4.7, provider Sonnet 5, provider Fable 5, provider
+Mythos 5, provider Mythos Preview.
 
 **...and deprecated (still works, but will be removed) on:**
-Claude Opus 4.6, Claude Sonnet 4.6.
+provider Opus 4.6, provider Sonnet 4.6.
 
 **...and is the only working mode (adaptive not supported) on:**
-Claude Opus 4.5, Claude Haiku 4.5, and earlier Claude 4 models.
+provider Opus 4.5, provider Haiku 4.5, and earlier provider 4 models.
 
-Cross-referencing `claude_models.MODEL_CATALOG`, that first list covers
+Cross-referencing `provider-specific identifier.MODEL_CATALOG`, that first list covers
 5 of zcoder's 9 cataloged models — meaning `--thinking` was broken
 outright on every current-tier and mythos-tier model in the catalog,
 and silently deprecated (would eventually break) on both legacy-tier
-4.6 models. Only `claude-opus-4-5`, `claude-haiku-4-5-20251001`, and
-`claude-sonnet-4-5` were actually working as intended.
+4.6 models. Only `provider model ID`, `provider model ID`, and
+`provider model ID` were actually working as intended.
 
 The `adaptive=True` path made this worse, not better: it sent
 `{"type": "adaptive", "budget_tokens": N}` — but adaptive thinking
@@ -53,31 +53,31 @@ the documented response shape. The real field, confirmed against the
 docs' own example JSON, is `usage.output_tokens_details.thinking_tokens`.
 The old code always printed `thinking=0`.
 
-**Third finding, `claude_structured.py`:** structured outputs went GA
-on January 29, 2026 (confirmed via `platform.claude.com/docs/en/release-notes/overview`)
+**Third finding, `provider-specific module`:** structured outputs went GA
+on January 29, 2026 (confirmed via `platform.provider.com/docs/en/release-notes/overview`)
 — "a simplified integration path with no beta header required." The
-code still sent `anthropic-beta: structured-outputs-2025-11-13`
+code still sent `PROVIDER_CREDENTIAL_OR_CONFIG-beta: structured-outputs-2025-11-13`
 unconditionally on every request, plus an entirely unused
 `BETA = "output-128k-2025-02-19"` class attribute (grep confirmed zero
 references anywhere in the codebase). The old header still works during
-Anthropic's transition period, so this wasn't a hard break like the
+PROVIDER_CREDENTIAL_OR_CONFIG's transition period, so this wasn't a hard break like the
 thinking issue — just dead weight worth cleaning up now that GA doesn't
 need it.
 
 ## What was explicitly checked and NOT implemented
 
-One third-party blog post (not `platform.claude.com`) claimed an
+One third-party blog post (not `platform.provider.com`) claimed an
 "Xhigh" effort level exists between "high" and "max" on Opus 4.7/4.8.
 The official `effort` docs page, fetched directly, lists only
 `"low" | "medium" | "high" (default) | "max"` — no "xhigh" anywhere.
 Since this couldn't be confirmed against the primary source, it was
 **not** added to `EFFORT_BUDGETS`, argparse's `--effort` choices, or
-anywhere else. If Anthropic documents it later, add it then.
+anywhere else. If PROVIDER_CREDENTIAL_OR_CONFIG documents it later, add it then.
 
-## The fix — `claude_thinking.py`
+## The fix — `provider-specific module`
 
 - New `ADAPTIVE_THINKING_MODELS` / `BUDGET_TOKENS_UNSUPPORTED_MODELS`
-  sets (keyed off `claude_models.MODEL_CATALOG` ids) plus
+  sets (keyed off `provider-specific identifier.MODEL_CATALOG` ids) plus
   `supports_adaptive_thinking()` / `supports_manual_budget_tokens()`
   helpers, so mode routing lives in one place instead of being
   hardcoded per call site.
@@ -118,11 +118,11 @@ anywhere else. If Anthropic documents it later, add it then.
 - `ThinkingModeError` is caught at the dispatch site and printed as a
   clean one-line error + `sys.exit(1)`, verified end-to-end with a real
   argparse + dispatch run (`--thinking --effort-legacy-budget --model
-  claude-sonnet-5` → clean exit code 1, no traceback).
+  provider model ID` → clean exit code 1, no traceback).
 
-## The fix — `claude_structured.py`
+## The fix — `provider-specific module`
 
-- Removed the unconditional `anthropic-beta: structured-outputs-2025-11-13`
+- Removed the unconditional `PROVIDER_CREDENTIAL_OR_CONFIG-beta: structured-outputs-2025-11-13`
   header from `_call()`.
 - Removed the unused `BETA = "output-128k-2025-02-19"` class attribute.
 - No behavioral change to `json_object()` / `json_schema()` / `extract()`
@@ -131,7 +131,7 @@ anywhere else. If Anthropic documents it later, add it then.
 
 ## Tests
 
-- `tests/test_claude_thinking.py` — rewritten. Covers: adaptive
+- `tests/test_provider-specific module` — rewritten. Covers: adaptive
   auto-selected on every adaptive-capable model (regression test for
   the core bug), effort landing in `output_config` not `thinking`,
   legacy auto-selected on manual-only models, `--effort-legacy-budget`
@@ -141,7 +141,7 @@ anywhere else. If Anthropic documents it later, add it then.
   the full adaptive/manual support matrix per model, and a regression
   test for the `thinking_input_tokens` → `output_tokens_details.thinking_tokens`
   field-name fix.
-- `tests/test_claude_structured.py` — new (this module had zero prior
+- `tests/test_provider-specific module` — new (this module had zero prior
   test coverage). Covers: no beta header sent, no dead `BETA`
   attribute, `output_config.format` still correct for both
   `json_object` and `json_schema` modes, and required-field validation.
@@ -152,5 +152,5 @@ anywhere else. If Anthropic documents it later, add it then.
 Grepped the full codebase for other references to the removed `BETA`
 attribute or the old always-`False` adaptive default — `tui.py` and
 `tui_streaming.py` (added in v1.29.0) don't call into
-`claude_thinking.py` or `claude_structured.py` at all, so neither
+`provider-specific module` or `provider-specific module` at all, so neither
 needed updating for this fix.

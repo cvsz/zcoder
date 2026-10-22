@@ -1,16 +1,16 @@
-# Claude Code Changelog Review — Local-Only zCoder Adaptation
+# external coding assistant Changelog Review — Local-Only zCoder Adaptation
 
-Source: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
+Source: https://github.com/PROVIDER_CREDENTIAL_OR_CONFIG/provider model ID/blob/main/CHANGELOG.md
 
 Reviewed upstream at version **2.1.308** (includes 2.1.307–2.1.304).
 This document records **behavioral ideas**, not a code port or integration with the
-Anthropic API. All new model inference for the normal prompt CLI uses a
+PROVIDER_CREDENTIAL_OR_CONFIG API. All new model inference for the normal prompt CLI uses a
 self-hosted llama.cpp GGUF server on loopback; no model, API key, SDK, or
-Anthropic entitlement is required for this path.
+PROVIDER_CREDENTIAL_OR_CONFIG entitlement is required for this path.
 
 ## Relevant upstream reliability changes and local adoption
 
-| Claude Code release | Upstream change | zCoder adaptation | Status |
+| external coding assistant release | Upstream change | zCoder adaptation | Status |
 |---|---|---|---|
 | 2.1.307 | Retry HTTP MCP only for read-only/idempotent calls | Audit existing MCP retries; prohibit auto-retry of side-effecting writes | Planned, not implemented |
 | 2.1.307 | Emit structured safety events for permissions, hooks and sandbox decisions | Design a local audit event schema without remote telemetry dependency | Planned |
@@ -29,7 +29,7 @@ passes these acceptance tests.
 Normal text and `--agent ... -p` requests are routed to the locally hosted
 llama.cpp HTTP server at `http://127.0.0.1:8080/v1/chat/completions`.
 The local transport validates the loopback URL and does not fall back to
-Anthropic or another external provider after failure.
+PROVIDER_CREDENTIAL_OR_CONFIG or another external provider after failure.
 
 Accepted model files on the operator's WSL environment:
 
@@ -39,15 +39,15 @@ Accepted model files on the operator's WSL environment:
 Start the server via `bash scripts/start_local_gguf.sh 7b` or `1.5b`.
 Neither model file is bundled, uploaded, or downloaded by this repository.
 
-## Blockers before claiming "without calling Anthropic" across all features
+## Blockers before claiming "without calling PROVIDER_CREDENTIAL_OR_CONFIG" across all features
 
-- Many legacy modules import `anthropic` or call Anthropic-specific endpoints.
-- Anthropic administration, compliance, billing, model registry and SDK
+- Many legacy modules import `PROVIDER_CREDENTIAL_OR_CONFIG` or call PROVIDER_CREDENTIAL_OR_CONFIG-specific endpoints.
+- PROVIDER_CREDENTIAL_OR_CONFIG administration, compliance, billing, model registry and SDK
   features have no local GGUF equivalents; disable/hide or explicitly reject
   those operations before claiming global provider independence.
 - `--route`, `--code-agent`, interactive/TUI, projects and
   workflows have separate provider paths and must each be verified.
-- Existing legacy unit tests simulate Claude API responses and require a
+- Existing legacy unit tests simulate provider API responses and require a
   staged migration to local provider contracts.
 - CI, Ruff/Black, Bandit, full pytest and real WSL llama.cpp smoke tests must
   pass on the exact PR SHA.

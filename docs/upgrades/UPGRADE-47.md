@@ -22,4 +22,4 @@ Focused unit coverage proves that quiet mode returns the complete messaging resu
 
 ## Next boundary
 
-After this repair is green, migrate exactly one existing CLI or web caller to `run_claude_messaging_turn_once()` while preserving that caller's externally visible behavior. Keep provider-specific options on their existing path until the adapter explicitly supports them.
+After this repair is green, migrate exactly one existing CLI or web caller to `run_provider-specific identifier()` while preserving that caller's externally visible behavior. Keep provider-specific options on their existing path until the adapter explicitly supports them.

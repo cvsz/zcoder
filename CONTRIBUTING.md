@@ -77,7 +77,7 @@ Tests must not make accidental real provider calls. Mock external HTTP/provider 
 - New user/model-controlled paths must pass centralized security validation before filesystem access.
 - Outbound network tools must validate the full source-to-sink path, including redirects and address classification where applicable.
 - New structured logging uses `zcoder.config.logging.get_logger(__name__)`; never log secrets.
-- New Claude/provider capability code belongs in the matching `zcoder.claude.*` package rather than creating another flat root module.
+- New provider/provider capability code belongs in the matching `zcoder.provider.*` package rather than creating another flat root module.
 - Preserve backward compatibility shims only at explicit public boundaries; do not add new code to the shim layer.
 - New MCP/hooks/plugins/subprocess integrations must document environment, secret, permission, and tenant trust boundaries.
 

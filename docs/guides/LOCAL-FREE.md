@@ -25,7 +25,7 @@ python main.py -p "Write a function to reverse a string"
 
 Generation, git helpers, live mode, and prompt optimization switch to
 deterministic offline synthesis with zero network I/O and zero keys.
-Outside local mode a missing `ANTHROPIC_API_KEY` is a hard error — the
+Outside local mode a missing `PROVIDER_CREDENTIAL_OR_CONFIG` is a hard error — the
 CLI never silently pretends to generate.
 
 ---
@@ -39,7 +39,7 @@ CLI never silently pretends to generate.
    pip install -e .
    ```
 
-2. Verify local execution without any `ANTHROPIC_API_KEY`:
+2. Verify local execution without any `PROVIDER_CREDENTIAL_OR_CONFIG`:
    ```bash
    zcoder --version
    ```

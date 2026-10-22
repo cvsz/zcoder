@@ -1,4 +1,4 @@
-# Mission: Deep-audit and fully upgrade ZCoder against the latest Anthropic platform
+# Mission: Deep-audit and fully upgrade ZCoder against the latest PROVIDER_CREDENTIAL_OR_CONFIG platform
 
 You are operating directly inside the ZCoder repository.
 
@@ -8,44 +8,44 @@ Current project baseline:
 * Current release: v1.38.0
 * Primary language: Python
 * Main entry point: `main.py`
-* Core Anthropic modules use the `claude_*.py` naming convention
-* The project already contains extensive Anthropic API, Claude Code, Agent SDK, Managed Agents, Admin API, Compliance API, Skills, MCP, memory, tools, streaming, structured output, model routing, observability, TUI, and web-console support.
+* Core PROVIDER_CREDENTIAL_OR_CONFIG modules use the `provider_*.py` naming convention
+* The project already contains extensive PROVIDER_CREDENTIAL_OR_CONFIG API, external coding assistant, Agent SDK, Managed Agents, Admin API, Compliance API, Skills, MCP, memory, tools, streaming, structured output, model routing, observability, TUI, and web-console support.
 * Do NOT assume a capability is missing merely because it is new.
 * Do NOT implement duplicate abstractions.
-* Do NOT invent Anthropic APIs, beta headers, model IDs, parameters, endpoints, or SDK methods.
+* Do NOT invent PROVIDER_CREDENTIAL_OR_CONFIG APIs, beta headers, model IDs, parameters, endpoints, or SDK methods.
 
-Your job is to perform a fresh, evidence-driven Anthropic gap audit and then implement every legitimate, production-useful missing capability.
+Your job is to perform a fresh, evidence-driven PROVIDER_CREDENTIAL_OR_CONFIG gap audit and then implement every legitimate, production-useful missing capability.
 
-## 1. Fetch the current Anthropic source of truth
+## 1. Fetch the current PROVIDER_CREDENTIAL_OR_CONFIG source of truth
 
 Before changing code, re-fetch the current documentation.
 
-Use first-party Anthropic sources as authoritative:
+Use first-party PROVIDER_CREDENTIAL_OR_CONFIG sources as authoritative:
 
-1. Claude Platform release notes
-2. Claude API reference
+1. provider Platform release notes
+2. provider API reference
 3. Current models overview
 4. Model migration/deprecation documentation
 5. Pricing documentation
 6. Managed Agents documentation
 7. Agent SDK documentation and changelog
-8. Claude Code documentation and changelog
+8. external coding assistant documentation and changelog
 9. MCP documentation
 10. Agent Skills documentation
 11. Admin API documentation
 12. Compliance API documentation
 13. Authentication / WIF documentation
-14. Claude Enterprise administration documentation
+14. provider Enterprise administration documentation
 15. Tool-use reference
 16. Prompt caching documentation
 17. Token counting documentation
 18. Structured outputs documentation
 19. Data residency documentation
-20. Anthropic official announcements when they define API behavior
+20. PROVIDER_CREDENTIAL_OR_CONFIG official announcements when they define API behavior
 
 Determine the latest documented state **at execution time**.
 
-Do not rely solely on this prompt's August 2026 examples. Anthropic may have shipped something newer.
+Do not rely solely on this prompt's August 2026 examples. PROVIDER_CREDENTIAL_OR_CONFIG may have shipped something newer.
 
 Record:
 
@@ -106,24 +106,24 @@ Inspect at minimum:
 * `main.py`
 * `coder.py`
 * `config.py`
-* `claude_models.py`
-* `claude_agents_sdk.py`
-* `claude_admin_api.py`
-* `claude_compliance_api.py`
-* `claude_tools.py`
-* `claude_code.py`
-* `claude_skills_api.py`
-* `claude_wif.py`
-* `claude_thinking.py`
-* `claude_opus5.py`
-* `claude_sonnet5.py`
-* `claude_fable5.py`
-* `claude_mythos5.py`
-* `claude_memory.py`
-* `claude_advisor.py`
-* `claude_cache.py`
-* `claude_stream.py`
-* `claude_structured.py`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
+* `provider-specific module`
 * all tests
 * `README.md`
 * `ROADMAP.md`
@@ -132,7 +132,7 @@ Inspect at minimum:
 * `ARCHITECTURE.md`
 * `docs/`
 
-For every Anthropic feature, classify it:
+For every PROVIDER_CREDENTIAL_OR_CONFIG feature, classify it:
 
 * COMPLETE
 * COMPLETE BUT UNWIRED
@@ -149,7 +149,7 @@ Show evidence for the classification.
 
 Do not duplicate functionality that already exists under another module or CLI flag.
 
-## 4. Priority audit: Anthropic changes after the current v1.38 cycle
+## 4. Priority audit: PROVIDER_CREDENTIAL_OR_CONFIG changes after the current v1.38 cycle
 
 Explicitly investigate these areas first, then continue beyond them.
 
@@ -165,7 +165,7 @@ This is distinct from:
 
 Verify the actual schema and lifecycle.
 
-Required behavior if supported by Anthropic:
+Required behavior if supported by PROVIDER_CREDENTIAL_OR_CONFIG:
 
 * create session with hard spend budget
 * inspect budget state
@@ -222,7 +222,7 @@ Do not assume Messages API and Managed Agents request shapes are identical.
 Audit Managed Agents' ability to discover skills from a mounted repository's:
 
 ```text
-.claude/skills/
+.provider/skills/
 ```
 
 If missing:
@@ -233,14 +233,14 @@ If missing:
 * distinguish:
 
   * local ZCoder skills
-  * Agent SDK/Claude Code skills
-  * Claude Platform Skills API
+  * Agent SDK/external coding assistant skills
+  * provider Platform Skills API
   * Managed Agents repo-discovered skills
 * add tests proving no namespace collision
 
 ### E. Enterprise inference hooks
 
-Audit Anthropic's current Enterprise inference-hook API/configuration.
+Audit PROVIDER_CREDENTIAL_OR_CONFIG's current Enterprise inference-hook API/configuration.
 
 If public API integration exists and is applicable:
 
@@ -258,7 +258,7 @@ Never manufacture an endpoint.
 
 ### F. Compliance API — remote session transcripts
 
-Audit support for enterprise Compliance API access to cloud-hosted Cowork / Claude sessions.
+Audit support for enterprise Compliance API access to cloud-hosted Cowork / provider sessions.
 
 If supported and missing, add exact documented endpoints for:
 
@@ -271,7 +271,7 @@ If supported and missing, add exact documented endpoints for:
 * output JSON
 * human-readable CLI display
 
-### G. Compliance API — local Claude Code/Cowork sessions
+### G. Compliance API — local external coding assistant/Cowork sessions
 
 Audit the current APIs for sessions executed on users' machines.
 
@@ -284,13 +284,13 @@ If missing, implement:
 * required Compliance Access Key scope
 * safe handling of enterprise content
 
-No destructive commands unless Anthropic explicitly documents them.
+No destructive commands unless PROVIDER_CREDENTIAL_OR_CONFIG explicitly documents them.
 
-### H. `anthropic-workspace-id` response metadata
+### H. `PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id` response metadata
 
-Audit all appropriate first-party Claude API clients.
+Audit all appropriate first-party provider API clients.
 
-If Anthropic currently returns the workspace identifier response header:
+If PROVIDER_CREDENTIAL_OR_CONFIG currently returns the workspace identifier response header:
 
 * expose it without breaking existing method return types
 * decide on a backward-compatible metadata abstraction
@@ -347,9 +347,9 @@ Check:
 * thinking-token accounting
 * max output calculations
 
-Never estimate a new model's token usage using an older tokenizer when Anthropic provides token counting.
+Never estimate a new model's token usage using an older tokenizer when PROVIDER_CREDENTIAL_OR_CONFIG provides token counting.
 
-### K. Claude Sonnet 5 migration restrictions
+### K. provider Sonnet 5 migration restrictions
 
 Verify every call path rejects/removes invalid combinations such as:
 
@@ -359,7 +359,7 @@ Verify every call path rejects/removes invalid combinations such as:
 * non-default `top_k`
 * unsupported assistant prefilling
 
-Search beyond `claude_sonnet5.py`.
+Search beyond `provider-specific module`.
 
 Ensure generic routes through `Coder`, web API, TUI, batch, agents, structured output and other modules cannot bypass the compatibility checks.
 
@@ -367,7 +367,7 @@ Ensure generic routes through `Coder`, web API, TUI, batch, agents, structured o
 
 The above list is only a bootstrap.
 
-Compare **every Anthropic release after the repository's last verified audit date** against the repository.
+Compare **every PROVIDER_CREDENTIAL_OR_CONFIG release after the repository's last verified audit date** against the repository.
 
 Search for changes involving:
 
@@ -428,20 +428,20 @@ Search for changes involving:
 * Compliance API
 * WIF/IAM
 * AWS/Bedrock
-* Claude Platform on AWS
+* provider Platform on AWS
 * Google Cloud
 * Microsoft Foundry
 * Agent SDK
-* Claude Code
+* external coding assistant
 
 ## 6. SDK modernization audit
 
-Inspect installed/pinned Python Anthropic SDK requirements.
+Inspect installed/pinned Python PROVIDER_CREDENTIAL_OR_CONFIG SDK requirements.
 
 The current project historically pinned:
 
 ```text
-anthropic>=0.75.0
+PROVIDER_CREDENTIAL_OR_CONFIG>=0.75.0
 ```
 
 Do not blindly bump it.
@@ -461,7 +461,7 @@ Where appropriate establish:
 
 ```text
 Transport
-├── Anthropic Python SDK adapter
+├── PROVIDER_CREDENTIAL_OR_CONFIG Python SDK adapter
 ├── Raw HTTP adapter where genuinely necessary
 └── test/mock transport
 ```
@@ -623,7 +623,7 @@ Mock at the HTTP/SDK boundary.
 
 Never log:
 
-* Anthropic API keys
+* PROVIDER_CREDENTIAL_OR_CONFIG API keys
 * Admin API keys
 * Compliance Access Keys
 * OAuth secrets
@@ -662,7 +662,7 @@ Update as appropriate:
 Create a new audit document such as:
 
 ```text
-docs/52_upgrade_v1.39.0_anthropic_august_2026_audit.md
+docs/52_upgrade_v1.39.0_PROVIDER_CREDENTIAL_OR_CONFIG.md
 ```
 
 or choose the next correct release/document number based on the actual repository state.
@@ -701,18 +701,18 @@ Use this exact sequence:
 
 ### Phase 1 — Discover
 
-Fetch official Anthropic documentation and enumerate changes since the previous audit.
+Fetch official PROVIDER_CREDENTIAL_OR_CONFIG documentation and enumerate changes since the previous audit.
 
 ### Phase 2 — Compare
 
-Map each Anthropic capability against existing ZCoder code.
+Map each PROVIDER_CREDENTIAL_OR_CONFIG capability against existing ZCoder code.
 
 ### Phase 3 — Report
 
 Before editing, output:
 
 ```text
-ANTHROPIC GAP AUDIT
+PROVIDER_CREDENTIAL_OR_CONFIG GAP AUDIT
 
 P0
 ...
@@ -745,7 +745,7 @@ Run the complete test suite and static checks.
 
 ### Phase 6 — Re-audit
 
-Repeat searches against Anthropic release notes and repository code to make sure no candidate was accidentally omitted.
+Repeat searches against PROVIDER_CREDENTIAL_OR_CONFIG release notes and repository code to make sure no candidate was accidentally omitted.
 
 ### Phase 7 — Release validation
 
@@ -764,7 +764,7 @@ and available lint/type checks.
 
 The work is complete only when:
 
-* current Anthropic release notes have been re-fetched
+* current PROVIDER_CREDENTIAL_OR_CONFIG release notes have been re-fetched
 * every relevant release item has a recorded disposition
 * legitimate gaps are implemented
 * no documented API has been invented
@@ -785,12 +785,12 @@ Return:
 
 ### 1. Source-of-truth snapshot
 
-Latest Anthropic documentation/release date checked.
+Latest PROVIDER_CREDENTIAL_OR_CONFIG documentation/release date checked.
 
 ### 2. Gaps discovered
 
 Table:
-`Priority | Anthropic capability | ZCoder status | Evidence | Action`
+`Priority | PROVIDER_CREDENTIAL_OR_CONFIG capability | ZCoder status | Evidence | Action`
 
 ### 3. Implemented changes
 
@@ -822,6 +822,6 @@ Exact files changed.
 
 ### 10. Final verdict
 
-State whether ZCoder now covers all currently public, applicable Anthropic capabilities.
+State whether ZCoder now covers all currently public, applicable PROVIDER_CREDENTIAL_OR_CONFIG capabilities.
 
 Do not claim 100% coverage unless the evidence supports it.

@@ -1,7 +1,7 @@
 # v1.20.0 upgrade notes — Dreaming, Outcomes, Webhooks
 
 This release comes from re-running `ROADMAP.md`'s own gap-audit
-methodology against the live docs at platform.claude.com/docs. The
+methodology against the live docs at platform.provider.com/docs. The
 previous audit was dated 2026-07-08 (v1.19.0); this one is also dated
 2026-07-08 (same day, next cycle). Three findings closed, one further
 finding confirmed real and deliberately deferred.
@@ -12,8 +12,8 @@ The v1.19.0 audit note mentioned that "Dreaming" had been seen mentioned
 alongside the Managed Agents memory-store feature it closed, without
 being investigated further. This cycle's step 6 (explicitly check for
 drift/adjacent shipped features, not just net-new items) picked that
-thread back up: re-reading the Managed Agents docs and Anthropic's own
-"New in Claude Managed Agents" release post surfaced that Dreaming,
+thread back up: re-reading the Managed Agents docs and PROVIDER_CREDENTIAL_OR_CONFIG's own
+"New in provider Managed Agents" release post surfaced that Dreaming,
 Outcomes, and Webhooks all shipped in the same wave (Dreaming as a
 research preview; Outcomes, Multiagent orchestration, and Webhooks
 promoted to public beta the same day), alongside the pre-existing
@@ -28,7 +28,7 @@ differently-worded greps before being written up, per this cycle's step
 - **Outcomes**: first grep for `define_outcome` — zero matches. Second
   grep for `outcome_evaluation|rubric` — also zero matches.
 - **Webhooks**: grep for `webhook` matched exactly one line — a comment
-  in `claude_agents_sdk.py`'s own module docstring describing the
+  in `provider-specific module`'s own module docstring describing the
   *existing* SSE-stream pattern as an alternative to (not an
   implementation of) webhooks.
 - **Native Multiagent orchestration**: grep for
@@ -59,11 +59,11 @@ store's contents once it started accumulating duplicates/staleness —
 the only supported cleanup path was calling `memories.delete` on
 individual entries one at a time.
 
-**What changed:** Added to `claude_agents_sdk.py`:
+**What changed:** Added to `provider-specific module`:
 
 ```python
 ManagedAgentsClient.create_dream(
-    memory_store_id, session_ids=None, model="claude-opus-4-8", instructions=None
+    memory_store_id, session_ids=None, model="provider model ID", instructions=None
 )
 ManagedAgentsClient.get_dream(dream_id)
 ManagedAgentsClient.list_dreams(include_archived=False)
@@ -165,7 +165,7 @@ stream — the lead agent can "check back in with other agents
 mid-workflow."
 
 **Why this is a real, separate gap from the existing client-side
-orchestration:** `claude_agents_sdk.py` already has
+orchestration:** `provider-specific module` already has
 `--agent-orchestrate` / `ManagedAgent.orchestrate()` /
 `spawn_subagent()`, in place since v1.8.0. That pattern decomposes a
 goal into steps and runs each as an independent Messages API call from
@@ -179,7 +179,7 @@ name.
 **Why this cycle didn't build it:** the native feature's entire value
 proposition is the shared-sandbox, shared-event-stream, in-session
 delegation model. A faithful implementation means designing how
-`claude_agents_sdk.py` exposes per-subagent model/prompt/tool
+`provider-specific module` exposes per-subagent model/prompt/tool
 configuration on the Agent resource and handles multiple concurrent
 event-stream threads (`sessions.threads.*`, per the docs) — a
 meaningfully larger, more architecturally involved surface than the
@@ -197,16 +197,16 @@ within a single Managed Agents session.
 ## Drift check
 
 Also checked for drift (not just net-new features) per this cycle's
-methodology: `claude_models.py`'s catalog (Fable 5, Mythos 5, Opus 4.8,
+methodology: `provider-specific module`'s catalog (Fable 5, Mythos 5, Opus 4.8,
 Sonnet 5, Haiku 4.5, legacy 4.5/4.6/4.7 tiers) still matches the live
 Models overview exactly — no stale entries, no missing releases, no new
 deprecation dates beyond what's already recorded in `RETIRED_MODELS`.
-The `requirements.txt` floor pin (`anthropic>=0.75.0`) needed no change.
+The `requirements.txt` floor pin (`PROVIDER_CREDENTIAL_OR_CONFIG>=0.75.0`) needed no change.
 
 ## Tests
 
-`claude_agents_sdk.py` already had test coverage from v1.19.0 (10 tests).
-Added 16 more tests to `tests/test_claude_agents_sdk.py` (26 total in
+`provider-specific module` already had test coverage from v1.19.0 (10 tests).
+Added 16 more tests to `tests/test_provider-specific module` (26 total in
 that file): Dreaming's beta header, `create_dream()`'s request shape
 (with and without `session_ids`), `get_dream()`'s output-store
 extraction (including the "no outputs yet" pending case), `list_dreams()`,
