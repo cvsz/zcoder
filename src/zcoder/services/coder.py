@@ -38,7 +38,7 @@ class Coder:
         fast_mode=False,
     ):
         self.config = Config()
-        self.api_key = api_key or self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
+        self.api_key = api_key or ("" if (provider or os.getenv("ZCODER_PROVIDER", "llama_cpp")) == "llama_cpp" else self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", ""))
         self.model = model or self.config.get("model") or "claude-sonnet-5"
         self.temperature = temperature
         self.max_tokens = max_tokens
