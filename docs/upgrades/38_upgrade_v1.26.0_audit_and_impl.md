@@ -2,29 +2,29 @@
 
 Continuation of the cross-product cycle (previous audit: 2026-07-11, per
 `ROADMAP.md`'s header). This one re-ran the sweep against
-`platform.claude.com/docs/en/release-notes/overview`, the Managed Agents
-docs tree, and recent `anthropic-beta` header additions, plus a check of
-`claude_models.py`'s deprecation scanner against the live model-
+`platform.provider.com/docs/en/release-notes/overview`, the Managed Agents
+docs tree, and recent `PROVIDER_CREDENTIAL_OR_CONFIG-beta` header additions, plus a check of
+`provider-specific module`'s deprecation scanner against the live model-
 deprecations page. Model catalog re-checked first: no new model releases
-since Claude Sonnet 5 (June 30, 2026) launch and the Fable 5 / Mythos 5
+since provider Sonnet 5 (June 30, 2026) launch and the Fable 5 / Mythos 5
 suspension-and-restore (suspended 2026-06-12, restored 2026-07-01) already
 on file — `MODEL_CATALOG` is current. One real gap found and closed; one
 housekeeping fix (a `VERSION` string that had drifted stale) and one
 pre-existing stale test assertion fixed along the way while the relevant
 files were already open.
 
-## Finding 1 — Self-hosted sandboxes for Claude Managed Agents (public beta)
+## Finding 1 — Self-hosted sandboxes for provider Managed Agents (public beta)
 
-**What it is:** An alternative to Anthropic's cloud sandbox for Managed
+**What it is:** An alternative to PROVIDER_CREDENTIAL_OR_CONFIG's cloud sandbox for Managed
 Agents tool execution. `client.beta.environments.create(config={"type":
 "self_hosted"})` creates an environment whose sessions enter a work
-queue instead of an Anthropic-run container; a worker you operate (the
+queue instead of an PROVIDER_CREDENTIAL_OR_CONFIG-run container; a worker you operate (the
 `EnvironmentWorker` SDK helper in Python/TypeScript/Go, or `ant beta:worker
 poll`/`run`) polls that queue with a Console-generated environment key,
 executes tool calls on infrastructure you control (bare metal, or a
 managed provider — Cloudflare, Daytona, Modal, Vercel, and several
 others), and posts results back. The agent loop itself — orchestration,
-context management, error recovery — stays on Anthropic's side either
+context management, error recovery — stays on PROVIDER_CREDENTIAL_OR_CONFIG's side either
 way; only tool execution moves. A separate read endpoint,
 `client.beta.environments.work.stats(environment_id)`, reports queue
 depth, in-flight count, oldest-queued timestamp, and `workers_polling`
@@ -33,10 +33,10 @@ actually connected before routing a session at an environment, since an
 unworked self-hosted environment queues sessions forever rather than
 failing them outright.
 
-**Why it was a gap:** `claude_agents_sdk.py`'s `create_environment()` only
+**Why it was a gap:** `provider-specific module`'s `create_environment()` only
 ever built `{"type": "cloud", "networking": {"type": networking}}` — first
 grep for `self_hosted`/`self-hosted` across the whole tree: zero matches,
-including in `claude_agents_sdk.py`'s own module docstring (which lists
+including in `provider-specific module`'s own module docstring (which lists
 MCP tunnels, a closely related public-beta / research-preview pair
 launched the same cycle, but not this). No code path called
 `environments.work.stats` either — the only queue/liveness-style read
@@ -60,7 +60,7 @@ long-lived process, not a one-shot CLI call) and
 `cmd_agent_env_work_stats()` (prints the four fields, with an explicit
 warning line when `workers_polling == 0`). New flags:
 `--agent-env-self-hosted NAME` and `--agent-env-work-stats
-ENVIRONMENT_ID`. See `tests/test_claude_agents_sdk.py` (6 new tests) and
+ENVIRONMENT_ID`. See `tests/test_provider-specific module` (6 new tests) and
 `IMPLEMENTATION_CHECKLIST.md` Form 11.
 
 **Deliberately not built this cycle:** the actual `EnvironmentWorker`
@@ -68,7 +68,7 @@ poller / `ant beta:worker poll` equivalent — i.e., a zcoder-side process
 that claims work items and executes tool calls locally. That's a
 different kind of component (a long-running daemon with its own
 container/process-orchestration story per work item) than anything else
-in `claude_agents_sdk.py`, which is a thin API client, not an agent
+in `provider-specific module`, which is a thin API client, not an agent
 runtime host. Building a worker without a concrete deployment target
 (which sandboxing platform, what `--on-work` container strategy) risks
 guessing wrong the same way the CMEK finding in v1.25.0 flagged for an
@@ -88,29 +88,29 @@ with a confirmed request/response shape on both the create and read side
 
 **MCP tunnels management API's move off the Admin API** (`/v1/tunnels`
 instead of `/v1/organizations/tunnels`, `mcp-tunnels-2026-06-22` beta
-header) — confirmed **not** a gap: `claude_agents_sdk.py`'s `McpTunnel`
-already targets `TUNNELS_ENDPOINT = "https://api.anthropic.com/v1/tunnels"`
+header) — confirmed **not** a gap: `provider-specific module`'s `McpTunnel`
+already targets `TUNNELS_ENDPOINT = "https://external API host/v1/tunnels"`
 with `MCP_TUNNELS_BETA = "mcp-tunnels-2026-06-22"`.
 
 **Advisor tool `max_tokens` cap** — confirmed **not** a gap:
-`claude_advisor.py`'s `build_advisor_tool()` already accepts and forwards
+`provider-specific module`'s `build_advisor_tool()` already accepts and forwards
 `max_tokens`, with `--advisor-max-tokens` wired in `main.py`.
 
 **`code_execution_20260120` (REPL persistence, programmatic tool calling
-minimum version)** — confirmed **not** a gap: `claude_code_exec.py`'s
+minimum version)** — confirmed **not** a gap: `provider-specific module`'s
 `DEFAULT_CODE_EXEC_VERSION` is already `code_execution_20260521`, newer
 than the version this finding would have required.
 
-**Fast mode deprecation for Claude Opus 4.7** (removal 2026-07-24) —
-confirmed **not** a gap: `claude_models.py`'s `FAST_MODE_DEPRECATED` set
-already contains `"claude-opus-4-7"` with the correct removal date in its
+**Fast mode deprecation for provider Opus 4.7** (removal 2026-07-24) —
+confirmed **not** a gap: `provider-specific module`'s `FAST_MODE_DEPRECATED` set
+already contains `"provider model ID"` with the correct removal date in its
 comment, from the 2026-07-02 audit pass.
 
 **Managed Agents webhooks / multi-agent orchestration / self-hosted
-sandboxes reaching Claude Platform on AWS** — the AWS-specific IAM
-actions (`AnthropicSelfHostedEnvironmentAccess` managed policy, etc.) are
-infra/deployment configuration on Anthropic's AWS offering, not a
-client-library API surface; nothing for `claude_agents_sdk.py` to call
+sandboxes reaching provider Platform on AWS** — the AWS-specific IAM
+actions (`PROVIDER_CREDENTIAL_OR_CONFIG` managed policy, etc.) are
+infra/deployment configuration on PROVIDER_CREDENTIAL_OR_CONFIG's AWS offering, not a
+client-library API surface; nothing for `provider-specific module` to call
 differently. Noted here so a future cycle doesn't re-discover and
 mis-flag it as a code gap.
 
@@ -121,13 +121,13 @@ mis-flag it as a code gap.
   filenames, `CHANGELOG.md`) had moved on through v1.25.0 — apparently
   never bumped after the v1.16.0 release despite nine releases' worth of
   shipped work since. Fixed to `"1.26.0"`.
-- `tests/test_claude_agents_sdk.py::test_cmd_managed_agent_run_without_outcome_calls_run_task`
+- `tests/test_provider-specific module::test_cmd_managed_agent_run_without_outcome_calls_run_task`
   was asserting `run_task("sess_1", "plain task")` with no `stream_deltas`
   kwarg, which has been part of `run_task`'s real signature (default
   `False`) since v1.22.0 — the test went stale then and was failing on
   this run before any v1.26.0 change touched that file. Fixed the
   assertion to match the real call shape.
-- Two assertions in `tests/test_claude_code_exec.py`
+- Two assertions in `tests/test_provider-specific module`
   (`test_default_version_is_20260120`, `test_coder_defaults_to_20260120`)
   were still checking for `code_execution_20260120`, the version string
   `DEFAULT_CODE_EXEC_VERSION` held before the v1.24.0 bump to

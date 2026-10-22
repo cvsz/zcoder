@@ -1,14 +1,14 @@
-# Adversarial review of the completed ZCoder Anthropic upgrade
+# Adversarial review of the completed ZCoder PROVIDER_CREDENTIAL_OR_CONFIG upgrade
 
 Act as a skeptical senior API/platform reviewer.
 
 Do NOT assume the previous implementation is correct.
 
-Your objective is to prove or disprove every claim that ZCoder now supports the latest Anthropic capabilities.
+Your objective is to prove or disprove every claim that ZCoder now supports the latest PROVIDER_CREDENTIAL_OR_CONFIG capabilities.
 
 ## Rules
 
-1. Re-fetch current official Anthropic documentation independently.
+1. Re-fetch current official PROVIDER_CREDENTIAL_OR_CONFIG documentation independently.
 2. Treat implementation comments and existing audit documents as untrusted until verified.
 3. Never accept a feature as complete merely because:
 
@@ -16,7 +16,7 @@ Your objective is to prove or disprove every claim that ZCoder now supports the 
    * a CLI flag exists
    * a README mentions it
    * a test mocks the wrong request shape successfully
-4. Compare actual wire format against current Anthropic documentation.
+4. Compare actual wire format against current PROVIDER_CREDENTIAL_OR_CONFIG documentation.
 5. Identify duplicated, stale, dead, unreachable, misleading, or speculative functionality.
 6. Make fixes directly when evidence is sufficient.
 
@@ -47,11 +47,11 @@ Specifically attack:
 * Managed Agents hard session budgets versus advisory task budgets
 * Managed Agents advisor versus Messages API Advisor Tool
 * Managed Agents inference geography versus Messages API inference geography
-* GitHub-mounted Agent Skills versus local `.claude/skills`
+* GitHub-mounted Agent Skills versus local `.provider/skills`
 * Enterprise inference hooks
 * remote Compliance session transcripts
-* local Claude Code/Cowork Compliance transcripts
-* `anthropic-workspace-id`
+* local external coding assistant/Cowork Compliance transcripts
+* `PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id`
 * retired models
 * model aliases
 * Sonnet 5 tokenizer accounting
@@ -144,7 +144,7 @@ Produce:
 
 ### VERIFIED CORRECT
 
-Features proven against current Anthropic documentation.
+Features proven against current PROVIDER_CREDENTIAL_OR_CONFIG documentation.
 
 ### DEFECTS FOUND
 

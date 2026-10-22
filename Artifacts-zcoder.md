@@ -15,7 +15,7 @@
 
 | ปัญหา | รายละเอียด |
 |--------|------------|
-| 50+ ไฟล์ claude* เรียงกันเป็นพืด | claudeopus5.py, claudesonnet5.py, claudecode.py, claude_vision.py ฯลฯ ทั้งหมดอยู่ระดับเดียวกัน ไม่มี grouping ตาม concern |
+| 50+ ไฟล์ provider* เรียงกันเป็นพืด | provideropus5.py, providersonnet5.py, providercode.py, provider-specific module ฯลฯ ทั้งหมดอยู่ระดับเดียวกัน ไม่มี grouping ตาม concern |
 | Domain Models กระจายอยู่ root | engineeringmodels.py, portfoliomodels.py, tenant_models.py ควรอยู่ใน domain layer แยกต่างหาก |
 | Store/Repository layer ปนกับ business logic | postgresstore.py, sqliteengineering_store.py อยู่ระดับเดียวกับ coder.py, main.py |
 | Interface layer ปนกับ core | tui.py, tuistreaming.py, sdkclient.py (UI/SDK) อยู่ระดับเดียวกับ security.py, resilience.py (core) |
@@ -27,8 +27,8 @@
 
 | ปัญหา | ตัวอย่าง |
 |--------|----------|
-| Inconsistent prefix | บางไฟล์ใช้ claude prefix, บางไฟล์ใช้ engineering, บางไฟล์ไม่มี prefix |
-| ซ้ำซ้อนกับโฟลเดอร์ | ถ้าจัดเข้าโฟลเดอร์แล้ว ชื่อ claude_code.py ใน claude/code.py จะซ้ำซ้อน |
+| Inconsistent prefix | บางไฟล์ใช้ provider prefix, บางไฟล์ใช้ engineering, บางไฟล์ไม่มี prefix |
+| ซ้ำซ้อนกับโฟลเดอร์ | ถ้าจัดเข้าโฟลเดอร์แล้ว ชื่อ provider-specific module ใน provider/code.py จะซ้ำซ้อน |
 | ไฟล์ที่ชื่อคลุมเครือ | coder.py, cowork.py, skills.py, personalities.py ไม่สื่อหน้าที่ชัดเจน |
 
 โครงสร้างใหม่ที่เสนอ (Production-Ready)
@@ -88,79 +88,79 @@ zcoder/
 │       │       ├── init.py
 │       │       └── engineeringstore.py # ← engineeringstore_interface.py
 │       │
-│       ├── claude/                     # 🤖 Claude Integration Layer
+│       ├── provider/                     # 🤖 provider Integration Layer
 │       │   ├── init.py
 │       │   ├── models/                 # Model-specific implementations
 │       │   │   ├── init.py
-│       │   │   ├── registry.py         # ← claude_models.py
-│       │   │   ├── preflight.py        # ← claudemodelpreflight.py
-│       │   │   ├── opus5.py            # ← claude_opus5.py
-│       │   │   ├── sonnet5.py          # ← claude_sonnet5.py
-│       │   │   ├── haiku45.py          # ← claude_haiku45.py
-│       │   │   ├── fable5.py           # ← claude_fable5.py
-│       │   │   └── mythos5.py          # ← claude_mythos5.py
+│       │   │   ├── registry.py         # ← provider-specific module
+│       │   │   ├── preflight.py        # ← providermodelpreflight.py
+│       │   │   ├── opus5.py            # ← provider-specific module
+│       │   │   ├── sonnet5.py          # ← provider-specific module
+│       │   │   ├── haiku45.py          # ← provider-specific module
+│       │   │   ├── fable5.py           # ← provider-specific module
+│       │   │   └── mythos5.py          # ← provider-specific module
 │       │   ├── capabilities/           # Feature capabilities
 │       │   │   ├── init.py
-│       │   │   ├── code.py             # ← claude_code.py
-│       │   │   ├── codeexec.py        # ← claudecode_exec.py
-│       │   │   ├── vision.py           # ← claude_vision.py
-│       │   │   ├── thinking.py         # ← claude_thinking.py
-│       │   │   ├── structured.py       # ← claude_structured.py
-│       │   │   ├── search.py           # ← claude_search.py
-│       │   │   ├── embeddings.py       # ← claude_embeddings.py
-│       │   │   ├── stream.py           # ← claude_stream.py
-│       │   │   ├── citations.py        # ← claude_citations.py
-│       │   │   └── advisor.py          # ← claude_advisor.py
+│       │   │   ├── code.py             # ← provider-specific module
+│       │   │   ├── codeexec.py        # ← providercode_exec.py
+│       │   │   ├── vision.py           # ← provider-specific module
+│       │   │   ├── thinking.py         # ← provider-specific module
+│       │   │   ├── structured.py       # ← provider-specific module
+│       │   │   ├── search.py           # ← provider-specific module
+│       │   │   ├── embeddings.py       # ← provider-specific module
+│       │   │   ├── stream.py           # ← provider-specific module
+│       │   │   ├── citations.py        # ← provider-specific module
+│       │   │   └── advisor.py          # ← provider-specific module
 │       │   ├── tools/                  # Tool integrations
 │       │   │   ├── init.py
-│       │   │   ├── registry.py         # ← claude_tools.py
-│       │   │   ├── mcp.py              # ← claudemcpconnector.py
-│       │   │   ├── plugins.py          # ← claude_plugins.py
-│       │   │   └── sandbox.py          # ← claude_sandbox.py
+│       │   │   ├── registry.py         # ← provider-specific module
+│       │   │   ├── mcp.py              # ← providermcpconnector.py
+│       │   │   ├── plugins.py          # ← provider-specific module
+│       │   │   └── sandbox.py          # ← provider-specific module
 │       │   ├── integrations/           # External service integrations
 │       │   │   ├── init.py
-│       │   │   ├── github.py           # ← claude_github.py
-│       │   │   ├── git.py              # ← claude_git.py
-│       │   │   ├── files.py            # ← claude_files.py
-│       │   │   ├── excel.py            # ← claude_excel.py
-│       │   │   ├── powerpoint.py       # ← claude_powerpoint.py
-│       │   │   ├── chrome.py           # ← claude_chrome.py
-│       │   │   └── wif.py              # ← claude_wif.py
+│       │   │   ├── github.py           # ← provider-specific module
+│       │   │   ├── git.py              # ← provider-specific module
+│       │   │   ├── files.py            # ← provider-specific module
+│       │   │   ├── excel.py            # ← provider-specific module
+│       │   │   ├── powerpoint.py       # ← provider-specific module
+│       │   │   ├── chrome.py           # ← provider-specific module
+│       │   │   └── wif.py              # ← provider-specific module
 │       │   ├── orchestration/          # Workflow & routing
 │       │   │   ├── init.py
-│       │   │   ├── router.py           # ← claude_router.py
-│       │   │   ├── workflow.py         # ← claude_workflow.py
-│       │   │   ├── agentssdk.py       # ← claudeagents_sdk.py
-│       │   │   ├── batch.py            # ← claude_batch.py
-│       │   │   ├── live.py             # ← claude_live.py
-│       │   │   ├── interactive.py      # ← claude_interactive.py
-│       │   │   └── sessions.py         # ← claude_sessions.py
+│       │   │   ├── router.py           # ← provider-specific module
+│       │   │   ├── workflow.py         # ← provider-specific module
+│       │   │   ├── agentssdk.py       # ← provideragents_sdk.py
+│       │   │   ├── batch.py            # ← provider-specific module
+│       │   │   ├── live.py             # ← provider-specific module
+│       │   │   ├── interactive.py      # ← provider-specific module
+│       │   │   └── sessions.py         # ← provider-specific module
 │       │   ├── optimization/           # Cost & prompt optimization
 │       │   │   ├── init.py
-│       │   │   ├── cost.py             # ← claudecostoptimizer.py
-│       │   │   ├── prompt.py           # ← claudepromptoptimizer.py
-│       │   │   └── tokens.py           # ← claude_tokens.py
+│       │   │   ├── cost.py             # ← providercostoptimizer.py
+│       │   │   ├── prompt.py           # ← providerpromptoptimizer.py
+│       │   │   └── tokens.py           # ← provider-specific module
 │       │   ├── memory/                 # Memory & caching
 │       │   │   ├── init.py
-│       │   │   ├── memory.py           # ← claude_memory.py
-│       │   │   └── cache.py            # ← claude_cache.py
+│       │   │   ├── memory.py           # ← provider-specific module
+│       │   │   └── cache.py            # ← provider-specific module
 │       │   ├── rag/                    # RAG & research
 │       │   │   ├── init.py
-│       │   │   ├── engine.py           # ← claude_rag.py
-│       │   │   └── research.py         # ← claude_research.py
+│       │   │   ├── engine.py           # ← provider-specific module
+│       │   │   └── research.py         # ← provider-specific module
 │       │   ├── eval/                   # Evaluation & testing
 │       │   │   ├── init.py
-│       │   │   ├── eval.py             # ← claude_eval.py
-│       │   │   ├── evals.py            # ← claude_evals.py
-│       │   │   └── outputstyles.py    # ← claudeoutput_styles.py
+│       │   │   ├── eval.py             # ← provider-specific module
+│       │   │   ├── evals.py            # ← provider-specific module
+│       │   │   └── outputstyles.py    # ← provideroutput_styles.py
 │       │   ├── enterprise/             # Enterprise features
 │       │   │   ├── init.py
-│       │   │   ├── adminapi.py        # ← claudeadmin_api.py
-│       │   │   ├── compliance.py       # ← claudecomplianceapi.py
-│       │   │   ├── skills.py           # ← claudeskillsapi.py
-│       │   │   ├── settings.py         # ← claude_settings.py
-│       │   │   ├── hooksperms.py      # ← claudehookspermsplan.py
-│       │   │   └── metrics.py          # ← claude_metrics.py
+│       │   │   ├── adminapi.py        # ← provideradmin_api.py
+│       │   │   ├── compliance.py       # ← providercomplianceapi.py
+│       │   │   ├── skills.py           # ← providerskillsapi.py
+│       │   │   ├── settings.py         # ← provider-specific module
+│       │   │   ├── hooksperms.py      # ← providerhookspermsplan.py
+│       │   │   └── metrics.py          # ← provider-specific module
 │       │   └── personalities.py        # ← personalities.py
 │       │
 │       ├── infrastructure/             # 🔌 Infrastructure Layer
@@ -199,7 +199,7 @@ zcoder/
 │       │   ├── public/
 │       │   │   ├── init.py
 │       │   │   └── v1.py               # ← publicapiv1.py
-│       │   └── anthropicconformance.py # ← anthropicconformance.py
+│       │   └── PROVIDER_CREDENTIAL_OR_CONFIG.py # ← PROVIDER_CREDENTIAL_OR_CONFIG.py
 │       │
 │       ├── interfaces/                 # 🖥️ Interface / Presentation Layer
 │       │   ├── init.py
@@ -227,9 +227,9 @@ zcoder/
 │   │   ├── test_utils.py
 │   │   ├── test_security.py
 │   │   ├── test_resilience.py
-│   │   ├── testclaudemodels.py
-│   │   ├── testclaudestructured.py
-│   │   ├── testclaudethinking.py
+│   │   ├── testprovidermodels.py
+│   │   ├── testproviderstructured.py
+│   │   ├── testproviderthinking.py
 │   │   └── ...
 │   ├── integration/                    # Integration tests
 │   │   ├── testpostgresstore.py
@@ -338,7 +338,7 @@ zcoder/
 │
 └── spec/
     ├── zcoder.spec
-    └── anthropic-conformance.yaml
+    └── PROVIDER_CREDENTIAL_OR_CONFIG-conformance.yaml
 
 เหตุผลในการย้ายไฟล์แต่ละกลุ่ม
 
@@ -378,22 +378,22 @@ zcoder/
 | intelligence_models.py | domain/models/intelligence.py | Intelligence/AI models |
 | legacyjobmodels.py | domain/models/legacy_job.py | Legacy models ที่อาจต้อง deprecate ในอนาคต |
 
-📦 กลุ่มที่ 5: Claude Integration → claude/ (sub-packages)
+📦 กลุ่มที่ 5: provider Integration → provider/ (sub-packages)
 
 นี่คือกลุ่มที่ใหญ่ที่สุด (50+ ไฟล์) การแยกเป็น sub-packages ช่วยดังนี้:
 
 | Sub-package | ไฟล์ที่รวม | เหตุผล |
 |-------------|-----------|--------|
-| claude/models/ | claudemodels.py, claudeopus5.py, claudesonnet5.py, claudehaiku45.py, claudefable5.py, claudemythos5.py, claudemodelpreflight.py | Model-specific code อยู่ด้วยกัน → เพิ่ม model ใหม่แค่เพิ่มไฟล์ในโฟลเดอร์นี้ |
-| claude/capabilities/ | claudecode.py, claudecodeexec.py, claudevision.py, claudethinking.py, claudestructured.py, claudesearch.py, claudeembeddings.py, claude_stream.py | Feature capabilities แยกจาก model implementations |
-| claude/tools/ | claudetools.py, claudemcpconnector.py, claudeplugins.py, claude_sandbox.py | Tool integrations เป็น concern เดียวกัน |
-| claude/integrations/ | claudegithub.py, claudegit.py, claudefiles.py, claudeexcel.py, claudepowerpoint.py, claudechrome.py | External service integrations |
-| claude/orchestration/ | clauderouter.py, claudeworkflow.py, claudeagentssdk.py, claudebatch.py, claudelive.py, claudeinteractive.py, claudesessions.py | Workflow & routing logic |
-| claude/optimization/ | claudecostoptimizer.py, claudepromptoptimizer.py, claude_tokens.py | Cost & prompt optimization |
-| claude/memory/ | claudememory.py, claudecache.py | Memory & caching |
-| claude/rag/ | clauderag.py, clauderesearch.py | RAG pipeline |
-| claude/eval/ | claudeeval.py, claudeevals.py, claudeoutputstyles.py | Evaluation framework |
-| claude/enterprise/ | claudeadminapi.py, claudecomplianceapi.py, claudeskillsapi.py, claudesettings.py, claudehookspermsplan.py, claude_metrics.py | Enterprise-specific Claude features |
+| provider/models/ | providermodels.py, provideropus5.py, providersonnet5.py, providerhaiku45.py, providerfable5.py, providermythos5.py, providermodelpreflight.py | Model-specific code อยู่ด้วยกัน → เพิ่ม model ใหม่แค่เพิ่มไฟล์ในโฟลเดอร์นี้ |
+| provider/capabilities/ | providercode.py, providercodeexec.py, providervision.py, providerthinking.py, providerstructured.py, providersearch.py, providerembeddings.py, provider-specific module | Feature capabilities แยกจาก model implementations |
+| provider/tools/ | providertools.py, providermcpconnector.py, providerplugins.py, provider-specific module | Tool integrations เป็น concern เดียวกัน |
+| provider/integrations/ | providergithub.py, providergit.py, providerfiles.py, providerexcel.py, providerpowerpoint.py, providerchrome.py | External service integrations |
+| provider/orchestration/ | providerrouter.py, providerworkflow.py, provideragentssdk.py, providerbatch.py, providerlive.py, providerinteractive.py, providersessions.py | Workflow & routing logic |
+| provider/optimization/ | providercostoptimizer.py, providerpromptoptimizer.py, provider-specific module | Cost & prompt optimization |
+| provider/memory/ | providermemory.py, providercache.py | Memory & caching |
+| provider/rag/ | providerrag.py, providerresearch.py | RAG pipeline |
+| provider/eval/ | providereval.py, providerevals.py, provideroutputstyles.py | Evaluation framework |
+| provider/enterprise/ | provideradminapi.py, providercomplianceapi.py, providerskillsapi.py, providersettings.py, providerhookspermsplan.py, provider-specific module | Enterprise-specific provider features |
 
 📦 กลุ่มที่ 6: Infrastructure → infrastructure/
 
@@ -526,7 +526,7 @@ infrastructure/ implement interfaces ที่กำหนดใน domain/
 | 2 | สร้าง src/zcoder/ + ย้าย main.py, config.py, exceptions.py, utils.py | 🟢 ต่ำ |
 | 3 | ย้าย domain models → domain/models/ | 🟡 ปานกลาง (ต้อง update imports) |
 | 4 | ย้าย infrastructure (stores, auth) → infrastructure/ | 🟡 ปานกลาง |
-| 5 | จัดกลุ่ม claude_* → claude/ sub-packages | 🟡 ปานกลาง (ไฟล์เยอะสุด) |
+| 5 | จัดกลุ่ม provider_* → provider/ sub-packages | 🟡 ปานกลาง (ไฟล์เยอะสุด) |
 | 6 | ย้าย interfaces (tui, sdk) → interfaces/ | 🟢 ต่ำ |
 | 7 | จัด tests → unit/integration/e2e | 🟢 ต่ำ |
 | 8 | จัด docs → หมวดหมู่ | 🟢 ต่ำ |

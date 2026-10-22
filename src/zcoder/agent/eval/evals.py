@@ -23,6 +23,7 @@ from typing import Any
 
 import anthropic
 
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 
@@ -132,7 +133,7 @@ def run_case(case: EvalCase, client: anthropic.Anthropic, model: str) -> EvalRes
 
 def run_suite(path: str, api_key: str, model: str, verbose: bool = False) -> EvalSuiteResult:
     name, cases = load_suite(path)
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     results = []
     t0 = time.time()
 

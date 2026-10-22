@@ -35,7 +35,7 @@ CLI flags:
 import json
 import sys
 
-import anthropic
+from zcoder.core.anthropic_disabled import create_anthropic_client
 
 # Legacy header — GA now, per-tool eager_input_streaming is the current way
 # to opt in, but this still works for requests that send it and leave the
@@ -82,7 +82,7 @@ class StreamCoder:
     """Claude client with streaming support."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
         self.max_tokens = max_tokens
 

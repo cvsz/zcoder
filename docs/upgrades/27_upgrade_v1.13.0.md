@@ -32,7 +32,7 @@ additive infrastructure plus internal wiring in `coder.py`/`main.py`.
   attempts with backoff. The function's *return contract is unchanged* —
   it still returns `"[ERROR] ..."` / `"[API ERROR N] ..."` /
   `"[REFUSED] ..."` strings rather than raising, so no call site in
-  `main.py` or any `claude_*.py` module needed to change. See
+  `main.py` or any `provider_*.py` module needed to change. See
   `ARCHITECTURE.md` for why.
 - **`main.py`**: calls `logging_config.setup_logging()` and
   `new_correlation_id()` at the top of `main()`, before argument dispatch.
@@ -56,8 +56,8 @@ additive infrastructure plus internal wiring in `coder.py`/`main.py`.
 ## Not done in this pass (flagged for follow-up)
 
 - `resilience.retry()` is only wired into `coder.py`. Other modules that
-  make direct HTTP calls (`claude_files.py`, `claude_batch.py`,
-  `claude_github.py`, etc.) still have their own ad hoc error handling and
+  make direct HTTP calls (`provider-specific module`, `provider-specific module`,
+  `provider-specific module`, etc.) still have their own ad hoc error handling and
   would benefit from the same wrapper — left alone here to keep this
   release's diff reviewable rather than touching every network call site
   in the same pass.

@@ -26,7 +26,7 @@ The project follows these security principles:
 
 - **Fail closed** for filesystem, network, permission, identity, tenant, and approval decisions.
 - **Least privilege** for GitHub Actions tokens, provider credentials, containers, and runtime tools.
-- **Provider-neutral authentication**: third-party/product traffic must not depend on Claude Free/Pro consumer OAuth credentials. Use explicit provider API keys, enterprise gateways, or approved local runtimes.
+- **Provider-neutral authentication**: third-party/product traffic must not depend on provider Free/Pro consumer OAuth credentials. Use explicit provider API keys, enterprise gateways, or approved local runtimes.
 - **Bounded autonomous execution**: do not stack code changes on an unverified baseline; exact final heads must pass applicable hosted checks before merge.
 - **No gate weakening**: tests, coverage thresholds, permissions, CodeQL, Dependency Review, Bandit, release gates, and other security controls are not relaxed to make a change pass.
 - **Controlled validation only**: security tests must use repository fixtures, local/ephemeral resources, or explicitly authorized non-production systems. Do not attack third parties or production data.

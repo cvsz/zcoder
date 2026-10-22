@@ -18,7 +18,7 @@ import mimetypes
 import sys
 from pathlib import Path
 
-import anthropic
+from zcoder.core.anthropic_disabled import create_anthropic_client
 
 SUPPORTED_IMAGE_TYPES = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 SUPPORTED_DOC_TYPES = {".pdf"}
@@ -63,7 +63,7 @@ class VisionCoder:
     """Claude client for image and PDF analysis."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
         self.max_tokens = max_tokens
 

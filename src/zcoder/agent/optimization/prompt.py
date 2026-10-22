@@ -22,6 +22,7 @@ from pathlib import Path
 
 import anthropic
 
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 PROMPT_LIB_PATH = Path(os.path.expanduser("~/.zcoder/prompt_library.json"))
@@ -191,7 +192,7 @@ def lib_get(tag: str) -> str | None:
 
 
 def cmd_optimize(prompt: str, api_key: str, model: str):
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     improved = optimize(prompt, client, model)
     print("\n\033[94mOriginal:\033[0m")
     print(prompt)
@@ -201,7 +202,7 @@ def cmd_optimize(prompt: str, api_key: str, model: str):
 
 
 def cmd_score(prompt: str, api_key: str, model: str):
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     result = score(prompt, client, model)
     if "error" in result:
         print(f"\033[91mError: {result['error']}\033[0m")
@@ -215,7 +216,7 @@ def cmd_score(prompt: str, api_key: str, model: str):
 
 
 def cmd_ab_test(prompt_a: str, prompt_b: str, task: str, api_key: str, model: str):
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key=api_key)
     result = ab_test(prompt_a, prompt_b, task, client, model)
     j = result["judgment"]
     print("\n\033[94mA/B Test Results\033[0m")

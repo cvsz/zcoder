@@ -51,7 +51,7 @@ class TestZCoderFeaturesWithoutKey(unittest.TestCase):
             api_key = None
 
         key = _api_key(MockArgs())
-        self.assertEqual(key, "local-mode-no-key-required")
+        self.assertEqual(key, "")
 
     def test_02_personalities_and_agents_registry(self):
         """Verify all agent roles and personalities load offline without network."""

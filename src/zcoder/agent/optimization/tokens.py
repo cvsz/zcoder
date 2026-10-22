@@ -11,13 +11,9 @@ CLI flags:
   --count-budget N         Warn if token count exceeds N
 """
 
-import json
-import urllib.error
-import urllib.request
 from pathlib import Path
 
-from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.resilience import CircuitBreaker
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -33,34 +29,8 @@ class TokenCounter:
     def count(
         self, prompt: str, system: str | None = None, tools: list[dict] = None, history: list[dict] = None
     ) -> dict:
-        messages = list(history or [])
-        messages.append({"role": "user", "content": prompt})
-
-        payload: dict = {"model": self.model, "messages": messages}
-        if system:
-            payload["system"] = system
-        if tools:
-            payload["tools"] = tools
-
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            COUNT_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
-        )
-        try:
-            return self._call(req)
-        except ZCoderError as e:
-            raise RuntimeError(f"Token count failed: {e.message}") from e
-
-    @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, req: "urllib.request.Request") -> dict:
-        return urlopen_json(req, timeout=30)
+        del prompt, system, tools, history
+        raise RuntimeError("Remote token counting is disabled; local GGUF tokenization is not configured.")
 
     def count_file(self, file_path: str, prompt: str, system: str | None = None) -> dict:
         content = Path(file_path).read_text()

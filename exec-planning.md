@@ -14,7 +14,7 @@ The repository has completed the Upgrade-01..25 foundation, durable engineering 
 The active program now has three coordinated tracks:
 
 1. **Security closure first** — validate and remediate remaining source-to-sink attack surfaces before stacking feature work on affected runtime boundaries.
-2. **Claude-Code-like provider-neutral parity** — complete terminal/agent UX, permissions, tools, hooks, skills, MCP, subagents/teams, plugins, sessions, remote/headless workflows, and provider routing without using Claude Free/Pro consumer OAuth credentials.
+2. **provider model ID provider-neutral parity** — complete terminal/agent UX, permissions, tools, hooks, skills, MCP, subagents/teams, plugins, sessions, remote/headless workflows, and provider routing without using provider Free/Pro consumer OAuth credentials.
 3. **Enterprise production qualification** — complete fleet wiring, auditability, multi-tenancy, observability, supply-chain evidence, backup/restore/rollback, deployment health, and exact-release-candidate qualification.
 
 Implementation is not completion. A slice is complete only when its exact PR head is green across all applicable hosted gates and has no unresolved blocker. A feature being present does not make the repository production-ready until security, durability, operational, and release evidence are green on the same exact release candidate.
@@ -28,7 +28,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 3. **No gate weakening:** never lower coverage, skip/xfail security regressions, relax permissions, suppress CodeQL/Dependency Review findings to obtain green status, or weaken Release Gate/Helm/SDK checks.
 4. **Security source-to-sink rule:** validate reachability before calling a hypothesis a finding; patch only confirmed findings.
 5. **Smallest secure architectural change:** reuse centralized security/domain primitives instead of duplicating validators or introducing compatibility hacks.
-6. **Provider-neutral authentication:** do not depend on Claude Free/Pro consumer OAuth tokens. Support explicit provider API keys, enterprise gateways, and local/free runtimes where available.
+6. **Provider-neutral authentication:** do not depend on provider Free/Pro consumer OAuth tokens. Support explicit provider API keys, enterprise gateways, and local/free runtimes where available.
 7. **No third-party/production attacks:** security validation stays within repository tests, controlled fixtures, localhost/private test resources, and non-production resources.
 8. **Fail closed:** permission, filesystem, network, tenant, approval, and identity boundaries must deny ambiguous or unsafe operations.
 9. **No unsafe broad rewrites:** if a connector mutation would rewrite a large source file beyond the bounded diff, reset rather than carry a risky replacement.
@@ -177,7 +177,7 @@ Tasks:
 
 Analysis performed before any remediation (do-not-assume-a-finding discipline):
 
-- [x] Identified all `WebFetch`/URL-fetch source entry points and actual network sinks — `CodeAgent._run_tool()` WebFetch branch -> `_webfetch_retrying()` -> `safe_urlopen()` -> `urllib.request.urlopen`; server-side `web_fetch` tools (`search.py`, `agents_sdk.py` presets) are executed by Anthropic infra, not locally, and are out of scope for local SSRF.
+- [x] Identified all `WebFetch`/URL-fetch source entry points and actual network sinks — `CodeAgent._run_tool()` WebFetch branch -> `_webfetch_retrying()` -> `safe_urlopen()` -> `urllib.request.urlopen`; server-side `web_fetch` tools (`search.py`, `agents_sdk.py` presets) are executed by PROVIDER_CREDENTIAL_OR_CONFIG infra, not locally, and are out of scope for local SSRF.
 - [x] Verified scheme restrictions and URL canonicalization — scheme-only check pre-fix; centralized boundary enforces http/https only.
 - [x] Verified hostname resolution and IP classification before connection — pre-fix none; boundary rejects non-public literals and DNS answers (loopback, RFC1918/private, link-local incl. `169.254.169.254`, multicast, unspecified, reserved, IPv4-mapped IPv6).
 - [x] Loopback, private, link-local, multicast, unspecified, reserved, and cloud-metadata destinations blocked (SEC-002-style regression set).
@@ -225,19 +225,19 @@ Verified already-correct: hook deny runs first and cannot be overridden by `bypa
 **Merge Commit:** `95d8582c9943b28b2c280a16d6e6d3d0a42fabd6` (all 19 merged-head checks green)  
 **Next slice:** Slice E — feature-parity items COMPLETE (E.16); residual parity polish (terminal/streaming UX depth, subagent team lifecycle) tracked as follow-ups under Slice F/roadmap, not security blockers.
 
-### Slice E — Claude-Code-like Provider-Neutral Feature Parity
+### Slice E — provider model ID Provider-Neutral Feature Parity
 
 #### Slice E.1 — Provider-Neutral Routing (item 11: provider-neutral routing, explicit API keys/gateways, local/free runtimes) — **COMPLETE / MERGED**
 
-The multi-agent router (`zcoder/claude/orchestration/router.py`) was hardcoded to
-Anthropic (`ENDPOINT` + `x-api-key`). Added a provider abstraction
-(`zcoder/claude/orchestration/providers.py`) so routing is gateway-agnostic:
+The multi-agent router (`zcoder/provider/orchestration/router.py`) was hardcoded to
+PROVIDER_CREDENTIAL_OR_CONFIG (`ENDPOINT` + `x-api-key`). Added a provider abstraction
+(`zcoder/provider/orchestration/providers.py`) so routing is gateway-agnostic:
 
-- **provider precedence:** `--provider` > `ZCODER_PROVIDER` env > `ZCODER_LOCAL_MODE=1` > `anthropic`
-- **api_key precedence:** `--api-key` > provider-specific env (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `XAI_API_KEY`) > `""`
+- **provider precedence:** `--provider` > `ZCODER_PROVIDER` env > `ZCODER_LOCAL_MODE=1` > `PROVIDER_CREDENTIAL_OR_CONFIG`
+- **api_key precedence:** `--api-key` > provider-specific env (`PROVIDER_CREDENTIAL_OR_CONFIG`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `XAI_API_KEY`) > `""`
 - **base_url precedence:** `--base-url` > `ZCODER_BASE_URL` > `OLLAMA_BASE_URL` > provider default
 
-Providers: `anthropic` (`x-api-key`), `gemini` (`x-goog-api-key`, model in path,
+Providers: `PROVIDER_CREDENTIAL_OR_CONFIG` (`x-api-key`), `gemini` (`x-goog-api-key`, model in path,
 `contents`/`systemInstruction` translation), `xai` (`Bearer`, OpenAI-compat),
 `ollama` (`http://localhost:11434`, no auth), `local` (no network, stub). Every
 base URL is scheme-checked (http/https only) via `safe_urlopen` semantics; explicit
@@ -246,7 +246,7 @@ for `ollama`/`local`, while remote gateways remain operator trust (consistent wi
 outbound-security boundary: `safe_urlopen` for gateways vs `safe_external_urlopen` for
 model-chosen URLs). Router `classify`/`route_and_call`/parallel fan-out thread
 provider/base_url through the adapter and normalize provider responses to the existing
-Anthropic-shaped contract. CLI adds `--provider` (choices) and `--base-url`.
+PROVIDER_CREDENTIAL_OR_CONFIG-shaped contract. CLI adds `--provider` (choices) and `--base-url`.
 Regressions: `tests/unit/test_router_provider_parity.py` (28 tests: endpoint/auth/
 payload/parse per provider, precedence, scheme rejection, local stub, parallel/error).
 
@@ -254,17 +254,17 @@ payload/parse per provider, precedence, scheme rejection, local stub, parallel/e
 - **Verified Head:** `62e6414` (all 18 PR checks green; CodeQL cleared after URL-cleanup fix)
 - **Merge Commit:** `f46317f7aaf742cf00d0433e29c4e7349dc64e93` (all 19 merged-head checks green)
 
-#### Slice E.2 — Scoped CLAUDE.md Memory + Trust Boundary (item 3) — **COMPLETE / MERGED**
+#### Slice E.2 — Scoped provider.md Memory + Trust Boundary (item 3) — **COMPLETE / MERGED**
 
-`MemoryManager` previously read cwd `.claude/CLAUDE.md` / `CLAUDE.md` and
-`~/.claude/CLAUDE.md` with no scoping hierarchy, no containment, and no trust
+`MemoryManager` previously read cwd `.provider/provider.md` / `provider.md` and
+`~/.provider/provider.md` with no scoping hierarchy, no containment, and no trust
 delimitation, injecting raw text into the system prompt. Reworked into a scoped
 hierarchy that doubles as SEC-007 document-trust progress:
 
 - **Precedence floor → ceiling:** enterprise (managed policy baseline) → user →
   project (walk-up discovery from the workspace).
 - **Containment:** every discovered file is resolved via `safe_resolve` against
-  its own directory, so a `.claude/CLAUDE.md` symlink escape (e.g. → `/etc/shadow`)
+  its own directory, so a `.provider/provider.md` symlink escape (e.g. → `/etc/shadow`)
   is rejected — fail-closed (SEC-004/SEC-007 alignment).
 - **Size cap:** 256 KiB/file to prevent prompt-bombing.
 - **Trust boundary:** `combined()` wraps loaded files in a clearly-delimited
@@ -285,9 +285,9 @@ hierarchy that doubles as SEC-007 document-trust progress:
 #### Slice E.3 — Skills Loader Containment (item 4, security hardening) — **COMPLETE / MERGED**
 
 The local skills loader (`SkillsRegistry.load()`) read every
-`.claude/skills/<n>/SKILL.md` (and plugin skill files) with no containment and
+`.provider/skills/<n>/SKILL.md` (and plugin skill files) with no containment and
 no size cap, then surfaced the file's first line as the `/skills` description —
-a malicious `.claude/skills/evil/SKILL.md` symlink to `/etc/shadow` leaked
+a malicious `.provider/skills/evil/SKILL.md` symlink to `/etc/shadow` leaked
 secret contents into the listing (info-leak, SEC-004/SEC-007). Hardened with
 the same trust boundary applied to memory (E.2):
 
@@ -306,7 +306,7 @@ the same trust boundary applied to memory (E.2):
 - **Verified Head:** `ed7fb08` (all 18 PR checks green, incl. test 3.9)
 - **Merge Commit:** `98204b66bdb24866de4219718b3ba600e48877cd` (all 19 merged-head checks green)
 - Note: full *skills & slash-command lifecycle* UX (item 4) remains a follow-up;
-  this slice closes the security gap in the loader. Agent (`.claude/agents`) and
+  this slice closes the security gap in the loader. Agent (`.provider/agents`) and
   custom-command loaders share the pre-hardening pattern and need identical
   containment (item 7 / commands follow-up).
 
@@ -316,7 +316,7 @@ Progress only in bounded PRs through:
 
 1. terminal/headless/streaming/JSON UX;
 2. ~~sessions, resume, checkpoints, rewind, branchable conversations~~ — **DONE (Slice E.7)**;
-3. ~~CLAUDE.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
+3. ~~provider.md-compatible memory plus scoped rules/config hierarchy~~ — **DONE (Slice E.2)**;
 4. ~~skills and slash-command lifecycle — **skills/commands/agents loader security hardening DONE (Slices E.3/E.4/E.5); full lifecycle/UX remains**~~ — **DONE (Slice E.16)**;
 5. ~~hooks lifecycle and policy-safe event model~~ — **DONE (Slice E.9)**;
 6. ~~MCP transports, discovery, resource/tool trust policy~~ — **DONE (Slice E.10)**;
@@ -330,8 +330,8 @@ Progress only in bounded PRs through:
 Reference priority for parity research:
 
 ```text
-official Claude Code documentation
-  -> public anthropics/claude-code repository
+official external coding assistant documentation
+  -> public PROVIDER_CREDENTIAL_OR_CONFIG/provider model ID repository
   -> vetted third-party reverse-engineering/design references
   -> zcoder gap analysis
   -> one bounded implementation PR
@@ -449,11 +449,11 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - SDK & TypeScript: `96442793206` — success
 - docker-build `96443299326`, build-and-push `96442793140`, deploy `96442793140` — success
 - review threads: none unresolved
-- security result: router no longer hardcoded to Anthropic; provider abstraction (anthropic/gemini/xai/ollama/local) with explicit precedence for provider/api-key/base-url; all gateway URLs scheme-checked (http/https only); local/ollama allow local addresses by design; remote gateways operator-trusted; 28 regression tests
-- compatibility/rollback note: classify/route_and_call external contract unchanged; `ENDPOINT` + `x-api-key` retained for back-compat; other capabilities (code agent, models registry) still call Anthropic directly — separate slice
+- security result: router no longer hardcoded to PROVIDER_CREDENTIAL_OR_CONFIG; provider abstraction (PROVIDER_CREDENTIAL_OR_CONFIG/gemini/xai/ollama/local) with explicit precedence for provider/api-key/base-url; all gateway URLs scheme-checked (http/https only); local/ollama allow local addresses by design; remote gateways operator-trusted; 28 regression tests
+- compatibility/rollback note: classify/route_and_call external contract unchanged; `ENDPOINT` + `x-api-key` retained for back-compat; other capabilities (code agent, models registry) still call PROVIDER_CREDENTIAL_OR_CONFIG directly — separate slice
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
-### Slice E.2 — Scoped CLAUDE.md Memory + Trust Boundary (item 3)
+### Slice E.2 — Scoped provider.md Memory + Trust Boundary (item 3)
 
 - PR: #67
 - verified head: `7b18ef1` (all 18 PR checks green)
@@ -468,7 +468,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - SDK & TypeScript: `96468066986` — success
 - docker-build `96468594419`, build-and-push `96468067167`, deploy `96468067167` — success
 - review threads: none unresolved
-- security result: CLAUDE.md memory now scoped (enterprise→user→project) with walk-up discovery; every file containment-checked via safe_resolve (symlink escape rejected, fail-closed); 256KiB size cap; loaded files wrapped in delimited <loaded_memory> untrusted block; --no-project-memory opt-out; 9 regression tests
+- security result: provider.md memory now scoped (enterprise→user→project) with walk-up discovery; every file containment-checked via safe_resolve (symlink escape rejected, fail-closed); 256KiB size cap; loaded files wrapped in delimited <loaded_memory> untrusted block; --no-project-memory opt-out; 9 regression tests
 - compatibility/rollback note: read_project/read_user/append_* backward-compatible; opt-out preserves fail-closed auto-load default; RAG/document retrieval trust + tenant isolation for namespaces are separate follow-ups
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
@@ -488,7 +488,7 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - docker-build / build-and-push / deploy `96485973710` — success
 - review threads: none unresolved (one CI failure caught pre-merge: `Path | None` / `str | None` annotations broke Python 3.9 collection; fixed by using `Optional[...]` in code.py and `from __future__ import annotations` in the test module)
 - security result: SKILL.md loading now containment-checked via safe_resolve (custom→skills_dir, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 8 regression tests
-- compatibility/rollback note: load_plugin_skills now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up; agent/command loaders need identical containment
+- compatibility/rollback note: load_plugin_skills now also returns plugin_dir (additive key); no behavior change for managed/PROVIDER_CREDENTIAL_OR_CONFIG skills; full skills/slash lifecycle UX remains a follow-up; agent/command loaders need identical containment
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### Slice E.4 — Agent Loader Containment (item 7, security hardening)
@@ -506,8 +506,8 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - SDK & TypeScript: `96552422915` — success
 - docker-build / build-and-push / deploy `96552422915` — success
 - review threads: none unresolved
-- security result: .claude/agents/*.md and plugin-agent files now containment-checked via safe_resolve (local→AGENTS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 6 regression tests
-- compatibility/rollback note: load_plugin_agents now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up; custom-command loader needs identical containment
+- security result: .provider/agents/*.md and plugin-agent files now containment-checked via safe_resolve (local→AGENTS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; names with `/` or `..` rejected; 6 regression tests
+- compatibility/rollback note: load_plugin_agents now also returns plugin_dir (additive key); no behavior change for managed/PROVIDER_CREDENTIAL_OR_CONFIG skills; full skills/slash lifecycle UX remains a follow-up; custom-command loader needs identical containment
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### Slice E.5 — Command Loader Containment (item 4 continuation, security hardening)
@@ -525,8 +525,8 @@ Do not declare **Enterprise Final Release Complete** while any of these remain t
 - SDK & TypeScript: `96558816302` — success
 - docker-build / build-and-push / deploy `96558816161` — success
 - review threads: none unresolved
-- security result: .claude/commands/*.md and plugin command files now containment-checked via safe_resolve (local→COMMANDS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; 5 regression tests
-- compatibility/rollback note: load_plugin_commands now also returns plugin_dir (additive key); no behavior change for managed/anthropic skills; full skills/slash lifecycle UX remains a follow-up
+- security result: .provider/commands/*.md and plugin command files now containment-checked via safe_resolve (local→COMMANDS_DIR, plugin→plugin_dir; symlink escape rejected, fail-closed); 256KiB size cap; 5 regression tests
+- compatibility/rollback note: load_plugin_commands now also returns plugin_dir (additive key); no behavior change for managed/PROVIDER_CREDENTIAL_OR_CONFIG skills; full skills/slash lifecycle UX remains a follow-up
 - next security hypothesis: SEC-007 RAG/document trust + tenant isolation
 
 ### Slice E.6 — Plugin Manifest Provenance + Permission Validation (item 8)

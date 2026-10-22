@@ -13,6 +13,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from zcoder.core.exceptions import AnthropicCallsDisabledError
+
 
 def _require_global_address(address: str, *, hostname: str) -> None:
     ip = ipaddress.ip_address(address)
@@ -75,6 +77,11 @@ class _ExternalRedirectHandler(urllib.request.HTTPRedirectHandler):
     max_redirections = 5
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        host = (urllib.parse.urlsplit(newurl).hostname or "").lower().rstrip(".")
+        if host == "anthropic.com" or host.endswith(".anthropic.com"):
+            raise AnthropicCallsDisabledError(
+                "Anthropic API egress is disabled; use the local llama.cpp provider."
+            )
         validate_external_http_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
@@ -89,6 +96,11 @@ def safe_external_urlopen(req: urllib.request.Request, timeout: float):
     boundary to protect against DNS rebinding between validation and connect.
     """
 
+    host = (urllib.parse.urlsplit(req.full_url).hostname or "").lower().rstrip(".")
+    if host == "anthropic.com" or host.endswith(".anthropic.com"):
+        raise AnthropicCallsDisabledError(
+            "Anthropic API egress is disabled; use the local llama.cpp provider."
+        )
     validate_external_http_url(req.full_url)
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({}),

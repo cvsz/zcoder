@@ -1,12 +1,12 @@
-# Anthropic Release Gate for ZCoder
+# PROVIDER_CREDENTIAL_OR_CONFIG Release Gate for ZCoder
 
-Perform a fresh Anthropic release gate before releasing ZCoder.
+Perform a fresh PROVIDER_CREDENTIAL_OR_CONFIG release gate before releasing ZCoder.
 
 Do not begin by modifying code.
 
-First retrieve the current Anthropic Platform release notes and determine the newest entry available today.
+First retrieve the current PROVIDER_CREDENTIAL_OR_CONFIG Platform release notes and determine the newest entry available today.
 
-Compare every release-note item newer than the date recorded in ZCoder's most recent Anthropic audit document.
+Compare every release-note item newer than the date recorded in ZCoder's most recent PROVIDER_CREDENTIAL_OR_CONFIG audit document.
 
 For every item output exactly one disposition:
 
@@ -32,7 +32,7 @@ Also re-check:
 * supported tools
 * beta headers
 * Agent SDK
-* Claude Code
+* external coding assistant
 * Managed Agents
 * Admin API
 * Compliance API
@@ -41,7 +41,7 @@ Also re-check:
 * data residency
 * ZDR requirements
 
-Never trust ZCoder's hardcoded model table over the current Anthropic source of truth.
+Never trust ZCoder's hardcoded model table over the current PROVIDER_CREDENTIAL_OR_CONFIG source of truth.
 
 After the audit:
 
@@ -55,6 +55,6 @@ After the audit:
 8. run `git diff --check`
 9. produce a release-gate report
 
-Do not release while any P0/P1 Anthropic compatibility defect remains.
+Do not release while any P0/P1 PROVIDER_CREDENTIAL_OR_CONFIG compatibility defect remains.
 
-A release is PASS only if every new Anthropic item has an explicit documented disposition.
+A release is PASS only if every new PROVIDER_CREDENTIAL_OR_CONFIG item has an explicit documented disposition.

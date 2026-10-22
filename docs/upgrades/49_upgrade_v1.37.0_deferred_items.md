@@ -4,9 +4,9 @@ v1.36.0 deferred three findings with reasoning rather than fixing them.
 This cycle went back and did each one properly instead of leaving them as
 notes.
 
-## 1. Claude Opus 4.1 deprecation — implemented
+## 1. provider Opus 4.1 deprecation — implemented
 
-Previously deferred because `claude-opus-4-1-20250805` was never in
+Previously deferred because `provider model ID` was never in
 `MODEL_CATALOG` and the project had no structure for "announced but not
 yet retired" — only `RETIRED_MODELS`, which represents IDs that already
 404. Putting Opus 4.1 there would have been factually wrong; it still
@@ -26,17 +26,17 @@ Added a proper third state instead of stretching the existing one:
   "this is already broken."
 - `_upgrade_source_ids()` (used by `--upgrade-all`) now includes
   `DEPRECATED_MODELS` keys, so `--upgrade-all --upgrade-target fable5`
-  rewrites a lingering `claude-opus-4-1-20250805` reference too, not
+  rewrites a lingering `provider model ID` reference too, not
   just retired and current-catalog IDs.
 
-Only Opus 4.1 is in `DEPRECATED_MODELS` for now. Claude Sonnet 4.5 has a
+Only Opus 4.1 is in `DEPRECATED_MODELS` for now. provider Sonnet 4.5 has a
 reported September 29, 2026 retirement floating around in secondary
-sources but no confirmed entry yet on Anthropic's own model-deprecations
+sources but no confirmed entry yet on PROVIDER_CREDENTIAL_OR_CONFIG's own model-deprecations
 page as of this check — left out rather than filed on unconfirmed
-secondary reporting; add it once Anthropic's page lists it directly.
+secondary reporting; add it once PROVIDER_CREDENTIAL_OR_CONFIG's page lists it directly.
 
-New test file `tests/test_claude_models_deprecation.py` (8 tests) — the
-first tests `claude_models.py` has had at all; scope limited to the new
+New test file `tests/test_provider-specific module` (8 tests) — the
+first tests `provider-specific module` has had at all; scope limited to the new
 deprecation surface, not a full backfill of `validate_fast_mode()`,
 `cmd_upgrade_all()`'s file-rewrite path, etc. Flagging that as a real gap
 for a future cycle rather than fixing everything under one deferred-item
@@ -53,7 +53,7 @@ not one:
   old numbering anywhere to begin with. Nothing to change.
 - The tier's **effect** (rate limits) *is* API-visible, and zcoder
   already has a full read-only client for it:
-  `claude_admin_api.py`'s `--rate-limits` / `--rate-limits-workspace`
+  `provider-specific module`'s `--rate-limits` / `--rate-limits-workspace`
   (v1.23.0), backed by `GET /v1/organizations/rate_limits`. Checked its
   output path specifically for hardcoded limit values or tier labels —
   found none; `cmd_rate_limits()` and `cmd_rate_limits_workspace()` both
@@ -74,7 +74,7 @@ reference anywhere in the tree.
 
 Deliberately not adding support for them now: with three weeks left
 before the endpoints return errors, building a client against them would
-ship dead code. Left a comment in `claude_models.py`'s module docstring
+ship dead code. Left a comment in `provider-specific module`'s module docstring
 area — no, on reflection a code comment for something that was never
 implemented has nowhere honest to live, so this paragraph in
 `docs/49_*.md` is the record instead: if a future audit cycle considers
@@ -86,4 +86,4 @@ which isn't API-addressable at all — nothing for a CLI tool to wrap.
 ## Test suite
 
 477 passing before this cycle; 485 after (+8, all in the new
-`tests/test_claude_models_deprecation.py`). No regressions.
+`tests/test_provider-specific module`). No regressions.

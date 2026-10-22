@@ -2,12 +2,12 @@
 
 Follow-up to v1.10.2's ID cleanup. That release fixed *which strings*
 were used; this release fixes the *data attached to them* — pricing
-had drifted from Anthropic's actual published rates, and the CLI had
+had drifted from PROVIDER_CREDENTIAL_OR_CONFIG's actual published rates, and the CLI had
 no local record of legacy-but-still-callable models at all.
 
 ## What changed
 
-**`claude_models.py`** — added `MODEL_CATALOG`, a dict keyed by model
+**`provider-specific module`** — added `MODEL_CATALOG`, a dict keyed by model
 ID with `display_name`, `tier` (`mythos` / `current` / `legacy`),
 `context_window`, `max_output`, `price_in`, `price_out`, `thinking`
 mode, `effort_default`, and free-text `notes`. Ten entries: the two
@@ -27,9 +27,9 @@ models that are superseded but still respond to API calls (Opus
   structured outputs) instead of only ID/name/context/created-date.
 
 **Pricing corrections** (verified against
-platform.claude.com/docs/en/about-claude/models/overview,
-2026-07-02) in `claude_cost_optimizer.py`, `claude_metrics.py`, and
-`claude_tokens.py`:
+platform.provider.com/docs/en/about-provider/models/overview,
+2026-07-02) in `provider-specific module`, `provider-specific module`, and
+`provider-specific module`:
 
 | Model | Old (wrong) | Corrected |
 |---|---|---|
@@ -44,7 +44,7 @@ real rate, meaning every prior `--cost-summary`, `--optimized`, and
 ~3x. Anyone who used those estimates for budgeting should treat
 pre-v1.10.3 Opus numbers as unreliable.
 
-Also added: `claude_cost_optimizer.py` now models Sonnet 5's
+Also added: `provider-specific module` now models Sonnet 5's
 introductory pricing ($2/$10 per MTok, through 2026-08-31) as a
 separate `SONNET5_INTRO_PRICE` constant and an `estimate_cost(...,
 use_intro_pricing: bool = False)` parameter, rather than picking one
@@ -55,7 +55,7 @@ change, just with the corrected base number.
 
 ## What was NOT changed
 
-- `claude_fable5.py`'s `FABLE_MYTHOS_INFO` pricing ($10/$50) — this was
+- `provider-specific module`'s `FABLE_MYTHOS_INFO` pricing ($10/$50) — this was
   already correct, cross-checked again this round.
 - The suspension/restoration note added in v1.10.2 — still accurate,
   untouched.

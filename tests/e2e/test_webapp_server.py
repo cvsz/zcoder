@@ -109,72 +109,25 @@ def test_sessions_get_and_delete(client, monkeypatch):
     assert client.get(f"/api/sessions/{sid}").status_code == 404
 
 
-def test_chat_stream_requires_api_key(client, monkeypatch):
-    monkeypatch.setattr(server.Config, "get", lambda self, key, default=None: None)
+def test_chat_stream_uses_local_coder_without_api_key(client, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(server.Coder, "generate", lambda self, *args, **kwargs: "local reply")
     resp = client.post("/api/chat/stream", json={"prompt": "hi"})
-    assert resp.status_code == 400
-    assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
+    assert resp.status_code == 200
+    assert '"type": "token", "text": "local reply"' in resp.text
+    assert '"type": "done"' in resp.text
 
 
-@pytest.mark.parametrize(
-    "model,expected_extra_body",
-    [
-        ("claude-sonnet-5", None),
-        ("claude-sonnet-4-6", {"temperature": 0.3}),
-    ],
-)
-@pytest.mark.parametrize("key_source", ["request", "config", "environment"])
-def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected_extra_body, key_source):
-    stored_key = "sk-ant-stored-test" if key_source == "config" else None
-    monkeypatch.setattr(server.Config, "get", lambda self, key, default=None: stored_key)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env-test")
-    explicit_key = "sk-ant-request-test" if key_source == "request" else None
-    expected_key = explicit_key or stored_key or "sk-ant-env-test"
-
-    class FakeDelta:
-        def __init__(self, text):
-            self.type = "text_delta"
-            self.text = text
-
-    class FakeEvent:
-        def __init__(self, text):
-            self.type = "content_block_delta"
-            self.delta = FakeDelta(text)
-
-    class FakeStreamCtx:
-        def __init__(self, chunks):
-            self.chunks = chunks
-
-        def __enter__(self):
-            return iter(FakeEvent(c) for c in self.chunks)
-
-        def __exit__(self, *a):
-            return False
-
+def test_chat_stream_uses_supplied_prompt_and_system(client, monkeypatch):
     calls = []
 
-    class FakeMessages:
-        def stream(self, *, model, max_tokens, messages, system=None, extra_body=None):
-            calls.append((model, extra_body))
-            return FakeStreamCtx(["Hel", "lo", "!"])
+    def generate(self, prompt, system=None, history=None):
+        calls.append((prompt, system, history, self.personality_style))
+        return "local answer"
 
-    class FakeAnthropic:
-        def __init__(self, api_key=None):
-            assert api_key == expected_key
-            self.messages = FakeMessages()
-
-    import types
-
-    fake_anthropic_module = types.SimpleNamespace(Anthropic=FakeAnthropic)
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
-
-    payload = {"prompt": "hi", "model": model}
-    if explicit_key:
-        payload["api_key"] = explicit_key
-    resp = client.post("/api/chat/stream", json=payload)
+    monkeypatch.setattr(server.Coder, "generate", generate)
+    resp = client.post("/api/chat/stream", json={"prompt": "hello", "personality": "teaching"})
     assert resp.status_code == 200
-    body = resp.text
-    assert '"type": "token"' in body or '"type":"token"' in body
-    assert "done" in body
-    assert calls == [(model, expected_extra_body)]
+    assert '"type": "token", "text": "local answer"' in resp.text
+    assert calls and calls[0][0] == "hello"
+    assert calls[0][3] == "teaching"

@@ -11,8 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-import anthropic
-
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 EVALS_DIR = Path.home() / ".zcoder" / "evals"
@@ -63,7 +62,7 @@ class LLMJudge:
     """Uses Claude to judge whether a response satisfies the expected criterion."""
 
     def __init__(self, api_key: str, judge_model: str = "claude-sonnet-5"):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = judge_model
 
     def score(self, prompt: str, expected: str, actual: str) -> tuple[float, str]:
@@ -106,7 +105,7 @@ class EvalRunner:
         judge_model: str = "claude-sonnet-5",
         pass_threshold: float = 0.7,
     ):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
         self.judge = LLMJudge(api_key, judge_model)
         self.threshold = pass_threshold

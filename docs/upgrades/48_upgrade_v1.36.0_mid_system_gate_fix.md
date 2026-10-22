@@ -8,13 +8,13 @@ release-notes overview (checked 2026-07-26).
 
 ## Finding 1 (🔴 P0, regression) — stale mid-conversation-system model gate
 
-`claude_cache.py`'s `MID_SYSTEM_SUPPORTED_MODELS` had been `{"claude-opus-4-8"}`
+`provider-specific module`'s `MID_SYSTEM_SUPPORTED_MODELS` had been `{"provider model ID"}`
 since the feature launched in v1.18.0 (checked against docs as of
 2026-07-08 at the time). The July 15, 2026 release notes explicitly
 corrected the platform's own earlier availability note:
 
-> Mid-conversation system messages are available on Claude Fable 5, Claude
-> Mythos 5, and Claude Opus 4.8 [...] This corrects earlier availability
+> Mid-conversation system messages are available on provider Fable 5, provider
+> Mythos 5, and provider Opus 4.8 [...] This corrects earlier availability
 > notes.
 
 So this wasn't code drifting out of date with a changing platform — the
@@ -27,19 +27,19 @@ feature those models actually support, since v1.18.0.
 Confirmed against two independently-worded searches (the release-notes
 overview and the dedicated mid-conversation-system-messages doc page)
 before changing anything, per this project's dual-verification convention.
-Still explicitly unsupported, confirmed unchanged: Claude Sonnet 5 (use
-top-level `system` instead) and Claude Opus 5 (not listed on either
+Still explicitly unsupported, confirmed unchanged: provider Sonnet 5 (use
+top-level `system` instead) and provider Opus 5 (not listed on either
 source, unlike the *tool-changes* variant which does include it — these
 are two different features gated on two different model sets, worth
 flagging since it's an easy mix-up).
 
-**Fix:** `MID_SYSTEM_SUPPORTED_MODELS = {"claude-fable-5", "claude-mythos-5",
-"claude-opus-4-8"}`. Updated four stale "Opus 4.8 only" docstring/comment
+**Fix:** `MID_SYSTEM_SUPPORTED_MODELS = {"provider model ID", "provider model ID",
+"provider model ID"}`. Updated four stale "Opus 4.8 only" docstring/comment
 references in the same file. Rewrote the test that had been asserting the
 wrong value (`test_mid_system_supported_models_is_opus_4_8_only` →
 `test_mid_system_supported_models_matches_docs`) and added parametrized
-coverage confirming `generate_cached()` now accepts both `claude-fable-5`
-and `claude-mythos-5` with a mid-system update.
+coverage confirming `generate_cached()` now accepts both `provider model ID`
+and `provider model ID` with a mid-system update.
 
 ## Finding 2 (bookkeeping, not a code bug) — v1.35.0 cross-file updates incomplete
 
@@ -47,7 +47,7 @@ The uploaded zip was labeled and `pyproject.toml`-pinned at v1.34.0, but
 `CHANGELOG.md` already contained a full, accurate v1.35.0 entry (Dreaming
 audit — see `docs/47_upgrade_v1.35.0_dreaming_audit.md`), and the code and
 tests for that cycle were genuinely present and passing (91 tests
-collected in `tests/test_claude_agents_sdk.py`, matching the feature set
+collected in `tests/test_provider-specific module`, matching the feature set
 CHANGELOG.md described). What hadn't happened:
 
 - `pyproject.toml` version: stuck at 1.34.0 (main.py's own `VERSION`
@@ -65,13 +65,13 @@ on the reconstruction.
 
 ## Also checked, confirmed non-gaps
 
-- Claude Opus 5: present in `MODEL_CATALOG`, fast-mode support, and
-  effort/thinking validation (`claude_opus5.py`) all correct.
+- provider Opus 5: present in `MODEL_CATALOG`, fast-mode support, and
+  effort/thinking validation (`provider-specific module`) all correct.
 - Fast mode removal for Opus 4.7 (2026-07-24) and silent removal for Opus
   4.6 (2026-06-29): both correctly gated in `validate_fast_mode()`.
 - MCP tunnels: already on the current `/v1/tunnels` surface with the
   `mcp-tunnels-2026-06-22` beta header, not the old Admin API path.
-- Mid-conversation *tool* changes (`claude_tools.py`,
+- Mid-conversation *tool* changes (`provider-specific module`,
   `MID_CONVERSATION_TOOL_CHANGES_SUPPORTED`): already correctly includes
   Opus 5 alongside Fable 5, Mythos 5, and Opus 4.8 — this is the sibling
   feature to Finding 1 above and was not affected by the same bug, since
@@ -80,8 +80,8 @@ on the reconstruction.
 
 ## Deferred, with reasoning
 
-- **Claude Opus 4.1 deprecation** (retirement announced for 2026-08-05):
-  flagged during this cycle's release-notes check, but `claude-opus-4-1-20250805`
+- **provider Opus 4.1 deprecation** (retirement announced for 2026-08-05):
+  flagged during this cycle's release-notes check, but `provider model ID`
   was never present in `MODEL_CATALOG` or `RETIRED_MODELS` to begin with —
   there's no existing zcoder code path this touches. Adding a new
   "announced but not yet retired" tracking structure for a model the

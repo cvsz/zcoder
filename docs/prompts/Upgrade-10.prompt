@@ -1971,7 +1971,7 @@ API latency
 usage aggregation
 rate limiting
 
-Do not use live Anthropic calls for load testing.
+Do not use live PROVIDER_CREDENTIAL_OR_CONFIG calls for load testing.
 
 ================================================================
 111. NOISY NEIGHBOR TEST

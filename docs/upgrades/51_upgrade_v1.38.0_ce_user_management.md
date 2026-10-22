@@ -1,14 +1,14 @@
-# v1.38.0 — Claude Enterprise User Management API, plus a wiring gap this cycle found in itself
+# v1.38.0 — provider Enterprise User Management API, plus a wiring gap this cycle found in itself
 
 ## What shipped
 
-Re-fetched Anthropic's release notes and found a genuine, previously
-unimplemented feature: the Claude Enterprise (claude.ai) User Management
+Re-fetched PROVIDER_CREDENTIAL_OR_CONFIG's release notes and found a genuine, previously
+unimplemented feature: the provider Enterprise (provider.ai) User Management
 API, beta since July 14, 2026. Confirmed absent before this cycle — a
 grep for `ce-user-management|rbac_group|rbac_role` across the whole tree
 came back empty.
 
-Added full client + CLI coverage in `claude_admin_api.py`:
+Added full client + CLI coverage in `provider-specific module`:
 
 - **Members** — `list_members`/`get_member`/`update_member_role`/
   `remove_member`. Same `/organizations/users` paths Console orgs
@@ -23,10 +23,10 @@ Added full client + CLI coverage in `claude_admin_api.py`:
   `ce-user-management-2026-07-13` beta header.
 - **Custom Roles** — `list_roles`/`get_role`/`list_role_permissions`,
   read-only (`/rbac_roles`), same beta header. Roles themselves are
-  created/edited in claude.ai org settings only, not through the API.
+  created/edited in provider.ai org settings only, not through the API.
 
 19 new `AdminApiClient` methods, 15 new `cmd_*` functions, 30 new tests
-in `tests/test_claude_admin_api.py` (14 pre-existing + 30 new = 44 total
+in `tests/test_provider-specific module` (14 pre-existing + 30 new = 44 total
 in that file).
 
 ## The gap this cycle found in its own work
@@ -34,7 +34,7 @@ in that file).
 The client and `cmd_*` layer landed correctly, but none of it was ever
 given CLI flags in `main.py` — the same class of miss that motivated
 `tests/test_cli_wiring.py` back in v1.31.0. That test is parametrized
-over every `claude_*.py` module, so `claude_admin_api.py` should have
+over every `provider_*.py` module, so `provider-specific module` should have
 caught this automatically; it didn't, because the wiring pass and the
 test run happened before the CE User Management commit landed, and the
 version bump, `CHANGELOG.md` entry, and this writeup were never done as
@@ -46,7 +46,7 @@ doc this file replaces was a dangling reference.
 
 Fixed this cycle:
 
-- Added a new argparse group, "Claude Enterprise User Management
+- Added a new argparse group, "provider Enterprise User Management
   (v1.38.0, beta)", with 15 command flags (`--members-list`,
   `--member-get`, `--member-role-set`, `--member-remove`,
   `--invite-create`, `--invites-list`, `--invite-withdraw`,
@@ -54,10 +54,10 @@ Fixed this cycle:
   `--group-members-list`, `--group-member-add`,
   `--group-member-remove`, `--roles-list`, `--role-permissions`) plus
   two modifier flags (`--members-email`, `--invite-rbac-groups`), and a
-  dispatch block that requires `--admin-api-key`/`ANTHROPIC_ADMIN_API_KEY`
+  dispatch block that requires `--admin-api-key`/`PROVIDER_CREDENTIAL_OR_CONFIG`
   the same way the existing Admin API commands do.
 - `tests/test_cli_wiring.py`'s parametrized sweep now passes for
-  `claude_admin_api.py` (previously failed on
+  `provider-specific module` (previously failed on
   `cmd_members_list` first, since `_cmd_functions()` returns them in
   source order). Added 7 targeted tests: flag parsing for
   `--members-list`/`--members-email`, `--member-role-set`,

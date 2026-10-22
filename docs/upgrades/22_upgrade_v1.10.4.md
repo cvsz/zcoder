@@ -8,15 +8,15 @@ cause a production failure.
 
 ## What changed
 
-**`claude_models.py`** — added `RETIRED_MODELS`, a dict distinct from
+**`provider-specific module`** — added `RETIRED_MODELS`, a dict distinct from
 `MODEL_CATALOG`'s `legacy` tier:
 
 - `MODEL_CATALOG["...']["tier"] == "legacy"` means superseded but still
   callable (Opus 4.5/4.6/4.7, Sonnet 4.5/4.6) — these keep working.
-- `RETIRED_MODELS` means the ID now errors: the original Claude 4.0
-  releases (`claude-opus-4-20250514`, `claude-sonnet-4-20250514`, and
-  their dateless `-4-0` aliases — retired 2026-06-15) and Claude Haiku 3
-  (`claude-haiku-3-20240307` — retired 2026-02-19), each with a
+- `RETIRED_MODELS` means the ID now errors: the original provider 4.0
+  releases (`provider model ID`, `provider model ID`, and
+  their dateless `-4-0` aliases — retired 2026-06-15) and provider Haiku 3
+  (`provider model ID` — retired 2026-02-19), each with a
   recommended replacement ID.
 
 Conflating these two categories in one "legacy" bucket was the actual gap
@@ -34,7 +34,7 @@ API happened to return.
   reports every hit with `file:line` and the suggested replacement.
   Text-based matching, not an AST — deliberately, since the point is to
   catch these strings wherever they appear (API calls, env files, CI
-  YAML, database seed data), matching Anthropic's own migration guidance
+  YAML, database seed data), matching PROVIDER_CREDENTIAL_OR_CONFIG's own migration guidance
   to check the whole codebase rather than just the primary call site.
 - `cmd_model_info()`'s live-API branch now also prints the response's
   `capabilities.effort` block (supported levels + default) when present,
@@ -61,9 +61,9 @@ no network call.
 
 - `python3 -m py_compile *.py` — all modules compile after the edits.
 - `--check-deprecated` smoke-tested against a scratch file containing
-  `claude-sonnet-4-20250514`, `claude-opus-4-0`, and a current ID —
+  `provider model ID`, `provider model ID`, and a current ID —
   correctly flagged the two retired strings with file:line and replacement,
   and did not flag the current one.
-- `--model-info claude-sonnet-4-20250514` smoke-tested — prints the
+- `--model-info provider model ID` smoke-tested — prints the
   retirement notice with the correct replacement ID before falling
   through to the (expected-to-fail) live lookup.

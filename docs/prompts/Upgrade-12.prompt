@@ -394,7 +394,7 @@ commercial price
 
 from:
 
-provider/Anthropic cost.
+provider/PROVIDER_CREDENTIAL_OR_CONFIG cost.
 
 ================================================================
 14. PRICE VERSIONING
@@ -1741,7 +1741,7 @@ Do not call PostgreSQL or provider APIs directly from browser.
 
 Never expose:
 
-Anthropic API key
+PROVIDER_CREDENTIAL_OR_CONFIG API key
 GitHub App private key
 billing provider secret
 
@@ -2427,7 +2427,7 @@ usage duplication
 149. PERFORMANCE
 ================
 
-Load test without Anthropic/financial external calls.
+Load test without PROVIDER_CREDENTIAL_OR_CONFIG/financial external calls.
 
 Use:
 

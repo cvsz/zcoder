@@ -6,11 +6,8 @@ required the code-execution-2025-05-22 beta header) to
 code_execution_20260120 (GA, no beta header, REPL-state persistence) —
 see docs/34_upgrade_v1.22.0_audit_and_impl.md Finding 4.
 
-Exercises the real _call()/execute() path by monkeypatching
-urllib.request.urlopen, per this repo's existing pattern in
-tests/test_claude_compliance_api.py, rather than mocking urlopen_json
-directly — this is what actually proves the anthropic-beta header is
-(or isn't) sent on the wire.
+Exercises request construction at the urlopen_json boundary. Production
+transport now rejects Anthropic API egress before opening a socket.
 """
 
 import json
@@ -37,11 +34,12 @@ class _FakeResp:
 def _install_fake_urlopen(monkeypatch, captured_headers: dict, response_body: dict = None):
     response_body = response_body or {"content": [], "usage": {}}
 
-    def fake_urlopen(req, timeout=None):
+    def fake_urlopen_json(req, timeout=None):
         captured_headers.update(dict(req.headers))
-        return _FakeResp(json.dumps(response_body).encode())
+        captured_headers["body"] = json.loads(req.data.decode())
+        return response_body
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(mod, "urlopen_json", fake_urlopen_json)
 
 
 def test_default_version_is_20260120():
@@ -83,11 +81,13 @@ def test_legacy_version_sends_beta_header(monkeypatch):
 def test_execute_uses_instance_version_in_tool_descriptor(monkeypatch):
     captured_payload = {}
 
-    def fake_urlopen(req, timeout=None):
-        captured_payload["body"] = json.loads(req.data.decode())
-        return _FakeResp(json.dumps({"content": [], "usage": {}}).encode())
-
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        mod,
+        "urlopen_json",
+        lambda req, timeout=None: (
+            captured_payload.update(body=json.loads(req.data.decode())) or {"content": [], "usage": {}}
+        ),
+    )
     coder = CodeExecutionCoder(api_key="sk-test", code_exec_version="code_execution_20250522")
 
     coder.execute("do something")

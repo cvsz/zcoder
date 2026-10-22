@@ -29,17 +29,12 @@ BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
 def _api_key(args):
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
-        return os.getenv("ANTHROPIC_API_KEY", "local-mode-no-key-required")
-    k = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
-    if not k:
-        print("[ERROR] ANTHROPIC_API_KEY not set.", file=sys.stderr)
-        sys.exit(1)
-    return k
+    """Return no cloud credential; runtime inference is local-only."""
+    return ""
 
 
 def _model(args):
-    return getattr(args, "model", "claude-sonnet-5") or "claude-sonnet-5"
+    return getattr(args, "model", None) or "zcoder-qwen2.5-coder-7b"
 
 
 def _read_file(path):
@@ -81,7 +76,7 @@ def build_parser():
         help="Launch the full-screen Textual TUI (see tui.py) — model/personality/"
         "agent/skill sidebar plus a streaming chat transcript, in the terminal",
     )
-    g.add_argument("--model", default="claude-sonnet-5")
+    g.add_argument("--model", default=None)
     g.add_argument("--temperature", type=float, default=0.3)
     g.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens")
     g.add_argument("--api-key", default="", dest="api_key")
@@ -89,8 +84,8 @@ def build_parser():
         "--provider",
         default=None,
         dest="provider",
-        choices=["anthropic", "gemini", "xai", "ollama", "local"],
-        help="Model gateway provider (default: anthropic; env ZCODER_PROVIDER / ZCODER_LOCAL_MODE)",
+        choices=["local", "llama_cpp"],
+        help="Model gateway provider (default for prompt CLI: llama_cpp on loopback)",
     )
     g.add_argument(
         "--base-url",
@@ -3071,7 +3066,7 @@ def main():
     if args.tui:
         from zcoder.interfaces.cli.tui import run_tui
 
-        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
+        run_tui(api_key="")
         return
 
     # ── API key required ──
@@ -4157,6 +4152,8 @@ def main():
         c = Coder(
             api_key=key,
             model=model,
+            provider=args.provider or os.getenv("ZCODER_PROVIDER", "llama_cpp"),
+            base_url=args.base_url,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             service_tier=args.service_tier,

@@ -1,12 +1,12 @@
 # v1.24.0 audit cycle — cross-product gap findings + implementation prompts
 
-Per the explicit ask this cycle ("think deeper, search all Claude
+Per the explicit ask this cycle ("think deeper, search all provider
 products"), this audit deliberately widened past Managed Agents (the
 last three cycles) and Admin/Auth (v1.23.0) to re-check
-platform.claude.com/docs/en/release-notes/overview end to end, plus the
+platform.provider.com/docs/en/release-notes/overview end to end, plus the
 Web fetch tool, Web search tool, Code execution tool, and Analytics API
 reference pages it points to. Four real, buildable gaps found; a fifth
-candidate (the Claude Enterprise Analytics API) confirmed real but
+candidate (the provider Enterprise Analytics API) confirmed real but
 deliberately left undocumented-as-built — see the non-gap note below.
 
 ## Finding 1 — Server tool version drift: `code_execution_20260521`, `web_search_20260318`, `web_fetch_20260318`
@@ -14,7 +14,7 @@ deliberately left undocumented-as-built — see the non-gap note below.
 **What it is:** Three tool-version bumps that shipped together (June 11,
 2026 per the release notes), all GA with no beta header:
 - `code_execution_20260521` discloses the sandbox's 90-second per-cell
-  wall-clock limit in the tool's own description, so Claude budgets
+  wall-clock limit in the tool's own description, so provider budgets
   long-running cells instead of writing one loop that times out.
 - `web_search_20260318` and `web_fetch_20260318` add a
   `response_inclusion` parameter (currently one documented value,
@@ -25,22 +25,22 @@ deliberately left undocumented-as-built — see the non-gap note below.
   pattern), so it saves real output-token cost in agentic loops that
   don't need the raw page/search content echoed back to the client.
 
-**Why it's a gap:** `claude_tools.py`'s own `SERVER_TOOLS` dict was
+**Why it's a gap:** `provider-specific module`'s own `SERVER_TOOLS` dict was
 still on `code_execution_20260120` (the v1.22.0 bump) and
 `web_search_20260209` — both real versions, just one bump behind each.
 `web_fetch` was worse: still `web_fetch_20250124`, three versions
 behind current, and behind even the *retired* `web_fetch_20250910`
-`claude_tools.py`'s own `RETIRED_TOOL_VERSIONS` table already flags as
-superseded. `claude_search.py` was worse still — its own separate
+`provider-specific module`'s own `RETIRED_TOOL_VERSIONS` table already flags as
+superseded. `provider-specific module` was worse still — its own separate
 `WEB_SEARCH_TOOL`/`WEB_FETCH_TOOL` constants had never been bumped at
 all (`web_search_20250305`, `web_fetch_20250124`), meaning none of the
-version-tracking work `claude_tools.py` has done over several cycles
+version-tracking work `provider-specific module` has done over several cycles
 ever propagated to this sibling module. Grepped for `response_inclusion`
 across the tree first: zero matches anywhere.
 
 **Priority: 🟠 P1.** Real token-cost savings for any programmatic-tool-
 calling workflow (a pattern this codebase already supports via
-`claude_tools.py`'s `allowed_callers`), and the `claude_search.py` drift
+`provider-specific module`'s `allowed_callers`), and the `provider-specific module` drift
 in particular means that module's users get three-version-old tool
 behavior with no way to opt into anything newer.
 
@@ -59,7 +59,7 @@ behavior aren't valid once you switch headers, so callers restart from
 the first page when adopting it. On July 22, 2026 the older header
 adopts this same behavior anyway.
 
-**Why it's a gap:** `claude_agents_sdk.py` implements
+**Why it's a gap:** `provider-specific module` implements
 `create_memory_store()` and mounts a store into a session as a resource,
 but has no method that lists what's actually *inside* a store at all —
 first grep for `memories` (the endpoint's own path segment): zero
@@ -89,32 +89,32 @@ API returns. First grep for `expires_at` in the tree: zero matches.
 that's already in the response body costs nothing and closes a real
 "key is about to expire and nobody's watching" blind spot.
 
-## Finding 4 — Claude Code Analytics API
+## Finding 4 — external coding assistant Analytics API
 
-**What it is:** `GET /v1/organizations/usage_report/claude_code` — a
+**What it is:** `GET /v1/organizations/usage_report/provider-specific identifier` — a
 dedicated Admin-API endpoint (same Admin API key as the existing Usage
 & Cost API) returning one record per user per day: session counts,
-lines of code added/removed, commits/PRs created through Claude Code,
+lines of code added/removed, commits/PRs created through external coding assistant,
 per-editing-tool accept/reject counts, and a per-model token/cost
 breakdown. Cursor-paginated via `starting_at` + `page`.
 
-**Why it's a gap:** `claude_admin_api.py` already implements the
+**Why it's a gap:** `provider-specific module` already implements the
 sibling org-wide Usage & Cost API but has no code path for this
-Claude-Code-specific report — first grep for `claude_code` (the
-endpoint's own path segment) in `claude_admin_api.py`: zero matches.
+provider model ID report — first grep for `provider-specific identifier` (the
+endpoint's own path segment) in `provider-specific module`: zero matches.
 
 **Priority: 🟡 P2.** Same auth, same module, same client class as work
 already done — low-cost addition, and the natural companion to the
 Usage/Cost reporting this module already owns.
 
-## Non-gap checked this cycle, deliberately not built — Claude Enterprise Analytics API
+## Non-gap checked this cycle, deliberately not built — provider Enterprise Analytics API
 
 Nine endpoints (user activity, org-level daily/weekly/monthly active
 users, project/skill/connector adoption, per-user cost) genuinely absent
 from the tree — but this is a structurally different, larger surface
-than every other Admin-API feature `claude_admin_api.py` owns: it
+than every other Admin-API feature `provider-specific module` owns: it
 authenticates with a separate **Analytics API key** (created in
-claude.ai by an Enterprise org's Primary Owner, scoped
+provider.ai by an Enterprise org's Primary Owner, scoped
 `read:analytics`), not the Admin API key every existing method in that
 module takes. Bolting a second, incompatible auth-key type onto
 `AdminApiClient` — or forking a whole parallel client class — for nine
@@ -131,7 +131,7 @@ re-flag it as newly discovered, and doesn't accidentally build it into
 
 ### Prompt 1 — Server tool version bumps (P1)
 
-> Bump `claude_tools.py`'s `SERVER_TOOLS` defaults to
+> Bump `provider-specific module`'s `SERVER_TOOLS` defaults to
 > `code_execution_20260521`, `web_search_20260318`, and
 > `web_fetch_20260318`; add corresponding entries to
 > `RETIRED_TOOL_VERSIONS` for the versions being superseded
@@ -139,18 +139,18 @@ re-flag it as newly discovered, and doesn't accidentally build it into
 > already-known-stale `web_fetch_20250124`/`web_fetch_20250910` chain
 > pointing at `web_fetch_20260318` now). Add an optional
 > `response_inclusion: Optional[str] = None` parameter wherever
-> `web_search`/`web_fetch` tool dicts are built in `claude_tools.py`,
+> `web_search`/`web_fetch` tool dicts are built in `provider-specific module`,
 > included in the tool dict only when given (`"excluded"` is the only
 > currently-documented value; pass through whatever string is given
 > rather than validating an enum, since the docs only promise this one
 > value today but may add more).
 >
-> Also fix the `claude_search.py` drift: bump its own separate
+> Also fix the `provider-specific module` drift: bump its own separate
 > `WEB_SEARCH_TOOL`/`WEB_FETCH_TOOL` constants to the same new versions,
 > and thread an optional `response_inclusion` param through
 > `SearchCoder.search()` the same way.
 >
-> Update `claude_code_exec.py`'s `DEFAULT_CODE_EXEC_VERSION` to
+> Update `provider-specific module`'s `DEFAULT_CODE_EXEC_VERSION` to
 > `code_execution_20260521` (keep the existing pin-an-older-version
 > mechanism from v1.22.0 working unchanged for
 > `code_execution_20250522`/`code_execution_20260120`).
@@ -158,8 +158,8 @@ re-flag it as newly discovered, and doesn't accidentally build it into
 > Tests: `SERVER_TOOLS` defaults updated; `RETIRED_TOOL_VERSIONS` has
 > entries for the newly-superseded versions; `response_inclusion` is
 > included in the built tool dict when given and omitted when not
-> (regression check) in both `claude_tools.py` and `claude_search.py`;
-> `claude_code_exec.py`'s new default sends no beta header (same check
+> (regression check) in both `provider-specific module` and `provider-specific module`;
+> `provider-specific module`'s new default sends no beta header (same check
 > as the v1.22.0 tests, just against the new version string).
 
 ### Prompt 2 — Managed Agents memory listing (P1)
@@ -212,25 +212,25 @@ re-flag it as newly discovered, and doesn't accidentally build it into
 > with `expires_at` absent/`None` prints the placeholder, not the word
 > `"None"`.
 
-### Prompt 4 — Claude Code Analytics API (P2)
+### Prompt 4 — external coding assistant Analytics API (P2)
 
 > Add to `AdminApiClient`:
 > ```python
-> def get_claude_code_usage_report(self, starting_at: str, limit: int = 20,
+> def get_provider-specific identifier(self, starting_at: str, limit: int = 20,
 >                                   page: Optional[str] = None) -> dict
 > ```
-> `GET /organizations/usage_report/claude_code` with `starting_at`
+> `GET /organizations/usage_report/provider-specific identifier` with `starting_at`
 > (required, `YYYY-MM-DD`), optional `limit`, optional `page` cursor —
 > mirror this file's existing `_get()` helper and error-shape handling
 > (the `{"error": ..., "status": ...}` pattern every other method here
 > uses, including the 401/403 wrong-key-type hint via `_wrong_key_hint()`).
 >
-> Add `cmd_claude_code_usage_report(admin_api_key: str, starting_at: str,
+> Add `cmd_provider-specific identifier(admin_api_key: str, starting_at: str,
 > limit: int = 20)` printing a per-user table (date, actor
 > email/api_key_name, num_sessions, lines added/removed,
 > commits/PRs, estimated cost) — follow `cmd_usage_report()`'s existing
-> table-printing style in this file. Add `--claude-code-usage-report`
-> and `--claude-code-usage-report-start DATE` CLI flags.
+> table-printing style in this file. Add `--provider model ID`
+> and `--provider model ID DATE` CLI flags.
 >
 > Tests: request sends `starting_at` and optional `limit`/`page`;
 > 401/403 responses print the existing wrong-key-type hint (same
@@ -247,10 +247,10 @@ re-flag it as newly discovered, and doesn't accidentally build it into
    already-related modules together while the version research is fresh.
 2. Prompt 2 (memory listing) — independent, Managed Agents surface.
 3. Prompt 3 (`expires_at`) — smallest, presentation-only.
-4. Prompt 4 (Claude Code Analytics API) — same module as Prompt 3, do
-   last since it's the most net-new code in `claude_admin_api.py` this
+4. Prompt 4 (external coding assistant Analytics API) — same module as Prompt 3, do
+   last since it's the most net-new code in `provider-specific module` this
    cycle.
 
 After all four land, update `ROADMAP.md`'s Part 1 coverage table the way
-every prior cycle has, and re-run a drift check on `claude_models.py`'s
+every prior cycle has, and re-run a drift check on `provider-specific module`'s
 catalog and `requirements.txt` per the methodology's own step 6.

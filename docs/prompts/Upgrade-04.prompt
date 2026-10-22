@@ -1,8 +1,8 @@
-# Mission: Forensic truth audit ZCoder v1.40.0, repair all Anthropic inaccuracies, then discover and implement the next legitimate upgrade
+# Mission: Forensic truth audit ZCoder v1.40.0, repair all PROVIDER_CREDENTIAL_OR_CONFIG inaccuracies, then discover and implement the next legitimate upgrade
 
 You are working directly inside the current ZCoder repository after the v1.40.0 release-gate work.
 
-Treat **all previous release reports, audit documents, tests, model tables, comments, and implementation claims as potentially wrong until independently verified against current first-party Anthropic documentation**.
+Treat **all previous release reports, audit documents, tests, model tables, comments, and implementation claims as potentially wrong until independently verified against current first-party PROVIDER_CREDENTIAL_OR_CONFIG documentation**.
 
 This is not merely another feature-addition pass.
 
@@ -12,7 +12,7 @@ Your priorities are:
 2. fix any false-positive release-gate results;
 3. fix runtime behavior affected by those inaccuracies;
 4. strengthen tests so the same class of error cannot recur;
-5. then discover all newer or still-missing Anthropic capabilities;
+5. then discover all newer or still-missing PROVIDER_CREDENTIAL_OR_CONFIG capabilities;
 6. implement legitimate production-useful gaps;
 7. determine whether the resulting release should be v1.40.1, v1.41.0, or another SemVer version.
 
@@ -20,29 +20,29 @@ Your priorities are:
 
 # 0. Non-negotiable source policy
 
-Use **first-party sources only** for Anthropic platform facts.
+Use **first-party sources only** for PROVIDER_CREDENTIAL_OR_CONFIG platform facts.
 
 Authoritative sources include:
 
-* Claude Platform release notes
-* Claude API reference
+* provider Platform release notes
+* provider API reference
 * Models overview
 * Pricing
 * Model deprecations
 * Model migration guides
 * Managed Agents documentation
 * Agent SDK documentation
-* Claude Code official changelog
+* external coding assistant official changelog
 * Admin API
 * Compliance API
 * Agent Skills
 * MCP
-* Claude Platform on AWS
-* Amazon Bedrock Anthropic documentation where appropriate
-* Google Cloud Anthropic documentation where appropriate
-* Microsoft Foundry Anthropic documentation where appropriate
-* Anthropic Help Center for Enterprise functionality
-* Anthropic official announcements when they define product/API behavior
+* provider Platform on AWS
+* Amazon Bedrock PROVIDER_CREDENTIAL_OR_CONFIG documentation where appropriate
+* Google Cloud PROVIDER_CREDENTIAL_OR_CONFIG documentation where appropriate
+* Microsoft Foundry PROVIDER_CREDENTIAL_OR_CONFIG documentation where appropriate
+* PROVIDER_CREDENTIAL_OR_CONFIG Help Center for Enterprise functionality
+* PROVIDER_CREDENTIAL_OR_CONFIG official announcements when they define product/API behavior
 
 Do NOT use:
 
@@ -95,7 +95,7 @@ Find the release-gate document that claims approximately:
 * v1.40.0
 * zero P0/P1 blockers
 * ~530 tests passing
-* complete Anthropic coverage
+* complete PROVIDER_CREDENTIAL_OR_CONFIG coverage
 
 Treat the PASS verdict as an assertion to test, not a fact.
 
@@ -128,7 +128,7 @@ Include source evidence.
 
 Explicitly re-verify the following before doing anything else.
 
-## 3.1 Claude Sonnet 5 pricing
+## 3.1 provider Sonnet 5 pricing
 
 The previous report may claim that Sonnet 5 permanent pricing is:
 
@@ -139,7 +139,7 @@ $15 / MTok output
 
 Do not trust that value.
 
-Re-fetch current Anthropic Pricing and API release notes.
+Re-fetch current PROVIDER_CREDENTIAL_OR_CONFIG Pricing and API release notes.
 
 Determine the current authoritative:
 
@@ -180,18 +180,18 @@ Inspect at minimum:
 
 Fix every stale price.
 
-Do not retain old price as "future pricing" unless current Anthropic documentation explicitly says it will take effect.
+Do not retain old price as "future pricing" unless current PROVIDER_CREDENTIAL_OR_CONFIG documentation explicitly says it will take effect.
 
 Add a regression test that would fail if the old price is accidentally restored.
 
 ---
 
-## 3.2 `anthropic-workspace-id`
+## 3.2 `PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id`
 
 The previous report may have classified:
 
 ```text
-anthropic-workspace-id
+PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id
 ```
 
 as a request header associated with AWS/WIF configuration.
@@ -206,22 +206,22 @@ Anything a caller intentionally sends to a platform.
 
 versus
 
-### Claude API response metadata
+### provider API response metadata
 
-Headers returned by Anthropic.
+Headers returned by PROVIDER_CREDENTIAL_OR_CONFIG.
 
-If current Anthropic documentation defines:
+If current PROVIDER_CREDENTIAL_OR_CONFIG documentation defines:
 
 ```text
-anthropic-workspace-id
+PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id
 ```
 
 as response metadata, implement it as response metadata.
 
-Audit every Claude API transport:
+Audit every provider API transport:
 
 ```text
-Anthropic SDK
+PROVIDER_CREDENTIAL_OR_CONFIG SDK
 raw HTTP
 streaming
 Messages
@@ -254,12 +254,12 @@ inference geo
 
 where the actual API provides them.
 
-Do NOT overload WIF/AWS request configuration with Claude API response metadata.
+Do NOT overload WIF/AWS request configuration with provider API response metadata.
 
 Tests must inject a fake response:
 
 ```http
-anthropic-workspace-id: wrkspc_test123
+PROVIDER_CREDENTIAL_OR_CONFIG-workspace-id: wrkspc_test123
 ```
 
 and prove it reaches the metadata layer.
@@ -268,15 +268,15 @@ and prove it reaches the metadata layer.
 
 # 4. Verify the previous release date claims
 
-Do not assume that an audit performed on August 13 means Anthropic published an API release-note entry on August 13.
+Do not assume that an audit performed on August 13 means PROVIDER_CREDENTIAL_OR_CONFIG published an API release-note entry on August 13.
 
 Determine:
 
 ```text
-latest official Claude Platform release-note entry
+latest official provider Platform release-note entry
 latest Models docs update
 latest Pricing docs update
-latest Claude Code changelog entry
+latest external coding assistant changelog entry
 latest Agent SDK release
 ```
 
@@ -343,7 +343,7 @@ Re-check every retired/deprecated model.
 Particularly audit:
 
 ```text
-claude-opus-4-1-20250805
+provider model ID
 ```
 
 Verify:
@@ -355,9 +355,9 @@ Verify:
 * migration warning
 * fallback logic
 
-A retired model on the first-party Claude API must not silently route as though still active.
+A retired model on the first-party provider API must not silently route as though still active.
 
-However, do not incorrectly mark it unavailable on partner platforms if Anthropic's official pricing/availability documentation still distinguishes those platforms.
+However, do not incorrectly mark it unavailable on partner platforms if PROVIDER_CREDENTIAL_OR_CONFIG's official pricing/availability documentation still distinguishes those platforms.
 
 Model availability must therefore support:
 
@@ -375,8 +375,8 @@ If not already present, refactor model support into something structurally simil
 
 ```python
 ModelAvailability(
-    claude_api=...,
-    claude_platform_aws=...,
+    provider-specific identifier=...,
+    provider-specific identifier=...,
     bedrock=...,
     vertex_ai=...,
     foundry=...,
@@ -401,7 +401,7 @@ Add tests for model/platform matrices.
 
 # 8. Sonnet 5 tokenizer correctness
 
-Current/new-generation Claude models may tokenize equivalent text differently.
+Current/new-generation provider models may tokenize equivalent text differently.
 
 Audit all logic that performs token-based decisions:
 
@@ -422,7 +422,7 @@ Audit all logic that performs token-based decisions:
 
 Never multiply old tokenizer counts by a guessed fixed factor in production.
 
-Prefer Anthropic's Token Counting API where exact counts matter.
+Prefer PROVIDER_CREDENTIAL_OR_CONFIG's Token Counting API where exact counts matter.
 
 Estimated mode is acceptable only if clearly labelled and never used as authoritative API validation.
 
@@ -560,7 +560,7 @@ These are separate surfaces.
 Verify automatic discovery from:
 
 ```text
-.claude/skills/
+.provider/skills/
 ```
 
 when mounting repositories.
@@ -568,7 +568,7 @@ when mounting repositories.
 Ensure it remains distinct from:
 
 * local ZCoder skills
-* Claude Code skills
+* external coding assistant skills
 * Agent SDK skills
 * Platform Skills API skill IDs
 
@@ -580,7 +580,7 @@ Verify both transcript families.
 
 ## Remote/cloud sessions
 
-Check actual endpoints for sessions started in Anthropic-hosted Claude surfaces.
+Check actual endpoints for sessions started in PROVIDER_CREDENTIAL_OR_CONFIG-hosted provider surfaces.
 
 Verify:
 
@@ -621,7 +621,7 @@ Determine whether ZCoder's previous classification is correct.
 
 Important distinction:
 
-Inference hooks govern prompts on Anthropic Enterprise surfaces.
+Inference hooks govern prompts on PROVIDER_CREDENTIAL_OR_CONFIG Enterprise surfaces.
 
 They are not automatically a normal Messages API feature.
 
@@ -661,7 +661,7 @@ Audit at least:
 Messages API
 Managed Agents
 Agent SDK
-Claude Code
+external coding assistant
 Admin API
 Compliance API
 Files API
@@ -738,11 +738,11 @@ No silent omissions.
 
 ---
 
-# 15. Claude Code deep sync
+# 15. external coding assistant deep sync
 
-Read the current official Claude Code CHANGELOG from newest to the repository's last recorded sync.
+Read the current official external coding assistant CHANGELOG from newest to the repository's last recorded sync.
 
-Do not add every Claude Code UI feature to ZCoder.
+Do not add every external coding assistant UI feature to ZCoder.
 
 Classify changes by architectural relevance:
 
@@ -756,7 +756,7 @@ SKILLS
 SECURITY
 OBSERVABILITY
 SESSION_MANAGEMENT
-CLAUDE_CODE_ONLY
+provider-specific identifier
 ```
 
 Implement only capabilities that legitimately improve ZCoder.
@@ -780,9 +780,9 @@ Pay particular attention to:
 
 ---
 
-# 16. Anthropic SDK upgrade audit
+# 16. PROVIDER_CREDENTIAL_OR_CONFIG SDK upgrade audit
 
-Determine the **current stable Anthropic Python SDK version at execution time**.
+Determine the **current stable PROVIDER_CREDENTIAL_OR_CONFIG Python SDK version at execution time**.
 
 Compare with repository requirements.
 
@@ -818,7 +818,7 @@ Keep raw HTTP only when justified.
 If architecture warrants it, provide one shared transport boundary:
 
 ```text
-AnthropicTransport
+PROVIDER_CREDENTIAL_OR_CONFIG
 ├── SDKTransport
 ├── RawHTTPTransport
 └── MockTransport
@@ -827,7 +827,7 @@ AnthropicTransport
 Normalize:
 
 ```python
-AnthropicResponse[T](
+PROVIDER_CREDENTIAL_OR_CONFIG[T](
     data=T,
     request_id=...,
     workspace_id=...,
@@ -884,9 +884,9 @@ Example:
 
 ```python
 capabilities.supports(
-    model="claude-sonnet-5",
+    model="provider model ID",
     feature="priority_tier",
-    platform="claude_api",
+    platform="provider-specific identifier",
 )
 ```
 
@@ -948,12 +948,12 @@ Expected values should be independently expressed in tests.
 
 ---
 
-# 21. Introduce an Anthropic conformance manifest
+# 21. Introduce an PROVIDER_CREDENTIAL_OR_CONFIG conformance manifest
 
 Create something equivalent to:
 
 ```text
-anthropic-conformance.yaml
+PROVIDER_CREDENTIAL_OR_CONFIG-conformance.yaml
 ```
 
 or JSON/Python data if better for the repository.
@@ -1069,7 +1069,7 @@ Run tests and capture repository state.
 
 ## Phase B — Truth audit
 
-Re-fetch official Anthropic sources.
+Re-fetch official PROVIDER_CREDENTIAL_OR_CONFIG sources.
 
 ## Phase C — Find contradictions
 
@@ -1085,7 +1085,7 @@ Add independent conformance tests.
 
 ## Phase F — New-feature discovery
 
-Diff current Anthropic documentation against implementation.
+Diff current PROVIDER_CREDENTIAL_OR_CONFIG documentation against implementation.
 
 ## Phase G — Implement
 
@@ -1164,13 +1164,13 @@ Request versus response semantics.
 
 Including platform-specific availability.
 
-## 7. Newly Discovered Anthropic Features
+## 7. Newly Discovered PROVIDER_CREDENTIAL_OR_CONFIG Features
 
 ```text
 Priority | Feature | Source date | Old status | New implementation
 ```
 
-## 8. SDK / Claude Code Synchronization
+## 8. SDK / external coding assistant Synchronization
 
 What changed and what was intentionally not imported.
 
@@ -1206,11 +1206,11 @@ Exact paths.
 ## 14. Source-of-Truth Snapshot
 
 ```text
-Anthropic API release notes latest entry:
+PROVIDER_CREDENTIAL_OR_CONFIG API release notes latest entry:
 Models docs verified:
 Pricing verified:
 Agent SDK verified:
-Claude Code changelog verified:
+external coding assistant changelog verified:
 Audit execution date:
 ```
 
@@ -1219,7 +1219,7 @@ Audit execution date:
 Do **not** say:
 
 ```text
-100% Anthropic support
+100% PROVIDER_CREDENTIAL_OR_CONFIG support
 complete
 fully verified
 zero gaps

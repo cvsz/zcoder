@@ -16,7 +16,7 @@ auth failures, refusals, unexpected exceptions) goes through
   `new_correlation_id()` at startup), attached to every line automatically
   so you can filter one invocation's logs out of a shared stream.
 - **Redaction**: `RedactingFilter` scrubs `sk-ant-...` key shapes and
-  `Authorization`/`x-api-key`/`ANTHROPIC_API_KEY`-shaped values from every
+  `Authorization`/`x-api-key`/`PROVIDER_CREDENTIAL_OR_CONFIG`-shaped values from every
   record, regardless of what a call site logs.
 - **Where it goes**: stderr only, by design — stdout stays reserved for
   the actual CLI output (model responses, `--health-check` JSON, etc) so
@@ -44,12 +44,12 @@ regex over a message string.
 
 ## 2. Application-level usage & request logs — pre-existing, unchanged
 
-- **`src/zcoder/claude/enterprise/metrics.py`** (`--metrics-show`, `--metrics-today`,
+- **`src/zcoder/provider/enterprise/metrics.py`** (`--metrics-show`, `--metrics-today`,
   `--metrics-model`, `--metrics-export`) — per-call token counts, cost
   (against a verified pricing table), and latency, logged to
   `~/.zcoder/metrics.jsonl`. Answers "what am I spending, on which
   model."
-- **`src/zcoder/claude/observability.py`** — structured request/response logging,
+- **`src/zcoder/provider/observability.py`** — structured request/response logging,
   latency histograms, and AI-assisted error-trend analysis, logged to
   `~/.zcoder/observability/requests.jsonl`. Answers "is latency/error
   rate drifting."

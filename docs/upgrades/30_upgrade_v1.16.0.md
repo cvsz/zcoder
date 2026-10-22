@@ -3,7 +3,7 @@
 v1.15.0 left the Compliance API as a documented gap on purpose: it's an
 enterprise audit/eDiscovery/DLP surface, and the roadmap's own
 recommendation was "revisit only if there's an actual concrete request
-for it." That request has now landed — `claude_compliance_api.py` closes
+for it." That request has now landed — `provider-specific module` closes
 the gap.
 
 Nothing here changes default behavior. Every `cmd_*` in the module is
@@ -11,10 +11,10 @@ read-only except the four hard-deletes (chat/file/project-document/
 project), and those are dry-run by default — they only execute with an
 explicit `--compliance-yes`.
 
-## What this is, and how it differs from `claude_admin_api.py`
+## What this is, and how it differs from `provider-specific module`
 
-`claude_admin_api.py` wraps org-level usage/cost *reporting* and API key
-*lifecycle* — aggregate numbers, not content. `claude_compliance_api.py`
+`provider-specific module` wraps org-level usage/cost *reporting* and API key
+*lifecycle* — aggregate numbers, not content. `provider-specific module`
 is the Activity Feed (who did what, chronologically, across the org)
 plus, with the right key, the ability to read or hard-delete the actual
 chats, files, and projects those activities reference. Different
@@ -22,14 +22,14 @@ endpoint family (`/v1/compliance/*` vs `/v1/organizations/*`), different
 purpose, and — the single most important operational detail — a
 different key model:
 
-- A **Compliance Access Key** (`sk-ant-api01-...`, created in claude.ai)
+- A **Compliance Access Key** (`sk-ant-api01-...`, created in provider.ai)
   reaches every endpoint here, but only the scopes it was granted at
   creation time (`read:compliance_activities`,
   `read:compliance_org_data`, `read:compliance_user_data`,
   `read:compliance_org_settings`, `delete:compliance_user_data`).
   Scopes are immutable after creation.
 - An **Admin API key** (`sk-ant-admin01-...`, the same key type
-  `claude_admin_api.py` uses) reaches *only*
+  `provider-specific module` uses) reaches *only*
   `GET /v1/compliance/activities`, and only if it was created after the
   Compliance API was enabled for the org. Every other endpoint returns
   403 for an Admin API key — there's no scope to add to unlock them.
@@ -38,7 +38,7 @@ different key model:
 zcoder --compliance-activities --compliance-api-key sk-ant-api01-...
 zcoder --compliance-activities-all \
   --compliance-activities-since 2026-06-01T00:00:00Z \
-  --compliance-activity-types claude_chat_created,claude_file_uploaded
+  --compliance-activity-types provider-specific identifier,provider-specific identifier
 
 zcoder --compliance-chats-list --compliance-user-ids user_abc,user_def
 zcoder --compliance-chat-messages chat_123
@@ -56,7 +56,7 @@ module for RBAC/SCIM inspection.
 
 ## Reliability contract
 
-Matches `platform.claude.com/docs/en/manage-claude/compliance-errors`
+Matches `platform.provider.com/docs/en/manage-provider/compliance-errors`
 exactly rather than using a generic retry wrapper:
 
 - 429 and retryable 5xx (502/503/504/529, or 500 without
@@ -71,7 +71,7 @@ exactly rather than using a generic retry wrapper:
 
 ## Key fallback order
 
-`--compliance-api-key` → `ANTHROPIC_COMPLIANCE_API_KEY` →
-`--admin-api-key` → `ANTHROPIC_ADMIN_API_KEY`. The Admin API key
+`--compliance-api-key` → `PROVIDER_CREDENTIAL_OR_CONFIG` →
+`--admin-api-key` → `PROVIDER_CREDENTIAL_OR_CONFIG`. The Admin API key
 fallback only unlocks `--compliance-activities`; every other flag will
 hit a 403 with an Admin API key and the error message says so.

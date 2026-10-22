@@ -18,6 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from zcoder.core.anthropic_disabled import create_anthropic_client
 from zcoder.core.resilience import shell_command_argv
 from zcoder.core.security import build_child_env
 
@@ -252,8 +253,6 @@ def cmd_perms_add(pattern: str, decision: str, reason: str = ""):
 # PLAN MODE
 # ═══════════════════════════════════════════════════════════════════════
 
-import anthropic as _anthropic
-
 
 @dataclass
 class PlanStep:
@@ -279,7 +278,7 @@ class Plan:
 
 class PlanModeAgent:
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
-        self.client = _anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key=api_key)
         self.model = model
 
     def _call(self, system: str, user: str, max_tokens: int = 2048) -> str:

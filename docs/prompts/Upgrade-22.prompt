@@ -2656,7 +2656,7 @@ Documentation:
 
 ## 25. Offline / Zero-Paid Proof
 
-Anthropic:
+PROVIDER_CREDENTIAL_OR_CONFIG:
 OpenAI paid:
 Stripe:
 Hosted embeddings:

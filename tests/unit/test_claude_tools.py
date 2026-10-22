@@ -29,11 +29,11 @@ class _FakeResp:
 def _install_fake_urlopen(monkeypatch, captured: dict, response_body: dict = None):
     response_body = response_body or {"content": [], "usage": {}, "stop_reason": "end_turn"}
 
-    def fake_urlopen(req, timeout=None):
+    def fake_urlopen_json(req, timeout=None):
         captured["body"] = json.loads(req.data.decode())
-        return _FakeResp(json.dumps(response_body).encode())
+        return response_body
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(mod, "urlopen_json", fake_urlopen_json)
 
 
 def test_server_tools_defaults_bumped_to_v1_24_0_versions():

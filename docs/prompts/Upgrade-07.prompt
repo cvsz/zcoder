@@ -16,7 +16,7 @@ Expected current baseline:
 - FakeRuntime exists
 - policy/validation infrastructure exists
 - package build/release gates exist
-- Anthropic conformance infrastructure exists
+- PROVIDER_CREDENTIAL_OR_CONFIG conformance infrastructure exists
 - current test suite reports approximately:
   535 passed
   2 optional skips
@@ -172,7 +172,7 @@ RuntimeCapabilities(
 2. AGENT SDK RUNTIME — REALITY CHECK
 ================================================================
 
-Verify AgentSDKRuntime against the CURRENT official Claude Agent SDK.
+Verify AgentSDKRuntime against the CURRENT official provider Agent SDK.
 
 Test real adapter wiring separately from FakeRuntime.
 
@@ -1238,7 +1238,7 @@ branch
 commit
 GitHub PR
 GitHub workflow run
-Anthropic session
+PROVIDER_CREDENTIAL_OR_CONFIG session
 runtime thread
 
 This should make one job traceable end-to-end.
@@ -1652,7 +1652,7 @@ Do not create a giant vector system unless justified.
 Respect:
 
 AGENTS.md
-CLAUDE.md where runtime legitimately uses it
+provider.md where runtime legitimately uses it
 repository docs
 ZCoder project policy
 
@@ -2236,7 +2236,7 @@ Upgrade-07 is complete only if:
 [ ] full offline end-to-end PR workflow passes
 [ ] crashed PR creation reconciliation passes
 [ ] crashed merge reconciliation passes
-[ ] default CI needs no Anthropic/GitHub live credentials
+[ ] default CI needs no PROVIDER_CREDENTIAL_OR_CONFIG/GitHub live credentials
 [ ] release gate covers all new subsystems
 [ ] documentation matches implementation
 [ ] no P0/P1 security/correctness issue remains

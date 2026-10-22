@@ -25,7 +25,7 @@ Do NOT trust those claims automatically.
 
 # MISSION
 
-Transform ZCoder from a single-host engineering orchestrator into a **real multi-host control plane** capable of coordinating many repositories, GitHub App installations, workers and Anthropic runtimes safely.
+Transform ZCoder from a single-host engineering orchestrator into a **real multi-host control plane** capable of coordinating many repositories, GitHub App installations, workers and PROVIDER_CREDENTIAL_OR_CONFIG runtimes safely.
 
 Target architecture:
 
@@ -828,9 +828,9 @@ Persist enough metadata to prevent all workers from independently hammering GitH
 
 ---
 
-# 36. ANTHROPIC RATE-LIMIT COORDINATION
+# 36. PROVIDER_CREDENTIAL_OR_CONFIG RATE-LIMIT COORDINATION
 
-Do similar coordination by appropriate Anthropic account/workspace boundary.
+Do similar coordination by appropriate PROVIDER_CREDENTIAL_OR_CONFIG account/workspace boundary.
 
 Do not create a synchronized retry storm from horizontal workers.
 
@@ -1114,7 +1114,7 @@ API process alive
 PostgreSQL reachable
 scheduler active
 GitHub authentication operational
-Anthropic configuration usable
+PROVIDER_CREDENTIAL_OR_CONFIG configuration usable
 ```
 
 A degraded external provider should not necessarily kill process liveness.
@@ -1156,7 +1156,7 @@ waiting approvals
 failed jobs
 workers online
 GitHub rate limit
-Anthropic rate status
+PROVIDER_CREDENTIAL_OR_CONFIG rate status
 today's estimated cost
 active repositories
 ```
@@ -1231,7 +1231,7 @@ attempt
 worker
 runtime
 GitHub action
-Anthropic call
+PROVIDER_CREDENTIAL_OR_CONFIG call
 ```
 
 Do not put secrets in spans.
@@ -1793,9 +1793,9 @@ Do not require credentials for normal CI.
 
 ---
 
-# 93. OPTIONAL LIVE ANTHROPIC TESTS
+# 93. OPTIONAL LIVE PROVIDER_CREDENTIAL_OR_CONFIG TESTS
 
-Likewise keep Anthropic live tests separate.
+Likewise keep PROVIDER_CREDENTIAL_OR_CONFIG live tests separate.
 
 Default CI remains deterministic/offline.
 
@@ -1962,7 +1962,7 @@ Upgrade-08 is complete only when:
 * [ ] worker crash recovery passes
 * [ ] control-plane crash recovery passes
 * [ ] DB restart behavior is tested
-* [ ] default CI requires no real GitHub/Anthropic credentials
+* [ ] default CI requires no real GitHub/PROVIDER_CREDENTIAL_OR_CONFIG credentials
 * [ ] PostgreSQL integration CI executes automatically
 * [ ] release gate covers distributed-control-plane guarantees
 * [ ] no P0/P1 correctness/security defect remains

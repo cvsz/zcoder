@@ -4,9 +4,9 @@ Unlike the last three cycles (v1.20.0–v1.22.0, all Managed Agents), this
 cycle deliberately widened the net per the methodology's own instruction
 to check the *whole* Features overview, not just the area of the last
 few fixes — Managed Agents has been audited three cycles running and
-was due for a break. Searched platform.claude.com/docs release notes
+was due for a break. Searched platform.provider.com/docs release notes
 across Authentication, Admin API, and Rate Limits, plus cross-referenced
-against `claude_admin_api.py` (the module most likely to already cover
+against `provider-specific module` (the module most likely to already cover
 adjacent Admin-API surface) before writing anything up as a gap.
 
 ## Finding 1 — Workload Identity Federation (WIF) (GA)
@@ -15,14 +15,14 @@ adjacent Admin-API surface) before writing anything up as a gap.
 workload exchange a short-lived OIDC JWT from an identity provider it
 already trusts (AWS IAM, Google Cloud, GitHub Actions, Kubernetes,
 Entra ID, Okta, SPIFFE, or any standards-compliant OIDC issuer) for a
-short-lived Claude API access token (`sk-ant-oat01-...`), instead of
+short-lived provider API access token (`sk-ant-oat01-...`), instead of
 using a long-lived static API key. Mechanically: `POST /v1/oauth/token`
 with an RFC 7523 jwt-bearer grant; the response is a standard OAuth 2.0
 token response. First-party SDKs auto-detect a full federation
 configuration from five environment variables
-(`ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`,
-`ANTHROPIC_SERVICE_ACCOUNT_ID`, `ANTHROPIC_WORKSPACE_ID`, and one of
-`ANTHROPIC_IDENTITY_TOKEN_FILE`/`ANTHROPIC_IDENTITY_TOKEN`) and refresh
+(`PROVIDER_CREDENTIAL_OR_CONFIG`, `PROVIDER_CREDENTIAL_OR_CONFIG`,
+`PROVIDER_CREDENTIAL_OR_CONFIG`, `PROVIDER_CREDENTIAL_OR_CONFIG`, and one of
+`PROVIDER_CREDENTIAL_OR_CONFIG`/`PROVIDER_CREDENTIAL_OR_CONFIG`) and refresh
 the token before it expires. Setup itself (service accounts, federation
 issuers, federation rules) is a separate Admin-API-adjacent surface that
 requires an `org:admin` OAuth bearer token rather than a regular Admin
@@ -35,12 +35,12 @@ zcoder module authenticates with a single, always-present, static
 `api_key`/`admin_api_key` string — there is no code path anywhere that
 exchanges a JWT for anything.
 
-**Priority: 🔴 P0.** This is the flagship "keyless auth" story Anthropic
-is pushing across the whole platform (SDKs, Claude Code, GitHub Actions)
+**Priority: 🔴 P0.** This is the flagship "keyless auth" story PROVIDER_CREDENTIAL_OR_CONFIG
+is pushing across the whole platform (SDKs, external coding assistant, GitHub Actions)
 — a CLI wrapper that only supports static keys is missing the auth
-pattern Anthropic itself now recommends leading with.
+pattern PROVIDER_CREDENTIAL_OR_CONFIG itself now recommends leading with.
 
-## Finding 2 — Spend Limits API (Claude Enterprise)
+## Finding 2 — Spend Limits API (provider Enterprise)
 
 **What it is:** Eight Admin-API endpoints across two resources for
 per-member spend governance, Enterprise-only: `GET
@@ -54,7 +54,7 @@ submitted requests for a higher limit). Requires an Admin API key with
 `read:spend_limits`/`write:spend_limits` scopes.
 
 **Why it's a gap:** first grep for `spend_limit` in the tree: zero
-matches. `claude_admin_api.py` already implements the sibling Usage and
+matches. `provider-specific module` already implements the sibling Usage and
 Cost API and API-key management, but has no code path for this
 resource family at all.
 
@@ -75,25 +75,25 @@ Usage and Cost API.
 retry/backoff logic in the tree: zero matches for this specific API
 surface (this codebase's `resilience.py` handles *client-side* 429
 backoff, which is a different, already-solved problem — this finding is
-about reading Anthropic's *configured* limits, not reacting to them).
+about reading PROVIDER_CREDENTIAL_OR_CONFIG's *configured* limits, not reacting to them).
 
 **Priority: 🟡 P2.** Small, read-only, no side effects — a natural
-companion to `claude_admin_api.py`'s existing usage/cost reporting for
+companion to `provider-specific module`'s existing usage/cost reporting for
 building gateways/dashboards, per the docs' own stated use cases.
 
 ## Non-gaps checked this cycle
 
-**Claude Managed Agents vault credential background refresh for
+**provider Managed Agents vault credential background refresh for
 `mcp_oauth` credentials** — a release-note line item alongside these
-three. Not a gap: this is server-side behavior (Anthropic now refreshes
+three. Not a gap: this is server-side behavior (PROVIDER_CREDENTIAL_OR_CONFIG now refreshes
 a stored OAuth credential's access token automatically instead of it
 going stale), not a new request shape or parameter zcoder's
 `add_credential()` needs to send. Nothing to build.
 
-**Claude Managed Agents on Claude Platform on AWS** (webhooks, multi-
+**provider Managed Agents on provider Platform on AWS** (webhooks, multi-
 agent, self-hosted sandboxes) — not a gap: this is the same API surface
-`claude_agents_sdk.py` already covers, becoming available on a different
-deployment target (AWS-native endpoints vs. the direct Claude API).
+`provider-specific module` already covers, becoming available on a different
+deployment target (AWS-native endpoints vs. the direct provider API).
 Deployment location isn't a code-level gap unless zcoder starts
 supporting multiple base URLs/auth schemes per cloud, which is a bigger,
 separate architectural question outside a single audit finding.
@@ -104,18 +104,18 @@ separate architectural question outside a single audit finding.
 
 ### Prompt 1 — Workload Identity Federation (P0)
 
-> Create `claude_wif.py`. Two client classes:
+> Create `provider-specific module`. Two client classes:
 >
 > ```python
 > class WIFCredentialExchanger:
->     """Exchanges an IdP-issued JWT for a short-lived Claude API access
+>     """Exchanges an IdP-issued JWT for a short-lived provider API access
 >     token via POST /v1/oauth/token (RFC 7523 jwt-bearer grant)."""
 >
 >     def exchange(self, federation_rule_id: str, organization_id: str,
 >                  service_account_id: str, identity_token: str,
 >                  workspace_id: Optional[str] = None,
 >                  token_lifetime_seconds: Optional[int] = None) -> dict:
->         # POST https://api.anthropic.com/v1/oauth/token with
+>         # POST https://external API host/v1/oauth/token with
 >         # grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer,
 >         # assertion=identity_token, plus the rule/org/service-account/
 >         # workspace identifiers. Returns the OAuth 2.0 token response
@@ -125,9 +125,9 @@ separate architectural question outside a single audit finding.
 >         # own FederationExchangeError.
 >
 > def resolve_wif_env() -> Optional[dict]:
->     # Reads ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID,
->     # ANTHROPIC_SERVICE_ACCOUNT_ID, ANTHROPIC_WORKSPACE_ID (optional),
->     # and one of ANTHROPIC_IDENTITY_TOKEN_FILE / ANTHROPIC_IDENTITY_TOKEN.
+>     # Reads PROVIDER_CREDENTIAL_OR_CONFIG, PROVIDER_CREDENTIAL_OR_CONFIG,
+>     # PROVIDER_CREDENTIAL_OR_CONFIG, PROVIDER_CREDENTIAL_OR_CONFIG (optional),
+>     # and one of PROVIDER_CREDENTIAL_OR_CONFIG / PROVIDER_CREDENTIAL_OR_CONFIG.
 >     # Returns None (not a partial dict) unless rule_id, organization_id,
 >     # service_account_id, and an identity token are ALL present — the
 >     # direct env-var federation path "activates only when all are set,"
@@ -137,7 +137,7 @@ separate architectural question outside a single audit finding.
 >
 > `WIFCredentialExchanger.exchange()` never logs `identity_token` or the
 > returned `access_token` in any exception message (same write-only
-> discipline as vault credentials in `claude_agents_sdk.py`).
+> discipline as vault credentials in `provider-specific module`).
 >
 > CLI: `--wif-exchange-token` (calls `resolve_wif_env()`, exchanges, and
 > prints the resulting access token's expiry and scope — never the
@@ -149,7 +149,7 @@ separate architectural question outside a single audit finding.
 >
 > Second class, `WIFAdminClient`, for the setup side (service accounts,
 > federation issuers, federation rules) — these require an `org:admin`
-> OAuth bearer token, not the Admin API key `claude_admin_api.py` uses:
+> OAuth bearer token, not the Admin API key `provider-specific module` uses:
 > ```python
 > class WIFAdminClient:
 >     def __init__(self, org_admin_oauth_token: str): ...
@@ -174,13 +174,13 @@ separate architectural question outside a single audit finding.
 > `--wif-create-issuer NAME --wif-issuer-url URL`, `--wif-list-issuers`,
 > `--wif-create-rule NAME --wif-rule-issuer ID --wif-rule-service-account
 > ID --wif-rule-subject-prefix PREFIX`, `--wif-list-rules` — all requiring
-> a new `--org-admin-token` flag (or `ANTHROPIC_ORG_ADMIN_TOKEN` env var),
+> a new `--org-admin-token` flag (or `PROVIDER_CREDENTIAL_OR_CONFIG` env var),
 > kept separate from `--admin-api-key` throughout.
 >
 > Tests: `resolve_wif_env()` returns `None` when any required var is
 > missing (parametrize over each of the four required vars individually
 > absent) and a full dict when all are set, preferring
-> `ANTHROPIC_IDENTITY_TOKEN_FILE` (reading the file) when both token
+> `PROVIDER_CREDENTIAL_OR_CONFIG` (reading the file) when both token
 > sources are set; `exchange()` posts the correct jwt-bearer grant body
 > and never leaks the assertion or access token in a raised exception's
 > message; `WIFAdminClient` sends `Authorization: Bearer` (not
@@ -188,7 +188,7 @@ separate architectural question outside a single audit finding.
 
 ### Prompt 2 — Spend Limits API (P1)
 
-> Add to `claude_admin_api.py`'s `AdminApiClient`:
+> Add to `provider-specific module`'s `AdminApiClient`:
 > ```python
 > def _delete(self, path: str) -> dict: ...  # new helper, mirrors _get/_post
 
@@ -204,7 +204,7 @@ separate architectural question outside a single audit finding.
 > def deny_spend_limit_increase_request(self, request_id: str, suppress_notification: bool = False) -> dict
 > ```
 > Note in the module docstring that this resource family is
-> Enterprise-only (a Claude Console/API-only org gets a 403) — surface
+> Enterprise-only (a provider Console/API-only org gets a 403) — surface
 > that in the `cmd_*` error path the same way the existing functions
 > already surface the "wrong key type" 401/403 hint.
 >
@@ -243,6 +243,6 @@ separate architectural question outside a single audit finding.
 
 1. Prompt 1 (WIF) — highest priority, and a new standalone module, so no
    ordering conflict with the other two.
-2. Prompt 2 (Spend Limits) — extends `claude_admin_api.py`.
+2. Prompt 2 (Spend Limits) — extends `provider-specific module`.
 3. Prompt 3 (Rate Limits) — smallest, extends the same file as Prompt 2;
    do after so both land in one coherent diff to that module.

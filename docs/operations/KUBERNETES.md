@@ -28,5 +28,5 @@ ZCoder production deployments separate the **API Control Plane** from the **Hori
    - `/metrics`: Prometheus scrape endpoint — `text/plain; version=0.0.4` exposition from the ZCoder metrics registry.
    - `/health`: Legacy combined check (`{"status": "ok", ...}`); retained for backward compatibility only.
 3. **Graceful Worker Draining**: On `SIGTERM`, worker sets state to `DRAINING`, stops claiming jobs, completes in-flight executions within `terminationGracePeriodSeconds` (default 120s), and safely releases remaining leases before termination.
-4. **NetworkPolicy**: Strict ingress/egress boundaries limiting traffic between API, Workers, PostgreSQL, OpenTelemetry Collector, and authorized external endpoints (GitHub API, Anthropic API).
+4. **NetworkPolicy**: Strict ingress/egress boundaries limiting traffic between API, Workers, PostgreSQL, OpenTelemetry Collector, and authorized external endpoints (GitHub API, PROVIDER_CREDENTIAL_OR_CONFIG API).
 5. **No Plaintext Secrets**: Helm values reference Kubernetes Secret names and keys rather than embedding credentials.

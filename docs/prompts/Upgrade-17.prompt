@@ -2129,7 +2129,7 @@ Reason:
 
 ## 19. Offline / Zero-Paid Proof
 
-Anthropic calls:
+PROVIDER_CREDENTIAL_OR_CONFIG calls:
 OpenAI paid calls:
 Stripe calls:
 Hosted embeddings:

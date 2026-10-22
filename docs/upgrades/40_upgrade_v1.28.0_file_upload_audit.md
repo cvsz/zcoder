@@ -1,14 +1,14 @@
 # v1.28.0 — Files API audit and implementation
 
-**Scope:** `claude_files.py` and the Files-API integration point in
-`claude_code_exec.py`, re-audited end to end against a live fetch of
-`platform.claude.com/docs/en/build-with-claude/files` and
-`platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool`
+**Scope:** `provider-specific module` and the Files-API integration point in
+`provider-specific module`, re-audited end to end against a live fetch of
+`platform.provider.com/docs/en/build-with-provider/files` and
+`platform.provider.com/docs/en/agents-and-tools/tool-use/code-execution-tool`
 (fetched July 13, 2026), not against cached notes from prior cycles.
 
 ## Finding 1 — Files fed to the code execution tool used the wrong block type (🔴 P0)
 
-**What it is:** `claude_code_exec.py`'s `execute()` attached every
+**What it is:** `provider-specific module`'s `execute()` attached every
 `file_ids` entry to the sandbox using a `document` block:
 ```python
 content.append({"type": "document", "source": {"type": "file", "file_id": fid}})
@@ -16,23 +16,23 @@ content.append({"type": "document", "source": {"type": "file", "file_id": fid}})
 The docs' File type → Content block table is explicit that `container_upload`
 is the block type for anything meant to go *into the sandbox's filesystem*
 for Python/Bash to open (datasets, CSVs, spreadsheets, images to process
-programmatically) — `document` is for PDFs/text Claude reads directly in
+programmatically) — `document` is for PDFs/text provider reads directly in
 the conversation turn. The code execution tool's own docs show the intended
 shape:
 ```python
 {"type": "container_upload", "file_id": file_object.id}
 ```
 
-**Why it was a gap:** `claude_code_exec.py` is zcoder's only call site that
+**Why it was a gap:** `provider-specific module` is zcoder's only call site that
 attaches files to a code-execution request, and it predates this project's
-adoption of the Files API in `claude_files.py`; nothing in the two modules'
+adoption of the Files API in `provider-specific module`; nothing in the two modules'
 overlap was re-checked when `container_upload` was documented. A grep for
 `container_upload` across the tree matched zero call sites before this
 cycle.
 
 **Impact:** every `--code-exec` (or programmatic `execute(file_ids=...)`)
 call that attached a file was not actually placing that file on the
-sandbox's disk. Claude could only work from whatever it inferred about the
+sandbox's disk. provider could only work from whatever it inferred about the
 file from the `document` block's own (limited, non-code-execution) reading
 of it — a silent correctness bug for exactly the workflow (analyze a
 CSV/Excel file with real code) this file's own module docstring advertises
@@ -49,7 +49,7 @@ cycles' P0 calls.
 **What it is:** `List Files` is a paginated endpoint (`limit`, default and
 max 20 per docs example — up to 100 accepted, `before_id`/`after_id` for
 adjacent pages, response includes `has_more`/`first_id`/`last_id`).
-`claude_files.py`'s `list_files()` only ever requested a single page via
+`provider-specific module`'s `list_files()` only ever requested a single page via
 `limit` and returned `data.get("data", [])`, silently truncating any
 account with more files than the page size — there was no way to see file
 21 onward.
@@ -104,7 +104,7 @@ server-side.
 **What it is:** `FilesAPI.ask_about_file()` only ever built `image` or
 `document` blocks. There was no way to ask a question about a file that
 needs the code execution tool (CSV/XLSX analysis, chart generation) through
-this method — `claude_code_exec.py` is a separate module with its own
+this method — `provider-specific module` is a separate module with its own
 (buggy, see Finding 1) path, so zcoder had two disconnected code paths for
 "do something with an uploaded file" instead of one that covers the whole
 File type → Content block table.
@@ -118,14 +118,14 @@ tool, matching the docs' worked example for analyzing an uploaded CSV.
 ## Non-gaps checked this cycle
 
 - **`purpose` param on upload** — a third-party gateway's SDK docs mention
-  `purpose: Literal["batch", "user_data"]`. The current official Anthropic
+  `purpose: Literal["batch", "user_data"]`. The current official PROVIDER_CREDENTIAL_OR_CONFIG
   upload example and response schema (`id`, `type`, `filename`, `mime_type`,
   `size_bytes`, `created_at`, `downloadable`) have no `purpose` field at
   all. Not implementing this — it doesn't match the primary docs.
 - **Workspace-scoping / cross-key visibility** — docs confirm files are
   scoped to the workspace of the API key that uploaded them and any key in
   that workspace can reference them. No client-side code path is affected;
-  this is a server-side property, not something `claude_files.py` needs to
+  this is a server-side property, not something `provider-specific module` needs to
   model.
 - **ZDR eligibility** — the Files API is explicitly *not* ZDR-eligible.
   Nothing in zcoder claims otherwise; no change needed.
@@ -134,8 +134,8 @@ tool, matching the docs' worked example for analyzing an uploaded CSV.
 
 ## Methodology note
 
-Confirmed via a live fetch of `platform.claude.com/docs/en/build-with-claude/files`
-and `platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool`
+Confirmed via a live fetch of `platform.provider.com/docs/en/build-with-provider/files`
+and `platform.provider.com/docs/en/agents-and-tools/tool-use/code-execution-tool`
 (not cached from a previous cycle), then grepping the source tree for
 `container_upload`, `"type": "document"`, and `list_files(` to find every
 call site touched by the File type → Content block table, rather than

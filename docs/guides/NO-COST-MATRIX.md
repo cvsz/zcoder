@@ -27,7 +27,7 @@ The zero-cost architecture allows engineers and air-gapped environments to run a
 
 | Dimension | Enterprise / Cloud Tier | Zero-Cost / Local Tier |
 | :--- | :--- | :--- |
-| **LLM Inference** | Anthropic Claude 3.7 / Opus / Sonnet | Ollama / vLLM / llama.cpp / Local OpenAI-compat |
+| **LLM Inference** | PROVIDER_CREDENTIAL_OR_CONFIG provider 3.7 / Opus / Sonnet | Ollama / vLLM / llama.cpp / Local OpenAI-compat |
 | **Persistence** | Multi-tenant PostgreSQL 16 (HA) | SQLite (WAL mode, crash-consistent) |
 | **Object Storage** | AWS S3 / GCS / Azure Blob | Sandboxed Local Filesystem (`~/.zcoder/storage`) |
 | **Telemetry** | OpenTelemetry Collector / Datadog | In-Memory / SQLite Local Analytics |
@@ -50,7 +50,7 @@ The zero-cost architecture allows engineers and air-gapped environments to run a
 ## 4. Cost Policy Enforcement
 
 When `--zero-cost` or `CostPolicy.ZERO_COST_ONLY` is enabled:
-- Network calls to `api.anthropic.com` or other commercial providers are strictly blocked.
+- Network calls to `external API host` or other commercial providers are strictly blocked.
 - Any task requesting a paid model will automatically route to the best matching local model or fail fast.
 - Billing meters remain inactive and report zero charges.
 
@@ -74,7 +74,7 @@ engine at all**:
 | **Missing-key behavior** | Error outside local mode | Works only when `ZCODER_LOCAL_MODE` is set |
 
 Notes:
-- Outside local mode a missing `ANTHROPIC_API_KEY` is a hard error — the
+- Outside local mode a missing `PROVIDER_CREDENTIAL_OR_CONFIG` is a hard error — the
   CLI never silently pretends to generate.
 - A network/auth failure in the git helper synthesizes an offline reply
   for that one call only; it does **not** flip the process into local

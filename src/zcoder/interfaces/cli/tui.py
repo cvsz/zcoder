@@ -25,8 +25,6 @@ claude_excel.py / claude_powerpoint.py for their own optional deps.
 
 from __future__ import annotations
 
-import time
-
 try:
     from textual import work
     from textual.app import App, ComposeResult
@@ -49,14 +47,11 @@ except ImportError as e:  # pragma: no cover - exercised only w/o textual instal
         "(or: pip install -r requirements.txt, it's an optional extra there)"
     ) from e
 
-from zcoder.agent.models.registry import MODEL_CATALOG
 from zcoder.agent.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
 from zcoder.config.settings import Config
-from zcoder.core.utils import sdk_sampling_kwargs
-from zcoder.interfaces.cli.streaming import StreamRenderGate
 from zcoder.services.skills import SkillManager
 
-DEFAULT_MODEL = "claude-sonnet-5"
+DEFAULT_MODEL = "zcoder-qwen2.5-coder-7b"
 
 
 def _agent_prompts() -> dict:
@@ -89,8 +84,8 @@ class SessionSidebar(Vertical):
 
     def compose(self) -> ComposeResult:
         model_options = [
-            (f"{info.get('display_name', mid)} ({info.get('tier', '')})", mid)
-            for mid, info in MODEL_CATALOG.items()
+            ("Qwen2.5 Coder 7B (GGUF)", "zcoder-qwen2.5-coder-7b"),
+            ("Qwen2.5 Coder 1.5B (GGUF)", "zcoder-qwen2.5-coder-1.5b"),
         ]
         personality_options = [("none", "")] + [
             (p["name"], p["name"]) for p in PersonalityManager().list_personalities()
@@ -169,8 +164,8 @@ class ZCoderTUI(App):
             self.query_one("#transcript").mount(
                 ChatMessage(
                     "error",
-                    "No ANTHROPIC_API_KEY configured — set the env var, run "
-                    "`python main.py --setup`, or restart with --api-key.",
+                    "Local GGUF inference is active; no API key is required. "
+                    "Legacy cloud streaming features are disabled.",
                 )
             )
         self.query_one("#prompt_input").focus()
@@ -268,39 +263,10 @@ class ZCoderTUI(App):
         ]
 
     def _stream_reply(self, prompt, model, system, temperature, history, reply_widget) -> str:
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=self.api_key)
-        messages = list(history) + [{"role": "user", "content": prompt}]
-        kwargs = dict(model=model, max_tokens=4096, messages=messages)
-        if system:
-            kwargs["system"] = system
-        kwargs.update(sdk_sampling_kwargs(model, temperature=temperature))
-
-        full_text = ""
-        render_gate = StreamRenderGate()
-        try:
-            with client.messages.stream(**kwargs) as stream:
-                for event in stream:
-                    if getattr(event, "type", "") == "content_block_delta":
-                        delta = event.delta
-                        if getattr(delta, "type", "") == "text_delta":
-                            text = getattr(delta, "text", "")
-                            full_text += text
-                            # Rendering every provider delta can enqueue hundreds of
-                            # expensive layout/scroll operations per second. Coalesce
-                            # them to at most ~30 fps (or a visibly large chunk).
-                            if render_gate.should_render(text, time.monotonic()):
-                                self.call_from_thread(reply_widget.update_text, full_text)
-                                self.call_from_thread(self.query_one("#transcript").scroll_end, animate=False)
-        except Exception as e:
-            full_text = full_text or f"[ERROR] {e}"
-        finally:
-            # A final delta frequently arrives before the next render interval
-            # or character threshold. Flush it unconditionally so the visible
-            # transcript always matches the saved assistant history.
-            self.call_from_thread(reply_widget.update_text, full_text)
-            self.call_from_thread(self.query_one("#transcript").scroll_end, animate=False)
+        del prompt, model, system, temperature, history
+        full_text = "[ERROR] TUI streaming is unavailable while remote providers are disabled."
+        self.call_from_thread(reply_widget.update_text, full_text)
+        self.call_from_thread(reply_widget.add_class, "msg-error")
         return full_text
 
 

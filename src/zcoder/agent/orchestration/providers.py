@@ -1,12 +1,12 @@
 """
 providers.py — Provider-neutral gateway abstraction for ZCoder
 
-Maps the router (and future CLI capabilities) across Anthropic,
-Gemini, X.AI Grok, local Ollama, and the local-mode stub via an
+Maps the router (and future CLI capabilities) across local Ollama
+and llama.cpp via an
 explicit provider selection + gateway override contract.
 
 Precedence:
-  provider:  --provider > ZCODER_PROVIDER env > ZCODER_LOCAL_MODE=1 > "anthropic"
+  provider:  --provider > ZCODER_PROVIDER env > ZCODER_LOCAL_MODE=1 > "local"
   api_key:   --api-key > provider-specific env var(s) > ""
   base_url:  --base-url > ZCODER_BASE_URL env > provider-specific env (OLLAMA_BASE_URL) > provider default
 
@@ -15,9 +15,7 @@ All provider base URLs are scheme-checked (http/https only) via
 Explicit operator-configured gateways are trusted for egress; only
 untrusted model-chosen URLs go through SSRF-aware ``safe_external_urlopen``.
 
-Gemini auth uses ``x-goog-api-key`` header (query-param form is NOT used
-so keys do not leak into URLs/logs). X.AI uses OpenAI-compatible
-``Authorization: Bearer``. Ollama and local require no key.
+Local providers do not require cloud credentials.
 """
 
 from __future__ import annotations
@@ -25,39 +23,22 @@ from __future__ import annotations
 import os
 import urllib.parse
 
-PROVIDER_CHOICES = ("anthropic", "gemini", "xai", "ollama", "local")
+PROVIDER_CHOICES = ("local", "llama_cpp")
 
 PROVIDER_DEFAULTS: dict[str, dict] = {
-    "anthropic": {
-        "base_url": "https://api.anthropic.com",
-        "path": "/v1/messages",
-        "env_keys": ("ANTHROPIC_API_KEY",),
-        "auth": "x-api-key",
-    },
-    "gemini": {
-        "base_url": "https://generativelanguage.googleapis.com",
-        "path": "/v1beta/models/{model}:generateContent",
-        "env_keys": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        "auth": "x-goog-api-key",
-    },
-    "xai": {
-        "base_url": "https://api.x.ai",
-        "path": "/v1/chat/completions",
-        "env_keys": ("XAI_API_KEY",),
-        "auth": "bearer",
-    },
-    "ollama": {
-        "base_url": "http://localhost:11434",
-        "path": "/api/chat",
-        "env_keys": (),
-        "auth": "none",
-    },
     "local": {
-        "base_url": "",
-        "path": "",
+        "base_url": "http://127.0.0.1:8080",
+        "path": "/v1/chat/completions",
         "env_keys": (),
         "auth": "none",
     },
+}
+PROVIDER_DEFAULTS["llama_cpp"] = PROVIDER_DEFAULTS["local"]
+
+MODEL_ALIASES = {
+    "zcoder-qwen2.5-coder-7b": "zcoder-qwen2.5-coder-7b",
+    "zcoder-qwen2.5-coder-1.5b": "zcoder-qwen2.5-coder-1.5b",
+    "local": "zcoder-qwen2.5-coder-7b",
 }
 
 
@@ -72,6 +53,8 @@ def _validate_base_url(url: str) -> None:
 def resolve_provider(cli_provider: str | None = None) -> str:
     if cli_provider and cli_provider.strip():
         p = cli_provider.strip().lower()
+        if p == "llama_cpp":
+            return "local"
         if p not in PROVIDER_CHOICES:
             raise ValueError(
                 f"Unknown provider '{cli_provider}' — expected one of {', '.join(PROVIDER_CHOICES)}"
@@ -79,6 +62,8 @@ def resolve_provider(cli_provider: str | None = None) -> str:
         return p
     env_provider = os.getenv("ZCODER_PROVIDER", "").strip().lower()
     if env_provider:
+        if env_provider == "llama_cpp":
+            return "local"
         if env_provider not in PROVIDER_CHOICES:
             raise ValueError(
                 f"Unknown ZCODER_PROVIDER '{env_provider}' — expected one of {', '.join(PROVIDER_CHOICES)}"
@@ -86,22 +71,11 @@ def resolve_provider(cli_provider: str | None = None) -> str:
         return env_provider
     if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in ("1", "true", "yes"):
         return "local"
-    return "anthropic"
+    return "local"
 
 
 def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
-    if cli_key and cli_key.strip():
-        return cli_key.strip()
-    spec = PROVIDER_DEFAULTS.get(provider, {})
-    for env_name in spec.get("env_keys", ()):
-        v = os.getenv(env_name, "").strip()
-        if v:
-            return v
-    # generic fallback for anthropic-compatible gateways
-    if provider == "anthropic":
-        v = os.getenv("ANTHROPIC_API_KEY", "").strip()
-        if v:
-            return v
+    del provider, cli_key
     return ""
 
 
@@ -114,11 +88,6 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
     if env_gateway:
         _validate_base_url(env_gateway)
         return env_gateway
-    if provider == "ollama":
-        ollama_env = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
-        if ollama_env:
-            _validate_base_url(ollama_env)
-            return ollama_env
     spec = PROVIDER_DEFAULTS.get(provider, {})
     return spec.get("base_url", "")
 
@@ -126,31 +95,27 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
 def endpoint_for(provider: str, base_url: str, model: str) -> str:
     spec = PROVIDER_DEFAULTS[provider]
     path_tmpl: str = spec["path"]
-    if provider == "gemini":
-        # Gemini interpolates the model into the path
-        path = path_tmpl.format(model=model)
-        return f"{base_url}{path}"
-    if provider in ("anthropic", "xai", "ollama"):
+    if provider == "local":
         return f"{base_url}{path_tmpl}"
-    # local has no endpoint
-    return ""
+    raise ValueError(f"Unsupported provider: {provider}")
+
+
+def resolve_model(model: str | None) -> str:
+    """Resolve a public zCoder model ID to the local server model alias."""
+    if model is None:
+        return MODEL_ALIASES["zcoder-qwen2.5-coder-7b"]
+    try:
+        return MODEL_ALIASES[model]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported local model '{model}'") from exc
 
 
 def headers_for(provider: str, api_key: str) -> dict:
-    spec = PROVIDER_DEFAULTS[provider]
-    auth = spec.get("auth", "none")
+    del api_key
+    if provider not in PROVIDER_DEFAULTS:
+        raise ValueError(f"Unsupported provider: {provider}")
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    if auth == "x-api-key":
-        if api_key:
-            headers["x-api-key"] = api_key
-        headers["anthropic-version"] = "2023-06-01"
-    elif auth == "x-goog-api-key":
-        if api_key:
-            headers["x-goog-api-key"] = api_key
-    elif auth == "bearer":
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-    # ollama/local: no auth header
+    # Local providers do not attach credentials.
     return headers
 
 
@@ -162,95 +127,21 @@ def build_payload(
     max_tokens: int,
     sampling: dict,
 ) -> dict:
-    if provider == "anthropic":
-        payload: dict = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": messages,
-        }
-        if system:
-            payload["system"] = system
-        payload.update(sampling)
-        return payload
-    if provider == "xai":
-        xai_messages: list[dict] = []
-        if system:
-            xai_messages.append({"role": "system", "content": system})
-        xai_messages.extend(messages)
-        payload = {
-            "model": model,
-            "messages": xai_messages,
-            "max_tokens": max_tokens,
-        }
-        if sampling:
-            payload.update(sampling)
-        return payload
-    if provider == "gemini":
-        # Gemini uses "contents" with "parts"
-        contents: list[dict] = []
-        for m in messages:
-            role = m.get("role", "user")
-            # Gemini uses "user" and "model" roles
-            if role == "assistant":
-                role = "model"
-            text = m.get("content", "")
-            contents.append({"role": role, "parts": [{"text": text}]})
-        payload = {
-            "contents": contents,
-            "generationConfig": {"maxOutputTokens": max_tokens},
-        }
-        if system:
-            payload["systemInstruction"] = {"parts": [{"text": system}]}
-        if sampling.get("temperature") is not None:
-            payload["generationConfig"]["temperature"] = sampling["temperature"]
-        if sampling.get("top_p") is not None:
-            payload["generationConfig"]["topP"] = sampling["top_p"]
-        if sampling.get("top_k") is not None:
-            payload["generationConfig"]["topK"] = sampling["top_k"]
-        return payload
-    if provider == "ollama":
-        ollama_messages: list[dict] = []
-        if system:
-            ollama_messages.append({"role": "system", "content": system})
-        ollama_messages.extend(messages)
-        payload = {
-            "model": model,
-            "messages": ollama_messages,
-            "stream": False,
-            "options": {"num_predict": max_tokens},
-        }
-        if sampling.get("temperature") is not None:
-            payload["options"]["temperature"] = sampling["temperature"]
-        if sampling.get("top_p") is not None:
-            payload["options"]["top_p"] = sampling["top_p"]
-        return payload
-    # local
-    return {}
+    if provider != "local":
+        raise ValueError(f"Unsupported provider: {provider}")
+    local_messages: list[dict] = []
+    if system:
+        local_messages.append({"role": "system", "content": system})
+    local_messages.extend(messages)
+    payload = {"model": model, "messages": local_messages, "max_tokens": max_tokens, "stream": False}
+    payload.update(sampling)
+    return payload
 
 
 def parse_response(provider: str, data: dict) -> str:
-    if provider == "anthropic":
-        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    if provider == "xai":
+    if provider == "local":
         choices = data.get("choices", [])
         if choices:
-            msg = choices[0].get("message", {})
-            return msg.get("content", "") or ""
+            return choices[0].get("message", {}).get("content", "") or ""
         return ""
-    if provider == "gemini":
-        candidates = data.get("candidates", [])
-        if candidates:
-            content = candidates[0].get("content", {})
-            parts = content.get("parts", [])
-            return "".join(p.get("text", "") for p in parts)
-        return ""
-    if provider == "ollama":
-        # Ollama chat: {"message": {"role": "assistant", "content": "..."}}
-        msg = data.get("message", {})
-        if isinstance(msg, dict) and "content" in msg:
-            return msg.get("content", "") or ""
-        # streaming-aggregated fallback
-        return data.get("response", "") or ""
-    if provider == "local":
-        return data.get("text", "") or "[local mode] No upstream call — local stub response."
-    return ""
+    raise ValueError(f"Unsupported provider: {provider}")

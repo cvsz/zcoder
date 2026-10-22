@@ -1,5 +1,5 @@
 # UPGRADE-05 — Production Release Hardening, Full Test Recovery,
-# Anthropic Drift Guard & Reproducible Release
+# PROVIDER_CREDENTIAL_OR_CONFIG Drift Guard & Reproducible Release
 
 You are working directly inside the current ZCoder repository after
 Upgrade-04 / v1.40.0 Truth Audit.
@@ -7,7 +7,7 @@ Upgrade-04 / v1.40.0 Truth Audit.
 MISSION
 
 Turn the truth-audited repository into a reproducible, production-grade
-release that cannot pass while tests are ignored, Anthropic source data
+release that cannot pass while tests are ignored, PROVIDER_CREDENTIAL_OR_CONFIG source data
 is stale, version metadata is inconsistent, packaging is broken, or
 critical CLI/API wiring is untested.
 
@@ -18,14 +18,14 @@ Priority order:
 P0 — Full test-suite recovery
 P0 — Release/version integrity
 P0 — Packaging/build/install verification
-P0 — Anthropic conformance automation
+P0 — PROVIDER_CREDENTIAL_OR_CONFIG conformance automation
 P1 — CI matrix + release gates
 P1 — runtime/transport contract testing
 P1 — model/capability drift detection
 P1 — CLI/web/TUI integration verification
 P2 — observability, performance, DX hardening
 
-Use first-party Anthropic sources only for Anthropic facts.
+Use first-party PROVIDER_CREDENTIAL_OR_CONFIG sources only for PROVIDER_CREDENTIAL_OR_CONFIG facts.
 
 ============================================================
 1. BASELINE — DO NOT MODIFY CODE YET
@@ -57,7 +57,7 @@ Dockerfile*
 Makefile
 README.md
 CHANGELOG.md
-anthropic-conformance.yaml
+PROVIDER_CREDENTIAL_OR_CONFIG-conformance.yaml
 
 Determine whether v1.40.0 already exists as:
 
@@ -285,24 +285,24 @@ Prevent accidental packaging of:
 - test secrets
 
 ============================================================
-7. ANTHROPIC SOURCE-OF-TRUTH FETCHER
+7. PROVIDER_CREDENTIAL_OR_CONFIG SOURCE-OF-TRUTH FETCHER
 ============================================================
 
 Upgrade-04 created:
 
-anthropic-conformance.yaml
+PROVIDER_CREDENTIAL_OR_CONFIG-conformance.yaml
 
 Now make the conformance system operational.
 
 Create a dedicated module such as:
 
-anthropic_conformance.py
+PROVIDER_CREDENTIAL_OR_CONFIG.py
 
 or an appropriate package location.
 
 It must support:
 
-zcoder anthropic conformance check
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG conformance check
 
 or an equivalent coherent command.
 
@@ -340,14 +340,14 @@ models_checked_at
 pricing_checked_at
 deprecations_checked_at
 sdk_checked_at
-claude_code_checked_at
+provider-specific identifier
 
 Do not use a single global date.
 
 Example:
 
 source:
-  name: anthropic_pricing
+  name: PROVIDER_CREDENTIAL_OR_CONFIG
   url: ...
   checked_at: ...
   content_fingerprint: ...
@@ -359,7 +359,7 @@ Do not claim a page was "updated" merely because it was fetched today.
 9. RELEASE-NOTE WATERMARK
 ============================================================
 
-Persist the newest Anthropic Platform release-note DATE and feature IDs
+Persist the newest PROVIDER_CREDENTIAL_OR_CONFIG Platform release-note DATE and feature IDs
 seen during a successful audit.
 
 At release time:
@@ -388,10 +388,10 @@ DOCUMENTATION_ONLY
 MISSING or PARTIAL P0/P1 items fail the gate.
 
 ============================================================
-10. ANTHROPIC MODELS API LIVE VALIDATION
+10. PROVIDER_CREDENTIAL_OR_CONFIG MODELS API LIVE VALIDATION
 ============================================================
 
-Anthropic documentation states that the Models API exposes current model
+PROVIDER_CREDENTIAL_OR_CONFIG documentation states that the Models API exposes current model
 metadata including capabilities and token limits.
 
 Implement an OPTIONAL live conformance test using the authenticated
@@ -401,7 +401,7 @@ It must NEVER be required for offline unit tests.
 
 Example:
 
-zcoder anthropic conformance models --live
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG conformance models --live
 
 Compare upstream results against the static/local registry.
 
@@ -430,7 +430,7 @@ from:
 
 DISCOVERED_RUNTIME_METADATA
 
-Static policy includes things Anthropic's Models API may not expose,
+Static policy includes things PROVIDER_CREDENTIAL_OR_CONFIG's Models API may not expose,
 such as:
 
 - application-specific routing policy
@@ -438,7 +438,7 @@ such as:
 - feature beta requirements
 - known migration constraints
 
-Live metadata includes only fields actually returned by Anthropic.
+Live metadata includes only fields actually returned by PROVIDER_CREDENTIAL_OR_CONFIG.
 
 Never invent absent fields.
 
@@ -446,7 +446,7 @@ Never invent absent fields.
 12. PRICING DRIFT GUARD
 ============================================================
 
-Upgrade-04 corrected Claude Sonnet 5 to:
+Upgrade-04 corrected provider Sonnet 5 to:
 
 $2 / MTok input
 $10 / MTok output
@@ -519,7 +519,7 @@ where applicable.
 14. STREAMING METADATA
 ============================================================
 
-Anthropic returns some usage metadata only in final streaming events.
+PROVIDER_CREDENTIAL_OR_CONFIG returns some usage metadata only in final streaming events.
 
 Verify ZCoder does not finalize metrics before the final message delta.
 
@@ -584,7 +584,7 @@ token_multiplier
 estimated_tokens
 
 Production decisions that require exact model token count should use the
-Anthropic token counting API or actual response usage.
+PROVIDER_CREDENTIAL_OR_CONFIG token counting API or actual response usage.
 
 Estimated mode may exist only with explicit metadata:
 
@@ -607,7 +607,7 @@ Do not make local capability logic dependent on internet availability.
 
 Command:
 
-zcoder anthropic models diff
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG models diff
 
 Example output:
 
@@ -621,7 +621,7 @@ POLICY_OVERRIDE
 18. BETA HEADER REGISTRY
 ============================================================
 
-Create one canonical registry for Anthropic beta headers.
+Create one canonical registry for PROVIDER_CREDENTIAL_OR_CONFIG beta headers.
 
 For each:
 
@@ -638,7 +638,7 @@ last_verified
 
 Search the repository for raw strings:
 
-anthropic-beta
+PROVIDER_CREDENTIAL_OR_CONFIG-beta
 *-2025-*
 *-2026-*
 
@@ -697,20 +697,20 @@ This protects against self-confirming tests.
 21. ERROR TAXONOMY
 ============================================================
 
-Normalize Anthropic failures.
+Normalize PROVIDER_CREDENTIAL_OR_CONFIG failures.
 
 Design stable application exceptions such as:
 
-AnthropicAuthenticationError
-AnthropicPermissionError
-AnthropicRateLimitError
-AnthropicOverloadedError
-AnthropicBadRequestError
-AnthropicModelUnavailableError
-AnthropicBudgetReached
-AnthropicRefusal
-AnthropicTimeoutError
-AnthropicTransportError
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
+PROVIDER_CREDENTIAL_OR_CONFIG
 
 Do not erase the original request ID/error details.
 
@@ -751,7 +751,7 @@ Add deterministic tests with mocked time/randomness.
 23. TIMEOUT POLICY
 ============================================================
 
-No Anthropic network call may have an accidental infinite timeout.
+No PROVIDER_CREDENTIAL_OR_CONFIG network call may have an accidental infinite timeout.
 
 Define explicit:
 
@@ -767,7 +767,7 @@ rather than an enormous synchronous HTTP timeout.
 24. SDK VERSION VERIFICATION
 ============================================================
 
-Determine the current stable Anthropic Python SDK version from official
+Determine the current stable PROVIDER_CREDENTIAL_OR_CONFIG Python SDK version from official
 package/docs sources at execution time.
 
 Record:
@@ -783,7 +783,7 @@ Detect deprecated SDK usage.
 
 Add command:
 
-zcoder doctor anthropic
+zcoder doctor PROVIDER_CREDENTIAL_OR_CONFIG
 
 Output:
 
@@ -808,12 +808,12 @@ Do not break existing flags.
 
 Introduce coherent subcommands where beneficial:
 
-zcoder anthropic models ...
-zcoder anthropic compliance ...
-zcoder anthropic agents ...
-zcoder anthropic conformance ...
-zcoder anthropic pricing ...
-zcoder doctor anthropic
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG models ...
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG compliance ...
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG agents ...
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG conformance ...
+zcoder PROVIDER_CREDENTIAL_OR_CONFIG pricing ...
+zcoder doctor PROVIDER_CREDENTIAL_OR_CONFIG
 
 Existing flags become compatibility aliases where necessary.
 
@@ -823,7 +823,7 @@ Generate CLI wiring tests automatically where practical.
 26. CLI FLAG REACHABILITY
 ============================================================
 
-For every Anthropic CLI option verify:
+For every PROVIDER_CREDENTIAL_OR_CONFIG CLI option verify:
 
 parser
  -> validation
@@ -850,7 +850,7 @@ startup
 shutdown
 health endpoint
 API route registration
-Anthropic request adapter
+PROVIDER_CREDENTIAL_OR_CONFIG request adapter
 streaming/SSE if present
 invalid request handling
 auth boundary
@@ -1009,7 +1009,7 @@ Do not falsely claim reproducibility.
 
 Audit repository and release artifacts for:
 
-ANTHROPIC_API_KEY
+PROVIDER_CREDENTIAL_OR_CONFIG
 Authorization headers
 Compliance Access Keys
 Admin keys
@@ -1176,12 +1176,12 @@ tui-tests
 package-build
 wheel-install-smoke
 security
-anthropic-conformance-static
+PROVIDER_CREDENTIAL_OR_CONFIG-conformance-static
 release-gate
 
-Do not require Anthropic API credentials for pull-request CI.
+Do not require PROVIDER_CREDENTIAL_OR_CONFIG API credentials for pull-request CI.
 
-Live Anthropic checks should be:
+Live PROVIDER_CREDENTIAL_OR_CONFIG checks should be:
 
 manual
 scheduled
@@ -1190,7 +1190,7 @@ or protected environment
 and read-only where possible.
 
 ============================================================
-43. SCHEDULED ANTHROPIC DRIFT CHECK
+43. SCHEDULED PROVIDER_CREDENTIAL_OR_CONFIG DRIFT CHECK
 ============================================================
 
 Create a scheduled CI workflow that can detect upstream drift.
@@ -1237,7 +1237,7 @@ Never treat inability to verify as verification success.
 
 Create an explicitly marked suite:
 
-pytest -m anthropic_live
+pytest -m PROVIDER_CREDENTIAL_OR_CONFIG
 
 Requirements:
 
@@ -1267,7 +1267,7 @@ Add:
 
 docs/UPGRADE-05.md
 docs/RELEASE-PROCESS.md
-docs/ANTHROPIC-CONFORMANCE.md
+docs/PROVIDER_CREDENTIAL_OR_CONFIG-CONFORMANCE.md
 docs/TESTING.md
 
 Document exactly:
@@ -1358,7 +1358,7 @@ Upgrade-05 is complete only if:
 [ ] wheel installs in a clean environment
 [ ] CLI runs from installed artifact
 [ ] package metadata is consistent
-[ ] Anthropic conformance manifest validates
+[ ] PROVIDER_CREDENTIAL_OR_CONFIG conformance manifest validates
 [ ] release-note watermark exists
 [ ] model drift can be detected
 [ ] pricing drift can be surfaced
@@ -1392,7 +1392,7 @@ v1.40.0 vs v1.40.1 vs v1.41.0 and why.
 ## 5. Packaging Verification
 Wheel/sdist/install results.
 
-## 6. Anthropic Conformance Automation
+## 6. PROVIDER_CREDENTIAL_OR_CONFIG Conformance Automation
 Architecture and commands.
 
 ## 7. Drift Detection

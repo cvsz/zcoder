@@ -488,7 +488,7 @@ telemetry
 auth
 secrets
 GitHub App
-Anthropic config
+PROVIDER_CREDENTIAL_OR_CONFIG config
 
 Validate:
 
@@ -510,7 +510,7 @@ database reachable
 migrations compatible
 required configuration valid
 
-Do not make GitHub/Anthropic transient outages necessarily fail
+Do not make GitHub/PROVIDER_CREDENTIAL_OR_CONFIG transient outages necessarily fail
 readiness unless architecture requires them for all requests.
 
 ============================================================
@@ -679,7 +679,7 @@ Ingress -> API
 API -> PostgreSQL
 workers -> PostgreSQL
 API/workers -> GitHub
-workers -> Anthropic
+workers -> PROVIDER_CREDENTIAL_OR_CONFIG
 telemetry -> Collector
 
 Default deny where cluster/network implementation supports it.
@@ -695,7 +695,7 @@ Worker egress is security-sensitive.
 Represent:
 
 GitHub API
-Anthropic API
+PROVIDER_CREDENTIAL_OR_CONFIG API
 approved MCP targets
 package registries if explicitly required
 
@@ -815,7 +815,7 @@ Document behavior for rotating:
 GitHub App private key
 webhook secret
 database credentials
-Anthropic credentials
+PROVIDER_CREDENTIAL_OR_CONFIG credentials
 
 Prefer reload/restart semantics that avoid downtime where practical.
 
@@ -945,7 +945,7 @@ scheduler
 workers
 database
 GitHub calls
-Anthropic calls
+PROVIDER_CREDENTIAL_OR_CONFIG calls
 job execution
 outbox
 reconciler
@@ -1025,7 +1025,7 @@ zcoder_outbox_pending
 zcoder_outbox_failures_total
 zcoder_webhooks_total
 zcoder_github_api_errors_total
-zcoder_anthropic_errors_total
+zcoder_PROVIDER_CREDENTIAL_OR_CONFIG
 zcoder_db_pool_in_use
 zcoder_approvals_pending
 
@@ -1087,7 +1087,7 @@ WebhookFailureRateHigh
 DatabaseUnavailable
 LeaseExpirySpike
 GitHubRateLimitCritical
-AnthropicFailureRateHigh
+PROVIDER_CREDENTIAL_OR_CONFIG
 BackupMissing
 RestoreDrillStale
 
@@ -1120,7 +1120,7 @@ Jobs
 Workers
 PostgreSQL
 GitHub
-Anthropic
+PROVIDER_CREDENTIAL_OR_CONFIG
 Outbox/webhooks
 Cost
 
@@ -1324,7 +1324,7 @@ database lost
 control plane lost
 all workers lost
 GitHub App key compromised
-Anthropic credential compromised
+PROVIDER_CREDENTIAL_OR_CONFIG credential compromised
 webhook secret compromised
 bad deployment
 schema migration failure
@@ -1412,10 +1412,10 @@ no duplicate PR/merge
 visibility to operator
 
 ============================================================
-76. DRILL — ANTHROPIC OUTAGE
+76. DRILL — PROVIDER_CREDENTIAL_OR_CONFIG OUTAGE
 ============================
 
-Simulate Anthropic transient failure.
+Simulate PROVIDER_CREDENTIAL_OR_CONFIG transient failure.
 
 Expected:
 
@@ -1697,7 +1697,7 @@ DB connections
 job scheduling overhead
 webhook ingestion
 
-Do not spend Anthropic tokens for load testing.
+Do not spend PROVIDER_CREDENTIAL_OR_CONFIG tokens for load testing.
 
 Use FakeRuntime.
 
@@ -1773,7 +1773,7 @@ workers
 PostgreSQL
 observability retention
 egress
-Anthropic usage
+PROVIDER_CREDENTIAL_OR_CONFIG usage
 
 Do not invent a universal monthly cost without deployment assumptions.
 
@@ -1788,7 +1788,7 @@ Validate:
 database
 auth
 GitHub App
-Anthropic
+PROVIDER_CREDENTIAL_OR_CONFIG
 worker
 telemetry
 backup
@@ -1835,7 +1835,7 @@ Check:
 database
 migration
 GitHub App
-Anthropic
+PROVIDER_CREDENTIAL_OR_CONFIG
 workers
 telemetry
 backup freshness
@@ -1940,7 +1940,7 @@ docs/runbooks/DB-DOWN.md
 docs/runbooks/QUEUE-BACKLOG.md
 docs/runbooks/WORKER-LOSS.md
 docs/runbooks/GITHUB-OUTAGE.md
-docs/runbooks/ANTHROPIC-OUTAGE.md
+docs/runbooks/PROVIDER_CREDENTIAL_OR_CONFIG-OUTAGE.md
 docs/runbooks/OUTBOX-STUCK.md
 docs/runbooks/BACKUP-RESTORE.md
 
@@ -2404,7 +2404,7 @@ Worker loss
 API loss
 DB loss
 GitHub outage
-Anthropic outage
+PROVIDER_CREDENTIAL_OR_CONFIG outage
 
 ## 18. Rolling Upgrade
 

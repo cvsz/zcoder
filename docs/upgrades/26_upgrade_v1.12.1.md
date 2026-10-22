@@ -3,7 +3,7 @@
 Prompted by a direct audit request against v1.12.0 "Release": find what's
 incomplete, broken, or missing, fix it, and add bulk-upgrade logic for
 Fable 5 and Opus. v1.12.0 itself was packaging-only (see CHANGELOG), so
-this is the first pass to touch `main.py`/`coder.py`/`claude_models.py`
+this is the first pass to touch `main.py`/`coder.py`/`provider-specific module`
 since v1.11.1.
 
 ## Bugs found and fixed
@@ -11,14 +11,14 @@ since v1.11.1.
 1. **`coder.py`'s `Coder.generate()` — fragile response parsing.**
    `data["content"][0]["text"]` assumed the first content block was always
    plain text. Every thinking-capable model (Sonnet 5, Opus 4.8, and
-   especially Fable 5/Mythos 5, which — per `claude_fable5.py` — have
+   especially Fable 5/Mythos 5, which — per `provider-specific module` — have
    thinking on by default) can return a `thinking` block first, which has
    no `"text"` key and would silently return an empty string via
    `.get()`, or previously (with plain indexing) risk a `KeyError`
    depending on response shape. Multi-text-block responses also silently
    dropped every block after the first. Fixed to concatenate all
    `type == "text"` blocks, matching the pattern already used correctly in
-   `claude_models.py` / `claude_fable5.py` / `claude_mythos5.py`. Also
+   `provider-specific module` / `provider-specific module` / `provider-specific module`. Also
    added a clearer `[REFUSED]` message instead of returning an empty
    string when `stop_reason == "refusal"` yields no text content.
 
@@ -59,17 +59,17 @@ since v1.11.1.
 `--check-deprecated` (existing, unchanged) only *flags* retired model IDs
 and never touches the filesystem — it has no concept of "upgrade
 everything to the best available model" and wouldn't touch a perfectly
-callable-but-superseded `claude-sonnet-4-6` or a plain
-`claude-haiku-4-5-20251001` reference, since neither is retired.
+callable-but-superseded `provider model ID` or a plain
+`provider model ID` reference, since neither is retired.
 
-New in `claude_models.py`, wired into `main.py`'s existing Models API
+New in `provider-specific module`, wired into `main.py`'s existing Models API
 group:
 
 ```
---upgrade-all PATH             Rewrite every known Claude model ID under PATH
+--upgrade-all PATH             Rewrite every known provider model ID under PATH
                                 to --upgrade-target. Dry-run by default.
---upgrade-target {fable5,opus} fable5 -> claude-fable-5 (default)
-                                opus   -> claude-opus-4-8
+--upgrade-target {fable5,opus} fable5 -> provider model ID (default)
+                                opus   -> provider model ID
 --upgrade-yes                  Actually write changes (default: preview only)
 --upgrade-no-backup            Skip the .bak backup normally written per changed file
 ```
@@ -78,13 +78,13 @@ Implementation notes:
 
 - Source ID set is every key in `RETIRED_MODELS` + every key in
   `MODEL_CATALOG` + a small `MODEL_ID_ALIASES` table (currently just
-  `claude-haiku-4-5` -> the dated ID, per `MODEL_CATALOG`'s own alias
+  `provider model ID` -> the dated ID, per `MODEL_CATALOG`'s own alias
   note) — minus the chosen target, so re-running against an
   already-upgraded tree is a correct no-op instead of matching its own
   output.
 - Matched longest-first with a manual `(?<![\w-])...(?![\w-])` boundary
   (not `\b`, which treats `-` as a boundary itself and would let a
-  substring like `claude-opus-4-5` match inside a longer, unrelated ID) so
+  substring like `provider model ID` match inside a longer, unrelated ID) so
   IDs are never partially rewritten.
 - Files are read with `errors="strict"`; anything that isn't valid UTF-8
   (binaries, e.g. a PyInstaller `dist/` output) is skipped rather than
@@ -92,7 +92,7 @@ Implementation notes:
 - `*.bak` files from a previous run are excluded from the walk, so
   running `--upgrade-all` twice in a row doesn't chase its own backups.
 - Dry-run is the default specifically because this writes to disk in
-  place (unlike every other `claude_*.py` command, which only calls the
+  place (unlike every other `provider_*.py` command, which only calls the
   API) — `--check-deprecated`'s read-only report-then-decide pattern
   is preserved as the default and application requires the explicit
   `--upgrade-yes`.
@@ -109,7 +109,7 @@ Implementation notes:
   separate feature decision (which one wins if a project template and
   `--agent` disagree?) rather than a bug fix. Flagging for a future pass
   if wanted.
-- The `docs/claude-api-gap-audit-v1.10.5.md` gap list (advisor tool
+- The `docs/provider model ID.10.5.md` gap list (advisor tool
   real implementation follow-through, task budgets, embeddings module
   usage, etc.) was re-read but not re-audited this pass — this pass's
   scope was "what's broken", not "what's still missing from the API

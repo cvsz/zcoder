@@ -8,7 +8,7 @@
 3. PostgreSQL HA (Row-Level Security & Fencing)
      ↓ [Lease Claim / SKIP LOCKED]
 4. Regional Worker (residency_models / policy_engine)
-     ├── Anthropic API [TLS 1.3 / Inference Geo]
+     ├── PROVIDER_CREDENTIAL_OR_CONFIG API [TLS 1.3 / Inference Geo]
      ├── GitHub API [OAuth / GitHub App Installation]
      └── Artifact Store [AES-256 GCM Encrypted Objects]
 ```

@@ -11,7 +11,7 @@ Advance one bounded `ROADMAP-NEXT.md` P2.1 architecture item by encoding circula
 - build an internal module dependency graph;
 - fail deterministically when that graph contains a cycle;
 - report one concrete cycle path in the assertion message;
-- repair the single discovered cycle between `zcoder.claude.capabilities.stream` and `zcoder.services.claude_messaging_adapter` by keeping `cmd_stream_tools()` on the generic bounded `run_messaging_turn_once()` service boundary instead of routing back through the Claude adapter that imports `StreamCoder`.
+- repair the single discovered cycle between `zcoder.provider.capabilities.stream` and `zcoder.services.provider-specific identifier` by keeping `cmd_stream_tools()` on the generic bounded `run_messaging_turn_once()` service boundary instead of routing back through the provider adapter that imports `StreamCoder`.
 
 ## Upgrade-20/24 boundedness
 

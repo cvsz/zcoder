@@ -97,7 +97,7 @@ docker-build:
 	docker build -t zcoder:latest .
 
 docker-run:
-	docker run --rm -e ANTHROPIC_API_KEY=$${ANTHROPIC_API_KEY} zcoder:latest
+	docker run --rm zcoder:latest
 
 clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
