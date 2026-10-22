@@ -230,6 +230,23 @@ def test_cli_route_uses_selected_provider_key_without_anthropic_key(monkeypatch)
     assert observed == {"prompt": "test", "key": "groq-test-key", "model": "model", "provider": "groq"}
 
 
+def test_cli_route_rejects_missing_anthropic_key(monkeypatch, capsys):
+    from zcoder.main import main
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ZCODER_LOCAL_MODE", raising=False)
+    monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
+    monkeypatch.setattr(sys, "argv", ["zcoder", "--route", "test", "--provider", "anthropic"])
+    monkeypatch.setattr(
+        "zcoder.agent.orchestration.router.cmd_route",
+        lambda *_args, **_kwargs: pytest.fail("router executed without an API key"),
+    )
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 1
+    assert "ANTHROPIC_API_KEY not set" in capsys.readouterr().err
+
+
 def test_cli_route_requires_model_for_nonanthropic_provider(monkeypatch, capsys):
     from zcoder.main import main
 

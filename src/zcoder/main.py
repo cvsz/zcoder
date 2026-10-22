@@ -3096,6 +3096,8 @@ def main():
             )
             sys.exit(2)
         key = resolve_api_key(selected_provider, args.api_key)
+        if selected_provider == "anthropic" and not key:
+            key = _api_key(args)
     else:
         key = _api_key(args)
     model = _model(args)
