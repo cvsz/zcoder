@@ -24,6 +24,7 @@ from zcoder.api.auth import (  # noqa: E402
     authenticate_request,
     parse_cors_origins,
 )
+from zcoder.api.local_control import router as local_control_router  # noqa: E402
 from zcoder.api.public.v1 import (  # noqa: E402
     JobQueueUnavailable,
     PublicAPIV1Router,
@@ -79,6 +80,7 @@ app.add_middleware(
 )
 
 router = PublicAPIV1Router(job_store=_LazyEnterpriseJobStore())
+app.include_router(local_control_router)
 
 
 @app.get("/health")

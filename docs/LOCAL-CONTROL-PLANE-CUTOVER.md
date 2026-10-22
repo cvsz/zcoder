@@ -14,6 +14,25 @@ needed for user/role metadata, task approval records or local audit inspection.
 - Durable pending tasks and independent approval/rejection
 - Append-only *application-level* SHA-256 audit chain with verification
 - Deny-by-default access to admin actions and audit export
+- Authenticated `/local/v1` API for principal roles, audit export, task approval,
+  status, and approved task execution through loopback `llama.cpp`
+- One-time task consumption and durable `RUNNING` / `COMPLETED` / `FAILED`
+  execution state
+
+### API configuration
+
+The API reuses the repository's verified OIDC bearer-token middleware. Configure
+`ZCODER_LOCAL_ORGANIZATION_ID` to bind the local SQLite database to one verified
+organization. On first startup only, `ZCODER_LOCAL_BOOTSTRAP_ADMIN_SUBJECT` may
+bootstrap the matching OIDC subject as the first administrator. Remove that
+bootstrap setting after the first successful initialization. The database path
+defaults to `~/.local/share/zcoder/local-control.sqlite3` and can be overridden
+with `ZCODER_LOCAL_CONTROL_DATABASE`.
+
+Routes are under `/local/v1`: `admin/principals`, `compliance/audit`, and
+`tasks`. Task execution requires a separate admin approval and calls the
+`llama.cpp` loopback provider; it does not run generated shell commands or
+tools. Model output is stored as task result evidence.
 
 ### Security limits
 

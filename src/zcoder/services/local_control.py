@@ -115,6 +115,30 @@ class LocalControlStore:
             self._require(db, actor, {"admin"})
             return db.execute("SELECT principal,role FROM principals ORDER BY principal").fetchall()
 
+    def get_task(self, actor: str, task_id: str) -> dict[str, str | None]:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT task_id,description,owner,state,reviewer,execution_state,result,error "
+                "FROM tasks WHERE task_id=?",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("task not found")
+            role = db.execute("SELECT role FROM principals WHERE principal=?", (actor,)).fetchone()
+            if row[2] != actor and (role is None or role[0] not in {"admin", "operator"}):
+                raise PermissionError("permission denied")
+            keys = (
+                "task_id",
+                "description",
+                "owner",
+                "state",
+                "reviewer",
+                "execution_state",
+                "result",
+                "error",
+            )
+            return dict(zip(keys, row))
+
     def create_task(self, actor: str, task_id: str, description: str) -> None:
         if not task_id.strip() or not description.strip():
             raise ValueError("task_id and description required")
