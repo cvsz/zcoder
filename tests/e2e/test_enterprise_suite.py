@@ -60,12 +60,29 @@ def test_tenants(ent_store):
 
     with ent_store._raw_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM tenant_jobs;")
-            cur.execute("DELETE FROM usage_ledger;")
-            cur.execute("DELETE FROM tenant_quotas;")
-            cur.execute("DELETE FROM enterprise_audit;")
-            cur.execute("DELETE FROM api_keys;")
-            cur.execute("DELETE FROM projects;")
+            cur.execute("SELECT id FROM organizations;")
+            orgs = [row[0] for row in cur.fetchall()]
+        conn.commit()
+
+    for org_id in orgs:
+        ctx_cleanup = RequestContext(principal_id="cleanup", organization_id=org_id)
+        try:
+            with ent_store.scoped_conn(ctx_cleanup) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM tenant_jobs;")
+                    cur.execute("DELETE FROM usage_ledger;")
+                    cur.execute("DELETE FROM tenant_quotas;")
+                    cur.execute("DELETE FROM enterprise_audit;")
+                    cur.execute("DELETE FROM api_keys;")
+                    cur.execute("DELETE FROM memberships;")
+                    cur.execute("DELETE FROM service_accounts;")
+                    cur.execute("DELETE FROM projects;")
+                conn.commit()
+        except Exception:
+            pass
+
+    with ent_store._raw_conn() as conn:
+        with conn.cursor() as cur:
             cur.execute("DELETE FROM organizations;")
         conn.commit()
 
