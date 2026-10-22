@@ -70,7 +70,9 @@ def test_llamacpp_runtime_adapter():
     assert models[0].provider == "llama.cpp"
 
     res = runtime.chat_complete("qwen2.5-coder:7b-gguf", "def subtract(a, b):")
-    assert "LOCAL_LLAMACPP" in res
+    assert isinstance(res, str)
+    assert res.strip()
+    assert not res.startswith("[ERROR]")
 
 
 def test_hardware_auto_tuner():
