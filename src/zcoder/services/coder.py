@@ -38,8 +38,12 @@ class Coder:
         fast_mode=False,
     ):
         self.config = Config()
-        self.api_key = api_key or ("" if (provider or os.getenv("ZCODER_PROVIDER", "llama_cpp")) == "llama_cpp" else self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", ""))
-        self.model = model or self.config.get("model") or "claude-sonnet-5"
+        self.api_key = (
+            ""
+            if (provider or os.getenv("ZCODER_PROVIDER", "llama_cpp")) == "llama_cpp"
+            else api_key or self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
+        )
+        self.model = model or ("local" if (provider or os.getenv("ZCODER_PROVIDER", "llama_cpp")) == "llama_cpp" else self.config.get("model") or "claude-sonnet-5")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.provider = provider or os.getenv("ZCODER_PROVIDER", "llama_cpp")
@@ -91,7 +95,7 @@ class Coder:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as response:
+            with safe_urlopen(req, timeout=120) as response:
                 data = json.loads(response.read(8 * 1024 * 1024 + 1))
             content = data["choices"][0]["message"]["content"]
             if not isinstance(content, str):
