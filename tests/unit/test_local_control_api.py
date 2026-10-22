@@ -3,6 +3,9 @@
 from types import SimpleNamespace
 
 import pytest
+
+pytest.importorskip("fastapi")
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

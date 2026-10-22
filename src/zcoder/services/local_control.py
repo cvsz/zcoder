@@ -137,7 +137,7 @@ class LocalControlStore:
                 "result",
                 "error",
             )
-            return dict(zip(keys, row))
+            return dict(zip(keys, row, strict=False))
 
     def create_task(self, actor: str, task_id: str, description: str) -> None:
         if not task_id.strip() or not description.strip():
