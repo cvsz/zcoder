@@ -31,6 +31,7 @@ class Coder:
         temperature=0.3,
         max_tokens=4096,
         provider=None,
+        base_url=None,
         personality_style=None,
         service_tier=None,
         inference_geo=None,
@@ -41,7 +42,8 @@ class Coder:
         self.model = model or self.config.get("model") or "claude-sonnet-5"
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.provider = provider or "anthropic"
+        self.provider = provider or os.getenv("ZCODER_PROVIDER", "llama_cpp")
+        self.base_url = base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080")
         self.personality_style = personality_style
         # service_tier: "auto" (use Priority Tier if committed, else fall
         # back to standard) or "standard_only". Not sent unless set — most
@@ -58,8 +60,53 @@ class Coder:
         # billed at a premium rate. See claude_models.py FAST_MODE_SUPPORTED.
         self.fast_mode = fast_mode
 
+    def _generate_local(self, prompt, system=None, file_content=None, history=None):
+        """Call a locally hosted llama.cpp OpenAI-compatible chat endpoint."""
+        from urllib.parse import urlsplit
+
+        url = self.base_url.rstrip("/")
+        parts = urlsplit(url)
+        if parts.scheme != "http" or parts.hostname not in ("127.0.0.1", "localhost", "::1"):
+            return "[ERROR] llama_cpp endpoint must use HTTP loopback; no external gateway is allowed."
+        if parts.username or parts.password or parts.path not in ("", "/") or parts.query or parts.fragment:
+            return "[ERROR] Invalid llama_cpp base URL."
+        messages = list(history or [])
+        if system:
+            messages.insert(0, {"role": "system", "content": system})
+        user_content = prompt
+        if file_content:
+            user_content = f"File content:\n```\n{file_content}\n```\n\n{prompt}"
+        messages.append({"role": "user", "content": user_content})
+        payload = {
+            "model": self.model if self.model and not self.model.startswith("claude-") else "local",
+            "messages": messages,
+            "max_tokens": self.max_tokens,
+            "stream": False,
+            "temperature": self.temperature,
+        }
+        req = urllib.request.Request(
+            url + "/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as response:
+                data = json.loads(response.read(8 * 1024 * 1024 + 1))
+            content = data["choices"][0]["message"]["content"]
+            if not isinstance(content, str):
+                raise ValueError("invalid model response")
+            return content
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
+            logger.error("local_inference_failed", extra={"error_type": type(exc).__name__})
+            return f"[ERROR] Local llama.cpp inference failed: {type(exc).__name__}. Check loopback server and model."
+
     def generate(self, prompt, system=None, file_content=None, history=None):
         """Generate a response from the AI model."""
+        if self.provider == "llama_cpp":
+            return self._generate_local(prompt, system=system, file_content=file_content, history=history)
+        if self.provider == "anthropic":
+            return "[ERROR] Anthropic calls are disabled for Coder; use --provider llama_cpp."
         if not self.api_key:
             logger.error("missing_api_key")
             return "[ERROR] No API key configured. Set ANTHROPIC_API_KEY or run --setup."
