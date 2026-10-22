@@ -3,6 +3,7 @@
 No Anthropic SDK, network requests, or model inference. SQLite is suitable
 for a single trusted host; external access requires a separate authenticated API.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -25,8 +26,7 @@ class LocalControlStore:
     def __init__(self, database: str | Path):
         self.database = str(database)
         with self._connect() as db:
-            db.executescript(
-                """
+            db.executescript("""
                 CREATE TABLE IF NOT EXISTS principals (
                     principal TEXT PRIMARY KEY,
                     role TEXT NOT NULL CHECK (role IN ('admin','operator','auditor'))
@@ -36,7 +36,12 @@ class LocalControlStore:
                     description TEXT NOT NULL,
                     owner TEXT NOT NULL,
                     state TEXT NOT NULL CHECK (state IN ('PENDING','APPROVED','REJECTED')),
-                    reviewer TEXT
+                    reviewer TEXT,
+                    execution_state TEXT NOT NULL DEFAULT 'READY'
+                        CHECK (execution_state IN ('READY','RUNNING','COMPLETED','FAILED')),
+                    consumed_at TEXT,
+                    result TEXT,
+                    error TEXT
                 );
                 CREATE TABLE IF NOT EXISTS audit (
                     seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,8 +52,17 @@ class LocalControlStore:
                     previous_hash TEXT NOT NULL,
                     entry_hash TEXT NOT NULL
                 );
-                """
-            )
+                """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(tasks)")}
+            migrations = {
+                "execution_state": "ALTER TABLE tasks ADD COLUMN execution_state TEXT NOT NULL DEFAULT 'READY'",
+                "consumed_at": "ALTER TABLE tasks ADD COLUMN consumed_at TEXT",
+                "result": "ALTER TABLE tasks ADD COLUMN result TEXT",
+                "error": "ALTER TABLE tasks ADD COLUMN error TEXT",
+            }
+            for name, statement in migrations.items():
+                if name not in columns:
+                    db.execute(statement)
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database, timeout=10)
@@ -96,6 +110,11 @@ class LocalControlStore:
             )
             self._audit(db, actor, "admin.grant_role", f"{principal}:{role}")
 
+    def list_principals(self, actor: str) -> list[tuple[str, str]]:
+        with self._connect() as db:
+            self._require(db, actor, {"admin"})
+            return db.execute("SELECT principal,role FROM principals ORDER BY principal").fetchall()
+
     def create_task(self, actor: str, task_id: str, description: str) -> None:
         if not task_id.strip() or not description.strip():
             raise ValueError("task_id and description required")
@@ -103,7 +122,8 @@ class LocalControlStore:
             db.execute("BEGIN IMMEDIATE")
             self._require(db, actor, {"admin", "operator"})
             db.execute(
-                "INSERT INTO tasks VALUES (?,?,?,'PENDING',NULL)",
+                "INSERT INTO tasks(task_id,description,owner,state,reviewer) "
+                "VALUES (?,?,?,'PENDING',NULL)",
                 (task_id, description, actor),
             )
             self._audit(db, actor, "task.create", task_id)
@@ -138,3 +158,56 @@ class LocalControlStore:
                 return False
             prev = digest
         return True
+
+    def consume_approved_task(self, actor: str, task_id: str) -> str:
+        """Claim one approved task exactly once for a local model worker."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._require(db, actor, {"admin", "operator"})
+            row = db.execute(
+                "SELECT description,state,execution_state FROM tasks WHERE task_id=?",
+                (task_id,),
+            ).fetchone()
+            if row is None or row[1] != "APPROVED" or row[2] != "READY":
+                raise ValueError("task is missing, unapproved, or already consumed")
+            db.execute(
+                "UPDATE tasks SET execution_state='RUNNING',consumed_at=? "
+                "WHERE task_id=? AND execution_state='READY'",
+                (utc_now(), task_id),
+            )
+            self._audit(db, actor, "task.consume", task_id)
+            return row[0]
+
+    def complete_task(self, actor: str, task_id: str, *, result: str = "", error: str = "") -> None:
+        """Persist the terminal outcome of a previously consumed task."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._require(db, actor, {"admin", "operator"})
+            row = db.execute("SELECT execution_state FROM tasks WHERE task_id=?", (task_id,)).fetchone()
+            if row is None or row[0] != "RUNNING":
+                raise ValueError("task is not running")
+            state = "FAILED" if error else "COMPLETED"
+            db.execute(
+                "UPDATE tasks SET execution_state=?,result=?,error=? WHERE task_id=?",
+                (state, result, error, task_id),
+            )
+            self._audit(db, actor, "task." + state.lower(), task_id)
+
+
+class LocalAgentRunner:
+    """Run approved prompts once through the loopback llama.cpp provider."""
+
+    def __init__(self, store: LocalControlStore, *, model: str | None = None):
+        self.store = store
+        self.model = model
+
+    def run(self, actor: str, task_id: str) -> str:
+        description = self.store.consume_approved_task(actor, task_id)
+        from zcoder.services.coder import Coder
+
+        response = Coder(provider="llama_cpp", model=self.model).generate(description)
+        if response.startswith("[ERROR]"):
+            self.store.complete_task(actor, task_id, error=response)
+            raise RuntimeError(response)
+        self.store.complete_task(actor, task_id, result=response)
+        return response

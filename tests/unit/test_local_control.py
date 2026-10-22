@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from zcoder.services.local_control import LocalControlStore
+from zcoder.services.local_control import LocalAgentRunner, LocalControlStore
 
 
 def test_bootstrap_roles_and_independent_approval(tmp_path):
@@ -51,3 +51,35 @@ def test_fail_closed_roles(tmp_path):
         store.grant_role("admin", "other", "root")
     with pytest.raises(PermissionError):
         store.create_task("unknown", "job", "Task")
+
+
+def test_agent_runner_consumes_only_approved_task_once(tmp_path, monkeypatch):
+    store = LocalControlStore(tmp_path / "control.sqlite")
+    store.bootstrap_admin("admin")
+    store.grant_role("admin", "worker", "operator")
+    store.create_task("worker", "job-3", "Review the local patch")
+
+    class FakeCoder:
+        def __init__(self, **kwargs):
+            assert kwargs["provider"] == "llama_cpp"
+
+        def generate(self, prompt):
+            assert prompt == "Review the local patch"
+            return "review complete"
+
+    monkeypatch.setattr("zcoder.services.coder.Coder", FakeCoder)
+    runner = LocalAgentRunner(store)
+    with pytest.raises(ValueError, match="unapproved"):
+        runner.run("worker", "job-3")
+
+    store.decide_task("admin", "job-3", True)
+    assert runner.run("worker", "job-3") == "review complete"
+    with pytest.raises(ValueError, match="already consumed"):
+        runner.run("worker", "job-3")
+
+    with store._connect() as db:
+        state, result = db.execute(
+            "SELECT execution_state,result FROM tasks WHERE task_id='job-3'"
+        ).fetchone()
+    assert state == "COMPLETED"
+    assert result == "review complete"
