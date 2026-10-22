@@ -89,7 +89,17 @@ def build_parser():
         "--provider",
         default=None,
         dest="provider",
-        choices=["anthropic", "gemini", "xai", "ollama", "local"],
+        choices=[
+            "anthropic",
+            "gemini",
+            "xai",
+            "groq",
+            "openrouter",
+            "cerebras",
+            "openai_compatible",
+            "ollama",
+            "local",
+        ],
         help="Model gateway provider (default: anthropic; env ZCODER_PROVIDER / ZCODER_LOCAL_MODE)",
     )
     g.add_argument(
@@ -3074,8 +3084,22 @@ def main():
         run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
         return
 
-    # ── API key required ──
-    key = _api_key(args)
+    # ── API key required except for providers resolved by the router ──
+    if args.route:
+        from zcoder.agent.orchestration.providers import resolve_api_key, resolve_provider
+
+        selected_provider = resolve_provider(args.provider)
+        if selected_provider not in {"anthropic", "local"} and args.model == "claude-sonnet-5":
+            print(
+                "[ERROR] Specify --model for non-Anthropic routing; the default is an Anthropic model.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        key = resolve_api_key(selected_provider, args.api_key)
+        if selected_provider == "anthropic" and not key:
+            key = _api_key(args)
+    else:
+        key = _api_key(args)
     model = _model(args)
 
     if args.interactive:
