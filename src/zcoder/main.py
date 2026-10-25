@@ -29,8 +29,13 @@ BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
 def _api_key(args):
-    """Return no cloud credential; runtime inference is local-only."""
-    return ""
+    """Preserve explicitly configured credentials for legacy commands.
+
+    The default local GGUF prompt path does not use this credential. Legacy
+    command paths may still require it, so never discard --api-key or the
+    operator's ANTHROPIC_API_KEY setting here.
+    """
+    return getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
 
 
 def _model(args):
