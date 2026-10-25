@@ -23,12 +23,20 @@ def test_legacy_stream_does_not_require_anthropic_key_with_local_default(monkeyp
     assert _api_key(args) == ""
 
 
-def test_legacy_stream_ignores_explicit_anthropic_key(monkeypatch):
+def test_legacy_stream_preserves_explicit_anthropic_key(monkeypatch):
     monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     args = build_parser().parse_args(["--stream", "--api-key", "explicit-key", "-p", "hello"])
 
-    assert _api_key(args) == ""
+    assert _api_key(args) == "explicit-key"
+
+
+def test_legacy_stream_preserves_environment_anthropic_key(monkeypatch):
+    monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "environment-key")
+    args = build_parser().parse_args(["--stream", "-p", "hello"])
+
+    assert _api_key(args) == "environment-key"
 
 
 def test_local_chat_calls_only_loopback(monkeypatch):
