@@ -5,7 +5,7 @@ Maps the multi-agent router across native APIs, OpenAI-compatible hosted
 gateways, local inference servers, and the deterministic offline stub.
 
 Precedence:
-  provider:  --provider > ZCODER_PROVIDER env > ZCODER_LOCAL_MODE=1 > "anthropic"
+  provider:  --provider > ZCODER_PROVIDER env > ZCODER_LOCAL_MODE=1 > "openai_compatible"
   api_key:   --api-key > provider-specific env var(s) > ""
   base_url:  --base-url > ZCODER_BASE_URL env > provider-specific env (OLLAMA_BASE_URL) > provider default
 
@@ -24,7 +24,6 @@ import os
 import urllib.parse
 
 PROVIDER_CHOICES = (
-    "anthropic",
     "gemini",
     "xai",
     "groq",
@@ -38,12 +37,6 @@ PROVIDER_CHOICES = (
 OPENAI_COMPATIBLE_PROVIDERS = frozenset({"xai", "groq", "openrouter", "cerebras", "openai_compatible"})
 
 PROVIDER_DEFAULTS: dict[str, dict] = {
-    "anthropic": {
-        "base_url": "https://api.anthropic.com",
-        "path": "/v1/messages",
-        "env_keys": ("ANTHROPIC_API_KEY",),
-        "auth": "x-api-key",
-    },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com",
         "path": "/v1beta/models/{model}:generateContent",
@@ -123,7 +116,7 @@ def resolve_provider(cli_provider: str | None = None) -> str:
         return env_provider
     if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in ("1", "true", "yes"):
         return "local"
-    return "anthropic"
+    return "openai_compatible"
 
 
 def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
@@ -132,11 +125,6 @@ def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
     spec = PROVIDER_DEFAULTS.get(provider, {})
     for env_name in spec.get("env_keys", ()):
         v = os.getenv(env_name, "").strip()
-        if v:
-            return v
-    # generic fallback for anthropic-compatible gateways
-    if provider == "anthropic":
-        v = os.getenv("ANTHROPIC_API_KEY", "").strip()
         if v:
             return v
     return ""
@@ -159,7 +147,7 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
     spec = PROVIDER_DEFAULTS.get(provider, {})
     default = spec.get("base_url", "")
     if provider == "openai_compatible" and not default:
-        raise ValueError("openai_compatible requires --base-url or ZCODER_BASE_URL ending in /v1")
+        return "http://127.0.0.1:8080/v1"
     return default
 
 

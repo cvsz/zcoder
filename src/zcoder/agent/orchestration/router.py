@@ -34,9 +34,6 @@ from zcoder.core.utils import sampling_kwargs
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-# Kept for backward compatibility; new code should resolve via providers module.
-ENDPOINT = "https://api.anthropic.com/v1/messages"
-
 # ── Built-in routing table ──────────────────────────────────────────────────
 DEFAULT_ROUTING_TABLE = {
     "code": "Write, review, refactor, debug, or explain code in any language",
@@ -78,10 +75,9 @@ def _call(
         return {"text": "[local mode] No upstream call — local stub response."}
     if prov in {"groq", "openrouter", "cerebras"} and not key:
         raise ValueError(f"{prov} requires an API key; check the provider-specific environment variable")
-    mdl = model or "claude-sonnet-5"
+    mdl = model or "zqwen2.5-coder-7b-instruct-q4_k_m"
     # Build provider-specific request
-    # payload is the Anthropic-shaped dict produced by callers; decompose it
-    # into normalized fields so the provider adapter can translate.
+    # Decompose the router payload into normalized fields for the adapter.
     messages: list[dict] = list(payload.get("messages") or [])
     system: str | None = payload.get("system")
     max_tokens: int = int(payload.get("max_tokens", 4096))
@@ -96,10 +92,7 @@ def _call(
         method="POST",
     )
     raw = urlopen_json(req, timeout=60)
-    # Normalize provider responses to an Anthropic-shaped dict so downstream
-    # _text/parse logic keeps working; also stash the raw provider payload.
-    if prov == "anthropic":
-        return raw
+    # Normalize provider responses for downstream router parsing.
     text = providers.parse_response(prov, raw)
     return {"content": [{"type": "text", "text": text}], "_provider": prov, "_raw": raw}
 

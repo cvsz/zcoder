@@ -29,17 +29,11 @@ BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
 def _api_key(args):
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
-        return os.getenv("ANTHROPIC_API_KEY", "local-mode-no-key-required")
-    k = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
-    if not k:
-        print("[ERROR] ANTHROPIC_API_KEY not set.", file=sys.stderr)
-        sys.exit(1)
-    return k
+    return getattr(args, "api_key", None) or ""
 
 
 def _model(args):
-    return getattr(args, "model", "claude-sonnet-5") or "claude-sonnet-5"
+    return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
 
 
 def _read_file(path):
@@ -78,10 +72,10 @@ def build_parser():
     g.add_argument(
         "--tui",
         action="store_true",
-        help="Launch the full-screen Textual TUI (see tui.py) — model/personality/"
-        "agent/skill sidebar plus a streaming chat transcript, in the terminal",
+        help="Launch the full-screen Textual coding assistant with chat, slash commands, "
+        "and session settings",
     )
-    g.add_argument("--model", default="claude-sonnet-5")
+    g.add_argument("--model", default=None)
     g.add_argument("--temperature", type=float, default=0.3)
     g.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens")
     g.add_argument("--api-key", default="", dest="api_key")
@@ -90,7 +84,6 @@ def build_parser():
         default=None,
         dest="provider",
         choices=[
-            "anthropic",
             "gemini",
             "xai",
             "groq",
@@ -100,7 +93,7 @@ def build_parser():
             "ollama",
             "local",
         ],
-        help="Model gateway provider (default: anthropic; env ZCODER_PROVIDER / ZCODER_LOCAL_MODE)",
+        help="Model gateway provider (local llama.cpp is the default)",
     )
     g.add_argument(
         "--base-url",
@@ -136,14 +129,14 @@ def build_parser():
         "--health-check",
         action="store_true",
         dest="health_check",
-        help="Run liveness/readiness checks and exit (config, API key, "
+        help="Run liveness/readiness checks and exit (config, local model URL, "
         "disk-writable); prints JSON, exit code 0=healthy 1=unhealthy",
     )
     g.add_argument(
         "--health-check-deep",
         action="store_true",
         dest="health_check_deep",
-        help="With --health-check, also make one minimal live API call "
+        help="With --health-check, also make one minimal local model call "
         "(use for a startup probe, not a frequent liveness probe)",
     )
 
@@ -3081,7 +3074,7 @@ def main():
     if args.tui:
         from zcoder.interfaces.cli.tui import run_tui
 
-        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
+        run_tui()
         return
 
     # ── API key required except for providers resolved by the router ──
@@ -3089,12 +3082,6 @@ def main():
         from zcoder.agent.orchestration.providers import resolve_api_key, resolve_provider
 
         selected_provider = resolve_provider(args.provider)
-        if selected_provider not in {"anthropic", "local"} and args.model == "claude-sonnet-5":
-            print(
-                "[ERROR] Specify --model for non-Anthropic routing; the default is an Anthropic model.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
         key = resolve_api_key(selected_provider, args.api_key)
     else:
         key = _api_key(args)
@@ -4179,6 +4166,7 @@ def main():
         c = Coder(
             api_key=key,
             model=model,
+            base_url=args.base_url,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             service_tier=args.service_tier,

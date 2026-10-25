@@ -1,72 +1,60 @@
-# Running zcoder 100% Free & Offline (Local Guide)
+# Local GGUF Inference
 
-This guide walks you through setting up and running **zcoder** entirely locally with zero API keys, zero cloud costs, and full privacy.
+This guide configures the primary ZCoder prompt workflow to use a local
+GGUF model through llama.cpp. It does not require a hosted model credential.
 
----
+## Prerequisites
 
-## 1. Prerequisites
+- Python 3.10 or later and the ZCoder development dependencies.
+- `llama-server` built with support for the target hardware.
+- A local GGUF file, for example:
+  - `/home/cvsz/zgpu/qwen-7b-q4km.gguf`
+  - `/home/cvsz/zgpu/qwen-1.5b-q4km.gguf`
 
-1. **Python 3.9+** installed.
-2. **Local Model Engine** (e.g., [Ollama](https://ollama.ai/)) — only if
-   you want real local inference:
-   ```bash
-   ollama pull qwen2.5-coder:7b
-   ```
-
-### No-engine option: offline synthesis mode
-
-If you only want to try the CLI, run the test suite, or do air-gapped
-smoke tests without installing any model engine, set `ZCODER_LOCAL_MODE`:
+## Start the model server
 
 ```bash
-export ZCODER_LOCAL_MODE=1
-python main.py -p "Write a function to reverse a string"
+llama-server \
+  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --ctx-size 4096
 ```
 
-Generation, git helpers, live mode, and prompt optimization switch to
-deterministic offline synthesis with zero network I/O and zero keys.
-Outside local mode a missing `ANTHROPIC_API_KEY` is a hard error — the
-CLI never silently pretends to generate.
+Keep the server bound to loopback. To use the smaller model, change the model
+path to `qwen-1.5b-q4km.gguf`.
 
----
-
-## 2. Quick Setup
-
-1. Clone and install `zcoder`:
-   ```bash
-   git clone https://github.com/cvsz/zcoder.git
-   cd zcoder
-   pip install -e .
-   ```
-
-2. Verify local execution without any `ANTHROPIC_API_KEY`:
-   ```bash
-   zcoder --version
-   ```
-
----
-
-## 3. Running Coding Tasks with Local Models
-
-Use the `--local-model` flag or set your local model configuration:
+## Configure and run ZCoder
 
 ```bash
-zcoder --local-model ollama/qwen2.5-coder:7b "Refactor utils.py to use pathlib"
+cd ~/zcoder
+make setup
+export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
+export ZCODER_MODEL=zqwen2.5-coder-7b-instruct-q4_k_m
+zcoder -p "Review this source file" --file src/example.py
 ```
 
-### 3.1 Custom Local Endpoints
-If running vLLM or llama.cpp:
-```bash
-zcoder \
-  --openai-base-url http://localhost:8000/v1 \
-  --model custom-local-model \
-  "Add unit tests for security.py"
-```
+The model name is a local request label; llama.cpp serves the GGUF file loaded
+at startup. To verify the CLI, run `zcoder -p "Reply with LOCAL_OK"` and
+confirm that the response comes from the loaded model.
 
----
+## Runtime behavior and limits
 
-## 4. Local Persistence & Storage
+- `zcoder -p`, `--file`, `--interactive`, and `--route` use the local model
+  client by default.
+- The local client accepts only loopback HTTP URLs and refuses HTTP redirects.
+- A running llama.cpp server and a readable GGUF file are required. Missing
+  local inference dependencies return an error; they do not produce a
+  synthetic coding answer.
+- Some specialized legacy CLI features are still being migrated. Their
+  availability is documented in the main README and release notes; do not
+  assume every optional feature uses this local path yet.
+- Local inference still consumes CPU/GPU, memory, electricity, and disk space.
 
-- **Database:** Local SQLite database at `~/.zcoder/engineering.db` with WAL mode enabled.
-- **Artifacts:** Saved locally in `./artifacts` or `~/.zcoder/storage`.
-- **Telemetry:** Stored in local SQLite file or stdout; no third-party tracking.
+## Local persistence
+
+- SQLite is the default for a single-user installation.
+- PostgreSQL-backed commands use the shared Docker container `zPostgreSQL`
+  and the isolated `zcoder_db` database.
+- Local artifacts and runtime state are stored under the configured ZCoder
+  data directory.

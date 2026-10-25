@@ -1,11 +1,8 @@
-"""
-claude_rag.py — Retrieval-Augmented Generation pipeline
-ZCoder CLI v1.10.0
+"""Local retrieval-augmented generation pipeline.
 
 Indexes a local folder of files (or a pre-built index JSON), retrieves
 the most relevant chunks at query time (keyword BM25-style scoring),
-then generates a grounded, cited response. Uses the Files API to
-upload large corpora once and reference them cheaply across queries.
+then generates a grounded, cited response through the local model server.
 """
 
 import json
@@ -15,11 +12,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import anthropic
-
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.security import validate_name
-from zcoder.core.utils import sampling_kwargs
 
 INDEX_DIR = Path.home() / ".zcoder" / "rag_indexes"
 SUPPORTED_EXTS = {
@@ -179,22 +173,23 @@ def retrieve(idx: RAGIndex, query: str, k: int = 5) -> list[Chunk]:
     return [c for c, s in scored[:k] if s > 0]
 
 
-def generate(query: str, chunks: list[Chunk], api_key: str, model: str = "claude-sonnet-5") -> str:
-    client = anthropic.Anthropic(api_key=api_key)
+def generate(
+    query: str,
+    chunks: list[Chunk],
+    api_key: str = "",
+    model: str = "zqwen2.5-coder-7b-instruct-q4_k_m",
+) -> str:
+    from zcoder.services.coder import Coder
+
     ctx = "\n\n".join(f"[{c.source}]\n{c.content}" for c in chunks)
     system = (
         "Answer based on the provided context. Cite sources using the "
         "[filename] format. If the context doesn't contain the answer, "
         "say so clearly rather than guessing."
     )
-    resp = client.messages.create(
-        model=model,
-        max_tokens=2048,
-        **sampling_kwargs(model, temperature=0.2),
-        system=system,
-        messages=[{"role": "user", "content": f"Context:\n{ctx}\n\nQuestion: {query}"}],
+    return Coder(model=model, max_tokens=2048, temperature=0.2).generate(
+        f"Context:\n{ctx}\n\nQuestion: {query}", system=system
     )
-    return resp.content[0].text
 
 
 # ── CLI commands ──────────────────────────────────────────────────────────────

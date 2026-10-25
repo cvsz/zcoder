@@ -1,6 +1,4 @@
-"""
-claude_prompt_optimizer.py — Prompt Optimizer & A/B Tester
-ZCoder CLI v1.9.1
+"""Local prompt optimizer and A/B tester.
 
 Improves a prompt using meta-prompting, scores it, runs A/B tests
 between two versions, and tracks a prompt library.
@@ -16,15 +14,10 @@ CLI flags:
 """
 
 import json
-import os
 import time
 from pathlib import Path
 
-import anthropic
-
-from zcoder.core.utils import sampling_kwargs
-
-PROMPT_LIB_PATH = Path(os.path.expanduser("~/.zcoder/prompt_library.json"))
+PROMPT_LIB_PATH = Path.home() / ".zcoder" / "prompt_library.json"
 
 
 def _strip_json_fence(text: str) -> str:
@@ -39,19 +32,14 @@ def _strip_json_fence(text: str) -> str:
     return cleaned.strip()
 
 
-def _call(client: anthropic.Anthropic, model: str, system: str, user: str, max_tokens: int = 2048) -> str:
-    resp = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        **sampling_kwargs(model, temperature=0.3),
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return resp.content[0].text.strip()
+def _call(client, model: str, system: str, user: str, max_tokens: int = 2048) -> str:
+    client.model = model
+    client.max_tokens = max_tokens
+    return client.generate(user, system=system).strip()
 
 
-def optimize(prompt: str, client: anthropic.Anthropic | None, model: str) -> str:
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes") or not client:
+def optimize(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> str:
+    if not client:
         # Offline rule-based prompt enhancement
         lines = [line.strip() for line in prompt.strip().splitlines() if line.strip()]
         enhanced = "Act as an expert software engineer.\n\nTask:\n" + "\n".join(lines)
@@ -66,12 +54,12 @@ def optimize(prompt: str, client: anthropic.Anthropic | None, model: str) -> str
     )
     try:
         return _call(client, model, system, f"Prompt to improve:\n{prompt}")
-    except Exception:
-        return optimize(prompt, None, model)
+    except Exception as exc:
+        return f"[ERROR] Local prompt optimization failed: {exc}"
 
 
-def score(prompt: str, client: anthropic.Anthropic | None, model: str) -> dict:
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes") or not client:
+def score(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> dict:
+    if not client:
         # High quality offline deterministic scoring heuristics
         words = prompt.strip().split()
         word_count = len(words)
@@ -112,21 +100,14 @@ def score(prompt: str, client: anthropic.Anthropic | None, model: str) -> dict:
     try:
         raw = _call(client, model, system, f"Prompt to score:\n{prompt}", max_tokens=512)
         return json.loads(_strip_json_fence(raw))
-    except Exception:
-        # Fallback to local heuristic evaluator on any network/API error
-        return score(prompt, None, model)
+    except Exception as exc:
+        return {"error": f"Local prompt scoring failed: {exc}"}
 
 
-def ab_test(prompt_a: str, prompt_b: str, task: str, client: anthropic.Anthropic, model: str) -> dict:
+def ab_test(prompt_a: str, prompt_b: str, task: str, client, model: str) -> dict:
     def run(prompt: str) -> tuple[str, float]:
         t0 = time.time()
-        resp = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            **sampling_kwargs(model, temperature=0.5),
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return resp.content[0].text.strip(), round(time.time() - t0, 2)
+        return _call(client, model, "", prompt, max_tokens=2048), round(time.time() - t0, 2)
 
     resp_a, time_a = run(prompt_a)
     resp_b, time_b = run(prompt_b)
@@ -191,7 +172,9 @@ def lib_get(tag: str) -> str | None:
 
 
 def cmd_optimize(prompt: str, api_key: str, model: str):
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(model=model)
     improved = optimize(prompt, client, model)
     print("\n\033[94mOriginal:\033[0m")
     print(prompt)
@@ -201,7 +184,9 @@ def cmd_optimize(prompt: str, api_key: str, model: str):
 
 
 def cmd_score(prompt: str, api_key: str, model: str):
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(model=model)
     result = score(prompt, client, model)
     if "error" in result:
         print(f"\033[91mError: {result['error']}\033[0m")
@@ -215,7 +200,9 @@ def cmd_score(prompt: str, api_key: str, model: str):
 
 
 def cmd_ab_test(prompt_a: str, prompt_b: str, task: str, api_key: str, model: str):
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(model=model)
     result = ab_test(prompt_a, prompt_b, task, client, model)
     j = result["judgment"]
     print("\n\033[94mA/B Test Results\033[0m")

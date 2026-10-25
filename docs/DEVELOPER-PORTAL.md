@@ -73,7 +73,7 @@ client = ZCoderClient(
 job = client.submit_job(
     project_id="proj_backend",
     task_description="Refactor user authentication to support OAuth2 PKCE",
-    model="claude-3-7-sonnet-20250219",
+    model="zqwen2.5-coder-7b-instruct-q4_k_m",
 )
 
 print(f"Submitted Job ID: {job.id}, Status: {job.status}")

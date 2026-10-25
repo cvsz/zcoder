@@ -19,11 +19,6 @@ import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
-
-import anthropic
-
-from zcoder.core.utils import sampling_kwargs
 
 
 @dataclass
@@ -88,21 +83,13 @@ def load_suite(path: str) -> tuple[str, list[EvalCase]]:
     return name, cases
 
 
-def run_case(case: EvalCase, client: anthropic.Anthropic, model: str) -> EvalResult:
-    messages = [{"role": "user", "content": case.prompt}]
-    kwargs: dict[str, Any] = {
-        "model": model,
-        "max_tokens": case.max_tokens,
-        **sampling_kwargs(model, temperature=case.temperature),
-        "messages": messages,
-    }
-    if case.system:
-        kwargs["system"] = case.system
-
+def run_case(case: EvalCase, client, model: str) -> EvalResult:
+    client.model = model
+    client.max_tokens = case.max_tokens
+    client.temperature = case.temperature
     t0 = time.time()
-    resp = client.messages.create(**kwargs)
+    text = client.generate(case.prompt, system=case.system or None)
     latency = round(time.time() - t0, 3)
-    text = "".join(b.text for b in resp.content if hasattr(b, "text"))
 
     failures = []
     for phrase in case.expected_contains:
@@ -132,7 +119,9 @@ def run_case(case: EvalCase, client: anthropic.Anthropic, model: str) -> EvalRes
 
 def run_suite(path: str, api_key: str, model: str, verbose: bool = False) -> EvalSuiteResult:
     name, cases = load_suite(path)
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(model=model)
     results = []
     t0 = time.time()
 

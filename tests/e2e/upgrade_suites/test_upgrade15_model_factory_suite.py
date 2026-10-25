@@ -63,8 +63,9 @@ def test_model_acquisition_download_plan_dry_run():
     assert plan["license"] == "Apache-2.0"
 
 
-def test_llamacpp_runtime_adapter():
+def test_llamacpp_runtime_adapter(monkeypatch):
     runtime = LlamaCppRuntime()
+    monkeypatch.setattr(runtime, "is_running", lambda: False)
     models = runtime.list_models()
     assert len(models) >= 1
     assert models[0].provider == "llama.cpp"

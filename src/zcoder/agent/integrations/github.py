@@ -1,10 +1,7 @@
-"""
-claude_github.py — GitHub Integration
-ZCoder CLI v1.9.1
+"""GitHub integration with local model assistance.
 
-Connects Claude to GitHub via the GitHub REST API (no external SDK —
-pure stdlib urllib). Review PRs, triage issues, summarise commit history,
-and generate PR descriptions automatically.
+GitHub REST operations use stdlib urllib. Review PRs, triage issues,
+summarize commit history, and generate PR descriptions with the local model.
 
 CLI flags:
   --gh-review-pr REPO/NUMBER    AI review of a pull request diff
@@ -19,11 +16,8 @@ import os
 import urllib.error
 import urllib.request
 
-import anthropic
-
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json, urlopen_text
-from zcoder.core.utils import sampling_kwargs
 
 GITHUB_API = "https://api.github.com"
 # Shared across all GitHub call sites in this module (issues, PRs, commits,
@@ -77,18 +71,13 @@ def _gh_token(explicit: str | None) -> str:
     return token
 
 
-def _call(client: anthropic.Anthropic, model: str, system: str, user: str, max_tokens: int = 3000) -> str:
-    resp = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        **sampling_kwargs(model, temperature=0.3),
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return resp.content[0].text.strip()
+def _call(client, model: str, system: str, user: str, max_tokens: int = 3000) -> str:
+    client.model = model
+    client.max_tokens = max_tokens
+    return client.generate(user, system=system).strip()
 
 
-def review_pr(repo: str, pr_number: int, gh_token: str, client: anthropic.Anthropic, model: str) -> str:
+def review_pr(repo: str, pr_number: int, gh_token: str, client, model: str) -> str:
     pr = _gh_get(f"/repos/{repo}/pulls/{pr_number}", gh_token)
     diff_url = pr.get("diff_url", "")
     diff = _gh_fetch_diff(diff_url, gh_token, 15000)
@@ -110,7 +99,7 @@ def review_pr(repo: str, pr_number: int, gh_token: str, client: anthropic.Anthro
     )
 
 
-def triage_issues(repo: str, max_items: int, gh_token: str, client: anthropic.Anthropic, model: str) -> str:
+def triage_issues(repo: str, max_items: int, gh_token: str, client, model: str) -> str:
     issues_raw = _gh_get(f"/repos/{repo}/issues?state=open&per_page={max_items}", gh_token)
     if not isinstance(issues_raw, list):
         return f"Unexpected response: {str(issues_raw)[:200]}"
@@ -130,9 +119,7 @@ def triage_issues(repo: str, max_items: int, gh_token: str, client: anthropic.An
     )
 
 
-def summarise_commits(
-    repo: str, max_items: int, gh_token: str, client: anthropic.Anthropic, model: str
-) -> str:
+def summarise_commits(repo: str, max_items: int, gh_token: str, client, model: str) -> str:
     commits_raw = _gh_get(f"/repos/{repo}/commits?per_page={max_items}", gh_token)
     if not isinstance(commits_raw, list):
         return f"Unexpected response: {str(commits_raw)[:200]}"
@@ -151,9 +138,7 @@ def summarise_commits(
     )
 
 
-def generate_pr_description(
-    repo: str, pr_number: int, gh_token: str, client: anthropic.Anthropic, model: str
-) -> str:
+def generate_pr_description(repo: str, pr_number: int, gh_token: str, client, model: str) -> str:
     pr = _gh_get(f"/repos/{repo}/pulls/{pr_number}", gh_token)
     diff = _gh_fetch_diff(pr.get("diff_url", ""), gh_token, 12000)
     return _call(
@@ -172,21 +157,27 @@ def generate_pr_description(
 def cmd_gh_review_pr(repo_pr: str, gh_token_explicit: str | None, api_key: str, model: str):
     repo, _, num = repo_pr.rpartition("/")
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(api_key=api_key, model=model)
     print(f"\n\033[94mReviewing PR #{num} in {repo}\033[0m\n")
     print(review_pr(repo, int(num), token, client, model))
 
 
 def cmd_gh_triage(repo: str, max_items: int, gh_token_explicit: str | None, api_key: str, model: str):
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(api_key=api_key, model=model)
     print(f"\n\033[94mTriaging open issues in {repo}\033[0m\n")
     print(triage_issues(repo, max_items, token, client, model))
 
 
 def cmd_gh_commits(repo: str, max_items: int, gh_token_explicit: str | None, api_key: str, model: str):
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(api_key=api_key, model=model)
     print(f"\n\033[94mCommit summary for {repo}\033[0m\n")
     print(summarise_commits(repo, max_items, token, client, model))
 
@@ -194,6 +185,8 @@ def cmd_gh_commits(repo: str, max_items: int, gh_token_explicit: str | None, api
 def cmd_gh_pr_description(repo_pr: str, gh_token_explicit: str | None, api_key: str, model: str):
     repo, _, num = repo_pr.rpartition("/")
     token = _gh_token(gh_token_explicit)
-    client = anthropic.Anthropic(api_key=api_key)
+    from zcoder.services.coder import Coder
+
+    client = Coder(api_key=api_key, model=model)
     print(f"\n\033[94mGenerating PR description for #{num} in {repo}\033[0m\n")
     print(generate_pr_description(repo, int(num), token, client, model))

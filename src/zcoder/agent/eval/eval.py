@@ -11,10 +11,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-import anthropic
-
-from zcoder.core.utils import sampling_kwargs
-
 EVALS_DIR = Path.home() / ".zcoder" / "evals"
 
 
@@ -60,10 +56,12 @@ class EvalRun:
 
 
 class LLMJudge:
-    """Uses Claude to judge whether a response satisfies the expected criterion."""
+    """Uses the configured local model to judge an evaluation response."""
 
-    def __init__(self, api_key: str, judge_model: str = "claude-sonnet-5"):
-        self.client = anthropic.Anthropic(api_key=api_key)
+    def __init__(self, api_key: str = "", judge_model: str = "zqwen2.5-coder-7b-instruct-q4_k_m"):
+        from zcoder.services.coder import Coder
+
+        self.client = Coder(model=judge_model, max_tokens=256, temperature=0)
         self.model = judge_model
 
     def score(self, prompt: str, expected: str, actual: str) -> tuple[float, str]:
@@ -82,14 +80,7 @@ class LLMJudge:
             "Score the actual response against the expected criterion."
         )
         try:
-            resp = self.client.messages.create(
-                model=self.model,
-                max_tokens=256,
-                **sampling_kwargs(self.model, temperature=0),
-                system=system,
-                messages=[{"role": "user", "content": user}],
-            )
-            raw = resp.content[0].text.strip()
+            raw = self.client.generate(user, system=system).strip()
             if raw.startswith("```"):
                 raw = "\n".join(raw.split("\n")[1:-1])
             d = json.loads(raw)
@@ -102,25 +93,23 @@ class EvalRunner:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-5",
-        judge_model: str = "claude-sonnet-5",
+        model: str = "zqwen2.5-coder-7b-instruct-q4_k_m",
+        judge_model: str = "zqwen2.5-coder-7b-instruct-q4_k_m",
         pass_threshold: float = 0.7,
     ):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        from zcoder.services.coder import Coder
+
+        self.client = Coder(model=model, max_tokens=2048, temperature=0)
         self.model = model
         self.judge = LLMJudge(api_key, judge_model)
         self.threshold = pass_threshold
 
     def _generate(self, prompt: str) -> tuple[str, int]:
         t0 = time.time()
-        resp = self.client.messages.create(
-            model=self.model,
-            max_tokens=2048,
-            **sampling_kwargs(self.model, temperature=0),
-            messages=[{"role": "user", "content": prompt}],
-        )
+        self.client.model = self.model
+        text = self.client.generate(prompt)
         ms = int((time.time() - t0) * 1000)
-        return resp.content[0].text, ms
+        return text, ms
 
     def run(self, cases: list[EvalCase]) -> EvalRun:
         import uuid

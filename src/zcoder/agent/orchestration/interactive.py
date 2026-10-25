@@ -1,10 +1,7 @@
-"""
-claude_interactive.py — Interactive chat interface
-ZCoder CLI v1.14.0
+"""Interactive, multi-turn local model chat interface.
 
-A persistent, multi-turn REPL against the Messages API. `-i`/`--interactive`
-existed as a bare argparse flag since v1.7.0 but was never read anywhere in
-main.py — this module is the first actual implementation behind it.
+The `-i`/`--interactive` REPL uses the same loopback model client as the
+single-prompt CLI. It does not execute tools or access the filesystem.
 
 This is a plain chat loop (no tool execution, no filesystem access) — for
 an agentic loop that can read/write files and run commands, use
@@ -108,7 +105,7 @@ def cmd_interactive(api_key, model, system=None, temperature=0.3, max_tokens=409
             continue
 
         reply = c.generate(user_input, system=system, history=history)
-        print(f"\033[96mclaude›\033[0m {reply}\n")
+        print(f"\033[96massistant›\033[0m {reply}\n")
         # Coder.generate() takes `history` as the turns *before* this one
         # and appends the new user turn internally, but only returns text —
         # so the running history is maintained here, not inside Coder.

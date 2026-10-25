@@ -37,7 +37,7 @@ zcoder/
 │   │   ├── config/
 │   │   ├── core/
 │   │   ├── domain/
-│   │   ├── claude/
+│   │   ├── agent/
 │   │   ├── services/
 │   │   ├── infrastructure/
 │   │   ├── api/
@@ -69,7 +69,6 @@ zcoder/
 │   └── release_gate.py
 ├── spec/
 │   ├── zcoder.spec
-│   └── anthropic-conformance.yaml
 ├── deploy/
 ├── ARCHITECTURE.md
 ├── README.md
@@ -108,9 +107,9 @@ Coordinates application use cases such as generation, projects, artifacts, engin
 
 Services translate domain capabilities into workflows but do not own UI rendering.
 
-### `zcoder.claude`
+### `zcoder.agent`
 
-Anthropic/Claude-specific behavior is grouped by responsibility rather than one large flat prefix namespace:
+Agent behavior is grouped by responsibility:
 
 - `models/` — registry, preflight, and model-specific behavior;
 - `capabilities/` — code, execution, vision, thinking, structured output, search, embeddings, streaming, citations, advisor;
@@ -120,9 +119,9 @@ Anthropic/Claude-specific behavior is grouped by responsibility rather than one 
 - `optimization/` — cost, prompt, and token optimization;
 - `memory/` and `rag/` — memory/cache and retrieval/research;
 - `eval/` — evaluation and output styles;
-- `enterprise/` — Admin API, Compliance API, Skills API, settings, permissions, metrics.
+- `enterprise/` — administration, compliance, skills, settings, permissions, and metrics.
 
-Provider-specific policy must not leak into domain models unless it represents a provider-neutral business concept.
+Provider and runtime policy belongs at the adapter boundary. Domain models should contain only provider-neutral business concepts.
 
 ### `zcoder.infrastructure`
 
@@ -164,7 +163,7 @@ zcoder   -> zcoder.main:main
 
 `python main.py` remains supported. Root `main.py` inserts `src/` and delegates to `zcoder.main`; it contains no business implementation. Tests asserting launcher parity import root `main.py` directly.
 
-The former flat modules under `src/` (`coder`, `config`, `claude_models`, ...) were removed in this cycle: every import across the repository now uses the canonical `zcoder.*` namespace, and `pyproject.toml` no longer ships `py-modules` shims. Any code still importing a flat name is importing stale or external code.
+The former flat modules under `src/` (`coder`, `config`, `model_registry`, ...) were removed in this cycle: every import across the repository now uses the canonical `zcoder.*` namespace, and `pyproject.toml` no longer ships `py-modules` shims. Any code still importing a flat name is importing stale or external code.
 
 ### Container
 
@@ -223,8 +222,8 @@ Tests are grouped by execution semantics:
 Test isolation rules:
 
 - live infrastructure tests (PostgreSQL-dependent) guard the whole module with `pytest.mark.skipif(not _pg_available(), ...)` and probe the DSN with a short `connect_timeout` before running;
-- tests that need environment variables (`ZCODER_LOCAL_MODE`, fake API keys) set them per-test and restore the previous values afterwards — module-level environment mutation pollutes every later test in the same process and is prohibited;
-- `tests/conftest.py` deletes `ANTHROPIC_API_KEY` per test so a developer's real shell key cannot cause accidental network calls.
+- tests that need environment variables set them per-test and restore the previous values afterwards — module-level environment mutation pollutes every later test in the same process and is prohibited;
+- tests must not depend on developer credentials or accidentally make live network calls.
 
 ## Documentation architecture
 
@@ -236,7 +235,7 @@ Historical upgrade and prompt files are preserved byte-for-byte under their taxo
 
 ## Build, packaging, and release
 
-Python packaging uses PEP 517/setuptools with a `src` layout. Package data includes the Anthropic conformance manifest required at runtime.
+Python packaging uses PEP 517/setuptools with a `src` layout. Runtime package data is declared explicitly in `pyproject.toml`.
 
 Canonical setup/build scripts live under `scripts/` and explicitly change to the repository root before operating. Setup performs an editable package install. Standalone builds use `spec/zcoder.spec`, which includes `src` in PyInstaller analysis and packages the conformance YAML.
 
@@ -252,7 +251,7 @@ Execution of `Artifacts-zcoder.md` is complete at the repository-structure level
 | 2. `src/zcoder` bootstrap and config/core move | Complete |
 | 3. Domain model organization | Complete |
 | 4. Infrastructure organization | Complete |
-| 5. Claude integration subpackages | Complete |
+| 5. Agent capability and integration subpackages | Complete |
 | 6. Interface/API organization | Complete |
 | 7. Unit/integration/e2e test taxonomy | Complete |
 | 8. Documentation taxonomy | Complete |

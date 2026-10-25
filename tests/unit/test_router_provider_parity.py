@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import urllib.parse
 
 import pytest
@@ -15,7 +14,6 @@ from zcoder.agent.orchestration.router import _call, _post, classify, route_and_
 
 def test_provider_choices_and_defaults():
     assert set(providers.PROVIDER_CHOICES) == {
-        "anthropic",
         "gemini",
         "xai",
         "groq",
@@ -27,20 +25,19 @@ def test_provider_choices_and_defaults():
     }
     for name in providers.PROVIDER_CHOICES:
         assert name in providers.PROVIDER_DEFAULTS
-    assert providers.PROVIDER_DEFAULTS["anthropic"]["base_url"] == "https://api.anthropic.com"
     assert providers.PROVIDER_DEFAULTS["ollama"]["base_url"] == "http://localhost:11434"
 
 
-def test_resolve_provider_defaults_to_anthropic(monkeypatch):
+def test_resolve_provider_defaults_to_local_compatible_gateway(monkeypatch):
     monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
     monkeypatch.delenv("ZCODER_LOCAL_MODE", raising=False)
-    assert providers.resolve_provider(None) == "anthropic"
-    assert providers.resolve_provider("") == "anthropic"
+    assert providers.resolve_provider(None) == "openai_compatible"
+    assert providers.resolve_provider("") == "openai_compatible"
 
 
 def test_resolve_provider_cli_wins_over_env(monkeypatch):
-    monkeypatch.setenv("ZCODER_PROVIDER", "gemini")
-    assert providers.resolve_provider("xai") == "xai"
+    monkeypatch.setenv("ZCODER_PROVIDER", "local")
+    assert providers.resolve_provider("ollama") == "ollama"
 
 
 def test_resolve_provider_env(monkeypatch):
@@ -75,21 +72,13 @@ def test_resolve_provider_rejects_unknown():
 
 
 def test_resolve_api_key_cli_wins(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
-    assert providers.resolve_api_key("anthropic", "cli-key") == "cli-key"
+    assert providers.resolve_api_key("openai_compatible", "cli-key") == "cli-key"
 
 
 def test_resolve_api_key_provider_env(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("GEMINI_API_KEY", "gem-key")
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    assert providers.resolve_api_key("gemini", None) == "gem-key"
-
-
-def test_resolve_api_key_gemini_fallback_google(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
-    assert providers.resolve_api_key("gemini", None) == "google-key"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-be-used")
+    assert providers.resolve_api_key("local", None) == ""
 
 
 def test_resolve_api_key_ollama_no_key_needed():
@@ -99,13 +88,21 @@ def test_resolve_api_key_ollama_no_key_needed():
 
 def test_resolve_base_url_cli_wins(monkeypatch):
     monkeypatch.setenv("ZCODER_BASE_URL", "https://env.example.com")
-    assert providers.resolve_base_url("anthropic", "https://cli.example.com") == "https://cli.example.com"
+    assert (
+        providers.resolve_base_url("openai_compatible", "https://cli.example.com")
+        == "https://cli.example.com"
+    )
+
+
+def test_default_compatible_gateway_uses_loopback_llama_server(monkeypatch):
+    monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
+    assert providers.resolve_base_url("openai_compatible") == "http://127.0.0.1:8080/v1"
 
 
 def test_resolve_base_url_env_gateway(monkeypatch):
     monkeypatch.setenv("ZCODER_BASE_URL", "https://gateway.example.com")
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
-    assert providers.resolve_base_url("anthropic", None) == "https://gateway.example.com"
+    assert providers.resolve_base_url("openai_compatible", None) == "https://gateway.example.com"
 
 
 def test_resolve_base_url_ollama_env(monkeypatch):
@@ -116,9 +113,9 @@ def test_resolve_base_url_ollama_env(monkeypatch):
 
 def test_resolve_base_url_rejects_file_scheme():
     with pytest.raises(ValueError, match="Unsupported provider base URL scheme"):
-        providers.resolve_base_url("anthropic", "file:///etc/passwd")
+        providers.resolve_base_url("openai_compatible", "file:///etc/passwd")
     with pytest.raises(ValueError, match="Unsupported provider base URL scheme"):
-        providers.resolve_base_url("anthropic", "ftp://example.com")
+        providers.resolve_base_url("openai_compatible", "ftp://example.com")
 
 
 @pytest.mark.parametrize("url", ["https://", "http://user:pass@host", "https://host/v1?key=secret"])
@@ -127,31 +124,24 @@ def test_resolve_base_url_rejects_malformed_gateway(url):
         providers.resolve_base_url("openai_compatible", url)
 
 
-def test_openai_compatible_requires_explicit_gateway(monkeypatch):
+def test_openai_compatible_defaults_to_local_gateway(monkeypatch):
     monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
-    with pytest.raises(ValueError, match="requires --base-url"):
-        providers.resolve_base_url("openai_compatible")
+    assert providers.resolve_base_url("openai_compatible") == "http://127.0.0.1:8080/v1"
     assert (
         providers.resolve_base_url("openai_compatible", "http://localhost:1234/v1")
         == "http://localhost:1234/v1"
     )
 
 
+def test_removed_remote_provider_is_rejected():
+    with pytest.raises(ValueError, match="Unknown provider"):
+        providers.resolve_provider("anthropic")
+
+
 def test_endpoint_for_each_provider():
-    assert (
-        providers.endpoint_for("anthropic", "https://api.anthropic.com", "claude-sonnet-5")
-        == "https://api.anthropic.com/v1/messages"
-    )
-    assert (
-        providers.endpoint_for("xai", "https://api.x.ai", "grok-3") == "https://api.x.ai/v1/chat/completions"
-    )
     assert (
         providers.endpoint_for("ollama", "http://localhost:11434", "llama3")
         == "http://localhost:11434/api/chat"
-    )
-    assert (
-        providers.endpoint_for("gemini", "https://generativelanguage.googleapis.com", "gemini-2.0-flash")
-        == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
     )
     assert providers.endpoint_for("local", "", "any") == ""
 
@@ -176,127 +166,9 @@ def test_openai_compatible_endpoint():
     )
 
 
-def test_headers_for_each_provider():
-    h = providers.headers_for("anthropic", "sk-123")
-    assert h["x-api-key"] == "sk-123"
-    assert h["anthropic-version"] == "2023-06-01"
-    h = providers.headers_for("gemini", "g-key")
-    assert h["x-goog-api-key"] == "g-key"
-    h = providers.headers_for("xai", "x-key")
-    assert h["Authorization"] == "Bearer x-key"
-    h = providers.headers_for("ollama", "")
-    assert "Authorization" not in h and "x-api-key" not in h
-    h = providers.headers_for("local", "")
-    assert "Authorization" not in h
-
-
-@pytest.mark.parametrize(
-    ("provider", "env_var"),
-    [("groq", "GROQ_API_KEY"), ("openrouter", "OPENROUTER_API_KEY"), ("cerebras", "CEREBRAS_API_KEY")],
-)
-def test_hosted_provider_auth_and_openai_protocol(provider, env_var, monkeypatch):
-    monkeypatch.setenv(env_var, "test-credential")
-    assert providers.resolve_api_key(provider) == "test-credential"
-    assert providers.headers_for(provider, "test-credential")["Authorization"] == "Bearer test-credential"
-    payload = providers.build_payload(provider, "model", [{"role": "user", "content": "hi"}], "sys", 64, {})
-    assert payload["messages"][0] == {"role": "system", "content": "sys"}
-    assert payload["max_tokens"] == 64
-    assert providers.parse_response(provider, {"choices": [{"message": {"content": "hello"}}]}) == "hello"
-
-
-def test_hosted_provider_missing_key_does_not_make_network_request(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    monkeypatch.setattr(
-        "zcoder.agent.orchestration.router.urlopen_json",
-        lambda *_a, **_kw: pytest.fail("request sent without key"),
-    )
-    with pytest.raises(ValueError, match="groq requires an API key"):
-        _call("", {"messages": []}, provider="groq", model="model")
-
-
-def test_cli_route_uses_selected_provider_key_without_anthropic_key(monkeypatch):
-    from zcoder.main import main
-
-    observed = {}
-
-    def fake_route(prompt, key, model, **kwargs):
-        observed.update(prompt=prompt, key=key, model=model, provider=kwargs["provider"])
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
-    monkeypatch.setattr(sys, "argv", ["zcoder", "--route", "test", "--provider", "groq", "--model", "model"])
-    monkeypatch.setattr("zcoder.agent.orchestration.router.cmd_route", fake_route)
-    main()
-    assert observed == {"prompt": "test", "key": "groq-test-key", "model": "model", "provider": "groq"}
-
-
-def test_cli_route_requires_model_for_nonanthropic_provider(monkeypatch, capsys):
-    from zcoder.main import main
-
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setenv("OPENROUTER_API_KEY", "key")
-    monkeypatch.setattr(sys, "argv", ["zcoder", "--route", "test", "--provider", "openrouter"])
-    with pytest.raises(SystemExit) as exc:
-        main()
-    assert exc.value.code == 2
-    assert "Specify --model" in capsys.readouterr().err
-
-
-def test_openai_compatible_router_integrates_with_local_server(monkeypatch):
-    captured = {}
-
-    def fake(req, timeout=60):
-        captured["url"] = req.full_url
-        return {"choices": [{"message": {"content": "local model response"}}]}
-
-    monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", fake)
-    response = _call(
-        "",
-        {"messages": [{"role": "user", "content": "hi"}]},
-        provider="openai_compatible",
-        base_url="http://127.0.0.1:1234/v1",
-        model="my-model",
-    )
-    assert captured["url"] == "http://127.0.0.1:1234/v1/chat/completions"
-    assert response["content"][0]["text"] == "local model response"
-
-
-def test_build_payload_anthropic():
-    p = providers.build_payload(
-        "anthropic", "claude-sonnet-5", [{"role": "user", "content": "hi"}], "sys", 100, {"temperature": 0.5}
-    )
-    assert p["model"] == "claude-sonnet-5"
-    assert p["system"] == "sys"
-    assert p["messages"] == [{"role": "user", "content": "hi"}]
-    assert p["temperature"] == 0.5
-
-
-def test_build_payload_xai_injects_system():
-    p = providers.build_payload("xai", "grok-3", [{"role": "user", "content": "hi"}], "sys", 100, {})
-    assert p["messages"][0] == {"role": "system", "content": "sys"}
-    assert p["messages"][1] == {"role": "user", "content": "hi"}
-
-
-def test_build_payload_gemini():
-    p = providers.build_payload(
-        "gemini",
-        "gemini-2.0-flash",
-        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "there"}],
-        None,
-        100,
-        {"temperature": 0.7},
-    )
-    assert p["contents"][0] == {"role": "user", "parts": [{"text": "hi"}]}
-    assert p["contents"][1] == {"role": "model", "parts": [{"text": "there"}]}
-    assert p["generationConfig"]["temperature"] == 0.7
-    assert p["generationConfig"]["maxOutputTokens"] == 100
-
-
-def test_build_payload_gemini_system_instruction():
-    p = providers.build_payload(
-        "gemini", "gemini-2.0-flash", [{"role": "user", "content": "hi"}], "be helpful", 50, {}
-    )
-    assert p["systemInstruction"] == {"parts": [{"text": "be helpful"}]}
+def test_headers_for_local_providers():
+    assert "Authorization" not in providers.headers_for("ollama", "unused")
+    assert "x-api-key" not in providers.headers_for("local", "unused")
 
 
 def test_build_payload_ollama():
@@ -309,21 +181,11 @@ def test_build_payload_ollama():
     assert p["options"]["temperature"] == 0.3
 
 
-def test_parse_response_each_provider():
-    assert providers.parse_response("anthropic", {"content": [{"type": "text", "text": "hello"}]}) == "hello"
-    assert providers.parse_response("xai", {"choices": [{"message": {"content": "xai hi"}}]}) == "xai hi"
-    assert (
-        providers.parse_response("gemini", {"candidates": [{"content": {"parts": [{"text": "g hi"}]}}]})
-        == "g hi"
+def test_parse_response_local_providers():
+    assert providers.parse_response("ollama", {"message": {"role": "assistant", "content": "ollama hi"}}) == (
+        "ollama hi"
     )
-    assert (
-        providers.parse_response("ollama", {"message": {"role": "assistant", "content": "ollama hi"}})
-        == "ollama hi"
-    )
-    assert "local mode" in providers.parse_response("local", {}).lower()
-
-
-# ── router integration (mocked network) ─────────────────────────────────────
+    assert providers.parse_response("local", {}) == "[local mode] No upstream call — local stub response."
 
 
 def _mock_urlopen_json_for(provider_data: dict):
@@ -376,7 +238,7 @@ def test_router_call_rejects_file_scheme(monkeypatch):
         _call(
             "k",
             {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 10},
-            provider="anthropic",
+            provider="openai_compatible",
             base_url="file:///etc/passwd",
             model="m",
         )
@@ -427,4 +289,4 @@ def test_post_preserves_error_contract(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("zcoder.agent.orchestration.router._call", raising_call)
-    assert "boom" in _post("k", {}, provider="anthropic", model="m")["error"]
+    assert "boom" in _post("k", {}, provider="local", model="m")["error"]

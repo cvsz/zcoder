@@ -1,7 +1,4 @@
-"""tests/test_coder.py — Coder.generate() with urllib.request.urlopen mocked out.
-
-No real network calls are made anywhere in this file.
-"""
+"""Tests for the loopback-only OpenAI-compatible model client."""
 
 import io
 import json
@@ -11,164 +8,130 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import zcoder.core.resilience as resilience
-from zcoder.services.coder import Coder
+from zcoder.services.coder import Coder, _RejectRedirects
 
 
 @pytest.fixture(autouse=True)
 def fresh_breaker(monkeypatch):
-    """Give every test its own circuit breaker so failures in one test
-    don't trip the breaker for the next one."""
     monkeypatch.setattr(
         "zcoder.services.coder._default_breaker",
         resilience.CircuitBreaker(failure_threshold=10, reset_timeout=0.01),
     )
 
 
-def _fake_response(payload: dict):
-    body = json.dumps(payload).encode()
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = body
-    mock_resp.__enter__.return_value = mock_resp
-    mock_resp.__exit__.return_value = False
-    return mock_resp
+def _fake_response(text: str):
+    body = json.dumps({"choices": [{"message": {"content": text}}]}).encode()
+    response = MagicMock()
+    response.read.return_value = body
+    response.__enter__.return_value = response
+    response.__exit__.return_value = False
+    return response
 
 
-def test_generate_returns_error_without_api_key():
-    c = Coder(api_key="", model="claude-sonnet-5")
-    result = c.generate("hello")
-    assert "[ERROR]" in result
-    assert "API key" in result
-
-
-def test_generate_concatenates_multiple_text_blocks():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5")
-    payload = {
-        "content": [
-            {"type": "thinking", "thinking": "..."},
-            {"type": "text", "text": "Hello "},
-            {"type": "text", "text": "world"},
-        ]
-    }
-    with patch("urllib.request.urlopen", return_value=_fake_response(payload)):
-        result = c.generate("hi")
-    assert result == "Hello world"
-
-
-def test_generate_handles_refusal():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5")
-    payload = {"content": [], "stop_reason": "refusal"}
-    with patch("urllib.request.urlopen", return_value=_fake_response(payload)):
-        result = c.generate("hi")
-    assert result == "[REFUSED] Model declined this request."
-
-
-def test_generate_no_sampling_params_for_sonnet5():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5", temperature=0.9)
+def test_generate_uses_local_chat_completions_without_api_key():
+    coder = Coder(model="zqwen2.5-coder-7b-instruct-q4_k_m")
     captured = {}
 
-    def fake_urlopen(req, timeout=None):
-        captured["payload"] = json.loads(req.data.decode())
-        return _fake_response({"content": [{"type": "text", "text": "ok"}]})
+    def fake_urlopen(request, timeout=None):
+        captured["request"] = request
+        captured["payload"] = json.loads(request.data.decode())
+        return _fake_response("local response")
 
-    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
-        c.generate("hi")
-    assert "temperature" not in captured["payload"]
+    with patch("zcoder.services.coder._open_local", side_effect=fake_urlopen):
+        result = coder.generate("hello", system="Be concise")
+
+    assert result == "local response"
+    assert captured["request"].full_url == "http://127.0.0.1:8080/v1/chat/completions"
+    assert captured["request"].get_header("Authorization") is None
+    assert captured["payload"]["model"] == "zqwen2.5-coder-7b-instruct-q4_k_m"
+    assert captured["payload"]["messages"] == [
+        {"role": "system", "content": "Be concise"},
+        {"role": "user", "content": "hello"},
+    ]
 
 
-def test_generate_401_does_not_retry():
-    c = Coder(api_key="sk-ant-bad", model="claude-sonnet-5")
-    call_count = {"n": 0}
+def test_generate_includes_file_content_and_history():
+    coder = Coder()
+    captured = {}
 
-    def raise_401(req, timeout=None):
-        call_count["n"] += 1
-        raise urllib.error.HTTPError(
-            url="", code=401, msg="unauthorized", hdrs=None, fp=io.BytesIO(b'{"error":"bad key"}')
+    def fake_urlopen(request, timeout=None):
+        captured["payload"] = json.loads(request.data.decode())
+        return _fake_response("ok")
+
+    with patch("zcoder.services.coder._open_local", side_effect=fake_urlopen):
+        coder.generate(
+            "summarize", file_content="source", history=[{"role": "assistant", "content": "prior"}]
         )
 
-    with patch("urllib.request.urlopen", side_effect=raise_401):
-        result = c.generate("hi")
+    assert captured["payload"]["messages"] == [
+        {"role": "assistant", "content": "prior"},
+        {"role": "user", "content": "File content:\n```\nsource\n```\n\nsummarize"},
+    ]
+
+
+def test_generate_adds_v1_path_when_base_url_omits_it():
+    coder = Coder(base_url="http://127.0.0.1:8080")
+    with patch("zcoder.services.coder._open_local", return_value=_fake_response("ok")) as request:
+        assert coder.generate("hello") == "ok"
+    assert request.call_args.args[0].full_url == "http://127.0.0.1:8080/v1/chat/completions"
+
+
+@pytest.mark.parametrize("url", ["https://example.com/v1", "http://127.0.0.1:8080/v1?redirect=1"])
+def test_generate_rejects_non_local_or_ambiguous_base_url(url):
+    coder = Coder(base_url=url)
+    with patch("zcoder.services.coder._open_local") as request:
+        result = coder.generate("hello")
+    assert "local llama-server" in result
+    request.assert_not_called()
+
+
+def test_cloud_only_options_fail_closed_without_network_call():
+    coder = Coder(fast_mode=True)
+    with patch("zcoder.services.coder._open_local") as request:
+        result = coder.generate("hello")
+    assert "unavailable with the local model" in result
+    request.assert_not_called()
+
+
+def test_non_local_provider_fails_closed_without_network_call():
+    coder = Coder(provider="anthropic")
+    with patch("zcoder.services.coder._open_local") as request:
+        result = coder.generate("hello")
+    assert "only supports the local model server" in result
+    request.assert_not_called()
+
+
+def test_local_http_client_refuses_redirects():
+    handler = _RejectRedirects()
+    assert handler.redirect_request(None, None, 302, "Found", {}, "https://example.com") is None
+
+
+def test_http_error_returns_api_status_without_retrying_auth_failure():
+    coder = Coder()
+    calls = 0
+
+    def unauthorized(request, timeout=None):
+        nonlocal calls
+        calls += 1
+        raise urllib.error.HTTPError(
+            url=request.full_url,
+            code=401,
+            msg="unauthorized",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":"bad key"}'),
+        )
+
+    with patch("zcoder.services.coder._open_local", side_effect=unauthorized):
+        result = coder.generate("hello")
     assert "[API ERROR 401]" in result
-    assert call_count["n"] == 1  # auth errors are not retryable
+    assert calls == 1
 
 
-def test_generate_500_retries_then_succeeds():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5")
-    call_count = {"n": 0}
-
-    def flaky(req, timeout=None):
-        call_count["n"] += 1
-        if call_count["n"] < 3:
-            raise urllib.error.HTTPError(url="", code=503, msg="unavailable", hdrs=None, fp=io.BytesIO(b"{}"))
-        return _fake_response({"content": [{"type": "text", "text": "recovered"}]})
-
-    with patch("urllib.request.urlopen", side_effect=flaky), patch("time.sleep", return_value=None):
-        result = c.generate("hi")
-    assert result == "recovered"
-    assert call_count["n"] == 3
-
-
-def test_generate_429_exhausts_retries_returns_error():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5")
-
-    def always_429(req, timeout=None):
-        raise urllib.error.HTTPError(url="", code=429, msg="rate limited", hdrs=None, fp=io.BytesIO(b"{}"))
-
-    with patch("urllib.request.urlopen", side_effect=always_429), patch("time.sleep", return_value=None):
-        result = c.generate("hi")
-    assert "[API ERROR 429]" in result
-
-
-# ── v1.32.0: fast-mode validation (was previously unguarded/untested) ───
-
-
-def test_fast_mode_sends_speed_fast_on_supported_model():
-    c = Coder(api_key="sk-ant-test", model="claude-opus-4-8", fast_mode=True)
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
-        c.generate("hello")
-    sent_req = mock_urlopen.call_args[0][0]
-    payload = json.loads(sent_req.data)
-    assert payload["speed"] == "fast"
-
-
-def test_fast_mode_on_opus_5_sends_speed_fast():
-    c = Coder(api_key="sk-ant-test", model="claude-opus-5", fast_mode=True)
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
-        c.generate("hello")
-    sent_req = mock_urlopen.call_args[0][0]
-    payload = json.loads(sent_req.data)
-    assert payload["speed"] == "fast"
-
-
-def test_fast_mode_on_opus_4_7_errors_without_calling_api():
-    # Fast mode was removed for Opus 4.7 on 2026-07-24 and now 400s server
-    # side -- the client should refuse locally instead of burning a request.
-    c = Coder(api_key="sk-ant-test", model="claude-opus-4-7", fast_mode=True)
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        result = c.generate("hello")
-    mock_urlopen.assert_not_called()
-    assert "[ERROR]" in result
-    assert "claude-opus-4-7" in result
-
-
-def test_fast_mode_on_opus_4_6_warns_but_still_calls_api():
-    # Fast mode was removed for Opus 4.6 on 2026-06-29 but silently falls
-    # back to standard speed server-side -- safe to send, just pointless.
-    c = Coder(api_key="sk-ant-test", model="claude-opus-4-6", fast_mode=True)
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
-        c.generate("hello")
-    sent_req = mock_urlopen.call_args[0][0]
-    payload = json.loads(sent_req.data)
-    assert payload["speed"] == "fast"
-
-
-def test_fast_mode_off_never_sends_speed_field():
-    c = Coder(api_key="sk-ant-test", model="claude-sonnet-5", fast_mode=False)
-    with patch("urllib.request.urlopen") as mock_urlopen:
-        mock_urlopen.return_value = _fake_response({"content": [{"type": "text", "text": "hi"}]})
-        c.generate("hello")
-    sent_req = mock_urlopen.call_args[0][0]
-    payload = json.loads(sent_req.data)
-    assert "speed" not in payload
+def test_invalid_completion_shape_returns_actionable_error():
+    coder = Coder()
+    response = MagicMock()
+    response.read.return_value = b"{}"
+    response.__enter__.return_value = response
+    with patch("zcoder.services.coder._open_local", return_value=response):
+        result = coder.generate("hello")
+    assert "invalid chat completion" in result

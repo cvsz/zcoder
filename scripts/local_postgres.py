@@ -1,0 +1,183 @@
+"""Provision and use ZCoder's database on the shared local PostgreSQL container."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import secrets
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import quote
+
+CONTAINER = os.environ.get("ZCODER_POSTGRES_CONTAINER", "zPostgreSQL")
+CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zcoder_db", "zchat_postgres")
+ROLE = "zcoder"
+DATABASE = "zcoder_db"
+PREVIOUS_DATABASE = "zPostgreSQL"
+POSTGRES_NETWORK = "zPostgreSQL_network"
+PASSWORD_FILE = Path.home() / ".config" / "zcoder" / "postgresql.password"
+
+
+def _run(command: list[str], *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        input=input_text,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _container_name() -> str:
+    for name in (CONTAINER, *CONTAINER_FALLBACKS):
+        try:
+            result = _run(["docker", "inspect", "--format", "{{.State.Running}}", name])
+        except subprocess.CalledProcessError:
+            continue
+        if result.stdout.strip().lower() == "true":
+            return name
+    raise RuntimeError(
+        f"No running PostgreSQL Docker container found among {(CONTAINER, *CONTAINER_FALLBACKS)}"
+    )
+
+
+def _ensure_global_network(name: str) -> None:
+    try:
+        _run(["docker", "network", "inspect", POSTGRES_NETWORK])
+    except subprocess.CalledProcessError:
+        _run(["docker", "network", "create", "--driver", "bridge", POSTGRES_NETWORK])
+    inspect = _run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            f'{{{{if index .NetworkSettings.Networks "{POSTGRES_NETWORK}"}}}}connected{{{{end}}}}',
+            name,
+        ]
+    )
+    if inspect.stdout.strip() != "connected":
+        _run(["docker", "network", "connect", "--alias", "zPostgreSQL", POSTGRES_NETWORK, name])
+
+
+def _container_ip() -> str:
+    name = _container_name()
+    _ensure_global_network(name)
+    result = _run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            f'{{{{with index .NetworkSettings.Networks "{POSTGRES_NETWORK}"}}}}{{{{.IPAddress}}}}{{{{end}}}}',
+            name,
+        ]
+    )
+    address = result.stdout.strip()
+    if not address:
+        raise RuntimeError(
+            f"Docker container {CONTAINER!r} is not attached to shared network {POSTGRES_NETWORK!r}"
+        )
+    return address
+
+
+def _password(create: bool = False) -> str:
+    if not PASSWORD_FILE.exists():
+        if not create:
+            raise RuntimeError("Run `make postgres-setup` to provision local database credentials")
+        PASSWORD_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        PASSWORD_FILE.parent.chmod(0o700)
+        PASSWORD_FILE.write_text(secrets.token_hex(32) + "\n", encoding="utf-8")
+        PASSWORD_FILE.chmod(0o600)
+    return PASSWORD_FILE.read_text(encoding="utf-8").strip()
+
+
+def _dsn() -> str:
+    password = quote(_password(), safe="")
+    return f"postgresql://{ROLE}:{password}@{_container_ip()}:5432/{DATABASE}"
+
+
+def setup() -> None:
+    if shutil.which("docker") is None:
+        raise RuntimeError("Docker CLI is required")
+    container = _container_name()
+    _ensure_global_network(container)
+    password = _password(create=True)
+    sql = rf"""
+SELECT format('CREATE ROLE {ROLE} LOGIN PASSWORD %L', '{password}')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{ROLE}')\gexec
+ALTER ROLE {ROLE} LOGIN PASSWORD '{password}';
+SELECT format('ALTER DATABASE %I RENAME TO %I', '{PREVIOUS_DATABASE}', '{DATABASE}')
+WHERE EXISTS (SELECT 1 FROM pg_database WHERE datname = '{PREVIOUS_DATABASE}')
+  AND NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{DATABASE}')\gexec
+SELECT format('CREATE DATABASE %I OWNER %I', '{DATABASE}', '{ROLE}')
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{DATABASE}')\gexec
+ALTER DATABASE "{DATABASE}" OWNER TO {ROLE};
+"""
+    _run(
+        [
+            "docker",
+            "exec",
+            "-i",
+            container,
+            "sh",
+            "-lc",
+            'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres',
+        ],
+        input_text=sql,
+    )
+    status()
+
+
+def status() -> None:
+    import psycopg2
+
+    with psycopg2.connect(_dsn(), connect_timeout=5) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT current_database(), current_user, version()")
+            database, role, version = cursor.fetchone()
+    print(f"{database} ready for {role} ({version.split(',')[0]})")
+
+
+def run_command(command: list[str]) -> int:
+    if not command:
+        raise RuntimeError("Provide a command after `run --`")
+    environment = os.environ.copy()
+    dsn = _dsn()
+    environment["DATABASE_URL"] = dsn
+    environment["TEST_DATABASE_URL"] = dsn
+    try:
+        return subprocess.run(command, env=environment, check=False).returncode
+    except KeyboardInterrupt:
+        return 130
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="action", required=True)
+    subparsers.add_parser(
+        "setup", help="Create or rename the dedicated database and role in the shared Docker PostgreSQL"
+    )
+    subparsers.add_parser("status", help="Check connectivity to the dedicated database")
+    run_parser = subparsers.add_parser("run", help="Run a command with local PostgreSQL configured")
+    run_parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+
+    try:
+        if args.action == "setup":
+            setup()
+            return 0
+        if args.action == "status":
+            status()
+            return 0
+        command = args.command
+        if command and command[0] == "--":
+            command = command[1:]
+        return run_command(command)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(f"PostgreSQL setup failed: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

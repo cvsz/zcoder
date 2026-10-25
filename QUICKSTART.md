@@ -1,18 +1,31 @@
 # Quickstart
 
-## Run from source
+## Run from source with a local GGUF model
+
+Start llama.cpp in a separate terminal:
 
 ```bash
-./setup.sh              # macOS/Linux — creates venv, installs deps, makes .env
-# or setup.bat on Windows
-
-# edit .env and set ANTHROPIC_API_KEY
-
-source venv/bin/activate
-python main.py -p "Write a function to reverse a string"
+llama-server \
+  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --ctx-size 4096
 ```
 
-### Choose the installation directory
+Then install and run ZCoder:
+
+```bash
+make setup
+export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
+export ZCODER_MODEL=zqwen2.5-coder-7b-instruct-q4_k_m
+zcoder -p "Write a function to reverse a string"
+```
+
+For a smaller model, load `/home/cvsz/zgpu/qwen-1.5b-q4km.gguf` in the server.
+See [Local inference configuration](docs/guides/LOCAL-INFERENCE.md) for
+details and endpoint checks.
+
+## Choose the installation directory
 
 The destination is an exact virtual-environment path, not a parent directory.
 Choose it before installation; Python virtual environments are not generally
@@ -31,124 +44,50 @@ setup.bat --install-dir "D:\Apps\ZCoder"
 "D:\Apps\ZCoder\Scripts\zcoder.exe" --version
 ```
 
-`--install-dir` installs a regular package rather than an editable checkout,
-so the CLI does not depend on keeping the cloned source directory. With no
-option, the existing `venv` + editable-install behavior is preserved; the
-existing `ZCODER_VENV` environment variable is also supported.
-
-Credentials must be provided through environment variables or an explicitly
-configured dotenv workflow when running outside the source checkout. The
-setup script never copies credentials into the selected destination.
-
-## Run without an API key (offline / local mode)
-
-Set `ZCODER_LOCAL_MODE=1` (or `true`/`yes`) to run the CLI with no
-`ANTHROPIC_API_KEY` at all — generation, git helpers, live mode, and
-prompt optimization switch to deterministic offline synthesis with no
-network calls:
-
-```bash
-export ZCODER_LOCAL_MODE=1
-python main.py -p "Write a function to reverse a string"
-# -> [zCoder local offline response] ...
-```
-
-Outside local mode, a missing key is a hard error (`[ERROR] No API key
-configured...`) — the CLI never silently pretends to generate. Local mode
-does not require Ollama or any other model engine; it is a pure
-synthesis fallback for trying the CLI, running the test suite, or
-air-gapped smoke tests.
+With no `--install-dir`, the setup script creates the repository `venv` and
+installs an editable package. The `ZCODER_VENV` environment variable is also
+supported.
 
 ## Build a standalone executable
 
-No local Python needed to *run* the result — only to build it:
-
-```bash
-./build.sh               # macOS/Linux — produces dist/zcoder
-# or build.bat on Windows — produces dist\zcoder.exe
-
-export ANTHROPIC_API_KEY=sk-ant-...
-./dist/zcoder -p "Create a Flask REST API"
-```
-
-To choose the output directory and avoid overwriting an existing executable:
+Python is required to build the executable, but not to run it:
 
 ```bash
 ./build.sh --dist-dir "$HOME/Downloads/zcoder-release"
 "$HOME/Downloads/zcoder-release/zcoder" --version
-./build.sh --dist-dir "$HOME/Downloads/zcoder-release" --force  # intentional rebuild
 ```
+
+On Windows:
 
 ```bat
 build.bat --dist-dir "D:\Releases\ZCoder"
 "D:\Releases\ZCoder\zcoder.exe" --version
 ```
 
-`--work-dir` and `--build-venv` select intermediate build paths. Environment
-overrides `ZCODER_DIST_DIR`, `ZCODER_WORK_DIR` and `ZCODER_BUILD_VENV` remain
-available. Builds produce one platform-specific executable; create separate
-artifacts on Linux, macOS, and Windows. A standalone build bundles Python,
-not an AI model, API credentials, or operating-system libraries like glibc.
-macOS notarization, Windows code signing and release attestations are separate
-release requirements.
+Builds produce platform-specific executables and do not bundle model weights.
+Create and validate separate artifacts on Linux, macOS, and Windows.
+Platform signing, notarization, and release attestations are separate release
+requirements.
 
-## Free-tier and local inference endpoints
-
-The `--provider` flag applies to the **multi-agent router** (`--route`), not
-the regular `-p` generation command or every other CLI feature.
+## Basic commands
 
 ```bash
-export GROQ_API_KEY="your-groq-key"
-zcoder --route "Review this function" --provider groq --model "openai/gpt-oss-20b"
+# Generate from a prompt
+zcoder -p "Write a Python function to reverse a string"
 
-export OPENROUTER_API_KEY="your-openrouter-key"
-zcoder --route "Explain this diff" --provider openrouter --model "openrouter/free"
+# Analyze a source file
+zcoder -f mycode.py -p "Explain this and suggest improvements"
 
-zcoder --route "Review this function" --provider openai_compatible \
-  --base-url http://localhost:1234/v1 --model "my-loaded-model"
+# Start the terminal interface
+zcoder --tui
+
+# Run local liveness checks
+zcoder --health-check
+
+# Inspect available commands
+zcoder --help
 ```
 
-See [Free provider endpoint catalog](docs/guides/FREE-PROVIDER-ENDPOINTS.md)
-for exact URLs, required keys, pricing caveats, and local alternatives.
-
-## A few places to start
-
-```bash
-# Basic generation
-python main.py -p "Write a Python function to reverse a string"
-
-# Analyze a file
-python main.py -f mycode.py -p "Explain this and suggest improvements"
-
-# List every server tool, and the newer per-tool features (Tool Use
-# Examples, Programmatic Tool Calling, task budgets, compaction)
-python main.py --list-server-tools
-
-# Agentic tool loop
-python main.py --tool-agent -p "Find and fix the bug in app.py"
-
-# Native memory tool (persists across runs, in ~/.zcoder/memory)
-python main.py --memory-agent "Remember that this project uses pytest"
-
-# Advisor tool — a stronger model consulted mid-generation
-python main.py --advisor "Refactor auth.py to use JWT, then write tests"
-
-# Real hosted Claude Managed Agents (cloud sandbox, not local)
-python main.py --agent-managed-run "Set up a FastAPI project with tests"
-
-# Embeddings (needs VOYAGE_API_KEY — see .env.example)
-python main.py --embed-similarity "cat" "kitten"
-
-# Everything else
-python main.py --help
-```
-
-If you have an Admin API key or Compliance Access Key (org-level,
-different from a regular `ANTHROPIC_API_KEY`), `--usage-report`,
-`--admin-list-keys`, and `--compliance-activities` are the entry points
-into that surface — see `README.md`'s "New in v1.15.0" / "New in
-v1.16.0" sections before using them, since a few of those flags
-(`--compliance-*-delete`) are permanent, org-wide deletes.
-
-See `README.md` for the full feature list and `docs/` for the detailed,
-dated history of what was added, changed, or fixed in each release.
+The prompt, file, interactive, and route flows use the configured local model
+server. Some optional legacy operations are still being migrated; their use
+does not imply that every ZCoder feature is local-only.

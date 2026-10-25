@@ -1,18 +1,14 @@
-"""
-coder.py — Claude API integration core
-ZCoder CLI v1.7.0
-"""
+"""Provider-neutral local model client used by the command-line interface."""
 
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from zcoder.config.logging import get_logger
-from zcoder.config.settings import Config
 from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
-from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen
-from zcoder.core.utils import sampling_kwargs
+from zcoder.core.resilience import CircuitBreaker, retry
 
 logger = get_logger("coder")
 
@@ -23,6 +19,16 @@ logger = get_logger("coder")
 _default_breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+def _open_local(request, timeout):
+    opener = urllib.request.build_opener(_RejectRedirects())
+    return opener.open(request, timeout=timeout)
+
+
 class Coder:
     def __init__(
         self,
@@ -31,17 +37,17 @@ class Coder:
         temperature=0.3,
         max_tokens=4096,
         provider=None,
+        base_url=None,
         personality_style=None,
         service_tier=None,
         inference_geo=None,
         fast_mode=False,
     ):
-        self.config = Config()
-        self.api_key = api_key or self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
-        self.model = model or self.config.get("model") or "claude-sonnet-5"
+        self.model = model or os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.provider = provider or "anthropic"
+        self.provider = (provider or "llama_cpp").strip().lower()
+        self.base_url = (base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")).rstrip("/")
         self.personality_style = personality_style
         # service_tier: "auto" (use Priority Tier if committed, else fall
         # back to standard) or "standard_only". Not sent unless set — most
@@ -60,12 +66,21 @@ class Coder:
 
     def generate(self, prompt, system=None, file_content=None, history=None):
         """Generate a response from the AI model."""
-        if not self.api_key:
-            logger.error("missing_api_key")
-            return "[ERROR] No API key configured. Set ANTHROPIC_API_KEY or run --setup."
-        if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
-            # Local offline synthesis
-            return f"```python\n# [zCoder local offline response]\n# Task: {prompt}\n\ndef solution():\n    return 'Executed successfully offline without API key'\n```"
+        if self.provider not in {"local", "llama_cpp", "openai_compatible"}:
+            return "[ERROR] The command-line coding client only supports the local model server."
+        parsed_url = urllib.parse.urlsplit(self.base_url)
+        if (
+            parsed_url.scheme != "http"
+            or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed_url.username
+            or parsed_url.password
+            or parsed_url.query
+            or parsed_url.fragment
+        ):
+            return "[ERROR] ZCODER_BASE_URL must point to a local llama-server endpoint."
+        endpoint_base = (
+            self.base_url if parsed_url.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
+        )
 
         logger.info("generate_start", extra={"model": self.model, "prompt_chars": len(prompt or "")})
         messages = list(history or [])
@@ -89,48 +104,27 @@ class Coder:
 
         messages.append({"role": "user", "content": user_content})
 
+        if self.service_tier or self.inference_geo or self.fast_mode:
+            return "[ERROR] Cloud-only inference options are unavailable with the local model."
+
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "messages": messages,
-            # Was accepted in __init__ but never sent — dead code. Now sent,
-            # guarded by sampling_kwargs() since Sonnet 5/Fable 5/Mythos 5
-            # 400 on any explicit sampling param.
-            **sampling_kwargs(self.model, temperature=self.temperature),
+            "messages": ([{"role": "system", "content": system}] if system else []) + messages,
+            "temperature": self.temperature,
         }
-        if system:
-            payload["system"] = system
-        if self.service_tier:
-            payload["service_tier"] = self.service_tier
-        if self.inference_geo:
-            payload["inference_geo"] = self.inference_geo
-        if self.fast_mode:
-            from zcoder.agent.models.registry import FAST_MODE_REMOVED_ERROR, validate_fast_mode
-
-            reason = validate_fast_mode(self.model)
-            if self.model in FAST_MODE_REMOVED_ERROR:
-                logger.error("fast_mode_removed", extra={"model": self.model})
-                return f"[ERROR] --fast-mode unusable on {self.model}: {reason}"
-            if reason:
-                logger.warning("fast_mode_caveat", extra={"model": self.model, "reason": reason})
-            payload["speed"] = "fast"
-
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
+        headers = {"Content-Type": "application/json"}
 
         @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_default_breaker)
         def _call():
             req = urllib.request.Request(
-                "https://api.anthropic.com/v1/messages",
+                f"{endpoint_base}/chat/completions",
                 data=json.dumps(payload).encode(),
                 headers=headers,
                 method="POST",
             )
             try:
-                with safe_urlopen(req, timeout=120) as resp:
+                with _open_local(req, timeout=120) as resp:
                     return json.loads(resp.read().decode())
             except urllib.error.HTTPError as e:
                 body = e.read().decode()
@@ -174,19 +168,10 @@ class Coder:
             logger.exception("unexpected_error", extra={"model": self.model})
             return f"[ERROR] {e}"
 
-        # Was `data["content"][0]["text"]` — broke (wrong text, or a
-        # KeyError/IndexError outright) whenever content[0] wasn't a
-        # plain text block: thinking-capable models (Sonnet 5, Opus
-        # 4.8, Fable 5/Mythos 5 — Fable 5 has thinking on by default,
-        # see claude_fable5.py) can return a thinking block first,
-        # and any response with >1 text block silently dropped every
-        # block after the first. Concatenate every text block instead,
-        # matching the pattern already used in claude_models.py /
-        # claude_fable5.py / claude_mythos5.py.
-        content = data.get("content", [])
-        text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
-        if not text and data.get("stop_reason") == "refusal":
-            logger.info("model_refused", extra={"model": self.model})
-            return "[REFUSED] Model declined this request."
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError):
+            logger.error("invalid_local_model_response", extra={"model": self.model})
+            return "[ERROR] Local model returned an invalid chat completion response."
         logger.info("generate_ok", extra={"model": self.model, "response_chars": len(text)})
         return text
