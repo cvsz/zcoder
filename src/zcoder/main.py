@@ -3097,7 +3097,12 @@ def main():
             sys.exit(2)
         key = resolve_api_key(selected_provider, args.api_key)
         if selected_provider == "anthropic" and not key:
-            key = _api_key(args)
+            # An explicit Anthropic route must never inherit the local-mode
+            # placeholder key; only a real CLI/environment credential is valid.
+            key = (getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")).strip()
+            if not key:
+                print("[ERROR] ANTHROPIC_API_KEY not set.", file=sys.stderr)
+                sys.exit(1)
     else:
         key = _api_key(args)
     model = _model(args)
