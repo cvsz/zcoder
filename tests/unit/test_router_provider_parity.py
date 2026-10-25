@@ -445,3 +445,20 @@ def test_post_preserves_error_contract(monkeypatch):
 
     monkeypatch.setattr("zcoder.agent.orchestration.router._call", raising_call)
     assert "boom" in _post("k", {}, provider="anthropic", model="m")["error"]
+
+
+def test_explicit_anthropic_route_rejects_local_mode_without_real_key(monkeypatch):
+    from zcoder.main import main as cli_main
+
+    monkeypatch.setenv("ZCODER_LOCAL_MODE", "1")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["zcoder", "--route", "hello", "--provider", "anthropic"],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main()
+
+    assert exc.value.code == 1
