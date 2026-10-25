@@ -35,7 +35,12 @@ def _api_key(args):
     command paths may still require it, so never discard --api-key or the
     operator's ANTHROPIC_API_KEY setting here.
     """
-    return getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
+    explicit_key = (getattr(args, "api_key", None) or "").strip()
+    if explicit_key:
+        return explicit_key
+    if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return ""
+    return os.getenv("ANTHROPIC_API_KEY", "").strip()
 
 
 def _model(args):
