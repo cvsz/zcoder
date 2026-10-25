@@ -1,34 +1,28 @@
-# Local GGUF mode for ZCoder prompt CLI
+# โหมด Local GGUF สำหรับ ZCoder Prompt CLI
 
-The normal `zcoder -p`, `zcoder --agent ... -p`, multi-agent router, and web
-chat paths use a **loopback-only** llama.cpp chat completion server by default.
-Inference transports are restricted to local model endpoints. Legacy
-administrative, compliance, managed-agent, and model-specific commands remain
-present for compatibility, but are unavailable in this local-only build.
+คำสั่งปกติ `zcoder -p`, `zcoder --agent ... -p`, multi-agent router และ web chat ใช้เซิร์ฟเวอร์ llama.cpp chat completion แบบ **loopback-only** เป็นค่าเริ่มต้น transport สำหรับ inference จำกัดเฉพาะ endpoint ของโมเดลภายในเครื่อง ส่วนคำสั่ง legacy สำหรับ administration, compliance, managed-agent และโมเดลเฉพาะยังคงอยู่เพื่อ compatibility แต่ไม่พร้อมใช้งานใน build แบบ local-only นี้
 
-## Model files on the user's Ubuntu/WSL instance
+## ไฟล์โมเดลบน Ubuntu/WSL ของผู้ใช้
 
 - `/home/cvsz/zgpu/qwen-7b-q4km.gguf`
 - `/home/cvsz/zgpu/qwen-1.5b-q4km.gguf`
 
-The Windows `\\wsl.localhost\...` path is **not** an appropriate Linux CLI
-path. Do not copy GGUF model files into the repository.
+พาธ Windows `\\\\wsl.localhost\\...` **ไม่เหมาะสำหรับ Linux CLI** ห้ามคัดลอกไฟล์โมเดล GGUF เข้าไปใน repository
 
-## Prerequisites
+## ข้อกำหนดเบื้องต้น
 
-Install/build `llama.cpp` separately so `llama-server` is on PATH.
-This repository does not download executables or model weights.
+ติดตั้งหรือ build `llama.cpp` แยกต่างหาก เพื่อให้เรียก `llama-server` ได้จาก PATH repository นี้จะไม่ดาวน์โหลด executable หรือ model weights
 
-In terminal A:
+Terminal A:
 
 ```bash
 cd ~/zcoder
 bash scripts/start_local_gguf.sh 7b
-# For a lower-memory alternative, stop the first server and run:
+# หากต้องการตัวเลือกที่ใช้หน่วยความจำน้อยกว่า ให้หยุด server แรกก่อนแล้วรัน:
 # bash scripts/start_local_gguf.sh 1.5b
 ```
 
-In terminal B:
+Terminal B:
 
 ```bash
 cd ~/zcoder
@@ -37,19 +31,13 @@ export ZCODER_BASE_URL=http://127.0.0.1:8080
 zcoder --agent security_auditor -p "Audit cvsz/zgpu source for vulnerabilities; cite files and recommend tests."
 ```
 
-The model server listens on `127.0.0.1:8080` only. No API key is required for
-local generation. Requests fail closed if the local server is missing; they
-must **never** fall back to an external provider. Legacy cloud providers are
-not selectable from the inference router.
-The public model identifiers are `zcoder-qwen2.5-coder-7b` and
-`zcoder-qwen2.5-coder-1.5b`; the launcher configures the matching llama.cpp
-server alias.
+Model server รับการเชื่อมต่อที่ `127.0.0.1:8080` เท่านั้น การสร้างข้อความในเครื่องไม่ต้องใช้ API key หาก local server ไม่พร้อม คำขอต้อง fail closed และ **ห้าม fallback ไปยัง provider ภายนอก** ไม่สามารถเลือก legacy cloud provider ผ่าน inference router ได้
 
-The first test should be a short text completion. A prompt containing just
-a GitHub repository name does not automatically give ZCoder access to its
-source code; inspect or supply files explicitly.
+ชื่อโมเดลสาธารณะคือ `zcoder-qwen2.5-coder-7b` และ `zcoder-qwen2.5-coder-1.5b`; launcher จะกำหนด alias ของ llama.cpp server ให้ตรงกัน
 
-### Developer checks
+การทดสอบแรกควรใช้ prompt สั้น ๆ สำหรับ text completion การระบุชื่อ GitHub repository เพียงอย่างเดียวไม่ได้ทำให้ ZCoder เข้าถึง source code ของ repository นั้นโดยอัตโนมัติ ต้องตรวจสอบหรือส่งไฟล์ให้ระบบอย่างชัดเจน
+
+### คำสั่งตรวจสอบสำหรับนักพัฒนา
 
 ```bash
 ruff check src/zcoder/main.py src/zcoder/services/coder.py tests/unit/test_local_gguf_default.py
@@ -57,13 +45,6 @@ ruff format --check src/zcoder/main.py src/zcoder/services/coder.py tests/unit/t
 python -m pytest tests/unit/test_local_gguf_default.py -q
 ```
 
-Changing the default backend is a compatibility-breaking change for tests
-that relied on the old implicit PROVIDER_CREDENTIAL_OR_CONFIG mock. Those tests must explicitly
-request their intended legacy provider or be migrated. Do not merge until
-the full suite and independent review pass.
+การเปลี่ยน backend เริ่มต้นเป็นการเปลี่ยนแปลงที่อาจกระทบ compatibility ของ tests ซึ่งพึ่งพา implicit `PROVIDER_CREDENTIAL_OR_CONFIG` mock เดิม tests เหล่านั้นต้องระบุ legacy provider ที่ต้องการอย่างชัดเจน หรือย้ายไปใช้ contract ใหม่ ห้าม merge จนกว่า full test suite และ independent review จะผ่าน
 
-**Limit:** Legacy provider modules and model metadata have not been deleted.
-Those features are unavailable until replaced with local implementations. The
-SDK dependency remains for compatibility, while its application client factory
-uses a transport that refuses network requests. This is runtime enforcement,
-not source-code eradication.
+**ข้อจำกัด:** ยังไม่ได้ลบ legacy provider modules และ model metadata ออกจาก source code แต่ feature เหล่านี้ยังใช้ไม่ได้จนกว่าจะมี local implementation มาทดแทน SDK dependency ยังคงอยู่เพื่อ compatibility ขณะที่ application client factory ใช้ transport ที่ปฏิเสธ network requests นี่คือการบังคับใช้ขณะ runtime ไม่ใช่การลบโค้ดต้นทางทั้งหมด
