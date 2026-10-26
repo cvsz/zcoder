@@ -117,9 +117,7 @@ def test_local_model_client_rejects_non_loopback_endpoint():
         LocalLlamaCppClient("https://api.anthropic.com")
 
 
-@pytest.mark.skipif(
-    __import__("os").name != "posix", reason="POSIX file mode contract"
-)
+@pytest.mark.skipif(__import__("os").name != "posix", reason="POSIX file mode contract")
 def test_database_permissions_are_owner_only(tmp_path):
     import stat
 
@@ -152,9 +150,7 @@ def test_local_inference_urlopen_disables_environment_proxies(monkeypatch):
         assert handlers[0].proxies == {}
         return FakeOpener()
 
-    monkeypatch.setattr(
-        local_control.urllib.request, "build_opener", fake_build_opener
-    )
+    monkeypatch.setattr(local_control.urllib.request, "build_opener", fake_build_opener)
     result = local_control._safe_local_urlopen(
         Request("http://127.0.0.1:8080/v1/chat/completions"), timeout=7
     )
