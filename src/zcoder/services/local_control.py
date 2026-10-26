@@ -15,7 +15,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from zcoder.core.resilience import safe_urlopen
+
+def _safe_local_urlopen(request: urllib.request.Request, *, timeout: float):
+    """Open loopback inference directly, never forwarding prompts to a proxy."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(request, timeout=timeout)
+
 
 ROLES = frozenset({"admin", "operator", "auditor"})
 TASK_STATES = frozenset({"PENDING", "APPROVED", "REJECTED"})
@@ -274,7 +279,7 @@ class LocalLlamaCppClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with safe_urlopen(request, timeout=120) as response:
+        with _safe_local_urlopen(request, timeout=120) as response:
             raw = response.read(8 * 1024 * 1024 + 1)
         if len(raw) > 8 * 1024 * 1024:
             raise ValueError("local model response exceeded the size limit")
