@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from zcoder.api import local_control
+from zcoder.api.auth import RequestAuthenticationError
 
 
 @pytest.fixture
@@ -75,3 +76,22 @@ def test_local_control_rejects_other_organization(client):
     identity["organization_id"] = "org-2"
     response = http.get("/local/v1/admin/principals")
     assert response.status_code == 403
+
+
+def test_local_control_api_returns_401_on_authentication_failure(client, monkeypatch):
+    http, _identity = client
+
+    def reject(_headers):
+        raise RequestAuthenticationError("A non-empty Bearer token is required")
+
+    monkeypatch.setattr(local_control, "authenticate_request", reject)
+    response = http.get("/local/v1/admin/principals")
+    assert response.status_code == 401
+
+
+def test_local_control_api_enforces_local_rbac(client):
+    http, identity = client
+    identity["principal_id"] = "operator"
+    response = http.get("/local/v1/admin/principals")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "permission denied"
