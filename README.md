@@ -131,6 +131,8 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 
 ### Installation
 
+For custom installation paths and platform-specific standalone builds, see the [Portable Installation Guide](docs/guides/PORTABLE-INSTALL.md).
+
 ```bash
 git clone https://github.com/cvsz/zcoder.git
 cd zcoder
