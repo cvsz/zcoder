@@ -1,8 +1,14 @@
 """Offline control plane regressions; no network or Anthropic dependencies."""
 
 import sqlite3
+from types import SimpleNamespace
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from zcoder.api import local_control as local_api
+from zcoder.api.auth import RequestAuthenticationError
 
 from zcoder.services.local_control import (
     LocalAgentRunner,
@@ -133,18 +139,11 @@ def test_database_permissions_are_owner_only(tmp_path):
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
-
 # API adapter regressions: authentication failures and tenant/RBAC boundaries.
-from types import SimpleNamespace
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from zcoder.api import local_control as local_api
-from zcoder.api.auth import RequestAuthenticationError
-
-
-def _local_api_client(monkeypatch, tmp_path, *, principal="admin", organization="org-1"):
+def _local_api_client(
+    monkeypatch, tmp_path, *, principal="admin", organization="org-1"
+):
     monkeypatch.setenv("ZCODER_LOCAL_ORGANIZATION_ID", "org-1")
     monkeypatch.setenv("ZCODER_LOCAL_BOOTSTRAP_ADMIN_SUBJECT", "admin")
     monkeypatch.setenv(
@@ -193,4 +192,6 @@ def test_local_api_allows_bootstrapped_admin_in_bound_organization(
     client = _local_api_client(monkeypatch, tmp_path)
     response = client.get("/local/v1/admin/principals")
     assert response.status_code == 200
-    assert response.json() == {"principals": [{"principal": "admin", "role": "admin"}]}
+    assert response.json() == {
+        "principals": [{"principal": "admin", "role": "admin"}]
+    }
