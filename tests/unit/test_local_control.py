@@ -3,6 +3,7 @@
 import sqlite3
 
 import pytest
+
 from zcoder.services.local_control import (
     LocalAgentRunner,
     LocalControlStore,
