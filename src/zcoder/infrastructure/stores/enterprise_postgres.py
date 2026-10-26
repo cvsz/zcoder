@@ -908,56 +908,38 @@ class EnterprisePostgresStore:
                 )
 
     def authenticate_api_key(self, raw_key: str) -> RequestContext | None:
-        parts = raw_key.split("_")
-        org_prefix = parts[1] if len(parts) > 1 else ""
+        (
+            raw_key.split("_")[0] + "_" + raw_key.split("_")[1] + "_" + raw_key.split("_")[2]
+            if raw_key.count("_") >= 2
+            else ""
+        )
         secret_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-
         with self._raw_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id FROM organizations WHERE id LIKE %s",
-                    (org_prefix + "%",),
+                    """
+                    SELECT id, organization_id, project_id, principal_id, scopes, status, expires_at
+                    FROM api_keys
+                    WHERE secret_hash = %s AND status = 'ACTIVE'
+                    """,
+                    (secret_hash,),
                 )
-                org_rows = cur.fetchall()
+                row = cur.fetchone()
+        if not row:
+            return None
 
-        candidate_orgs = [row[0] for row in org_rows]
-        if not candidate_orgs:
-            with self._raw_conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT id FROM organizations")
-                    org_rows = cur.fetchall()
-            candidate_orgs = [row[0] for row in org_rows]
+        key_id, org_id, proj_id, principal_id, scopes, status, expires_at = row
+        if expires_at and time.time() > expires_at:
+            return None
 
-        for org_id in candidate_orgs:
-            ctx = RequestContext(principal_id="auth_probe", organization_id=org_id)
-            try:
-                with self.scoped_conn(ctx) as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            """
-                            SELECT id, organization_id, project_id, principal_id, scopes, status, expires_at
-                            FROM api_keys
-                            WHERE secret_hash = %s AND status = 'ACTIVE'
-                            """,
-                            (secret_hash,),
-                        )
-                        row = cur.fetchone()
-                if row:
-                    key_id, org_id_res, proj_id, principal_id, scopes, status, expires_at = row
-                    if expires_at and time.time() > expires_at:
-                        return None
-                    scopes if isinstance(scopes, list) else json.loads(scopes)
-                    return RequestContext(
-                        principal_id=principal_id,
-                        organization_id=org_id_res,
-                        project_id=proj_id,
-                        role=EnterpriseRole.OPERATOR,
-                        authentication_method="apikey",
-                    )
-            except Exception:
-                continue
-
-        return None
+        scopes if isinstance(scopes, list) else json.loads(scopes)
+        return RequestContext(
+            principal_id=principal_id,
+            organization_id=org_id,
+            project_id=proj_id,
+            role=EnterpriseRole.OPERATOR,
+            authentication_method="apikey",
+        )
 
     # ─── Metering, Quotas & Atomic Reservations ──────────────────────────
 
@@ -1035,8 +1017,7 @@ class EnterprisePostgresStore:
     # ─── Audit Logging & Export ──────────────────────────────────────────
 
     def record_audit_event(self, event: EnterpriseAuditEvent) -> None:
-        ctx = RequestContext(principal_id="system", organization_id=event.organization_id)
-        with self.scoped_conn(ctx) as conn:
+        with self._raw_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -1058,6 +1039,7 @@ class EnterprisePostgresStore:
                         event.schema_version,
                     ),
                 )
+            conn.commit()
 
     def export_audit_log(self, ctx: RequestContext, limit: int = 100) -> list[dict[str, Any]]:
         ctx.require_permission("audit.export")
