@@ -111,3 +111,18 @@ def test_local_model_client_uses_only_loopback(monkeypatch):
 def test_local_model_client_rejects_non_loopback_endpoint():
     with pytest.raises(ValueError, match="loopback"):
         LocalLlamaCppClient("https://api.anthropic.com")
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="POSIX file mode contract")
+def test_database_permissions_are_owner_only(tmp_path):
+    import stat
+
+    path = tmp_path / "private-control.sqlite"
+    store = LocalControlStore(path)
+    store.bootstrap_admin("admin")
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    # Existing database files are tightened on subsequent connections too.
+    path.chmod(0o644)
+    store.list_principals("admin")
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
