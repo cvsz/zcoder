@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0.."
-python --version >nul 2>&1 || (echo ERROR: Python 3.9+ is required & exit /b 1)
+python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)" >nul 2>&1 || (echo ERROR: Python 3.12+ is required & exit /b 1)
 set "VENV=venv"
 if not exist "%VENV%\Scripts\python.exe" python -m venv "%VENV%" || exit /b 1
 "%VENV%\Scripts\python.exe" -m pip install --upgrade pip || exit /b 1
