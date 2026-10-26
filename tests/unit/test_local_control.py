@@ -195,3 +195,32 @@ def test_local_api_allows_bootstrapped_admin_in_bound_organization(
     assert response.json() == {
         "principals": [{"principal": "admin", "role": "admin"}]
     }
+
+
+def test_local_inference_urlopen_disables_environment_proxies(monkeypatch):
+    from urllib.request import ProxyHandler, Request
+
+    from zcoder.services import local_control
+
+    calls = []
+    response = object()
+
+    class FakeOpener:
+        def open(self, request, timeout):
+            calls.append((request.full_url, timeout))
+            return response
+
+    def fake_build_opener(*handlers):
+        assert len(handlers) == 1
+        assert isinstance(handlers[0], ProxyHandler)
+        assert handlers[0].proxies == {}
+        return FakeOpener()
+
+    monkeypatch.setattr(
+        local_control.urllib.request, "build_opener", fake_build_opener
+    )
+    result = local_control._safe_local_urlopen(
+        Request("http://127.0.0.1:8080/v1/chat/completions"), timeout=7
+    )
+    assert result is response
+    assert calls == [("http://127.0.0.1:8080/v1/chat/completions", 7)]
