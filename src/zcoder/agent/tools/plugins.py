@@ -35,7 +35,6 @@ CLI flags:
   --plugin-info NAME
   --plugin-enable NAME / --plugin-disable NAME
   --plugin-dir PATH         (load a plugin directly from a local/zip path, no install step)
-  --plugin-validate PATH    (lint a plugin directory/manifest before installing)
 """
 
 import json
@@ -238,13 +237,6 @@ def validate_plugin(plugin_dir: Path) -> list:
     return findings
 
 
-def cmd_plugin_validate(path: str) -> list:
-    """Print plugin validation findings without installing or modifying the target plugin."""
-    findings = validate_plugin(Path(os.path.expanduser(path)))
-    icons = {"ok": "✓", "info": "ℹ", "warn": "⚠", "error": "✗"}
-    for level, message in findings:
-        print(f"{icons.get(level, '')} {message}")
-    return findings
 
 
 # ══════════════════════════════════════════════════════════════════════════

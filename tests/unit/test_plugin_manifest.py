@@ -79,14 +79,10 @@ def test_filesystem_allowed_values_pass(tmp_path):
         assert not _levels(findings, "error"), f"filesystem={fs!r} should not error"
 
 
-def test_cli_plugin_validate_is_read_only_and_reports_findings(tmp_path, monkeypatch, capsys):
-    from zcoder.agent.tools import plugins
+def test_plugin_validate_cli_flag_is_not_exposed():
+    import pytest
 
-    _write_manifest(tmp_path, {"name": "local-plugin"})
-    before = (tmp_path / ".claude-plugin" / "plugin.json").read_bytes()
-    monkeypatch.setattr("sys.argv", ["zcoder", "--plugin-validate", str(tmp_path)])
+    from zcoder.main import build_parser
 
-    plugins.cmd_plugin_validate(str(tmp_path))
-
-    assert "looks valid" in capsys.readouterr().out
-    assert (tmp_path / ".claude-plugin" / "plugin.json").read_bytes() == before
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--plugin-validate", "/tmp/plugin"])

@@ -2114,7 +2114,6 @@ def build_parser():
     pl.add_argument("--plugin-info", metavar="NAME", dest="plugin_info")
     pl.add_argument("--plugin-enable", metavar="NAME", dest="plugin_enable")
     pl.add_argument("--plugin-disable", metavar="NAME", dest="plugin_disable")
-    pl.add_argument("--plugin-validate", metavar="PATH", dest="plugin_validate")
 
     mem = p.add_argument_group("Memory")
     mem.add_argument("--memory-add", metavar="TEXT", dest="memory_add")
@@ -2414,13 +2413,6 @@ def main():
         return
 
     # ── Plugins & Marketplaces (no API key required) ──
-    if args.plugin_validate:
-        from zcoder.agent.tools.plugins import cmd_plugin_validate
-
-        findings = cmd_plugin_validate(args.plugin_validate)
-        if any(level == "error" for level, _ in findings):
-            sys.exit(1)
-        return
     if args.plugin_marketplace_add:
         from zcoder.agent.tools.plugins import cmd_plugin_marketplace_add
 
