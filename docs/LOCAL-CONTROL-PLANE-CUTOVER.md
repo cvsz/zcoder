@@ -36,13 +36,16 @@ tools. Model output is stored as task result evidence.
 
 ### Security limits
 
-- Caller identity (`actor`) is **not authenticated** by this store.
-  NEVER expose this service directly via HTTP, MCP or a multi-user interface.
+- The store accepts an actor identifier and does not authenticate it itself.
+  The `/local/v1` adapter validates OIDC bearer tokens and organization binding,
+  then applies the store's local RBAC. Keep the adapter behind a trusted network
+  boundary until API-level authorization and deployment tests are complete.
 - The SQLite file can be modified by its OS owner; SHA-256 chaining is
   not a keyed signature, tamper-proof ledger, or independent attestation.
-- For production, add authenticated sessions or OIDC, RBAC authorization at
-  the API boundary, OS-permission-enforced file ownership, durable backup,
-  audit anchoring off-host, retention and encryption policies.
+- Production admission still requires API integration tests for missing/invalid
+  tokens, organization mismatch, role denial and bootstrap lifecycle; hardened
+  deployment/network policy; durable backup and restore; off-host audit anchoring;
+  retention and encryption policies.
 - `APPROVED` is an approval **record**, not permission to execute arbitrary
   commands. The job runner needs its own identity, resource limits, isolation,
   replay protection, and live execution disabled by default.
@@ -56,9 +59,9 @@ tools. Model output is stored as task result evidence.
 2. Separate the Anthropic-specific administration/compliance commands from
    local control-plane operations. Do not silently repurpose an Anthropic
    account management command to manage local identities.
-3. Introduce new explicit CLI namespaces such as `local-admin`,
-   `local-compliance`, and `local-agent`. Expose them only after authenticated
-   permission checks and CLI integration tests are implemented.
+3. Introduce explicit CLI namespaces such as `local-admin`, `local-compliance`,
+   and `local-agent`. They remain separate from the API and must not be exposed
+   until authenticated permission checks and CLI integration tests are complete.
 4. Build a local agent workflow engine with SQLite/Postgres journal,
    bounded retries, fail-closed approval consumption, replay safety, model
    inference over loopback, cancellation and task evidence.
@@ -76,5 +79,7 @@ ruff check src/zcoder/services/local_control.py tests/unit/test_local_control.py
 black --check src/zcoder/services/local_control.py tests/unit/test_local_control.py
 ```
 
-The application-level tests are not evidence of production security.
-Keep this feature branch as a draft PR until security and independent review.
+The application-level tests are not evidence of production security. The API
+adapter is now part of this draft, so add API-level authorization/bootstrap
+regressions before treating it as an externally deployable service. Keep this
+feature branch as a draft PR until security and independent review.
