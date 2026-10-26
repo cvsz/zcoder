@@ -70,8 +70,27 @@ class LocalControlStore:
                     db.execute(statement)
 
     def _connect(self) -> sqlite3.Connection:
+        # The database contains principal roles, task prompts/results, and audit
+        # evidence. On POSIX, create/open it without following symlinks and
+        # enforce owner-only access before SQLite opens the path.
+        if os.name == "posix" and self.database != ":memory:":
+            flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                fd = os.open(self.database, flags, 0o600)
+                try:
+                    os.fchmod(fd, 0o600)
+                finally:
+                    os.close(fd)
+            except OSError as exc:
+                raise RuntimeError("unable to secure local control database permissions") from exc
         db = sqlite3.connect(self.database, timeout=10)
         db.execute("PRAGMA busy_timeout=10000")
+        if os.name == "posix" and self.database != ":memory:":
+            try:
+                os.chmod(self.database, 0o600, follow_symlinks=False)
+            except OSError:
+                db.close()
+                raise RuntimeError("unable to enforce local control database permissions")
         return db
 
     def _audit(self, db: sqlite3.Connection, actor: str, action: str, subject: str) -> None:
