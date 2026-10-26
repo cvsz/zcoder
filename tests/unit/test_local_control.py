@@ -112,7 +112,7 @@ def test_local_model_client_uses_only_loopback(monkeypatch):
         requested.append((request.full_url, timeout))
         return Response()
 
-    monkeypatch.setattr("zcoder.services.local_control.safe_urlopen", fake_open)
+    monkeypatch.setattr("zcoder.services.local_control._safe_local_urlopen", fake_open)
     client = LocalLlamaCppClient()
     assert client.generate("prompt") == "local result"
     assert requested == [("http://127.0.0.1:8080/v1/chat/completions", 120)]
