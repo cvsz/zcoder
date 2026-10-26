@@ -7,9 +7,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from zcoder.api import local_control as local_api
 from zcoder.api.auth import RequestAuthenticationError
-
+from zcoder.api import local_control as local_api
 from zcoder.services.local_control import (
     LocalAgentRunner,
     LocalControlStore,
