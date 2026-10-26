@@ -4,7 +4,11 @@ import sqlite3
 
 import pytest
 
-from zcoder.services.local_control import LocalAgentRunner, LocalControlStore, LocalLlamaCppClient
+from zcoder.services.local_control import (
+    LocalAgentRunner,
+    LocalControlStore,
+    LocalLlamaCppClient,
+)
 
 
 def test_bootstrap_roles_and_independent_approval(tmp_path):
@@ -113,7 +117,9 @@ def test_local_model_client_rejects_non_loopback_endpoint():
         LocalLlamaCppClient("https://api.anthropic.com")
 
 
-@pytest.mark.skipif(__import__("os").name != "posix", reason="POSIX file mode contract")
+@pytest.mark.skipif(
+    __import__("os").name != "posix", reason="POSIX file mode contract"
+)
 def test_database_permissions_are_owner_only(tmp_path):
     import stat
 
@@ -125,4 +131,3 @@ def test_database_permissions_are_owner_only(tmp_path):
     path.chmod(0o644)
     store.list_principals("admin")
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
-
