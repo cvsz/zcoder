@@ -56,7 +56,9 @@ def _selected_dir(requested: str | None, *, env_name: str, default: str, invocat
 
 def _validate_dotenv_path(path: Path) -> None:
     if path.is_symlink():
-        raise InstallError("Refusing to use a symlink for .env; use a regular file to keep credential permissions explicit.")
+        raise InstallError(
+            "Refusing to use a symlink for .env; use a regular file to keep credential permissions explicit."
+        )
     if path.exists() and not path.is_file():
         raise InstallError("Refusing to use .env because it is not a regular file.")
 

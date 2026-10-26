@@ -116,7 +116,9 @@ def test_build_rejects_overlapping_paths(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
     monkeypatch.setattr(installer, "PROJECT_ROOT", repo)
-    monkeypatch.setattr(installer, "_ensure_venv", lambda _: pytest.fail("unsafe path must be rejected first"))
+    monkeypatch.setattr(
+        installer, "_ensure_venv", lambda _: pytest.fail("unsafe path must be rejected first")
+    )
     args = argparse.Namespace(
         dist_dir=str(repo / "build"),
         work_dir=str(repo / "build" / "work"),
@@ -135,7 +137,9 @@ def test_setup_rejects_dotenv_symlink_before_install(tmp_path, monkeypatch):
     target.write_text("SECRET=keep\n", encoding="utf-8")
     (repo / ".env").symlink_to(target)
     monkeypatch.setattr(installer, "PROJECT_ROOT", repo)
-    monkeypatch.setattr(installer, "_ensure_venv", lambda _: pytest.fail("installer should reject .env symlink first"))
+    monkeypatch.setattr(
+        installer, "_ensure_venv", lambda _: pytest.fail("installer should reject .env symlink first")
+    )
     with pytest.raises(installer.InstallError, match="symlink"):
         installer._setup(argparse.Namespace(install_dir=None), tmp_path)
     assert target.read_text(encoding="utf-8") == "SECRET=keep\n"

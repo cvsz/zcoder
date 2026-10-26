@@ -133,6 +133,8 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 
 For custom installation paths and platform-specific standalone builds, see the [Portable Installation Guide](docs/guides/PORTABLE-INSTALL.md).
 
+**Runtime requirement:** Python 3.12 or newer is required for the security-patched dependency set.
+
 ```bash
 git clone https://github.com/cvsz/zcoder.git
 cd zcoder
