@@ -132,6 +132,7 @@ def test_database_permissions_are_owner_only(tmp_path):
     store.list_principals("admin")
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
+
 def test_local_inference_urlopen_disables_environment_proxies(monkeypatch):
     from urllib.request import ProxyHandler, Request
 
