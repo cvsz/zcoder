@@ -133,7 +133,14 @@ def test_local_mode_blocks_anthropic_oidc_jwks_before_httpx(monkeypatch):
     monkeypatch.setenv("ZCODER_LOCAL_MODE", "1")
     called = []
     monkeypatch.setattr(oidc, "_HTTPX_AVAILABLE", True)
-    monkeypatch.setattr(oidc.httpx, "get", lambda *args, **kwargs: called.append(args))
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        oidc,
+        "httpx",
+        SimpleNamespace(get=lambda *args, **kwargs: called.append(args)),
+        raising=False,
+    )
 
     with pytest.raises(RuntimeError, match="Anthropic API access is disabled"):
         oidc._fetch_jwks("https://api.anthropic.com/v1/jwks")
