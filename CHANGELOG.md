@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.60.0] — 2026-10-26 — Model catalog update (local-only scope)
+
+### Added
+* Added offline catalog metadata and `--upgrade-all` target choices for
+  Claude Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5.
+* Recorded Haiku 5.5's input-length-based pricing tiers to avoid presenting
+  the base rate as the only rate.
+
+### Changed
+* Re-tiered superseded model catalog entries as `legacy`, retaining them for
+  existing configurations.
+* Updated package metadata to version `1.60.0`; runtime CLI/API version
+  strings continue to derive from package metadata.
+* Updated the locked Black version to `26.10.1` and the digest-pinned Docker
+  build tool to uv `0.13.5` following upstream security advisories.
+* Extended the `ZCODER_LOCAL_MODE` outbound guard to block Anthropic, Voyage,
+  and configured hosted model-provider API domains at the shared urllib
+  boundary.
+
+### Scope
+* Catalog metadata and upgrade-target selection do not enable hosted model
+  inference. Local ZCoder inference remains loopback-only; no Anthropic API
+  was called for this upgrade.
+* Model-specific hosted capability flags were not extended because the
+  snapshot did not establish support for them.
+* The outbound guard does not replace migrating every provider-specific
+  feature to an equivalent local implementation; unsupported local-mode
+  operations still need explicit behavior and acceptance coverage.
+* See `docs/upgrades/56_model_catalog_v1.60.0.md` for source and validation.
+
+## [1.42.0] — 2026-10-25 — Lineage reconciliation (U61, local scope)
+
+### Changed
+* Chose the modular `src/zcoder/` repository as canonical; the extracted
+  `zcoder-v1.60.0` flat tree remains an audit/reference snapshot. It has no
+  Git history or CI workflow definitions to merge.
+* Made `pyproject.toml` the package version source; `zcoder.__version__` and
+  the CLI banner read installed package metadata.
+* Added local `--plugin-validate PATH` CLI wiring for the existing read-only
+  plugin manifest validator.
+* Routed `--live` through the loopback model client and removed its fabricated
+  offline reply path; the live REPL no longer creates an Anthropic client.
+* Routed `--cite` and `--rag` generation through the local model client and
+  validate source IDs against the local source list.
+* Aligned Ruff, Black, and mypy language targets with Python 3.12. Added a
+  shared string-backed Enum base that preserves existing `str(member)` output.
+* Kept the change local-first: cloud catalog and remote Compliance API
+  features from the snapshot are excluded by the requested scope.
+
+### Validation
+* See `docs/upgrades/55_lineage_reconciliation_v1.42.0.md` for comparison,
+  baseline and post-change verification evidence.
+
 Full per-version detail lives in `docs/*_upgrade_*.md` — this file is a
 high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 `claude_*.py`-per-feature codebase, and `zcoder-cli-v2`, a smaller

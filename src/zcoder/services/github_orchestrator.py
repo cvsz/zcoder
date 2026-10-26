@@ -10,23 +10,24 @@ Provides:
 
 from __future__ import annotations
 
-import enum
 import hashlib
 import hmac
 import json
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Protocol
 
+from zcoder.core.enums import StringEnum
 from zcoder.core.resilience import safe_urlopen
 from zcoder.core.security import validate_url
 from zcoder.services.agent_runtime import Job, JobStatus, JobStore
 
 
-class CheckConclusion(str, enum.Enum):
+class CheckConclusion(StringEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
@@ -38,7 +39,7 @@ class CheckConclusion(str, enum.Enum):
     NEUTRAL = "NEUTRAL"
 
 
-class ReviewState(str, enum.Enum):
+class ReviewState(StringEnum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     CHANGES_REQUESTED = "CHANGES_REQUESTED"
@@ -80,7 +81,7 @@ class Worker:
     status: str = "ONLINE"
 
 
-class GitHubProviderProtocol:
+class GitHubProviderProtocol(Protocol):
     def create_branch(self, repo: str, branch: str, base_sha: str) -> str: ...
     def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest: ...
     def get_pr(self, repo: str, pr_number: int) -> PullRequest | None: ...
@@ -139,7 +140,7 @@ class GitHubProvider:
         try:
             parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
+                parsed = parsed.replace(tzinfo=UTC)
             return parsed.timestamp()
         except ValueError:
             return None
@@ -312,9 +313,15 @@ class DistributedScheduler:
 
 
 class GitHubOrchestrator:
-    def __init__(self, github_provider: GitHubProviderProtocol, store: JobStore):
+    def __init__(
+        self,
+        github_provider: GitHubProviderProtocol,
+        store: JobStore,
+        repair_handler: Callable[[Job, str, PullRequest, int], bool] | None = None,
+    ):
         self.gh = github_provider
         self.store = store
+        self.repair_handler = repair_handler
         self.processed_webhooks: set = set()
 
     def create_pull_request_for_job(
@@ -363,39 +370,77 @@ class GitHubOrchestrator:
         return True, "READY_FOR_MERGE"
 
     def execute_ci_repair_loop(self, job_id: str, repo: str, pr_number: int, max_repairs: int = 3) -> bool:
+        if max_repairs < 1:
+            raise ValueError("max_repairs must be >= 1")
         job = self.store.get_job(job_id)
         pr = self.gh.get_pr(repo, pr_number)
         if not job or not pr:
             return False
 
         attempts = 0
-        while attempts < max_repairs:
+        while True:
             checks = self.gh.list_checks(repo, pr.head_sha)
-            failed = any(c.conclusion == CheckConclusion.FAILURE for c in checks)
-            if not failed:
+            if checks and all(
+                check.status == "completed" and check.conclusion == CheckConclusion.SUCCESS
+                for check in checks
+            ):
                 return True
+
+            failed = any(
+                check.conclusion in (CheckConclusion.FAILURE, CheckConclusion.TIMED_OUT) for check in checks
+            )
+            if not failed:
+                self.store.add_event(
+                    job.id,
+                    "ci.checks_unverified",
+                    {"sha": pr.head_sha, "check_count": len(checks)},
+                )
+                return False
+
+            if self.repair_handler is None:
+                self.store.add_event(
+                    job.id,
+                    "ci.repair_unavailable",
+                    {"sha": pr.head_sha, "reason": "no repair handler configured"},
+                )
+                return False
+            if attempts >= max_repairs:
+                self.store.add_event(
+                    job.id,
+                    "ci.repair_exhausted",
+                    {"sha": pr.head_sha, "attempts": attempts},
+                )
+                return False
 
             attempts += 1
             self.store.add_event(job.id, "ci.repair_attempt", {"attempt": attempts, "sha": pr.head_sha})
-            # Simulate repair push with new head sha
-            pr.head_sha = f"sha_repaired_{attempts}"
-            # Reset checks to passing for repaired sha
-            self.gh.set_checks(
-                pr.head_sha,
-                [
-                    CheckRun(
-                        "c1",
-                        "test-suite",
-                        "completed",
-                        CheckConclusion.SUCCESS,
-                        "url",
-                        time.time(),
-                        time.time(),
-                    )
-                ],
-            )
+            previous_sha = pr.head_sha
+            try:
+                repaired = self.repair_handler(job, repo, pr, attempts)
+            except Exception as exc:
+                self.store.add_event(
+                    job.id,
+                    "ci.repair_failed",
+                    {"attempt": attempts, "error_type": type(exc).__name__},
+                )
+                return False
+            if not repaired:
+                self.store.add_event(
+                    job.id,
+                    "ci.repair_not_applied",
+                    {"attempt": attempts, "sha": previous_sha},
+                )
+                return False
 
-        return False
+            updated_pr = self.gh.get_pr(repo, pr_number)
+            if updated_pr is None or updated_pr.head_sha == previous_sha:
+                self.store.add_event(
+                    job.id,
+                    "ci.repair_unverified",
+                    {"attempt": attempts, "previous_sha": previous_sha},
+                )
+                return False
+            pr = updated_pr
 
     def verify_webhook(self, payload: bytes, signature_header: str, secret: str) -> bool:
         if not signature_header.startswith("sha256="):

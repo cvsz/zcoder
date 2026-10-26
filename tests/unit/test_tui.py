@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import types
@@ -74,7 +75,10 @@ async def test_generation_guard_prevents_overlapping_requests(local_server):
         app._send()
         app.query_one("#prompt_input").value = "second request"
         app._send()
-        await pilot.pause(0.2)
+        deadline = asyncio.get_running_loop().time() + 5
+        while app._generation_active and asyncio.get_running_loop().time() < deadline:
+            await pilot.pause(0.05)
+        assert not app._generation_active, "local generation did not finish before the test timeout"
         assert len([request for request, payload, _ in local_server if payload is not None]) == 1
         assert app.history[-2]["content"] == "first request"
 

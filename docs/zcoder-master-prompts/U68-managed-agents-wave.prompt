@@ -1,0 +1,11 @@
+# U68 — Claude Managed Agents wave
+Priority: P1. Size: L. Depends on: U63.
+
+Facts (beta header `managed-agents-2026-04-01` unless noted; memory stores use `agent-memory-2026-07-22` and sending both is a 400):
+- Dynamic workflows (2026-10-09): agent `multiagent` = `{"type":"multiagent_20261001","workflows":{"type":"enabled"}}`; follow `workflow_run.*` events.
+- Permission policy `auto` (09-10): server evaluates each call; `evaluation` field on `agent.tool_use` / `agent.mcp_tool_use`.
+- Session budgets (08-07, `budget_reached` stop reason), advisor roster entry `{"type":"advisor"}`, `inference_geo` and `effort` in the agent `model` object, `initial_events` (≤50) on session create, `agent_with_overrides`, optional `version` on agent update, event deltas (`event_deltas[]`, also on thread streams), backward pagination (`prev_page`).
+- Web tools: per-tool `allowed_domains`/`blocked_domains`; org Capabilities settings apply; with `limited` networking `allowed_hosts` also gates web tools and session create 400s on mismatched `allowed_domains`; `web_fetch` only fetches URLs already seen in session context (`url_not_in_prior_context`).
+- Self-hosted sandboxes can mount memory stores; skills load from a mounted GitHub repo `.claude/skills`; scheduled deployments (also on Claude Platform on AWS); webhooks cover agent, deployment, run, environment, memory-store lifecycle; vault env-var credentials with `injection_location`; Dreams (research preview, `dreaming-2026-04-21`) supports Opus 5, Opus 5.5, Fable 5, Fable 5.1, Sonnet 5, Sonnet 5.5.
+
+Requirements: gap-audit the existing agents gateway against this list; implement confirmed gaps; keep header handling exact (never both memory headers); tests with recorded fixtures; budgets default to None; `auto` never the default policy.

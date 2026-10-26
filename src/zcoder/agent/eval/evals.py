@@ -65,7 +65,7 @@ def load_suite(path: str) -> tuple[str, list[EvalCase]]:
     with open(path) as f:
         raw = json.load(f)
     name = raw.get("name", Path(path).stem)
-    cases = []
+    cases: list[EvalCase] = []
     for c in raw.get("cases", []):
         cases.append(
             EvalCase(

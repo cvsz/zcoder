@@ -1,7 +1,7 @@
 """Regression coverage for the Anthropic Files API GA response shapes."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -33,7 +33,7 @@ def test_parse_expires_at_prefers_absolute_timestamp():
 
 
 def test_parse_expires_at_derives_absolute_timestamp_from_relative_seconds():
-    base = datetime(2026, 8, 29, tzinfo=timezone.utc)
+    base = datetime(2026, 8, 29, tzinfo=UTC)
     assert parse_expires_at({"expires_in_seconds": 3600}, now=base) == "2026-08-29T01:00:00+00:00"
 
 

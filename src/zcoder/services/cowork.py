@@ -281,7 +281,7 @@ class CoworkAgent:
         self,
         task_type: str,
         prompt: str,
-        files: list[str] = None,
+        files: list[str] | None = None,
         depth: int = 3,
         output_fmt: str = "markdown",
         stream_progress: bool = True,
@@ -363,7 +363,7 @@ class CoworkAgent:
         task_type: str,
         initial_prompt: str,
         follow_ups: list[str],
-        files: list[str] = None,
+        files: list[str] | None = None,
     ) -> list[str]:
         """
         Multi-turn cowork session: initial task + follow-up refinements.
@@ -412,10 +412,10 @@ def cmd_cowork(
     prompt: str,
     api_key: str,
     model: str,
-    files: list[str] = None,
+    files: list[str] | None = None,
     depth: int = 3,
     output_fmt: str = "markdown",
-    output_file: str = None,
+    output_file: str | None = None,
 ):
     agent = CoworkAgent(api_key=api_key, model=model)
     result = agent.run(task_type, prompt, files=files, depth=depth, output_fmt=output_fmt)

@@ -1,9 +1,8 @@
-"""
-claude_stream.py — Streaming Messages
-ZCoder CLI v1.11.0
+"""Local llama.cpp streaming and legacy provider tool-streaming helpers.
 
-Real-time streaming of Claude responses using SSE.
-Displays tokens as they arrive rather than waiting for full response.
+The text streaming command uses the loopback OpenAI-compatible SSE endpoint.
+The legacy ``stream_with_tools`` protocol remains provider-specific and is
+available only when an explicit remote provider is configured.
 
 New in v1.11.0 — Fine-grained tool streaming (was a documented feature with
 no code anywhere in this project): tool_use input streams to the client as
@@ -33,9 +32,15 @@ CLI flags:
 """
 
 import json
+import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Any
 
-import anthropic
+from zcoder.core.provider_policy import create_anthropic_client
+from zcoder.infrastructure.observability.otel import trace_model_call
 
 # Legacy header — GA now, per-tool eager_input_streaming is the current way
 # to opt in, but this still works for requests that send it and leave the
@@ -78,83 +83,102 @@ def handle_refusal(response_or_stop_details) -> dict | None:
     }
 
 
-class StreamCoder:
-    """Claude client with streaming support."""
+class _RejectStreamRedirects(urllib.request.HTTPRedirectHandler):
+    """Keep local model requests on the validated loopback origin."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
-        self.client = anthropic.Anthropic(api_key=api_key)
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+class StreamCoder:
+    """Stream text from local llama-server; retain legacy remote tool streams."""
+
+    def __init__(
+        self, api_key: str = "", model: str = "zqwen2.5-coder-7b-instruct-q4_k_m", max_tokens: int = 4096
+    ):
+        self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens
+        self.client = None
+        self.base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip().rstrip("/")
 
     def stream(
         self,
         prompt: str,
         system: str | None = None,
-        tools: list = None,
+        tools: list[dict[str, Any]] | None = None,
         show_thinking: bool = False,
     ) -> str:
         """Stream a response, printing tokens live. Returns full text."""
+        parsed = urllib.parse.urlsplit(self.base_url)
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("ZCODER_BASE_URL must point to a local llama-server on loopback")
+        endpoint_base = self.base_url if parsed.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
         messages = [{"role": "user", "content": prompt}]
-
-        kwargs = dict(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            messages=messages,
-        )
         if system:
-            kwargs["system"] = system
+            messages.insert(0, {"role": "system", "content": system})
+        payload = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": messages,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
         if tools:
-            kwargs["tools"] = tools
+            payload["tools"] = tools
+
+        request = urllib.request.Request(
+            f"{endpoint_base}/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
+            method="POST",
+        )
 
         full_text = ""
         thinking_text = ""
-        in_thinking = False
         usage_data = {}
-
-        with self.client.messages.stream(**kwargs) as stream:
-            for event in stream:
-                etype = getattr(event, "type", "")
-
-                if etype == "content_block_start":
-                    btype = getattr(event.content_block, "type", "")
-                    if btype == "thinking":
-                        in_thinking = True
-                        if show_thinking:
-                            print("\n\033[90m[thinking] ", end="", file=sys.stderr, flush=True)
-                    elif btype == "text":
-                        in_thinking = False
-
-                elif etype == "content_block_delta":
-                    delta = event.delta
-                    dtype = getattr(delta, "type", "")
-                    if dtype == "thinking_delta":
-                        thinking_text += getattr(delta, "thinking", "")
-                        if show_thinking:
-                            print(getattr(delta, "thinking", ""), end="", file=sys.stderr, flush=True)
-                    elif dtype == "text_delta":
-                        text = getattr(delta, "text", "")
-                        full_text += text
-                        print(text, end="", flush=True)
-
-                elif etype == "content_block_stop" and in_thinking and show_thinking:
-                    print("\033[0m", file=sys.stderr)
-                    in_thinking = False
-
-                elif etype == "message_delta":
-                    usage = getattr(event, "usage", None)
-                    if usage:
-                        usage_data = {
-                            "output_tokens": getattr(usage, "output_tokens", 0),
-                        }
-
-                elif etype == "message_start":
-                    msg = getattr(event, "message", None)
-                    usage = getattr(msg, "usage", None) if msg else None
-                    if usage:
-                        usage_data["input_tokens"] = getattr(usage, "input_tokens", 0)
+        opener = urllib.request.build_opener(_RejectStreamRedirects())
+        with trace_model_call(provider="local", model=self.model, operation="stream"):
+            with opener.open(request, timeout=300) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if not data or data == "[DONE]":
+                        continue
+                    try:
+                        event = json.loads(data)
+                    except json.JSONDecodeError:
+                        raise ValueError("Local model returned a malformed streaming event") from None
+                    choices = event.get("choices") or []
+                    if choices:
+                        delta = choices[0].get("delta") or {}
+                        text = delta.get("content") or ""
+                        if isinstance(text, list):
+                            text = "".join(part.get("text", "") for part in text if isinstance(part, dict))
+                        if isinstance(text, str) and text:
+                            full_text += text
+                            print(text, end="", flush=True)
+                        reasoning = delta.get("reasoning_content") or delta.get("reasoning") or ""
+                        if isinstance(reasoning, str) and reasoning:
+                            thinking_text += reasoning
+                            if show_thinking:
+                                print(reasoning, end="", file=sys.stderr, flush=True)
+                    usage = event.get("usage")
+                    if isinstance(usage, dict):
+                        usage_data["input_tokens"] = usage.get("prompt_tokens", 0)
+                        usage_data["output_tokens"] = usage.get("completion_tokens", 0)
 
         print()  # final newline
-        if usage_data:
+        if "input_tokens" in usage_data or "output_tokens" in usage_data:
             print(
                 f"\033[90m[tokens] in={usage_data.get('input_tokens', 0)}  "
                 f"out={usage_data.get('output_tokens', 0)}\033[0m"
@@ -170,12 +194,12 @@ class StreamCoder:
     def stream_with_tools(
         self,
         prompt: str,
-        tools: list[dict],
+        tools: list[dict[str, Any]],
         system: str | None = None,
         eager_input_streaming: bool = True,
         use_legacy_beta: bool = False,
         verbose: bool = True,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Stream a single turn with tool_use fine-grained input streaming.
         Prints each partial_json fragment as it arrives (so a large
         parameter — a generated file, a long string — appears incrementally
@@ -204,7 +228,8 @@ class StreamCoder:
         stop_reason = None
         stop_details = None
 
-        with self.client.messages.stream(**kwargs) as stream:
+        client = self.client or create_anthropic_client(self.api_key)
+        with client.messages.stream(**kwargs) as stream:
             for event in stream:
                 etype = getattr(event, "type", "")
 
@@ -287,8 +312,8 @@ def cmd_stream(
     prompt: str,
     api_key: str,
     model: str,
-    system: str = None,
-    file_content: str = None,
+    system: str | None = None,
+    file_content: str | None = None,
     show_thinking: bool = False,
 ):
     print("\033[94mℹ Streaming response…\033[0m\n")
@@ -298,7 +323,13 @@ def cmd_stream(
     return sc.stream(prompt, system=system, show_thinking=show_thinking)
 
 
-def cmd_stream_tools(prompt: str, tools: list[dict], api_key: str, model: str, system: str = None):
+def cmd_stream_tools(
+    prompt: str,
+    tools: list[dict[str, Any]],
+    api_key: str,
+    model: str,
+    system: str | None = None,
+):
     """Stream one CLI tool turn through the bounded messaging service."""
     from zcoder.services.messaging_service import run_messaging_turn_once
 

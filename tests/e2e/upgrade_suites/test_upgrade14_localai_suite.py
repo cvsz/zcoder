@@ -89,10 +89,12 @@ def test_local_model_gateway_ollama_adapter(monkeypatch):
     assert result.strip(), "live adapter path returned an empty response"
     assert "LOCAL_AI:" not in result, "simulated marker leaked into live path"
 
-    # Offline branch: forced down -> deterministic simulated marker.
+    # Offline branch: unavailable inference must fail explicitly.
     monkeypatch.setattr(adapter, "is_available", lambda: False)
-    offline = adapter.chat_complete("qwen2.5-coder:7b", "def add(a, b):")
-    assert "LOCAL_AI:qwen2.5-coder:7b" in offline
+    import pytest
+
+    with pytest.raises(RuntimeError, match="Ollama inference server is unavailable"):
+        adapter.chat_complete("qwen2.5-coder:7b", "def add(a, b):")
 
 
 def test_local_repository_indexer_and_secret_redaction():
@@ -157,7 +159,7 @@ def test_autonomous_coding_pipeline_zero_paid_calls():
     }
 
     result = pipeline.run_task("Fix multiply function", codebase)
-    assert result["status"] == "COMPLETED"
+    assert result["status"] == "PLAN_GENERATED"
     assert "calculator.py" in result["context_files"]
     assert result["paid_transport_calls"] == 0
     assert result["is_zero_cost"] is True

@@ -3,11 +3,11 @@
 > **AI Coding Platform ระดับองค์กรสำหรับการพัฒนาแบบ Local-First, Self-Hosted, และ Hybrid Cloud**
 
 [![CI](https://github.com/cvsz/zcoder/actions/workflows/ci.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
 
-**เวอร์ชันปัจจุบัน:** `1.41.5`
+**เวอร์ชันปัจจุบัน:** `1.60.0`
 
 ---
 
@@ -96,7 +96,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) สำหรับรายละเอ
 | **RBAC** | 8 enterprise roles, 30+ permissions, provider-neutral enforcement |
 | **Quotas** | Concurrent jobs, monthly budget, project/repository limits |
 | **Audit** | Immutable append-only audit log, structured JSONL export |
-| **Billing** | Provider-neutral interface, Stripe adapter, usage metering |
+| **Billing** | Provider-neutral interface, explicit Stripe API adapter, usage metering; Stripe sandbox/live qualification remains pending |
 | **Deployment** | Health checks, backup/restore, rollback, DR rehearsal |
 | **Observability** | Prometheus `/metrics`, OTel OTLP, structured JSON logs |
 
@@ -123,8 +123,8 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 
 ### ตrequirements
 
-- Python 3.10+
-- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. Use `--pptx-native` on Python 3.10 for the native document workflow.
+- Python 3.12 or later (the package requires `>=3.12`; CI validates Python 3.12 and 3.13).
+- The `--pptx` integration uses the security-fixed Pillow 13 release line.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
@@ -229,6 +229,11 @@ Policy Modes:
 - **vLLM** — high-throughput local inference
 - **OpenAI-compatible** — generic loopback servers
 
+CLI and web-console chat use loopback model servers. The web frontend does
+not request or persist provider API keys, and a legacy `api_key` request
+field is ignored. Remote providers remain separate opt-in routing adapters;
+local chat never falls back to them.
+
 ### Hardware Profiling
 
 `HardwareProfiler` ตรวจสอบ:
@@ -328,7 +333,7 @@ GGUF models, restart llama-server with the other model, then reopen the TUI.
 | `CEREBRAS_API_KEY` | Cerebras router API key | Optional |
 | `OPENAI_COMPATIBLE_API_KEY` | Optional bearer token for a custom compatible server | Optional |
 | `OLLAMA_BASE_URL` | Ollama gateway URL | Optional |
-| `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |
+| `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1); when enabled it overrides CLI and `ZCODER_PROVIDER` selections and blocks unmigrated provider-specific commands | Optional |
 | `DATABASE_URL` | PostgreSQL connection string | Optional (SQLite default) |
 | `ZCODER_OTEL_ENDPOINT` | OpenTelemetry collector endpoint | Optional |
 | `ZCODER_PROVIDER` | Optional router provider override; local llama.cpp is the default | Optional |
@@ -396,9 +401,8 @@ pytest --cov --cov-report=term-missing
 
 | Python Version | Status |
 |---|---|
-| 3.10 | ✅ Supported |
-| 3.11 | ✅ Supported |
 | 3.12 | ✅ Supported |
+| 3.13 | ✅ Supported |
 
 ### Additional CI Checks
 
@@ -527,6 +531,11 @@ zcoder --health-check  # OTel bootstrap happens automatically
 ```
 
 Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashboard.json)
+
+Local model calls expose provider-neutral Prometheus counters
+`zcoder_model_calls_total`, `zcoder_model_errors_total`, and the
+`zcoder_model_duration_seconds` histogram. OpenTelemetry spans use the
+`model.*` namespace and record provider, model, and operation attributes.
 
 ---
 

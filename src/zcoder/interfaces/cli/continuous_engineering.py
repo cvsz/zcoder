@@ -132,7 +132,7 @@ def build_postgres_store_pipeline(
         raise
 
 
-continuous_engineering_service.build_postgres_store_pipeline._outward_composer = build_postgres_store_pipeline
+continuous_engineering_service.register_postgres_store_composer(build_postgres_store_pipeline)
 
 
 def build_parser() -> argparse.ArgumentParser:

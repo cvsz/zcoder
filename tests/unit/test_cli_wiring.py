@@ -142,8 +142,10 @@ def test_metrics_clear_dispatches(monkeypatch):
     assert called.get("hit") is True
 
 
-def test_ce_user_management_requires_admin_key(monkeypatch, capsys):
+def test_ce_user_management_fails_closed_in_local_only_mode(monkeypatch, capsys):
     monkeypatch.delenv("ANTHROPIC_ADMIN_API_KEY", raising=False)
-    with pytest.raises(SystemExit):
+    monkeypatch.setenv("ZCODER_LOCAL_MODE", "1")
+    with pytest.raises(SystemExit) as error:
         _run_main_with(monkeypatch, ["--members-list"])
-    assert "Admin API key" in capsys.readouterr().err
+    assert error.value.code == 2
+    assert "unavailable in local-only mode" in capsys.readouterr().err

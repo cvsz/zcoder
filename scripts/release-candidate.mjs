@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const requiredChecks = [
-  'lint', 'security', 'test (3.10)', 'test (3.11)', 'test (3.12)', 'docker-build',
+  'lint', 'security', 'test (3.12)', 'test (3.13)', 'docker-build',
   'Analyze Python Code Security', 'Bandit and pip-audit', 'Gitleaks secret scan',
   'actionlint workflows', 'Helm v3.21.3 Lint & Template Check',
   'Helm v4.2.3 Lint & Template Check', 'Package Helm Chart & Checksums',
@@ -53,12 +53,48 @@ function checkCheckout() {
 function checkVersionSync() {
   try {
     const pyproject = readFileSync('pyproject.toml', 'utf8').match(/^version = "([^"]+)"/m)?.[1];
-    const main = readFileSync('src/zcoder/main.py', 'utf8').match(/^VERSION = "([^"]+)"/m)?.[1];
-    // __init__ reads package metadata dynamically; no independent version constant is required.
-    const init = readFileSync('src/zcoder/__init__.py', 'utf8').match(/^__version__ = "([^"]+)"/m)?.[1] ?? pyproject;
+    const mainSource = readFileSync('src/zcoder/main.py', 'utf8');
+    const mainLiteral = mainSource.match(/^VERSION = "([^"]+)"/m)?.[1];
+    const main = mainLiteral ?? (/^\s*VERSION\s*=\s*version\(["']zcoder["']\)/m.test(mainSource) ? pyproject : undefined);
+    const initSource = readFileSync('src/zcoder/__init__.py', 'utf8');
+    const initLiteral = initSource.match(/^__version__ = "([^"]+)"/m)?.[1];
+    const init = initLiteral ?? (/^\s*__version__\s*=\s*version\(["']zcoder["']\)/m.test(initSource) ? pyproject : undefined);
     return { name: 'version-sync', ok: Boolean(pyproject && pyproject === main && pyproject === init), detail: `pyproject=${pyproject} main=${main} init=${init}` };
   } catch {
     return { name: 'version-sync', ok: false, detail: 'version sources unavailable' };
+  }
+}
+
+function dependencyReviewForMerge() {
+  const pullsResult = run('gh', [
+    'api', `repos/cvsz/zcoder/commits/${sha}/pulls`, '--paginate', '--slurp',
+  ]);
+  if (!pullsResult.ok) return undefined;
+  try {
+    const pages = JSON.parse(pullsResult.out);
+    if (!Array.isArray(pages) || pages.some(page => !Array.isArray(page))) return undefined;
+    const pulls = pages.flat();
+    const merged = pulls.filter(pull => pull.merged_at && pull.merge_commit_sha === sha);
+    if (merged.length !== 1 || !merged[0].head?.sha) return undefined;
+
+    const sourceSha = merged[0].head.sha;
+    const sourceResult = run('gh', [
+      'api', `repos/cvsz/zcoder/commits/${sourceSha}/check-runs?filter=latest&per_page=100`,
+      '--paginate', '--slurp',
+    ]);
+    if (!sourceResult.ok) return undefined;
+    const sourcePages = JSON.parse(sourceResult.out);
+    if (!Array.isArray(sourcePages) || sourcePages.some(page => !Array.isArray(page.check_runs))) {
+      return undefined;
+    }
+    const reviews = sourcePages.flatMap(page => page.check_runs).filter(check =>
+      check.name === 'Dependency Review & Vulnerability Check'
+      && check.head_sha === sourceSha
+      && check.status === 'completed'
+    );
+    return reviews.sort((left, right) => Number(right.id) - Number(left.id))[0];
+  } catch {
+    return undefined;
   }
 }
 
@@ -83,6 +119,10 @@ function checkHosted() {
     for (const check of pages.flatMap(page => page.check_runs)) {
       if (!check.name || check.head_sha !== sha) throw new Error('check SHA mismatch');
       if (!latest.has(check.name) || Number(check.id) > Number(latest.get(check.name).id)) latest.set(check.name, check);
+    }
+    if (!latest.has('Dependency Review & Vulnerability Check')) {
+      const dependencyReview = dependencyReviewForMerge();
+      if (dependencyReview) latest.set('Dependency Review & Vulnerability Check', dependencyReview);
     }
     const missing = requiredChecks.filter(name => !latest.has(name));
     const failing = [...latest.values()].filter(check =>

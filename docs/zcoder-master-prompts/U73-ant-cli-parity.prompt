@@ -1,0 +1,6 @@
+# U73 — `ant` CLI parity and resources-as-code
+Priority: P3. Size: M. Depends on: U71.
+
+Facts: `ant` CLI (2026-04-08) now 2.0.0. `ant apply` (1.30.0) creates/updates agents, environments, skills, memory stores, deployments from repo files with a plan/approve step and a `claude-lock.json` lockfile. `ant beta:sessions connect` attaches a terminal to a Managed Agents session (`--web` serves the Console viewer locally). Admin API methods are in the CLI under `ant organization`.
+
+Requirements: gap-audit zcoder's CLI against these workflows; add only what zcoder does not already cover; if adding a resources-as-code command, plan-first with explicit approval and a lockfile; document where zcoder delegates to `ant` instead of reimplementing it.

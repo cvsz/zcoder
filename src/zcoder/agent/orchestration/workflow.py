@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-import anthropic
+from zcoder.core.provider_policy import create_anthropic_client
 
 try:
     import yaml as _yaml
@@ -113,7 +113,7 @@ def _fill(template: str, variables: dict[str, str]) -> str:
 def run_workflow(
     wf: Workflow, api_key: str, initial_vars: dict[str, str] | None = None, verbose: bool = False
 ) -> WorkflowRun:
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key)
     variables = dict(initial_vars or {})
     results: list[StepResult] = []
     completed: set = set()

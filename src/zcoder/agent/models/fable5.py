@@ -64,6 +64,7 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -100,7 +101,7 @@ REFUSAL_CATEGORIES = {
 
 # Mirrors claude_models.py's "known models" fallback pattern — a local
 # cache for when the live Models API isn't consulted, not a source of truth.
-FABLE_MYTHOS_INFO = {
+FABLE_MYTHOS_INFO: dict[str, dict[str, Any]] = {
     FABLE5_MODEL_ID: {
         "display_name": "Claude Fable 5",
         "class": "Mythos-class (publicly available)",

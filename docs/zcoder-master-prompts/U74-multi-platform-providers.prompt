@@ -1,0 +1,6 @@
+# U74 — Multi-platform provider layer and availability matrix
+Priority: P2. Size: L. Depends on: U63, U64.
+
+Facts: Claude is available on the Claude API, Claude in Amazon Bedrock (Messages endpoint `/anthropic/v1/messages`), Claude Platform on AWS (AWS IAM/billing), Claude on Google Cloud (Google-managed; plus Anthropic-managed, launched 2026-10-22, with IAM access and Marketplace billing), Claude in Microsoft Foundry. Feature availability differs per platform (e.g. computer tool version, fast mode on Foundry for Opus 5.5 and on Google Cloud Anthropic-managed, per-message effort on Google Cloud, beta availability). Python SDK: `AnthropicBedrock` now requires an explicit region.
+
+Requirements: a provider abstraction on top of the single client-construction seam; a verified availability matrix (feature × provider × model) generated from docs with a verified-on date per cell, UNVERIFIED where unknown; U64 validator consumes the matrix; credentials via standard provider auth only, never stored; mock-transport tests, no live calls.

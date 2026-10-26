@@ -50,7 +50,7 @@ except ImportError:
 
 if not _PSYCOPG2_AVAILABLE:
     try:
-        import psycopg  # type: ignore[import]
+        import psycopg
 
         _PSYCOPG3_AVAILABLE = True
         _PG_AVAILABLE = True
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     workspace TEXT NOT NULL DEFAULT '.',
     created_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
     updated_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
-    model TEXT NOT NULL DEFAULT 'claude-sonnet-5',
+    model TEXT NOT NULL DEFAULT 'zqwen2.5-coder-7b-instruct-q4_k_m',
     budget_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     claimed_by TEXT,
@@ -209,9 +209,9 @@ class PostgresControlPlaneStore:
             )
         else:
             # psycopg3 connection pool
-            import psycopg.pool  # type: ignore[import]
+            import psycopg.pool
 
-            self._pool = psycopg.pool.ConnectionPool(  # type: ignore[import]
+            self._pool = psycopg.pool.ConnectionPool(
                 dsn,
                 min_size=self._min_conn,
                 max_size=self._max_conn,
@@ -224,8 +224,11 @@ class PostgresControlPlaneStore:
     @contextmanager
     def _get_conn(self) -> Generator[Any, None, None]:
         """Get a connection from the pool."""
+        pool = self._pool
+        if pool is None:
+            raise RuntimeError("PostgreSQL connection pool is not initialized")
         if _PSYCOPG2_AVAILABLE:
-            conn = self._pool.getconn()
+            conn = pool.getconn()
             try:
                 yield conn
                 conn.commit()
@@ -233,9 +236,9 @@ class PostgresControlPlaneStore:
                 conn.rollback()
                 raise
             finally:
-                self._pool.putconn(conn)
+                pool.putconn(conn)
         else:
-            with self._pool.connection() as conn:
+            with pool.connection() as conn:
                 yield conn
 
     def init_schema(self) -> None:

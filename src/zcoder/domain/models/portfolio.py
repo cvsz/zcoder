@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import enum
 import time
 import uuid
 from dataclasses import dataclass, field
 
+from zcoder.core.enums import StringEnum
 
-class RepoStatus(str, enum.Enum):
+
+class RepoStatus(StringEnum):
     DISCOVERED = "DISCOVERED"
     ACTIVE = "ACTIVE"
     DEGRADED = "DEGRADED"
@@ -17,7 +18,7 @@ class RepoStatus(str, enum.Enum):
     ARCHIVED = "ARCHIVED"
 
 
-class CampaignStatus(str, enum.Enum):
+class CampaignStatus(StringEnum):
     DRAFT = "DRAFT"
     PLANNED = "PLANNED"
     RUNNING = "RUNNING"

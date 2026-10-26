@@ -38,6 +38,13 @@ ceilings for the enterprise management surface:
 - `GET /api/v1/jobs/{job_id}` — Get job execution status, attempt counters, and logs.
 - `DELETE /api/v1/jobs/{job_id}` — Gracefully terminate an active job.
 
+Job submissions use the `direct` runtime (the default). The public API rejects
+`fake` and `noop` runtimes because they do not execute the requested task.
+Submission currently returns `501 JOB_RUNTIME_UNAVAILABLE` until a local
+execution adapter is configured; an available durable queue alone is not enough
+to accept work. When enabled by a configured adapter, `201 READY` confirms queue
+acceptance only, not that execution has started or succeeded.
+
 ### 2.3 Idempotency Keys
 All mutating POST/PUT requests support the `Idempotency-Key` header:
 ```http
@@ -78,6 +85,10 @@ job = client.submit_job(
 
 print(f"Submitted Job ID: {job.id}, Status: {job.status}")
 ```
+
+The default job model is `zqwen2.5-coder-7b-instruct-q4_k_m`, matching the
+local-first CLI default. Set `model` explicitly when selecting another
+configured local model.
 
 ### 3.2 TypeScript SDK (`zcoder-sdk.ts`)
 

@@ -1,0 +1,15 @@
+# U65 — Messages API feature wave (all opt-in)
+Priority: P1. Size: L. Depends on: U63, U64.
+
+Facts (beta header → feature):
+- `compact-2026-09-04`: top-level `compaction` param; signed `compaction` block replaces earlier messages; can run in background; can keep recent turns verbatim.
+- `inline-tools-2026-09-15`: `tool_addition` block with `tool: {"type":"tool_definition","definition":{...}}` inside a mid-conversation system message; with `mcp-client-2026-09-15` the definition can be an MCP toolset and responses carry an `mcp_tool_listing` block.
+- `mid-conversation-output-config-2026-07-01`: per-message effort via a `role:"system"` message with `output_config.effort` (Fable 5.1, Mythos 5.1, Opus 5; also on Google Cloud).
+- `mid-conversation-system-clear-at-2026-08-21`: `clear_at:"next_user_message"` turn-scoped system messages.
+- `mid-conversation-tool-changes-2026-07-01`: add/remove tools between turns.
+- `thinking-display-updates-2026-08-18`: `thinking.display:"updates"`.
+- `server-side-fallback-2026-07-01`: `fallbacks:"default"`. Refusals before any output are billed again for `stop_details.category` bio / frontier_llm / reasoning_extraction (since 2026-09-24).
+- Cache diagnostics is GA (no header): send the `diagnostics` object on EVERY turn (`previous_message_id: null` on the first); responses always carry `diagnostics` (null if not requested). Automatic caching: one top-level `cache_control`.
+- `usage.output_tokens_details.thinking_tokens`; Batches 300k output via `output-300k-2026-03-24`; `task-budgets-2026-03-13`; advisor tool `max_tokens`; `code_execution_20260120/20260521`; `web_search_20260318` / `web_fetch_20260318` with `response_inclusion`.
+
+Requirements: one CLI flag + one gateway method per feature, each `None`-default; typed response parsing for new blocks (`compaction`, `mcp_tool_listing`, `input_transformations`, `diagnostics`); beta headers sent only when the feature is used; fixtures-based tests; docs list per-model availability (verify per model page).

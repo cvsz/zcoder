@@ -47,6 +47,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any
 
 from zcoder.core.exceptions import TransientAPIError, ZCoderError
 from zcoder.core.resilience import retry, safe_urlopen
@@ -101,7 +102,7 @@ def _save_registry(reg: dict):
 # MANIFEST
 # ══════════════════════════════════════════════════════════════════════════
 
-DEFAULT_MANIFEST_FIELDS = {
+DEFAULT_MANIFEST_FIELDS: dict[str, Any] = {
     "name": "",
     "displayName": "",
     "version": "0.0.0",
@@ -234,6 +235,15 @@ def validate_plugin(plugin_dir: Path) -> list:
 
     if not findings:
         findings.append(("ok", f"plugin '{manifest['name']}' looks valid"))
+    return findings
+
+
+def cmd_plugin_validate(path: str) -> list:
+    """Print plugin validation findings without installing or modifying the target plugin."""
+    findings = validate_plugin(Path(os.path.expanduser(path)))
+    icons = {"ok": "✓", "info": "ℹ", "warn": "⚠", "error": "✗"}
+    for level, message in findings:
+        print(f"{icons.get(level, '')} {message}")
     return findings
 
 

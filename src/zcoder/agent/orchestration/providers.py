@@ -5,7 +5,7 @@ Maps the multi-agent router across native APIs, OpenAI-compatible hosted
 gateways, local inference servers, and the deterministic offline stub.
 
 Precedence:
-  provider:  --provider > ZCODER_PROVIDER env > ZCODER_LOCAL_MODE=1 > "openai_compatible"
+  provider:  ZCODER_LOCAL_MODE=1 > --provider > ZCODER_PROVIDER env > "openai_compatible"
   api_key:   --api-key > provider-specific env var(s) > ""
   base_url:  --base-url > ZCODER_BASE_URL env > provider-specific env (OLLAMA_BASE_URL) > provider default
 
@@ -100,6 +100,8 @@ def _validate_base_url(url: str) -> None:
 
 
 def resolve_provider(cli_provider: str | None = None) -> str:
+    if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in ("1", "true", "yes"):
+        return "local"
     if cli_provider and cli_provider.strip():
         p = cli_provider.strip().lower()
         if p not in PROVIDER_CHOICES:
@@ -114,12 +116,12 @@ def resolve_provider(cli_provider: str | None = None) -> str:
                 f"Unknown ZCODER_PROVIDER '{env_provider}' — expected one of {', '.join(PROVIDER_CHOICES)}"
             )
         return env_provider
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in ("1", "true", "yes"):
-        return "local"
     return "openai_compatible"
 
 
 def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
+    if provider == "local":
+        return ""
     if cli_key and cli_key.strip():
         return cli_key.strip()
     spec = PROVIDER_DEFAULTS.get(provider, {})

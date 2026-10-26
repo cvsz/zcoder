@@ -333,14 +333,6 @@ class Worker:
     def _run_job_runtime(self, job: Any, fencing_token: int) -> None:
         """Dispatch job to its runtime. Override for custom runtimes."""
         runtime = job.runtime
-        task = job.task
-
-        if runtime == "fake" or runtime == "noop":
-            # Used for load testing — no real execution, no Anthropic cost
-            logger.info(f"Job {job.id}: FakeRuntime sleeping 0.1s for task={task!r}")
-            time.sleep(0.1)
-            return
-
         raise ConfigError(
             "No execution adapter configured for the requested job runtime",
             details={"runtime": runtime},

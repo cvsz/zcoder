@@ -1,11 +1,11 @@
 """tests/test_webapp_server.py — webapp/backend/server.py
 
 Uses FastAPI's TestClient (httpx-based, no real network/socket). The
-Coder.generate() / anthropic streaming calls are monkeypatched so no real
-API calls happen anywhere in this file, same convention as
-tests/test_coder.py.
+Coder.generate() / local llama-server HTTP calls are monkeypatched so no
+real API or model calls happen anywhere in this file.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -44,6 +44,15 @@ def test_version_endpoint(client):
     assert "version" in resp.json()
 
 
+def test_models_endpoint_lists_only_configured_local_model(client, monkeypatch):
+    monkeypatch.setenv("ZCODER_MODEL", "qwen-local.gguf")
+
+    response = client.get("/api/models")
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": "qwen-local.gguf", "display_name": "qwen-local.gguf", "tier": "local"}]
+
+
 def test_chat_rejects_empty_prompt(client):
     resp = client.post("/api/chat", json={"prompt": "   "})
     assert resp.status_code == 400
@@ -60,12 +69,19 @@ def test_chat_rejects_out_of_range_max_tokens(client):
 
 
 def test_chat_happy_path(client, monkeypatch):
-    monkeypatch.setattr(server.Coder, "generate", lambda self, *a, **k: "mock reply")
+    received = {}
+
+    def fake_generate(self, *args, **kwargs):
+        received.update(api_key=self.api_key if hasattr(self, "api_key") else None)
+        return "mock reply"
+
+    monkeypatch.setattr(server.Coder, "generate", fake_generate)
     resp = client.post("/api/chat", json={"prompt": "hello", "api_key": "sk-ant-test"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["response"] == "mock reply"
     assert "session_id" in data
+    assert received["api_key"] is None
 
 
 def test_chat_rate_limit_returns_429(client, monkeypatch):
@@ -109,72 +125,68 @@ def test_sessions_get_and_delete(client, monkeypatch):
     assert client.get(f"/api/sessions/{sid}").status_code == 404
 
 
-def test_chat_stream_requires_api_key(client, monkeypatch):
-    monkeypatch.setattr(server.Config, "get", lambda self, key, default=None: None)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    resp = client.post("/api/chat/stream", json={"prompt": "hi"})
-    assert resp.status_code == 400
-    assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
+@pytest.mark.parametrize("with_api_key", [False, True])
+def test_chat_stream_uses_loopback_local_model_without_credentials(client, monkeypatch, with_api_key):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-be-used")
 
-
-@pytest.mark.parametrize(
-    "model,expected_extra_body",
-    [
-        ("claude-sonnet-5", None),
-        ("claude-sonnet-4-6", {"temperature": 0.3}),
-    ],
-)
-@pytest.mark.parametrize("key_source", ["request", "config", "environment"])
-def test_chat_stream_yields_tokens_and_done(client, monkeypatch, model, expected_extra_body, key_source):
-    stored_key = "sk-ant-stored-test" if key_source == "config" else None
-    monkeypatch.setattr(server.Config, "get", lambda self, key, default=None: stored_key)
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-env-test")
-    explicit_key = "sk-ant-request-test" if key_source == "request" else None
-    expected_key = explicit_key or stored_key or "sk-ant-env-test"
-
-    class FakeDelta:
-        def __init__(self, text):
-            self.type = "text_delta"
-            self.text = text
-
-    class FakeEvent:
-        def __init__(self, text):
-            self.type = "content_block_delta"
-            self.delta = FakeDelta(text)
-
-    class FakeStreamCtx:
-        def __init__(self, chunks):
-            self.chunks = chunks
+    class FakeResponse:
+        status = 200
 
         def __enter__(self):
-            return iter(FakeEvent(c) for c in self.chunks)
+            return self
 
-        def __exit__(self, *a):
+        def __exit__(self, *args):
             return False
+
+        def __iter__(self):
+            events = [
+                {"choices": [{"delta": {"content": "Hel"}}]},
+                {"choices": [{"delta": {"content": "lo!"}}]},
+            ]
+            return iter([f"data: {json.dumps(event)}\n".encode() for event in events] + [b"data: [DONE]\n"])
 
     calls = []
 
-    class FakeMessages:
-        def stream(self, *, model, max_tokens, messages, system=None, extra_body=None):
-            calls.append((model, extra_body))
-            return FakeStreamCtx(["Hel", "lo", "!"])
+    def fake_open(self, request, timeout=0):
+        calls.append((request.full_url, request.method, json.loads(request.data)))
+        assert request.get_header("Authorization") is None
+        return FakeResponse()
 
-    class FakeAnthropic:
-        def __init__(self, api_key=None):
-            assert api_key == expected_key
-            self.messages = FakeMessages()
+    monkeypatch.setattr(server.urllib.request.OpenerDirector, "open", fake_open)
 
-    import types
+    payload = {
+        "prompt": "hi",
+        "model": "local-qwen",
+        "session_id": "local-session",
+        "system": "Be concise",
+    }
+    if with_api_key:
+        payload["api_key"] = "ignored-compatibility-key"
+    response = client.post("/api/chat/stream", json=payload)
 
-    fake_anthropic_module = types.SimpleNamespace(Anthropic=FakeAnthropic)
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic_module)
+    assert response.status_code == 200
+    body = response.text
+    assert '"text": "Hel"' in body
+    assert '"text": "lo!"' in body
+    assert '"type": "done"' in body
+    assert client.get("/api/sessions/local-session").json()["history"][-1]["content"] == "Hello!"
+    assert len(calls) == 1
+    url, method, request_payload = calls[0]
+    assert url == "http://127.0.0.1:8080/v1/chat/completions"
+    assert method == "POST"
+    assert request_payload["stream"] is True
+    assert request_payload["model"] == "local-qwen"
+    assert request_payload["messages"] == [
+        {"role": "system", "content": "Be concise"},
+        {"role": "user", "content": "hi"},
+    ]
 
-    payload = {"prompt": "hi", "model": model}
-    if explicit_key:
-        payload["api_key"] = explicit_key
-    resp = client.post("/api/chat/stream", json=payload)
-    assert resp.status_code == 200
-    body = resp.text
-    assert '"type": "token"' in body or '"type":"token"' in body
-    assert "done" in body
-    assert calls == [(model, expected_extra_body)]
+
+@pytest.mark.parametrize("base_url", ["https://model.example/v1", "http://user:pass@127.0.0.1:8080"])
+def test_chat_stream_rejects_non_loopback_model_url(client, monkeypatch, base_url):
+    monkeypatch.setenv("ZCODER_BASE_URL", base_url)
+    response = client.post("/api/chat/stream", json={"prompt": "hi"})
+
+    assert response.status_code == 200
+    assert '"type": "error"' in response.text
+    assert "loopback" in response.text

@@ -1,0 +1,6 @@
+# U72 — Files API and Skills API GA cleanup
+Priority: P2. Size: S. Depends on: U71.
+
+Facts (2026-08-19/27): Files API and Skills API are out of beta; `files-api-2025-04-14` and `skills-2025-10-02` headers no longer required; requests still sending them keep the old response shapes. New Files shape: `expires_in_seconds` on upload, `expires_at` on objects, `page`/`next_page` pagination, `ids[]` filter. SDKs: `client.beta.files` / `client.beta.skills` stop sending the headers and return the GA shapes; `client.beta.skills.delete()` now deletes a Skill together with ALL its versions; `BetaSkill` renamed `BetaContainerSkill`. Claude API skill (open source) exists.
+
+Requirements: migrate to GA calls, drop the beta headers, adapt parsers to the GA shapes; guard Skill deletion behind an explicit confirm flag that states "deletes all versions"; tests for pagination, expiry, and the delete guard.

@@ -11,7 +11,6 @@ Provides:
 
 from __future__ import annotations
 
-import enum
 import hmac
 import json
 import logging
@@ -20,6 +19,9 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+from zcoder.core.enums import StringEnum
+from zcoder.core.provider_policy import enforce_outbound_url_policy, local_only_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ except ImportError:
 # ─── Role definitions ─────────────────────────────────────────────────────────
 
 
-class ZCoderRole(str, enum.Enum):
+class ZCoderRole(StringEnum):
     VIEWER = "VIEWER"
     OPERATOR = "OPERATOR"
     ADMIN = "ADMIN"
@@ -144,7 +146,11 @@ def _fetch_jwks(jwks_uri: str) -> dict[str, Any]:
     if not _HTTPX_AVAILABLE:
         raise AuthError("httpx is required for JWKS fetching. Install: pip install httpx")
 
-    response = httpx.get(jwks_uri, timeout=10.0)
+    if local_only_enabled():
+        enforce_outbound_url_policy(jwks_uri)
+        response = httpx.get(jwks_uri, timeout=10.0, follow_redirects=False)
+    else:
+        response = httpx.get(jwks_uri, timeout=10.0)
     response.raise_for_status()
     keys = response.json()
     _jwks_cache.set(jwks_uri, keys)

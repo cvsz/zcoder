@@ -71,6 +71,7 @@ import json
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -78,7 +79,7 @@ from zcoder.core.security import build_child_env, read_text_prefix, safe_resolve
 
 # ── Built-in server tool descriptors ──────────────────────────────────────
 
-SERVER_TOOLS = {
+SERVER_TOOLS: dict[str, dict[str, Any]] = {
     "web_search": {
         "type": "web_search_20260318",
         "name": "web_search",
@@ -364,7 +365,7 @@ def build_context_management(
             }
         )
     if compact:
-        edit = {
+        edit: dict[str, Any] = {
             "type": "compact_20260112",
             "trigger": {"type": "input_tokens", "value": compact_trigger_tokens},
         }
@@ -384,7 +385,7 @@ def resume_after_compaction(
     as an assistant turn before you continue. extra_content lets you inject
     additional content blocks (e.g. a reminder message) right after it, per
     the documented pause_after_compaction pattern."""
-    content = list(compaction_response.get("content", []))
+    content: list[dict[str, Any]] = list(compaction_response.get("content", []))
     if extra_content:
         content = content + extra_content
     return messages + [{"role": "assistant", "content": content}]
@@ -414,7 +415,7 @@ def with_input_examples(tool_def: dict, examples: list[dict]) -> dict:
     return out
 
 
-def with_allowed_callers(tool_def: dict, callers: list[str] = None) -> dict:
+def with_allowed_callers(tool_def: dict, callers: list[str] | None = None) -> dict:
     """Mark a custom tool definition as callable from Programmatic Tool
     Calling — Claude can then invoke it directly from Python code running
     inside the code_execution sandbox instead of a full model round-trip
@@ -532,7 +533,7 @@ class ToolRegistry:
         self._funcs: dict[str, Callable] = {}  # name → callable
 
     def register(self, name: str, description: str, parameters: dict, func: Callable, strict: bool = False):
-        defn = {
+        defn: dict[str, Any] = {
             "name": name,
             "description": description,
             "input_schema": parameters,
@@ -629,7 +630,7 @@ class ToolCoder:
         max_turns: int = 10,
         verbose: bool = True,
         permission: str = "askPermission",
-        can_use_tool: Callable = None,
+        can_use_tool: Callable[..., Any] | None = None,
     ) -> str:
         """
         Full agentic loop: Claude calls tools, we execute them and return
@@ -639,7 +640,7 @@ class ToolCoder:
         or code-executing tools require approval (fail closed when no
         terminal is available); read-only tools pass through.
         """
-        messages = [{"role": "user", "content": prompt}]
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
         tools = registry.definitions()
         turn = 0
 
@@ -671,7 +672,7 @@ class ToolCoder:
                 return f"[UNEXPECTED stop_reason={stop_reason}]"
 
             # Execute tool calls
-            tool_results = []
+            tool_results: list[dict[str, Any]] = []
             for block in content:
                 if block.get("type") != "tool_use":
                     continue
@@ -706,7 +707,13 @@ class ToolCoder:
 
         return "[MAX TURNS REACHED]"
 
-    def _approve(self, name: str, inputs: dict, permission: str, can_use_tool: Callable) -> bool:
+    def _approve(
+        self,
+        name: str,
+        inputs: dict,
+        permission: str,
+        can_use_tool: Callable[..., Any] | None,
+    ) -> bool:
         """Fail-closed approval for tool calls, mirroring CodeAgent semantics."""
         if permission == "planMode":
             return False
@@ -757,8 +764,8 @@ class ToolCoder:
         consumed by a code_execution call in the same turn (the
         programmatic-tool-calling pattern). Omitted by default: no
         regression to the pre-v1.24.0 tool dict shape."""
-        tools = []
-        betas = []
+        tools: list[dict[str, Any]] = []
+        betas: list[str] = []
         for name in tool_names:
             if name not in SERVER_TOOLS:
                 raise ValueError(f"Unknown server tool: {name}. Available: {list(SERVER_TOOLS)}")
@@ -786,7 +793,7 @@ class ToolCoder:
             if "input_examples" in t or "allowed_callers" in t:
                 betas.append(ADVANCED_TOOL_USE_BETA)
 
-        headers_extra = {}
+        headers_extra: dict[str, str] = {}
         payload: dict = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -849,7 +856,7 @@ class ToolCoder:
         without the caller having to hand-roll the command dispatch."""
         tools = [dict(SERVER_TOOLS["memory"])] + (extra_tools or [])
         betas = [CONTEXT_MANAGEMENT_BETA] if use_context_management else []
-        messages = [{"role": "user", "content": prompt}]
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
         turn = 0
 
         while turn < max_turns:
@@ -891,7 +898,7 @@ class ToolCoder:
             if stop_reason != "tool_use":
                 return f"[UNEXPECTED stop_reason={stop_reason}]"
 
-            tool_results = []
+            tool_results: list[dict[str, Any]] = []
             for block in content:
                 if block.get("type") != "tool_use":
                     continue
@@ -1011,7 +1018,7 @@ def build_code_tools_registry(cwd: str | None = None) -> ToolRegistry:
 # ── CLI entry points ───────────────────────────────────────────────────────
 
 
-def cmd_tool_agent(prompt: str, api_key: str, model: str, system: str = None, max_turns: int = 10):
+def cmd_tool_agent(prompt: str, api_key: str, model: str, system: str | None = None, max_turns: int = 10):
     """Run agentic tool loop with code tools."""
     print(f"\033[94mℹ Agentic tool runner | max_turns={max_turns}\033[0m\n")
     tc = ToolCoder(api_key=api_key, model=model)

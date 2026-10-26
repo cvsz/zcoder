@@ -27,7 +27,9 @@ CLI flags:
                           web_fetch_20260318, both defaults as of v1.24.0
 """
 
-import anthropic
+from typing import Any
+
+from zcoder.core.provider_policy import create_anthropic_client
 
 WEB_SEARCH_TOOL = {
     "type": "web_search_20260318",
@@ -44,7 +46,7 @@ class SearchCoder:
     """Claude with web search and fetch tools."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 4096):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key)
         self.model = model
         self.max_tokens = max_tokens
 
@@ -64,20 +66,20 @@ class SearchCoder:
         of the web_search/web_fetch tool dicts are actually enabled —
         currently only "excluded" is a documented value. Omitted by
         default: no regression to the pre-v1.24.0 tool dict shape."""
-        tools = []
+        tools: list[dict[str, Any]] = []
         if web_search:
-            t = dict(WEB_SEARCH_TOOL)
+            t: dict[str, Any] = dict(WEB_SEARCH_TOOL)
             t["max_uses"] = max_searches
             if response_inclusion is not None:
                 t["response_inclusion"] = response_inclusion
             tools.append(t)
         if web_fetch:
-            t = dict(WEB_FETCH_TOOL)
+            fetch_tool: dict[str, Any] = dict(WEB_FETCH_TOOL)
             if response_inclusion is not None:
-                t["response_inclusion"] = response_inclusion
-            tools.append(t)
+                fetch_tool["response_inclusion"] = response_inclusion
+            tools.append(fetch_tool)
 
-        kwargs = dict(
+        kwargs: dict[str, Any] = dict(
             model=self.model,
             max_tokens=self.max_tokens,
             messages=[{"role": "user", "content": prompt}],

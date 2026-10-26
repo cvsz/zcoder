@@ -1,0 +1,15 @@
+# U61 — Lineage reconciliation + single source of truth for version
+Priority: P0 (prerequisite for everything). Size: L. Depends on: none.
+
+Context: two diverging trees exist. (A) GitHub cvsz/zcoder main: `src/zcoder/agent/…` layout, v1.41.x. (B) the uploaded flat-layout tree (`claude_*.py`, `domain/`, `application/`, `infrastructure/`, `interfaces/`), delivered as zcoder-v1_60_0. Version strings disagreed inside (B): pyproject 1.40.0, main.py 1.39.0, docstrings 1.53.0.
+
+Objective: choose ONE canonical tree and port the other's unique work into it with no history loss.
+
+Requirements:
+- file-level and feature-level diff matrix of A vs B (modules, CLI flags, tests, docs, workflows, CI gates); mark each row only-A / only-B / both-same / both-different.
+- decision record: canonical layout and why; migration plan for imports.
+- port only-X features with tests; resolve both-different by behavior tests, not by taste.
+- version single source of truth in pyproject.toml; `main.py` and `__init__` read it (importlib.metadata); add a test that fails on drift.
+- keep the model catalog from v1.60.0 (5.5 family) in the canonical tree.
+Exclusions: no feature work from U62+ in this cycle.
+Verify: full suite on the canonical tree ≥ the larger of the two baselines; release-candidate/version-sync checks pass on a clean checkout.

@@ -72,7 +72,25 @@ def _call(
 ) -> dict:
     prov, url, key = _resolve_provider_kwargs(provider, base_url, api_key, model)
     if prov == "local":
-        return {"text": "[local mode] No upstream call — local stub response."}
+        local_messages = list(payload.get("messages") or [])
+        local_system = payload.get("system")
+        if local_messages and local_messages[0].get("role") == "system":
+            local_system = local_system or local_messages.pop(0).get("content")
+        local_prompt = local_messages.pop().get("content", "") if local_messages else ""
+        local_history = local_messages
+        from zcoder.services.coder import Coder
+
+        coder = Coder(
+            model=model or payload.get("model"),
+            temperature=float(payload.get("temperature", 0.3)),
+            max_tokens=int(payload.get("max_tokens", 4096)),
+            provider="local",
+            base_url=url or None,
+        )
+        return {
+            "text": coder.generate(local_prompt, system=local_system, history=local_history),
+            "_provider": prov,
+        }
     if prov in {"groq", "openrouter", "cerebras"} and not key:
         raise ValueError(f"{prov} requires an API key; check the provider-specific environment variable")
     mdl = model or "zqwen2.5-coder-7b-instruct-q4_k_m"

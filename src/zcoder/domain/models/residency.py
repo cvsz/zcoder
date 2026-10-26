@@ -21,10 +21,11 @@ Provides:
 from __future__ import annotations
 
 import dataclasses
-import enum
+
+from zcoder.core.enums import StringEnum
 
 
-class RegionStatus(str, enum.Enum):
+class RegionStatus(StringEnum):
     AVAILABLE = "AVAILABLE"
     DEGRADED = "DEGRADED"
     UNAVAILABLE = "UNAVAILABLE"

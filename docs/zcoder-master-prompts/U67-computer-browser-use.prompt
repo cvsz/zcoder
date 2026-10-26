@@ -1,0 +1,6 @@
+# U67 — Computer use and browser use toolsets
+Priority: P1. Size: M. Depends on: U64.
+
+Facts: `computer_toolset_20260801` is GA on the Claude API (no beta header, batch actions, `zoom` on by default, per-member `configs`); `browser_toolset_20260801` drives a browser your app hosts (accessibility tree, elements, forms, tabs, download reporting, opt-in file upload). Both available on Claude API and Google Cloud for Fable 5, Mythos 5, Opus 5, Sonnet 5, Opus 4.8 (Aug 19–20); 5.5 models require the toolset (see U64). Bedrock keeps `computer_20251124`. Python and TypeScript SDKs have beta toolset classes (subclass, one method per tool; SDK runs the loop, URL/file policies, approval callback).
+
+Requirements: provider-aware tool selection; migrate `--computer-use` per "Migrate from computer_20251124"; approval callback default = deny; URL allowlist and file-upload default off; no real-desktop actions in tests (fake driver); docs describe the safety model.

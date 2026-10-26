@@ -40,7 +40,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TypeVar
+from typing import NoReturn, TypeVar
 
 from zcoder.core.exceptions import (
     APIError,
@@ -50,8 +50,13 @@ from zcoder.core.exceptions import (
     TransientAPIError,
     ZCoderError,
 )
+from zcoder.core.provider_policy import (
+    enforce_outbound_url_policy,
+    local_only_enabled,
+)
 
 logger = logging.getLogger("zcoder.resilience")
+
 
 T = TypeVar("T")
 
@@ -66,7 +71,7 @@ def _is_retryable(exc: BaseException) -> bool:
     return False
 
 
-def raise_for_http_error(exc: BaseException) -> None:
+def raise_for_http_error(exc: BaseException) -> NoReturn:
     """Translate a raw urllib exception into the ZCoderError hierarchy.
 
     Every module that makes a direct HTTP call (rather than going through
@@ -141,7 +146,19 @@ def safe_urlopen(req, timeout: float):
     scheme = urllib.parse.urlparse(url).scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError(f"Unsupported URL scheme for outbound request: {scheme or '<missing>'}")
+    enforce_outbound_url_policy(url)
+    if local_only_enabled():
+        opener = urllib.request.build_opener(_LocalOnlyRedirectHandler())
+        return opener.open(req, timeout=timeout)
     return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 -- scheme checked above
+
+
+class _LocalOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-apply provider policy to each redirect destination in local mode."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        enforce_outbound_url_policy(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def shell_command_argv(command: str) -> list[str]:

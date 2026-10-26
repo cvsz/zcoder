@@ -30,6 +30,7 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -49,20 +50,73 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # tier:     "mythos" (above Opus) | "current" | "legacy" (superseded, still callable)
 
 MODEL_CATALOG: dict = {
+    "claude-fable-5-1": {
+        "display_name": "Claude Fable 5.1",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 10.0,
+        "price_out": 50.0,
+        "thinking": "adaptive",
+        "effort_default": "high",
+        "notes": "Current model catalog entry (checked 2026-10-26). Adaptive thinking is always on. "
+        "Fable 5.1 replaces Fable 5 in the current lineup; API support is optional and this metadata "
+        "does not enable network inference.",
+    },
+    "claude-opus-5-5": {
+        "display_name": "Claude Opus 5.5",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 4.0,
+        "price_out": 20.0,
+        "thinking": "adaptive",
+        "effort_default": "medium",
+        "notes": "Current model catalog entry (checked 2026-10-26). Adaptive thinking is always on. "
+        "API support is optional and this metadata does not enable network inference.",
+    },
+    "claude-sonnet-5-5": {
+        "display_name": "Claude Sonnet 5.5",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 2.0,
+        "price_out": 10.0,
+        "thinking": "adaptive",
+        "effort_default": "high",
+        "notes": "Current model catalog entry (checked 2026-10-26). API support is optional and this "
+        "metadata does not enable network inference.",
+    },
+    "claude-haiku-5-5": {
+        "display_name": "Claude Haiku 5.5",
+        "tier": "current",
+        "context_window": 1_000_000,
+        "max_output": 128_000,
+        "price_in": 0.1,
+        "price_out": 0.5,
+        "thinking": "adaptive",
+        "effort_default": "medium",
+        "pricing_tiers": [
+            {"max_input_tokens": 100_000, "price_in": 0.1, "price_out": 0.5},
+            {"min_input_tokens": 100_001, "price_in": 0.5, "price_out": 2.5},
+        ],
+        "notes": "Current model catalog entry (checked 2026-10-26). Listed base rates apply to prompts "
+        "up to 100k tokens; input and output rates increase fivefold above 100k. The scalar price "
+        "fields represent base rates only. API support is optional and this metadata does not enable "
+        "network inference.",
+    },
     "claude-opus-5": {
         "display_name": "Claude Opus 5",
-        "tier": "current",
+        "tier": "legacy",
         "context_window": 1_000_000,
         "max_output": 128_000,
         "price_in": 5.0,
         "price_out": 25.0,
         "thinking": "adaptive",
         "effort_default": None,
-        "notes": "Launched 2026-07-24, a step-change over Opus 4.8 at the same "
-        "price. Thinking on by default. Full effort ladder (low/medium/"
-        "high/xhigh/max). Breaking change vs. Opus 4.8: disabling thinking "
-        "(thinking.type='disabled') is only allowed at effort high or "
-        "below -- xhigh or max with thinking disabled returns a 400.",
+        "notes": "Superseded in the current model catalog by Claude Opus 5.5. Retained as a legacy "
+        "entry for existing configurations. API support is optional and this metadata does not "
+        "enable network inference.",
     },
     "claude-mythos-5": {
         "display_name": "Claude Mythos 5",
@@ -78,21 +132,20 @@ MODEL_CATALOG: dict = {
     },
     "claude-fable-5": {
         "display_name": "Claude Fable 5",
-        "tier": "mythos",
+        "tier": "legacy",
         "context_window": 1_000_000,
         "max_output": 128_000,
         "price_in": 10.0,
         "price_out": 50.0,
         "thinking": "adaptive",
         "effort_default": None,
-        "notes": "Anthropic's most capable widely-released model. Thinking is "
-        "always on and returned encrypted — omit `thinking` rather "
-        'than passing type:"disabled" (that returns a 400). Has '
-        'safety classifiers that can return stop_reason="refusal".',
+        "notes": "Superseded by Claude Fable 5.1 in the current model catalog. Retained as a legacy "
+        "entry for existing configurations. API support is optional and this metadata does not "
+        "enable network inference.",
     },
     "claude-opus-4-8": {
         "display_name": "Claude Opus 4.8",
-        "tier": "current",
+        "tier": "legacy",
         "context_window": 1_000_000,
         "max_output": 128_000,
         "price_in": 5.0,
@@ -104,29 +157,28 @@ MODEL_CATALOG: dict = {
     },
     "claude-sonnet-5": {
         "display_name": "Claude Sonnet 5",
-        "tier": "current",
+        "tier": "legacy",
         "context_window": 1_000_000,
         "max_output": 128_000,
         "price_in": 2.0,
         "price_out": 10.0,
         "thinking": "adaptive",
         "effort_default": "high",
-        "notes": "Best speed/intelligence balance; builds on Sonnet 4.6. "
-        "Pricing $2/$10 per MTok (permanent — the planned Sep 1 "
-        "increase was cancelled on 2026-08-10; the introductory rate is "
-        "now the permanent standard price).",
+        "notes": "Superseded by Claude Sonnet 5.5 in the current model catalog. Retained as a legacy "
+        "entry for existing configurations. API support is optional and this metadata does not "
+        "enable network inference.",
     },
     "claude-haiku-4-5-20251001": {
         "display_name": "Claude Haiku 4.5",
-        "tier": "current",
+        "tier": "legacy",
         "context_window": 200_000,
         "max_output": 64_000,
         "price_in": 1.0,
         "price_out": 5.0,
         "thinking": "extended",
         "effort_default": None,
-        "notes": "Fastest, most cost-effective. Extended (manual budget_tokens) "
-        "thinking, not adaptive. Alias: claude-haiku-4-5.",
+        "notes": "Superseded by Claude Haiku 5.5 in the current model catalog. Retained as a legacy "
+        "entry for existing configurations. Alias: claude-haiku-4-5.",
     },
     # Legacy — still callable, superseded by the row above in the same tier.
     "claude-opus-4-7": {
@@ -589,6 +641,10 @@ def cmd_check_deprecated(path: str):
 # unless told not to.
 
 UPGRADE_TARGETS = {
+    "fable51": "claude-fable-5-1",
+    "opus55": "claude-opus-5-5",
+    "sonnet55": "claude-sonnet-5-5",
+    "haiku55": "claude-haiku-5-5",
     "fable5": "claude-fable-5",
     "opus": "claude-opus-4-8",
 }
@@ -707,7 +763,7 @@ def cmd_upgrade_all(path: str, target: str = "fable5", apply: bool = False, no_b
 
 # ── Computer Use ───────────────────────────────────────────────────────────
 
-COMPUTER_USE_TOOLS = [
+COMPUTER_USE_TOOLS: list[dict[str, Any]] = [
     {
         "type": "computer_20250124",
         "name": "computer",
@@ -820,7 +876,7 @@ class ComputerUseCoder:
         except Exception as e:
             return {"error": str(e)}
 
-    def run_task(self, task: str, system: str = None) -> dict:
+    def run_task(self, task: str, system: str | None = None) -> dict:
         """Submit a computer-use task and preserve every returned tool call."""
         if self.toolset == "ga":
             tools = [computer_use_toolset_for_model(self.model, self.width, self.height, self.configs)]
@@ -893,7 +949,7 @@ class AdaptiveThinkingCoder:
         self.max_tokens = max_tokens
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, payload: dict, betas: list[str] = None) -> dict:
+    def _call(self, payload: dict, betas: list[str] | None = None) -> dict:
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
@@ -909,7 +965,7 @@ class AdaptiveThinkingCoder:
         )
         return urlopen_json(req, timeout=300)
 
-    def _post(self, payload: dict, betas: list[str] = None) -> dict:
+    def _post(self, payload: dict, betas: list[str] | None = None) -> dict:
         try:
             return self._call(payload, betas)
         except ZCoderError as e:
@@ -917,7 +973,13 @@ class AdaptiveThinkingCoder:
         except Exception as e:
             return {"error": str(e)}
 
-    def adaptive(self, prompt: str, budget: int = 8000, effort: str = None, system: str = None) -> str:
+    def adaptive(
+        self,
+        prompt: str,
+        budget: int = 8000,
+        effort: str | None = None,
+        system: str | None = None,
+    ) -> str:
         """Adaptive thinking — model decides depth."""
         if effort:
             budget = EFFORT_BUDGETS.get(effort, budget)
@@ -934,7 +996,13 @@ class AdaptiveThinkingCoder:
             return f"[ERROR] {data['error']}"
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
-    def interleaved(self, prompt: str, tools: list[dict], budget: int = 8000, system: str = None) -> str:
+    def interleaved(
+        self,
+        prompt: str,
+        tools: list[dict],
+        budget: int = 8000,
+        system: str | None = None,
+    ) -> str:
         """Interleaved thinking — think between tool calls."""
         payload = {
             "model": self.model,
@@ -951,7 +1019,13 @@ class AdaptiveThinkingCoder:
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
 
-def cmd_adaptive_thinking(prompt: str, api_key: str, model: str, effort: str = "medium", budget: int = None):
+def cmd_adaptive_thinking(
+    prompt: str,
+    api_key: str,
+    model: str,
+    effort: str = "medium",
+    budget: int | None = None,
+):
     print(f"\033[94mℹ Adaptive Thinking | effort={effort}\033[0m\n")
     atc = AdaptiveThinkingCoder(api_key=api_key, model=model)
     result = atc.adaptive(prompt, budget=budget or 8000, effort=effort)

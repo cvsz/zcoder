@@ -252,7 +252,7 @@ def cmd_perms_add(pattern: str, decision: str, reason: str = ""):
 # PLAN MODE
 # ═══════════════════════════════════════════════════════════════════════
 
-import anthropic as _anthropic
+from zcoder.core.provider_policy import create_anthropic_client
 
 
 @dataclass
@@ -279,7 +279,7 @@ class Plan:
 
 class PlanModeAgent:
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
-        self.client = _anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key)
         self.model = model
 
     def _call(self, system: str, user: str, max_tokens: int = 2048) -> str:

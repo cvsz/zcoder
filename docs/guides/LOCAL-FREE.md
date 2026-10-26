@@ -5,7 +5,7 @@ GGUF model through llama.cpp. It does not require a hosted model credential.
 
 ## Prerequisites
 
-- Python 3.10 or later and the ZCoder development dependencies.
+- Python 3.12 or later and the ZCoder development dependencies.
 - `llama-server` built with support for the target hardware.
 - A local GGUF file, for example:
   - `/home/cvsz/zgpu/qwen-7b-q4km.gguf`

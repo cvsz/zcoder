@@ -11,6 +11,7 @@ from zcoder.infrastructure.observability.otel import (
     get_metrics,
     init_telemetry,
     trace_job_span,
+    trace_model_call,
 )
 
 
@@ -185,6 +186,21 @@ class TestTraceSpan:
             time.sleep(0.01)
         # If we reach here, the span worked without crashing
 
+    def test_trace_model_call_counts_success_and_failure(self, monkeypatch):
+        metrics = ZCoderMetrics()
+        monkeypatch.setattr("zcoder.infrastructure.observability.otel.get_metrics", lambda: metrics)
+
+        with trace_model_call(provider="local", model="qwen", operation="stream") as span:
+            span.set_attribute("test.key", "test_value")
+
+        with pytest.raises(RuntimeError, match="model failed"):
+            with trace_model_call(provider="local", model="qwen"):
+                raise RuntimeError("model failed")
+
+        assert metrics.model_calls_total.get() == 2
+        assert metrics.model_errors_total.get() == 1
+        assert metrics.model_duration_seconds.count() == 2
+
 
 class TestPrometheusExposition:
     def test_backup_freshness_metrics_present(self):
@@ -211,6 +227,19 @@ class TestPrometheusExposition:
         assert "zcoder_api_requests" in output
         assert "zcoder_api_errors" in output
         assert "zcoder_api_duration_seconds" in output
+
+    def test_model_inference_metrics_are_provider_neutral(self):
+        m = ZCoderMetrics()
+        m.model_calls_total.inc()
+        m.model_errors_total.inc()
+        m.model_duration_seconds.observe(0.25)
+
+        output = m.prometheus_exposition()
+
+        assert "zcoder_model_calls_total 1.0" in output
+        assert "zcoder_model_errors_total 1.0" in output
+        assert "zcoder_model_duration_seconds_count 1" in output
+        assert "zcoder_model_duration_seconds_sum 0.25" in output
 
 
 class TestBootstrapFromEnv:

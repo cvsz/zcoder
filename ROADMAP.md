@@ -1,5 +1,22 @@
 # ZCoder Roadmap
 
+## v1.42.0 reconciliation update
+
+The canonical implementation remains `src/zcoder/`. U61 reconciliation
+introduced package-metadata version lookup and local plugin validation CLI
+wiring. The extracted flat-layout archive remains an audit reference; cloud
+catalog and remote Compliance API additions are outside the local-only scope.
+
+## v1.60.0 catalog migration
+
+The 5.5-generation catalog metadata and model-upgrade target choices from the
+supplied archive are now represented in the modular tree. These entries are
+offline metadata only; they do not change the loopback-only inference route.
+Haiku 5.5 variable pricing is documented explicitly. Fast mode, service tier,
+inference geography, and computer-use capability sets remain unchanged until
+their support is verified for each model. See
+`docs/upgrades/56_model_catalog_v1.60.0.md`.
+
 ## Current direction
 
 ZCoder is moving to local-first inference. The default prompt and routing
@@ -9,6 +26,9 @@ database setup uses the shared Docker PostgreSQL container named
 
 ## Completed in the current worktree
 
+- The offline catalog includes Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku
+  5.5 with CLI upgrade targets; superseded entries remain available as
+  legacy metadata.
 - Default `zcoder -p` generation uses the loopback chat-completions endpoint.
 - The `--route` default uses the local model gateway; the retired provider
   choice is rejected by the CLI and provider resolver.

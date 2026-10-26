@@ -50,6 +50,19 @@ def test_generate_uses_local_chat_completions_without_api_key():
     ]
 
 
+def test_generate_records_provider_neutral_model_metrics(monkeypatch):
+    from zcoder.infrastructure.observability.otel import ZCoderMetrics
+
+    metrics = ZCoderMetrics()
+    monkeypatch.setattr("zcoder.infrastructure.observability.otel.get_metrics", lambda: metrics)
+    coder = Coder(model="local-qwen")
+    with patch("zcoder.services.coder._open_local", return_value=_fake_response("ok")):
+        assert coder.generate("hello") == "ok"
+
+    assert metrics.model_calls_total.get() == 1
+    assert metrics.model_errors_total.get() == 0
+
+
 def test_generate_includes_file_content_and_history():
     coder = Coder()
     captured = {}

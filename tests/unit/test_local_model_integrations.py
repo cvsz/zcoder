@@ -8,7 +8,7 @@ from zcoder.agent.integrations import git, github
 from zcoder.agent.optimization import prompt
 from zcoder.agent.rag.engine import Chunk
 from zcoder.agent.rag.engine import generate as rag_generate
-from zcoder.core.health import _check_model_config, run_health_check
+from zcoder.core.health import _check_model_config, _check_python_version, run_health_check
 
 
 def test_git_generation_uses_local_coder(monkeypatch):
@@ -89,3 +89,13 @@ def test_health_check_rejects_non_loopback_model_url(monkeypatch):
     check = _check_model_config()
     assert not check.ok
     assert check.name == "local_model_configured"
+
+
+def test_health_check_python_baseline_matches_package_requirement(monkeypatch):
+    monkeypatch.setattr("zcoder.core.health.sys.version_info", (3, 11, 99))
+    monkeypatch.setattr("zcoder.core.health.sys.version", "3.11.9")
+
+    check = _check_python_version()
+
+    assert not check.ok
+    assert check.detail == "3.11.9 (requires >= 3.12)"

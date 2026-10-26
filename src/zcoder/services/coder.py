@@ -9,8 +9,10 @@ import urllib.request
 from zcoder.config.logging import get_logger
 from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
 from zcoder.core.resilience import CircuitBreaker, retry
+from zcoder.services.model_observability import trace_model_call
 
 logger = get_logger("coder")
+
 
 # Shared across Coder instances within a process so repeated failures
 # (e.g. an outage during a long --agent-orchestrate run) trip the breaker
@@ -90,17 +92,14 @@ class Coder:
             user_content = f"File content:\n```\n{file_content}\n```\n\n{prompt}"
 
         if self.personality_style:
-            try:
-                from zcoder.agent.personalities import PersonalityManager
+            from zcoder.agent.personalities import PersonalityManager
 
-                pm = PersonalityManager()
-                addition = pm.build_prompt_addition(self.personality_style)
-                if addition and system:
-                    system = system + "\n\n" + addition
-                elif addition:
-                    system = addition
-            except Exception:
-                pass
+            pm = PersonalityManager()
+            addition = pm.build_prompt_addition(self.personality_style)
+            if addition and system:
+                system = system + "\n\n" + addition
+            elif addition:
+                system = addition
 
         messages.append({"role": "user", "content": user_content})
 
@@ -151,7 +150,8 @@ class Coder:
                 raise TransientAPIError(f"Network error: {e}") from e
 
         try:
-            data = _call()
+            with trace_model_call(provider=self.provider, model=self.model):
+                data = _call()
         except AuthenticationError as e:
             logger.error("auth_failed", extra={"model": self.model})
             return f"[API ERROR 401] {e.message}"

@@ -64,9 +64,11 @@ END $$;
 
 -- Application role: used by normal API/worker connections.
 -- MUST NOT have BYPASSRLS. MUST NOT own tables created with FORCE ROW LEVEL SECURITY.
+-- Provision authentication separately through the deployment secret manager.
+-- This role intentionally has no password set by repository DDL.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'zcoder_app') THEN
-    CREATE ROLE zcoder_app LOGIN PASSWORD 'zcoder_app_placeholder';
+    CREATE ROLE zcoder_app LOGIN;
   END IF;
 END $$;
 
@@ -148,7 +150,7 @@ CREATE TABLE IF NOT EXISTS tenant_jobs (
     workspace TEXT NOT NULL DEFAULT '.',
     created_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
     updated_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
-    model TEXT NOT NULL DEFAULT 'claude-sonnet-5',
+    model TEXT NOT NULL DEFAULT 'zqwen2.5-coder-7b-instruct-q4_k_m',
     budget_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     claimed_by TEXT,

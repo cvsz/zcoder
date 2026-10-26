@@ -1,0 +1,6 @@
+# U70 — OpenTelemetry export and workspace attribution
+Priority: P2. Size: M. Depends on: U61.
+
+Facts: OpenTelemetry export (beta, 2026-10-14): SDKs emit spans (Python, TypeScript, C#, Go, Java, PHP, Ruby); API-side spans via an OpenTelemetry destination added in the Claude Console; covers Messages API and Managed Agents sessions. `anthropic-workspace-id` response header carries the workspace of the request key. Cache diagnostics reports `cache_miss_reason`.
+
+Requirements: reuse existing ZCoderMetrics/OTel plumbing; no second telemetry stack; bounded-cardinality labels (never request IDs or workspace IDs as metric labels; trace attributes only); record `cache_miss_reason` and thinking token counts; secret-free spans (no prompts/keys); off by default; tests with an in-memory exporter.

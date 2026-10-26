@@ -77,3 +77,16 @@ def test_filesystem_allowed_values_pass(tmp_path):
         _write_manifest(tmp_path, {"name": "ok", "permissions": {"filesystem": fs}})
         findings = validate_plugin(tmp_path)
         assert not _levels(findings, "error"), f"filesystem={fs!r} should not error"
+
+
+def test_cli_plugin_validate_is_read_only_and_reports_findings(tmp_path, monkeypatch, capsys):
+    from zcoder.agent.tools import plugins
+
+    _write_manifest(tmp_path, {"name": "local-plugin"})
+    before = (tmp_path / ".claude-plugin" / "plugin.json").read_bytes()
+    monkeypatch.setattr("sys.argv", ["zcoder", "--plugin-validate", str(tmp_path)])
+
+    plugins.cmd_plugin_validate(str(tmp_path))
+
+    assert "looks valid" in capsys.readouterr().out
+    assert (tmp_path / ".claude-plugin" / "plugin.json").read_bytes() == before

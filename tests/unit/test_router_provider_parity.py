@@ -54,6 +54,47 @@ def test_resolve_provider_local_mode(monkeypatch):
     assert providers.resolve_provider(None) == "local"
 
 
+@pytest.mark.parametrize("local_mode", ["1", "true", "yes"])
+def test_local_mode_overrides_cli_and_environment_provider(local_mode, monkeypatch):
+    monkeypatch.setenv("ZCODER_LOCAL_MODE", local_mode)
+    monkeypatch.setenv("ZCODER_PROVIDER", "gemini")
+
+    assert providers.resolve_provider("xai") == "local"
+    assert providers.resolve_provider(None) == "local"
+
+
+def test_router_uses_local_client_when_remote_provider_is_overridden(monkeypatch):
+    monkeypatch.setenv("ZCODER_LOCAL_MODE", "1")
+    monkeypatch.setenv("ZCODER_PROVIDER", "gemini")
+    monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
+    captured = {}
+
+    class FakeCoder:
+        def __init__(self, **kwargs):
+            captured["kwargs"] = kwargs
+
+        def generate(self, prompt, **kwargs):
+            captured["prompt"] = prompt
+            return "local response"
+
+    monkeypatch.setattr("zcoder.services.coder.Coder", FakeCoder)
+    monkeypatch.setattr(
+        "zcoder.agent.orchestration.router.urlopen_json",
+        lambda *args, **kwargs: pytest.fail("remote provider network must remain unused"),
+    )
+
+    result = _call(
+        "remote-key-must-not-be-used",
+        {"model": "local-qwen", "messages": [{"role": "user", "content": "hello"}]},
+        provider="xai",
+        model="local-qwen",
+    )
+
+    assert result == {"text": "local response", "_provider": "local"}
+    assert captured["kwargs"]["provider"] == "local"
+    assert captured["prompt"] == "hello"
+
+
 def test_resolve_provider_rejects_unknown():
     with pytest.raises(ValueError, match="Unknown provider"):
         providers.resolve_provider("openai")
@@ -84,6 +125,7 @@ def test_resolve_api_key_provider_env(monkeypatch):
 def test_resolve_api_key_ollama_no_key_needed():
     assert providers.resolve_api_key("ollama", None) == ""
     assert providers.resolve_api_key("local", None) == ""
+    assert providers.resolve_api_key("local", "remote-key-must-not-be-used") == ""
 
 
 def test_resolve_base_url_cli_wins(monkeypatch):
@@ -222,15 +264,25 @@ def test_router_call_uses_provider_endpoint(monkeypatch):
 
 
 def test_router_call_local_mode_no_network(monkeypatch):
-    # local provider must not call urlopen_json at all
+    # Local provider uses the loopback Coder and never the router HTTP adapter.
     def _fail(*a, **kw):
         raise AssertionError("local provider must not make a network call")
 
     monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", _fail)
+    from unittest.mock import Mock
+
+    coder = Mock()
+    coder.generate.return_value = "local inference result"
+    constructor = Mock(return_value=coder)
+    monkeypatch.setattr("zcoder.services.coder.Coder", constructor)
     data = _call(
         "", {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}, provider="local", model="any"
     )
-    assert "local mode" in data.get("text", "").lower()
+    assert data["text"] == "local inference result"
+    constructor.assert_called_once_with(
+        model="any", temperature=0.3, max_tokens=10, provider="local", base_url=None
+    )
+    coder.generate.assert_called_once_with("hi", system=None, history=[])
 
 
 def test_router_call_rejects_file_scheme(monkeypatch):
