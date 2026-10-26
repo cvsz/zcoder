@@ -88,9 +88,9 @@ class LocalControlStore:
         if os.name == "posix" and self.database != ":memory:":
             try:
                 os.chmod(self.database, 0o600, follow_symlinks=False)
-            except OSError:
+            except OSError as exc:
                 db.close()
-                raise RuntimeError("unable to enforce local control database permissions")
+                raise RuntimeError("unable to enforce local control database permissions") from exc
         return db
 
     def _audit(self, db: sqlite3.Connection, actor: str, action: str, subject: str) -> None:
