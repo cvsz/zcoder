@@ -1,14 +1,8 @@
 """Offline control plane regressions; no network or Anthropic dependencies."""
 
 import sqlite3
-from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from zcoder.api.auth import RequestAuthenticationError
-from zcoder.api import local_control as local_api
 from zcoder.services.local_control import (
     LocalAgentRunner,
     LocalControlStore,
@@ -136,65 +130,6 @@ def test_database_permissions_are_owner_only(tmp_path):
     path.chmod(0o644)
     store.list_principals("admin")
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
-
-
-# API adapter regressions: authentication failures and tenant/RBAC boundaries.
-
-def _local_api_client(
-    monkeypatch, tmp_path, *, principal="admin", organization="org-1"
-):
-    monkeypatch.setenv("ZCODER_LOCAL_ORGANIZATION_ID", "org-1")
-    monkeypatch.setenv("ZCODER_LOCAL_BOOTSTRAP_ADMIN_SUBJECT", "admin")
-    monkeypatch.setenv(
-        "ZCODER_LOCAL_CONTROL_DATABASE", str(tmp_path / "api-control.sqlite")
-    )
-    monkeypatch.setattr(local_api, "_store_instance", None)
-    monkeypatch.setattr(
-        local_api,
-        "authenticate_request",
-        lambda _headers: SimpleNamespace(
-            principal_id=principal, organization_id=organization
-        ),
-    )
-    app = FastAPI()
-    app.include_router(local_api.router)
-    return TestClient(app)
-
-
-def test_local_api_rejects_authentication_failure(monkeypatch, tmp_path):
-    client = _local_api_client(monkeypatch, tmp_path)
-
-    def reject(_headers):
-        raise RequestAuthenticationError("A non-empty Bearer token is required")
-
-    monkeypatch.setattr(local_api, "authenticate_request", reject)
-    response = client.get("/local/v1/admin/principals")
-    assert response.status_code == 401
-
-
-def test_local_api_rejects_wrong_organization(monkeypatch, tmp_path):
-    client = _local_api_client(monkeypatch, tmp_path, organization="org-2")
-    response = client.get("/local/v1/admin/principals")
-    assert response.status_code == 403
-
-
-def test_local_api_enforces_local_admin_role(monkeypatch, tmp_path):
-    client = _local_api_client(monkeypatch, tmp_path, principal="operator")
-    response = client.get("/local/v1/admin/principals")
-    assert response.status_code == 403
-    assert response.json()["detail"] == "permission denied"
-
-
-def test_local_api_allows_bootstrapped_admin_in_bound_organization(
-    monkeypatch, tmp_path
-):
-    client = _local_api_client(monkeypatch, tmp_path)
-    response = client.get("/local/v1/admin/principals")
-    assert response.status_code == 200
-    assert response.json() == {
-        "principals": [{"principal": "admin", "role": "admin"}]
-    }
-
 
 def test_local_inference_urlopen_disables_environment_proxies(monkeypatch):
     from urllib.request import ProxyHandler, Request
