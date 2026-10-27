@@ -40,8 +40,9 @@ CLI flags added in main.py:
 """
 
 import sys
+from typing import Any
 
-import anthropic
+from zcoder.core.provider_policy import create_anthropic_client
 
 # ── Effort → budget mapping (legacy manual mode only) ──────────────────────
 # "xhigh" (live since April 16, 2026 on Opus 4.7, and part of Opus 5's
@@ -118,7 +119,7 @@ class ThinkingCoder:
     """Claude client with extended / adaptive thinking support."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 8000):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key)
         self.model = model
         self.max_tokens = max_tokens
 
@@ -166,12 +167,12 @@ class ThinkingCoder:
         nothing to print regardless of its value."""
         use_adaptive = self._resolve_mode(adaptive, legacy_budget)
 
-        kwargs = dict(model=self.model, messages=[{"role": "user", "content": prompt}])
+        kwargs: dict[str, Any] = {"model": self.model, "messages": [{"role": "user", "content": prompt}]}
         if system:
             kwargs["system"] = system
 
         if use_adaptive:
-            thinking_cfg = {"type": "adaptive"}
+            thinking_cfg: dict[str, str | int] = {"type": "adaptive"}
             if display_omitted:
                 thinking_cfg["display"] = "omitted"
             kwargs["thinking"] = thinking_cfg
@@ -249,12 +250,12 @@ class ThinkingCoder:
         `generate_with_thinking()` — see that method's docstring."""
         use_adaptive = self._resolve_mode(adaptive, legacy_budget)
 
-        kwargs = dict(model=self.model, messages=[{"role": "user", "content": prompt}])
+        kwargs: dict[str, Any] = {"model": self.model, "messages": [{"role": "user", "content": prompt}]}
         if system:
             kwargs["system"] = system
 
         if use_adaptive:
-            thinking_cfg = {"type": "adaptive"}
+            thinking_cfg: dict[str, str | int] = {"type": "adaptive"}
             if display_omitted:
                 thinking_cfg["display"] = "omitted"
             kwargs["thinking"] = thinking_cfg
@@ -314,7 +315,7 @@ def cmd_thinking(
     adaptive: bool | None,
     show_thinking: bool,
     stream: bool,
-    system: str = None,
+    system: str | None = None,
     display_omitted: bool = False,
     legacy_budget: bool = False,
 ):
@@ -347,7 +348,7 @@ def cmd_thinking(
         )
         return result
     else:
-        result = tc.generate_with_thinking(
+        generation_result = tc.generate_with_thinking(
             prompt,
             system=system,
             budget_tokens=budget,
@@ -357,8 +358,8 @@ def cmd_thinking(
             show_thinking=show_thinking,
             display_omitted=display_omitted,
         )
-        print(result["response"])
-        usage = result.get("usage", {})
+        print(generation_result["response"])
+        usage = generation_result.get("usage", {})
         if usage:
             thinking_tokens = usage.get("output_tokens_details", {}).get("thinking_tokens", 0)
             print(
@@ -366,4 +367,4 @@ def cmd_thinking(
                 f"output={usage.get('output_tokens', 0)}  "
                 f"thinking={thinking_tokens}\033[0m"
             )
-        return result["response"]
+        return generation_result["response"]

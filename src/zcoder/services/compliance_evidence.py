@@ -11,12 +11,13 @@ Provides:
 from __future__ import annotations
 
 import dataclasses
-import enum
 import time
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 
-class ControlStatus(str, enum.Enum):
+
+class ControlStatus(StringEnum):
     EFFECTIVE = "EFFECTIVE"
     PARTIAL = "PARTIAL"
     INEFFECTIVE = "INEFFECTIVE"

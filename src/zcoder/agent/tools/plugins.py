@@ -35,7 +35,6 @@ CLI flags:
   --plugin-info NAME
   --plugin-enable NAME / --plugin-disable NAME
   --plugin-dir PATH         (load a plugin directly from a local/zip path, no install step)
-  --plugin-validate PATH    (lint a plugin directory/manifest before installing)
 """
 
 import json
@@ -47,6 +46,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Any
 
 from zcoder.core.exceptions import TransientAPIError, ZCoderError
 from zcoder.core.resilience import retry, safe_urlopen
@@ -101,7 +101,7 @@ def _save_registry(reg: dict):
 # MANIFEST
 # ══════════════════════════════════════════════════════════════════════════
 
-DEFAULT_MANIFEST_FIELDS = {
+DEFAULT_MANIFEST_FIELDS: dict[str, Any] = {
     "name": "",
     "displayName": "",
     "version": "0.0.0",

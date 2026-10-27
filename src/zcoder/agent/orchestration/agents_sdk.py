@@ -141,6 +141,7 @@ import urllib.error
 import urllib.request
 import uuid
 from pathlib import Path
+from typing import Any, Literal
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
@@ -177,7 +178,10 @@ class AgentSession:
     """Persistent session with message history and tool state."""
 
     def __init__(
-        self, session_id: str = None, name: str = "", permission_mode: str = PermissionMode.ASK_PERMISSION
+        self,
+        session_id: str | None = None,
+        name: str = "",
+        permission_mode: str = PermissionMode.ASK_PERMISSION,
     ):
         self.id = session_id or str(uuid.uuid4())[:12]
         self.name = name or f"session-{self.id}"
@@ -223,15 +227,15 @@ class McpServerConfig:
         return {"type": self.type, "name": self.name, **self.extra}
 
     @classmethod
-    def stdio(cls, name: str, command: str, args: list = None) -> "McpServerConfig":
+    def stdio(cls, name: str, command: str, args: list[str] | None = None) -> "McpServerConfig":
         return cls("stdio", name, command=command, args=args or [])
 
     @classmethod
-    def sse(cls, name: str, url: str, headers: dict = None) -> "McpServerConfig":
+    def sse(cls, name: str, url: str, headers: dict[str, str] | None = None) -> "McpServerConfig":
         return cls("sse", name, url=url, headers=headers or {})
 
     @classmethod
-    def http(cls, name: str, url: str, headers: dict = None) -> "McpServerConfig":
+    def http(cls, name: str, url: str, headers: dict[str, str] | None = None) -> "McpServerConfig":
         return cls("http", name, url=url, headers=headers or {})
 
 
@@ -276,7 +280,7 @@ class McpTunnel:
         """Open a tunnel to a local MCP server listening on local_port.
         Returns the API response, which includes the tunnel id and the
         public URL to hand to McpServerConfig.sse()/http()."""
-        payload = {"local_port": local_port}
+        payload: dict[str, Any] = {"local_port": local_port}
         if name:
             payload["name"] = name
         req = urllib.request.Request(
@@ -369,7 +373,11 @@ class ManagedAgent:
     """
 
     def __init__(
-        self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 8192, system_prompt: str = None
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-5",
+        max_tokens: int = 8192,
+        system_prompt: str | None = None,
     ):
         self.api_key = api_key
         self.model = model
@@ -408,7 +416,7 @@ class ManagedAgent:
 
     # ── Simple session-aware call ──────────────────────────────────────────
 
-    def chat(self, prompt: str, session: AgentSession, tools: list[dict] = None) -> str:
+    def chat(self, prompt: str, session: AgentSession, tools: list[dict[str, Any]] | None = None) -> str:
         """Add a turn to the session and get a response."""
         session.add_turn("user", prompt)
 
@@ -432,7 +440,7 @@ class ManagedAgent:
 
     # ── Subagent spawner ──────────────────────────────────────────────────
 
-    def spawn_subagent(self, task: str, context: str = "", tools: list[dict] = None) -> str:
+    def spawn_subagent(self, task: str, context: str = "", tools: list[dict[str, Any]] | None = None) -> str:
         """
         Spawn a focused subagent for a specific sub-task.
         Returns the subagent's result as a string.
@@ -774,9 +782,9 @@ class ManagedAgentsClient:
     — older pinned SDK versions won't have these."""
 
     def __init__(self, api_key: str):
-        import anthropic
+        from zcoder.core.provider_policy import create_anthropic_client
 
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key)
 
     def create_agent(
         self,
@@ -855,7 +863,7 @@ class ManagedAgentsClient:
         GET /v1/agents/{id}/versions/{version} when `version` is given to
         read a specific prior version rather than the current one (v1.38.0,
         public beta — see update_agent() for how versions are created)."""
-        kwargs = {"betas": [MANAGED_AGENTS_BETA]}
+        kwargs: dict[str, Any] = {"betas": [MANAGED_AGENTS_BETA]}
         if version is not None:
             agent = self.client.beta.agents.versions.retrieve(
                 agent_id,
@@ -911,7 +919,7 @@ class ManagedAgentsClient:
         depending on whether it's given, merged into the same `model`
         dict as `model`/`effort`. See create_agent()'s docstring for the
         "us"/"global" semantics."""
-        kwargs = {"betas": [MANAGED_AGENTS_BETA]}
+        kwargs: dict[str, Any] = {"betas": [MANAGED_AGENTS_BETA]}
         if version is not None:
             kwargs["version"] = version
         if name is not None:
@@ -923,7 +931,7 @@ class ManagedAgentsClient:
         if multiagent is not None:
             kwargs["multiagent"] = multiagent
         if model is not None or effort is not None or inference_geo is not None:
-            model_config = {}
+            model_config: dict[str, Any] = {}
             if model is not None:
                 model_config["id"] = model
             if effort is not None:
@@ -964,7 +972,7 @@ class ManagedAgentsClient:
         get_environment_work_stats() to check whether a worker is
         actually connected before creating a session against it."""
         if env_type == "self_hosted":
-            config = {"type": "self_hosted"}
+            config: dict[str, Any] = {"type": "self_hosted"}
         else:
             config = {"type": "cloud", "networking": {"type": networking}}
         env = self.client.beta.environments.create(
@@ -1043,7 +1051,7 @@ class ManagedAgentsClient:
     ) -> dict:
         """List memory stores in the workspace. GET /v1/memory_stores —
         memory store endpoint, MEMORY_STORE_BETA alone."""
-        params = {"limit": limit, "include_archived": include_archived}
+        params: dict[str, Any] = {"limit": limit, "include_archived": include_archived}
         if page is not None:
             params["page"] = page
         result = self.client.beta.memory_stores.list(
@@ -1110,7 +1118,7 @@ class ManagedAgentsClient:
                 f"(got {path_prefix!r}) — it matches whole path segments, not "
                 f"an arbitrary substring"
             )
-        params = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if path_prefix is not None:
             params["path_prefix"] = path_prefix
         if depth is not None:
@@ -1171,7 +1179,7 @@ class ManagedAgentsClient:
         hash, protecting against clobbering a concurrent write; on
         mismatch the platform rejects the request and the caller should
         re-read the memory and retry."""
-        kwargs = {"betas": [MEMORY_STORE_BETA]}
+        kwargs: dict[str, Any] = {"betas": [MEMORY_STORE_BETA]}
         if content is not None:
             kwargs["content"] = content
         if path is not None:
@@ -1273,7 +1281,7 @@ class ManagedAgentsClient:
         if memory_store_id:
             resources = [{"type": "memory_store", "memory_store_id": memory_store_id}]
             betas = [MANAGED_AGENTS_BETA, MEMORY_STORE_BETA]
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         if vault_ids:
             kwargs["vault_ids"] = vault_ids
         if initial_events:
@@ -1284,7 +1292,7 @@ class ManagedAgentsClient:
         if budget_usd_cents is not None:
             budget = _encode_session_budget(budget_usd_cents)
             kwargs["budget"] = budget
-        agent_param = agent_id
+        agent_param: str | dict[str, Any] = agent_id
         if agent_overrides:
             agent_param = {"type": "agent_with_overrides", "id": agent_id, **agent_overrides}
         session = self.client.beta.sessions.create(
@@ -1326,7 +1334,11 @@ class ManagedAgentsClient:
             "raw": session,
         }
 
-    def update_session_budget(self, session_id: str, budget_usd_cents: int | None = "__unset__") -> dict:
+    def update_session_budget(
+        self,
+        session_id: str,
+        budget_usd_cents: int | None | Literal["__unset__"] = "__unset__",
+    ) -> dict:
         """Replace or remove a session's spend budget (v1.39.0, public
         beta) — POST-equivalent of `client.beta.sessions.update`. Pass an
         int to replace the cap with a new max_list_cost (must be strictly
@@ -1411,7 +1423,7 @@ class ManagedAgentsClient:
         if credential_type in ("mcp_oauth", "static_bearer"):
             if not mcp_server_url:
                 raise ValueError(f"credential_type={credential_type!r} requires mcp_server_url")
-            auth = (
+            auth: dict[str, Any] = (
                 {"type": credential_type, "token": secret_value}
                 if credential_type == "static_bearer"
                 else {"type": credential_type, "access_token": secret_value}
@@ -1427,7 +1439,11 @@ class ManagedAgentsClient:
                 raise ValueError("credential_type='environment_variable' requires secret_name")
             if not allowed_domains:
                 raise ValueError("credential_type='environment_variable' requires allowed_domains")
-            auth = {"type": credential_type, "secret_value": secret_value, "allowed_domains": allowed_domains}
+            auth = {
+                "type": credential_type,
+                "secret_value": secret_value,
+                "allowed_domains": allowed_domains,
+            }
             if injection_location is not None:
                 auth["injection_location"] = injection_location
             cred = self.client.beta.vaults.credentials.create(
@@ -1539,7 +1555,7 @@ class ManagedAgentsClient:
         rejected or silently misinterpreted server-side. No test had asserted
         on the `model` kwarg specifically, which is how this went unnoticed
         since v1.20.0."""
-        inputs = [{"type": "memory_store", "memory_store_id": memory_store_id}]
+        inputs: list[dict[str, Any]] = [{"type": "memory_store", "memory_store_id": memory_store_id}]
         if session_ids:
             inputs.append({"type": "sessions", "session_ids": session_ids})
         dream = self.client.beta.dreams.create(
@@ -1715,7 +1731,7 @@ class ManagedAgentsClient:
             rubric = {"type": "file", "file_id": rubric_file_id}
             betas = [MANAGED_AGENTS_BETA, FILES_API_BETA]
         else:
-            rubric = {"type": "text", "content": rubric_text}
+            rubric = {"type": "text", "content": rubric_text or ""}
             betas = [MANAGED_AGENTS_BETA]
         result = self.client.beta.sessions.events.send(
             session_id,
@@ -2431,7 +2447,7 @@ def cmd_agent_outcome_rubric_upload(file_path: str, api_key: str, model: str) ->
 # ── CLI entry points ───────────────────────────────────────────────────────
 
 
-def cmd_agent_chat(prompt: str, api_key: str, model: str, session_id: str = None, new: bool = False):
+def cmd_agent_chat(prompt: str, api_key: str, model: str, session_id: str | None = None, new: bool = False):
     if session_id and not new:
         try:
             session = AgentSession.load(session_id)
@@ -2451,7 +2467,7 @@ def cmd_agent_chat(prompt: str, api_key: str, model: str, session_id: str = None
     return result
 
 
-def cmd_agent_orchestrate(goal: str, api_key: str, model: str, session_id: str = None):
+def cmd_agent_orchestrate(goal: str, api_key: str, model: str, session_id: str | None = None):
     session = AgentSession(session_id=session_id) if session_id else AgentSession()
     agent = ManagedAgent(api_key=api_key, model=model)
     result = agent.orchestrate(goal, session)

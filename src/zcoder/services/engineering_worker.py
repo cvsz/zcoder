@@ -12,7 +12,7 @@ import inspect
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol, cast
 
 from zcoder.core.exceptions import ConfigError
 from zcoder.domain.interfaces.engineering_store import EngineeringStore
@@ -21,6 +21,15 @@ from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTas
 logger = logging.getLogger(__name__)
 
 Handler = Callable[[EngineeringTask], Any]
+
+
+class LeaseClaimingEngineeringStore(Protocol):
+    def claim_task(
+        self,
+        task_id: str | None = None,
+        claimed_by: str = "default-worker",
+        lease_seconds: float = 60.0,
+    ) -> EngineeringTask | None: ...
 
 
 def _default_handler(task: EngineeringTask) -> dict[str, Any]:
@@ -40,13 +49,15 @@ class EngineeringWorker:
         self.worker_id = worker_id
         self.handler = handler or _default_handler
         self.lease_seconds = lease_seconds
-        # Older store implementations (e.g. Postgres) expose a no-arg claim_task().
+        # PostgreSQL stores expose atomic claims; SQLite additionally supports
+        # worker identity and lease arguments.
         params = inspect.signature(self.store.claim_task).parameters
         self._store_supports_lease_claim = "claimed_by" in params
 
     def _claim(self, task_id: str | None = None) -> EngineeringTask | None:
         if self._store_supports_lease_claim:
-            return self.store.claim_task(
+            lease_store = cast(LeaseClaimingEngineeringStore, self.store)
+            return lease_store.claim_task(
                 task_id=task_id, claimed_by=self.worker_id, lease_seconds=self.lease_seconds
             )
         return self.store.claim_task()

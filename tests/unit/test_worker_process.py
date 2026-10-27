@@ -133,7 +133,7 @@ class TestWorkerShutdown:
 
 
 class TestWorkerJobClaim:
-    @pytest.mark.parametrize("runtime", ["direct", "unconfigured-runtime"])
+    @pytest.mark.parametrize("runtime", ["direct", "fake", "noop", "unconfigured-runtime"])
     def test_unavailable_runtime_marks_job_failed(self, sqlite_worker, runtime):
         worker, store = sqlite_worker
         _insert_job(store, "job_unsupported_runtime", runtime=runtime)
@@ -184,9 +184,10 @@ class TestWorkerJobClaim:
         assert job.id == "job_claim_test"
         assert gen == 1
 
-    def test_worker_execute_job_succeeds(self, sqlite_worker):
+    def test_worker_execute_job_succeeds_after_runtime_adapter_returns(self, sqlite_worker, monkeypatch):
         worker, store = sqlite_worker
-        _insert_job(store, "job_exec_test", runtime="fake")
+        _insert_job(store, "job_exec_test", runtime="direct")
+        monkeypatch.setattr(worker, "_run_job_runtime", lambda job, token: None)
 
         result = store.claim_job_with_fencing("test-worker-001", lease_duration=60.0)
         assert result is not None

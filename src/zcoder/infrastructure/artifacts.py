@@ -22,7 +22,7 @@ import json
 import os
 import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ARTIFACTS_DIR = os.path.expanduser("~/.zcoder/artifacts")
@@ -32,7 +32,7 @@ ARTIFACTS_DIR = os.path.expanduser("~/.zcoder/artifacts")
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _artifacts_dir() -> Path:
@@ -120,7 +120,7 @@ class ArtifactManager:
         prompt: str,
         artifact_type: str = "code",
         language: str = "",
-        tags: list = None,
+        tags: list[str] | None = None,
         project_id: str = "",
         coder=None,
     ) -> dict:
@@ -186,7 +186,7 @@ class ArtifactManager:
 
     # ── Read ───────────────────────────────────────────────────────────────
 
-    def get_content(self, artifact_id: str, version: int = None) -> str:
+    def get_content(self, artifact_id: str, version: int | None = None) -> str:
         meta = _load_meta(artifact_id)
         v = version or meta["version"]
         vp = _version_path(artifact_id, v)
@@ -266,7 +266,7 @@ class ArtifactManager:
 
     # ── Export ─────────────────────────────────────────────────────────────
 
-    def export(self, artifact_id: str, output_path: str = "", version: int = None) -> str:
+    def export(self, artifact_id: str, output_path: str = "", version: int | None = None) -> str:
         meta = _load_meta(artifact_id)
         content = self.get_content(artifact_id, version)
         v = version or meta["version"]
@@ -316,7 +316,7 @@ class ArtifactManager:
 
     # ── Display ────────────────────────────────────────────────────────────
 
-    def show(self, artifact_id: str, version: int = None, preview_lines: int = 40) -> str:
+    def show(self, artifact_id: str, version: int | None = None, preview_lines: int = 40) -> str:
         meta = _load_meta(artifact_id)
         content = self.get_content(artifact_id, version)
         v = version or meta["version"]

@@ -1512,7 +1512,7 @@ wheels = [
 
 [[package]]
 name = "zcoder"
-version = "1.41.5"
+version = "1.60.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },

@@ -27,6 +27,7 @@ Categories (as required by §186-197):
 
 import pytest
 
+import zcoder.enterprise.local_ai_stack as local_ai_stack
 from zcoder.enterprise.local_ai_stack import (
     # Loop
     AutonomousEngineeringLoop,
@@ -66,6 +67,22 @@ from zcoder.enterprise.local_ai_stack import (
     WorktreeContext,
     WorktreeManager,
 )
+
+
+class _TestLocalModelProvider:
+    """Deterministic inference dependency for orchestration tests without a daemon."""
+
+    def list_models(self):
+        return []
+
+    def chat_complete(self, model_id, prompt, tools=None):
+        return "test completion"
+
+
+@pytest.fixture(autouse=True)
+def deterministic_local_provider(monkeypatch):
+    monkeypatch.setattr(local_ai_stack, "OllamaAdapter", _TestLocalModelProvider)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. Task Lifecycle States

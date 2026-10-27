@@ -90,12 +90,75 @@ def test_ci_repair_loop(test_setup):
     )
 
     repaired = orch.execute_ci_repair_loop(job.id, "owner/repo", pr.number, max_repairs=3)
-    assert repaired is True
+    assert repaired is False
 
-    # Events should show repair attempts
+    # A missing repair integration cannot manufacture a passing result.
     events = store.list_events(job.id)
-    repair_events = [e for e in events if e.event_type == "ci.repair_attempt"]
-    assert len(repair_events) >= 1
+    assert any(e.event_type == "ci.repair_unavailable" for e in events)
+    assert pr.head_sha == "sha_base_000"
+    assert gh_provider.list_checks("owner/repo", pr.head_sha)[0].conclusion == CheckConclusion.FAILURE
+
+
+def test_ci_repair_loop_requires_completed_successful_checks(test_setup):
+    store, gh_provider, orch = test_setup
+    job = Job(id="job_gh_pending", task="CI pending")
+    store.save_job(job)
+    pr = orch.create_pull_request_for_job(job.id, "owner/repo", "CI", "Body", "zcoder/pending")
+
+    assert orch.execute_ci_repair_loop(job.id, "owner/repo", pr.number) is False
+
+    gh_provider.set_checks(
+        pr.head_sha,
+        [CheckRun("chk1", "tests", "in_progress", None, "url", time.time())],
+    )
+    assert orch.execute_ci_repair_loop(job.id, "owner/repo", pr.number) is False
+
+
+def test_ci_repair_loop_requires_handler_and_verifies_new_sha(test_setup):
+    store, gh_provider, _ = test_setup
+    job = Job(id="job_gh_repair", task="CI repair")
+    store.save_job(job)
+    pr = gh_provider.create_pr("owner/repo", "CI", "Body", "zcoder/repair", "main")
+    gh_provider.set_checks(
+        pr.head_sha,
+        [CheckRun("chk1", "tests", "completed", CheckConclusion.FAILURE, "url", time.time())],
+    )
+
+    def repair_handler(_job, _repo, pull_request, attempt):
+        assert attempt == 1
+        pull_request.head_sha = "sha_repaired_by_handler"
+        gh_provider.set_checks(
+            pull_request.head_sha,
+            [
+                CheckRun(
+                    "chk2",
+                    "tests",
+                    "completed",
+                    CheckConclusion.SUCCESS,
+                    "url",
+                    time.time(),
+                    time.time(),
+                )
+            ],
+        )
+        return True
+
+    orch = GitHubOrchestrator(gh_provider, store, repair_handler=repair_handler)
+    assert orch.execute_ci_repair_loop(job.id, "owner/repo", pr.number) is True
+
+
+def test_ci_repair_loop_rejects_handler_without_new_head(test_setup):
+    store, gh_provider, _ = test_setup
+    job = Job(id="job_gh_unverified", task="CI repair")
+    store.save_job(job)
+    pr = gh_provider.create_pr("owner/repo", "CI", "Body", "zcoder/unverified", "main")
+    gh_provider.set_checks(
+        pr.head_sha,
+        [CheckRun("chk1", "tests", "completed", CheckConclusion.FAILURE, "url", time.time())],
+    )
+    orch = GitHubOrchestrator(gh_provider, store, repair_handler=lambda *_args: True)
+
+    assert orch.execute_ci_repair_loop(job.id, "owner/repo", pr.number) is False
 
 
 def test_webhook_verification_and_deduplication(test_setup):

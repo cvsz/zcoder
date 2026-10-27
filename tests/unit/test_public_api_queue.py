@@ -81,7 +81,7 @@ class FakeTenantJobStore:
 
 def test_post_job_persists_ready_job_and_reuses_idempotent_result() -> None:
     store = FakeTenantJobStore()
-    router = PublicAPIV1Router(job_store=store)
+    router = PublicAPIV1Router(job_store=store, job_runtime_ready=True)
     ctx = operator_context()
 
     status, body = router.handle_request(
@@ -90,8 +90,7 @@ def test_post_job_persists_ready_job_and_reuses_idempotent_result() -> None:
         ctx,
         payload={
             "task": "Run tests",
-            "runtime": "fake",
-            "model": "claude-sonnet-5",
+            "runtime": "direct",
             "budget_usd": 1.25,
             "metadata": {"source": "api"},
         },
@@ -107,6 +106,7 @@ def test_post_job_persists_ready_job_and_reuses_idempotent_result() -> None:
     assert body["request_id"] == "req-create-1"
     job = store.jobs[body["id"]]
     assert job.status == JobStatus.READY
+    assert job.model == "zqwen2.5-coder-7b-instruct-q4_k_m"
     assert job.metadata == {"source": "api"}
     assert len(store.enqueue_calls) == 1
     assert store.enqueue_calls[0][0] == ctx
@@ -119,8 +119,7 @@ def test_post_job_persists_ready_job_and_reuses_idempotent_result() -> None:
         ctx,
         payload={
             "task": "Run tests",
-            "runtime": "fake",
-            "model": "claude-sonnet-5",
+            "runtime": "direct",
             "budget_usd": 1.25,
             "metadata": {"source": "api"},
         },
@@ -132,11 +131,28 @@ def test_post_job_persists_ready_job_and_reuses_idempotent_result() -> None:
     assert len(store.enqueue_calls) == 1
 
 
+@pytest.mark.parametrize("runtime", ["fake", "noop"])
+def test_public_job_api_rejects_non_executing_runtimes(runtime: str) -> None:
+    store = FakeTenantJobStore()
+    router = PublicAPIV1Router(job_store=store, job_runtime_ready=True)
+
+    status, body = router.handle_request(
+        "POST",
+        "/api/v1/jobs",
+        operator_context(),
+        payload={"task": "Run tests", "runtime": runtime},
+    )
+
+    assert status == 422
+    assert body["error"]["code"] == "VALIDATION_ERROR"
+    assert store.enqueue_calls == []
+
+
 def test_idempotency_replay_is_scoped_to_the_verified_project() -> None:
     store = FakeTenantJobStore()
-    router = PublicAPIV1Router(job_store=store)
+    router = PublicAPIV1Router(job_store=store, job_runtime_ready=True)
     first_ctx = operator_context()
-    payload = {"task": "Run tests", "runtime": "fake"}
+    payload = {"task": "Run tests", "runtime": "direct"}
 
     first_status, first_body = router.handle_request(
         "POST",
@@ -179,7 +195,7 @@ def test_invalid_idempotency_keys_are_rejected(idempotency_key: str) -> None:
 @pytest.mark.parametrize("method", ["POST", "DELETE"])
 def test_idempotent_replay_rechecks_current_permissions(same_principal: bool, method: str) -> None:
     store = FakeTenantJobStore()
-    router = PublicAPIV1Router(job_store=store)
+    router = PublicAPIV1Router(job_store=store, job_runtime_ready=True)
     ctx = operator_context()
     job = Job(id="job-replay", task="Run tests", status=JobStatus.READY, metadata={})
     store.jobs[job.id] = job
@@ -219,7 +235,7 @@ def test_router_rejects_job_creation_before_calling_an_unprivileged_store() -> N
 
 @pytest.mark.parametrize("task", ["", "   ", 123, None])
 def test_post_job_rejects_blank_or_non_string_tasks(task: object) -> None:
-    router = PublicAPIV1Router(job_store=FakeTenantJobStore())
+    router = PublicAPIV1Router(job_store=FakeTenantJobStore(), job_runtime_ready=True)
 
     status, body = router.handle_request(
         "POST", "/api/v1/jobs", operator_context(), payload={"task": task}, request_id="req-invalid"
@@ -285,3 +301,18 @@ def test_job_routes_remain_truthful_when_no_durable_store_is_configured() -> Non
 
     assert status == 501
     assert body["error"]["code"] == "JOB_QUEUE_UNAVAILABLE"
+
+
+def test_job_submission_waits_for_an_execution_adapter_even_when_queue_exists() -> None:
+    store = FakeTenantJobStore()
+    status, body = PublicAPIV1Router(job_store=store).handle_request(
+        "POST",
+        "/api/v1/jobs",
+        operator_context(),
+        payload={"task": "run tests"},
+        request_id="req-no-runtime",
+    )
+
+    assert status == 501
+    assert body["error"]["code"] == "JOB_RUNTIME_UNAVAILABLE"
+    assert store.enqueue_calls == []

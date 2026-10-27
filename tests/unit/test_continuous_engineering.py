@@ -218,6 +218,16 @@ def test_github_ci_repair_hook_uses_existing_orchestrator_contract():
     assert calls == [("job-1", "cvsz/zcoder", 8, 2)]
 
 
+def test_github_ci_repair_hook_fails_closed_without_github_identity():
+    orchestrator = SimpleNamespace(
+        execute_ci_repair_loop=lambda *_args, **_kwargs: pytest.fail("repair must not run without identity")
+    )
+    hook = github_ci_repair_hook(orchestrator)
+    item = UpgradeWorkItem("Repair PR CI", WorkKind.REPAIR, payload={})
+
+    assert hook(item, SimpleNamespace()) is False
+
+
 def test_github_ci_repair_failure_blocks_validation(tmp_path):
     repository = tmp_path / "repo"
     repository.mkdir()

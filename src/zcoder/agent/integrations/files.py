@@ -20,7 +20,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from zcoder.core.exceptions import ZCoderError
@@ -55,7 +55,7 @@ def parse_expires_at(file_obj: dict | None, now: datetime | None = None) -> str 
 
     seconds = file_obj.get("expires_in_seconds")
     if isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and seconds >= 0:
-        base = now or datetime.now(timezone.utc)
+        base = now or datetime.now(UTC)
         return (base + timedelta(seconds=seconds)).isoformat()
     return None
 

@@ -1,4 +1,4 @@
-.PHONY: install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run tui health build standalone docker-build docker-run start stop restart update upgrade status logs clean
+.PHONY: setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run tui health api worker build standalone docker-build docker-run start stop restart update upgrade status logs postgres-setup postgres-status clean
 
 PYTHON ?= python3
 WEB_VENV := .web-venv
@@ -8,6 +8,12 @@ PID_FILE := .web.pid
 LOG_FILE := logs/web.log
 HOST ?= 127.0.0.1
 PORT ?= 8420
+API_HOST ?= 127.0.0.1
+API_PORT ?= 8088
+WORKER_ARGS ?=
+
+setup:
+	bash scripts/setup.sh
 
 install:
 	$(PYTHON) -m pip install -e .
@@ -22,7 +28,7 @@ test-unit:
 	$(PYTHON) -m pytest tests/unit
 
 test-integration:
-	$(PYTHON) -m pytest tests/integration
+	$(PYTHON) scripts/local_postgres.py run -- $(PYTHON) -m pytest tests/integration
 
 test-e2e:
 	$(PYTHON) -m pytest tests/e2e
@@ -52,6 +58,12 @@ tui:
 
 health:
 	$(PYTHON) main.py --health-check
+
+api:
+	HOST=$(API_HOST) PORT=$(API_PORT) $(PYTHON) scripts/local_postgres.py run -- $(PYTHON) -m zcoder.api.server
+
+worker:
+	$(PYTHON) scripts/local_postgres.py run -- $(PYTHON) -m zcoder.worker.process $(WORKER_ARGS)
 
 # Preserve the historical `make build` behavior for the web console.
 build:
@@ -92,6 +104,12 @@ status:
 
 logs:
 	@tail -f $(LOG_FILE)
+
+postgres-setup:
+	$(PYTHON) scripts/local_postgres.py setup
+
+postgres-status:
+	$(PYTHON) scripts/local_postgres.py status
 
 docker-build:
 	docker build -t zcoder:latest .

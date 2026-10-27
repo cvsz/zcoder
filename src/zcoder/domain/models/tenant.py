@@ -16,29 +16,30 @@ Provides:
 from __future__ import annotations
 
 import dataclasses
-import enum
 import hashlib
 import secrets
 import time
 from typing import Any
 
+from zcoder.core.enums import StringEnum
+
 # ─── Organization & Project Lifecycle ────────────────────────────────────────
 
 
-class OrgStatus(str, enum.Enum):
+class OrgStatus(StringEnum):
     ACTIVE = "ACTIVE"
     SUSPENDED = "SUSPENDED"
     DELETING = "DELETING"
     DELETED = "DELETED"
 
 
-class ProjectStatus(str, enum.Enum):
+class ProjectStatus(StringEnum):
     ACTIVE = "ACTIVE"
     ARCHIVED = "ARCHIVED"
     DELETED = "DELETED"
 
 
-class MembershipStatus(str, enum.Enum):
+class MembershipStatus(StringEnum):
     INVITED = "INVITED"
     ACTIVE = "ACTIVE"
     SUSPENDED = "SUSPENDED"
@@ -48,7 +49,7 @@ class MembershipStatus(str, enum.Enum):
 # ─── Enterprise Roles & Concrete Permissions ─────────────────────────────────
 
 
-class EnterpriseRole(str, enum.Enum):
+class EnterpriseRole(StringEnum):
     ORG_OWNER = "OrganizationOwner"
     ORG_ADMIN = "OrganizationAdmin"
     PROJECT_ADMIN = "ProjectAdmin"

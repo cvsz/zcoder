@@ -13,6 +13,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+from zcoder.core.provider_policy import enforce_outbound_url_policy
+
 
 def _require_global_address(address: str, *, hostname: str) -> None:
     ip = ipaddress.ip_address(address)
@@ -74,7 +76,8 @@ class _ExternalRedirectHandler(urllib.request.HTTPRedirectHandler):
     max_repeats = 3
     max_redirections = 5
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        enforce_outbound_url_policy(newurl)
         validate_external_http_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
@@ -89,6 +92,7 @@ def safe_external_urlopen(req: urllib.request.Request, timeout: float):
     boundary to protect against DNS rebinding between validation and connect.
     """
 
+    enforce_outbound_url_policy(req.full_url)
     validate_external_http_url(req.full_url)
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({}),

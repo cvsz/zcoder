@@ -1,0 +1,14 @@
+# U64 — Per-model request guards (pre-flight validator)
+Priority: P0. Size: M. Depends on: U63.
+
+Facts (400 errors / behavior, from release notes):
+- Fable 5.1, Mythos 5.1: `tool_choice` types `any`/`tool` → 400 (use `auto`/`none`, strict tool use, or structured outputs). Thinking blocks preserved only for same-or-newer model; for accounts created on/after 2026-08-31, replaying a thinking block after system/tools/earlier messages changed → 400. Controls: beta `thinking-binding-controls-2026-08-01`, response field `input_transformations`, `thinking.block_binding.prefix_mismatch_behavior`.
+- Opus 5.5: thinking cannot be disabled or manually enabled (both 400; omit `thinking`, use effort). `tool_choice` any/tool → 400. Computer use needs `computer_toolset_20260801` on the Claude API and Google Cloud; `computer_20251124` → 400 there (still works on Bedrock).
+- Sonnet 5.5: to turn off up-front thinking send `{"type":"between_tools"}` (effort high or below) instead of `"disabled"`; forced `tool_choice` → 400; thinking blocks are bound to model and conversation (account-bound; dropped when sent from another account); `computer_20251124` not accepted on API/GCP; advisor tool rejects Opus 4.8, Opus 4.7, Sonnet 5 as advisors.
+- Haiku 5.5: manual `budget_tokens`, `temperature`/`top_p`/`top_k`, assistant prefill → 400; `computer_20250124` → 400; thinking blocks replayed after a change → 400; adaptive thinking default, thinking text omitted unless `thinking.display="summarized"`; new tokenizer (~30% more tokens vs older).
+- Sonnet 5: non-default sampling params → 400; manual `budget_tokens` → 400.
+
+Requirements:
+- `validate_request(model, params, provider)` returning typed violations with fix hints; run before every send; `--validate-only` flag; opt-in strict mode that raises, default warns.
+- table-driven rules keyed by capability (U63) first, model ID second.
+- one test per rule above, plus a "no false positive on legacy models" test.

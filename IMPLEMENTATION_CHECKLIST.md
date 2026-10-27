@@ -1,5 +1,30 @@
 # IMPLEMENTATION CHECKLIST (Form) — zcoder v1.16.0
 
+## U62 — Model catalog migration (v1.60.0 local scope)
+
+- [x] Port the 5.5-generation offline model catalog entries from the supplied
+  snapshot into `src/zcoder/agent/models/registry.py`.
+- [x] Add CLI upgrade targets and retain dry-run as the default behavior.
+- [x] Record Haiku 5.5's variable pricing tiers and preserve unverified
+  capability sets without expanding them.
+- [x] Keep local inference loopback-only; catalog metadata does not make
+  hosted inference calls.
+- [x] Update the pinned uv build image and Black lock version; validate the
+  lock and audit locked dependencies.
+- [x] Block the known hosted model API domains in local-mode urllib requests
+  and add redirect/API regression cases.
+- [ ] Complete candidate-bound release evidence, hosted checks, and
+  operational recovery qualification before release.
+
+## U61 — Lineage reconciliation (v1.42.0 local scope)
+
+- [x] Select modular `src/zcoder/` as canonical and preserve the extracted
+  flat tree as a comparison snapshot.
+- [x] Use package metadata for CLI and package version values.
+- [x] Expose existing local plugin manifest validation as `--plugin-validate`.
+- [x] Exclude remote Anthropic catalog/session features under local-only scope.
+- [x] Record post-change verification in the upgrade note.
+
 Source: `ROADMAP.md` Part 2 — Gap Audit vs. `platform.claude.com/docs` (checked 2026-07-04)
 One form per gap. All six gaps are now done — Forms 1–5 shipped in
 v1.15.0, Form 6 (Compliance API) shipped in v1.16.0 once its own stated

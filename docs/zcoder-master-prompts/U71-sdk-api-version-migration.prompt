@@ -1,0 +1,7 @@
+# U71 — SDK majors and API version 2026-10-21
+Priority: P0 (breaking, new). Size: L. Depends on: U61, U64.
+
+Facts: API version `2026-10-21` released 2026-10-21 with a migration guide. SDKs that send it by default: Python 2.0.0, TypeScript 1.0.0, C# 13.0.0, Go 2.0.0, Java 3.0.0, PHP 1.0.0, Ruby 2.0.0, `ant` CLI 2.0.0. They also carry breaking changes independent of the API version and are licensed Apache-2.0 (was MIT). Earlier Python v1.0 (08-20): HTTP layer moved to httpx2 (alias with `httpx2.alias_httpx()` if tracing/mocking patches httpx), Python ≥3.10, removed legacy Text Completions, `temperature`/`top_p`/`top_k` on Messages methods, tool runner `compaction_control`; async `.with_raw_response` needs `await response.parse()`; `AnthropicBedrock` errors without a region.
+
+Requirements: read "Migrating to API version 2026-10-21" and the SDK changes section first; pin the SDK range in pyproject and uv.lock; explicit `anthropic-version` handling and a flag to pin/override; fix every breaking call site (dual grep); check third-party license compatibility with this repo's LICENSE and record the result; keep a one-flag rollback to the previous pinned SDK.
+Verify: full suite on both SDK majors if feasible; otherwise state which was tested.

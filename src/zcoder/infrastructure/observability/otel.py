@@ -143,7 +143,12 @@ class ZCoderMetrics:
         self.github_api_errors_total = _Counter()
         self.github_rate_limit_remaining = _Gauge()
 
-        # Anthropic metrics
+        # Provider-neutral model metrics
+        self.model_calls_total = _Counter()
+        self.model_errors_total = _Counter()
+        self.model_duration_seconds = _Histogram()
+
+        # Legacy provider metrics retained for existing dashboards.
         self.anthropic_calls_total = _Counter()
         self.anthropic_errors_total = _Counter()
         self.anthropic_tokens_total = _Counter()
@@ -208,7 +213,7 @@ class ZCoderMetrics:
         h("zcoder_job_wait_seconds", "Time spent in queue before claim", self.job_wait_seconds)
         h("zcoder_job_duration_seconds", "Job execution duration", self.job_duration_seconds)
         g("zcoder_worker_active", "Number of active worker processes", self.worker_active)
-        g(
+        c(
             "zcoder_worker_lease_expirations",
             "Total worker lease expirations",
             self.worker_lease_expirations_total,
@@ -217,6 +222,9 @@ class ZCoderMetrics:
         c("zcoder_outbox_failures", "Outbox delivery failures", self.outbox_failures_total)
         c("zcoder_webhooks", "Webhooks received", self.webhooks_total)
         c("zcoder_github_api_errors", "GitHub API errors", self.github_api_errors_total)
+        c("zcoder_model_calls", "Model inference calls", self.model_calls_total)
+        c("zcoder_model_errors", "Model inference errors", self.model_errors_total)
+        h("zcoder_model_duration_seconds", "Model inference duration", self.model_duration_seconds)
         g(
             "zcoder_github_rate_limit_remaining",
             "GitHub API rate limit remaining",
@@ -329,7 +337,7 @@ class _NoOpSpan:
 
 class _NoOpTracer:
     @contextmanager
-    def start_as_current_span(self, name: str, **kwargs) -> Generator[_NoOpSpan, None, None]:  # type: ignore[override]
+    def start_as_current_span(self, name: str, **kwargs) -> Generator[_NoOpSpan, None, None]:
         yield _NoOpSpan()
 
 
@@ -427,6 +435,29 @@ def trace_github_call(operation: str, repo: str = "") -> Generator[Any, None, No
             m.github_api_errors_total.inc()
             span.record_exception(exc)
             raise
+
+
+@contextmanager
+def trace_model_call(
+    provider: str = "local", model: str = "", operation: str = "inference"
+) -> Generator[Any, None, None]:
+    """Trace a provider-neutral model request with bounded metric labels."""
+    tracer = get_tracer()
+    metrics_registry = get_metrics()
+    with tracer.start_as_current_span(f"model.{operation}") as span:
+        span.set_attribute("model.provider", provider)
+        span.set_attribute("model.name", model)
+        span.set_attribute("model.operation", operation)
+        metrics_registry.model_calls_total.inc()
+        started_at = time.monotonic()
+        try:
+            yield span
+        except Exception as exc:
+            metrics_registry.model_errors_total.inc()
+            span.record_exception(exc)
+            raise
+        finally:
+            metrics_registry.model_duration_seconds.observe(time.monotonic() - started_at)
 
 
 @contextmanager

@@ -33,6 +33,7 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from zcoder.agent.models.registry import (
     FAST_MODE_SUPPORTED,
@@ -53,7 +54,7 @@ HAIKU45_ALIAS = "claude-haiku-4-5"  # dateless alias, per claude_models.MODEL_ID
 # across models that support it in this manual-budget form.
 MIN_THINKING_BUDGET = 1024
 
-HAIKU45_INFO = {
+HAIKU45_INFO: dict[str, Any] = {
     "display_name": "Claude Haiku 4.5",
     "tier": "current",
     "context_window": 200_000,

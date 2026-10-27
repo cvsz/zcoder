@@ -29,6 +29,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from zcoder.core.resilience import shell_command_argv
 from zcoder.core.security import build_child_env
@@ -65,7 +66,7 @@ def load_settings(cli_overrides: dict | None = None) -> dict:
     Merge settings in ascending precedence: user -> project -> local -> CLI.
     Returns the merged dict.
     """
-    merged = {}
+    merged: dict[str, Any] = {}
     for path in (USER_SETTINGS, PROJECT_SETTINGS, LOCAL_SETTINGS):
         merged = _deep_merge(merged, _read_json(path))
     if cli_overrides:
@@ -80,7 +81,8 @@ def load_settings_with_provenance() -> dict:
         ("project", _read_json(PROJECT_SETTINGS)),
         ("local", _read_json(LOCAL_SETTINGS)),
     ]
-    merged, provenance = {}, {}
+    merged: dict[str, Any] = {}
+    provenance: dict[str, str] = {}
     for layer_name, data in layers:
         merged = _deep_merge(merged, data)
         for k in data:

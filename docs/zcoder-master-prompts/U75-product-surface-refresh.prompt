@@ -1,0 +1,8 @@
+# U75 — Claude product-surface registry and parity audit (needs live research)
+Priority: P3. Size: M. Depends on: U61.
+
+Known from release notes: unified Claude experience with Cowork available from any conversation (2026-09-16, gradual rollout to Pro/Max); Claude Design, Claude Slides, Claude Docs; plugin submissions to the Claude directory via a developer portal (09-25); Claude Tag (Slack) with Tag API; monthly API credits for Max and Team plans (10-07); Claude Code Auto mode expansion and Workflows research preview (05-28); Claude API skill bundled with Claude Code.
+
+NOT yet researched (must be audited live before any code): the Claude Code CHANGELOG (github.com/anthropics/claude-code), Agent SDK changes, MCP spec/connector changes, and details of each app feature above.
+
+Requirements: update the product-surface registry/docs only from verified pages; produce a prioritized gap table vs the Claude Code changelog with theme-frequency evidence; implement nothing speculative; list candidate follow-up cycles.

@@ -31,7 +31,11 @@ class TokenCounter:
         self.model = model
 
     def count(
-        self, prompt: str, system: str | None = None, tools: list[dict] = None, history: list[dict] = None
+        self,
+        prompt: str,
+        system: str | None = None,
+        tools: list[dict] | None = None,
+        history: list[dict] | None = None,
     ) -> dict:
         messages = list(history or [])
         messages.append({"role": "user", "content": prompt})
@@ -67,7 +71,7 @@ class TokenCounter:
         full = f"File:\n```\n{content}\n```\n\n{prompt}"
         return self.count(full, system=system)
 
-    def estimate_cost(self, token_count: int, model: str = None) -> dict:
+    def estimate_cost(self, token_count: int, model: str | None = None) -> dict:
         """Rough cost estimate based on current pricing tiers."""
         m = model or self.model
         # MTok prices (input) — verified against platform.claude.com/docs
@@ -96,7 +100,12 @@ class TokenCounter:
 
 
 def cmd_count_tokens(
-    prompt: str, api_key: str, model: str, system: str = None, file_path: str = None, budget: int = None
+    prompt: str,
+    api_key: str,
+    model: str,
+    system: str | None = None,
+    file_path: str | None = None,
+    budget: int | None = None,
 ):
     tc = TokenCounter(api_key=api_key, model=model)
     if file_path:

@@ -1,0 +1,11 @@
+# U63 — Models-API-driven capability discovery + catalog completion
+Priority: P0. Size: M. Depends on: U61.
+
+Facts: the Models API (`GET /v1/models`, `/v1/models/{id}`) now returns `max_input_tokens`, `max_tokens`, a `capabilities` object (2026-03-18), `line` (2026-10-01), `capabilities.thinking.types.disabled` (10-05), `capabilities.server_tools` incl. `code_execution` for web search / code execution acceptance (10-06), `capabilities.thinking.types.between_tools` (10-15), plus top-level `capabilities.code_execution`. Claude Mythos 5.1 is `claude-mythos-5-1`, Project Glasswing participants only. Haiku 5.5 docs say prices "from $0.10 / $0.50": two prompt-size tiers, higher tier not yet recorded in the catalog.
+
+Requirements:
+- replace hand-maintained sets (fast-mode, service-tier, inference-geo, computer-use, thinking mode) with: live capability fetch → local cache with TTL → static fallback; static data marked with the date it was last verified.
+- drift test: static fallback vs a recorded Models API fixture; clear failure message listing the delta.
+- catalog `claude-mythos-5-1` (gated; never a default or upgrade target); record Haiku 5.5's second price tier from the docs, or mark UNVERIFIED.
+- group models by the API's `line` field, not by ID parsing.
+- keep network off in tests; use recorded fixtures.

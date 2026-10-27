@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import enum
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 
-class TaskStatus(str, enum.Enum):
+
+class TaskStatus(StringEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"
     WAITING_APPROVAL = "WAITING_APPROVAL"
