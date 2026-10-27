@@ -269,6 +269,11 @@ def build_parser():
         help="Launch the full-screen Textual coding assistant with chat, slash commands, "
         "and session settings",
     )
+    g.add_argument(
+        "--gui",
+        action="store_true",
+        help="Launch the full-featured Native Desktop GUI application for ZCoder",
+    )
     g.add_argument("--model", default=None)
     g.add_argument("--temperature", type=float, default=0.3)
     g.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens")
@@ -3277,6 +3282,12 @@ def main():
         from zcoder.agent.enterprise.hooks_perms import cmd_perms_add
 
         cmd_perms_add(args.perms_add[0], args.perms_add[1], args.perms_reason)
+        return
+
+    if args.gui:
+        from zcoder.interfaces.desktop.gui import run_desktop_gui
+
+        run_desktop_gui()
         return
 
     if args.tui:

@@ -19,6 +19,15 @@ env/
 .env.*
 !.env.example
 
+# Code-signing certificates and private keys
+certs/
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+
 # Test / coverage / lint / type-check caches
 .pytest_cache/
 .coverage
