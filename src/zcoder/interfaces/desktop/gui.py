@@ -26,10 +26,11 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
-from zcoder.agent.personalities import PersonalityManager
+from zcoder import __version__ as VERSION
+from zcoder.agent.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
 from zcoder.config.settings import Config
 from zcoder.core.health import run_health_check
-from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION
+from zcoder.interfaces.desktop.security import open_local_request, validate_local_base_url
 from zcoder.services.skills import SkillManager
 
 
@@ -497,7 +498,6 @@ class ZCoderDesktopGUI:
         ).start()
 
     def _worker_generate(self, prompt: str, model: str, agent_role: str, stream: bool) -> None:
-        base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")
         system_prompt = AGENT_SYSTEM_PROMPTS.get(agent_role, "")
 
         messages = []
@@ -515,10 +515,13 @@ class ZCoderDesktopGUI:
             "stream": stream,
         }
 
-        url = f"{base_url.rstrip('/')}/chat/completions"
         start_t = time.time()
         tokens_count = 0
         try:
+            base_url = validate_local_base_url(
+                os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")
+            )
+            url = f"{base_url}/chat/completions"
             import urllib.request
 
             req = urllib.request.Request(
@@ -529,7 +532,7 @@ class ZCoderDesktopGUI:
             )
 
             full_response = ""
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with open_local_request(req, timeout=120) as resp:
                 if stream:
                     self.root.after(0, self._append_transcript_header, "Assistant", "assistant_head")
                     for raw in resp:

@@ -5,7 +5,6 @@ PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin
 DIST_DIR ?= dist
 CERT_DIR ?= certs
 PFX_PATH ?= $(CERT_DIR)/zcoder-codesign.pfx
-PFX_PASSWORD ?= ZCoderDesktop2026!
 WEB_VENV := .web-venv
 WEB_PY := $(WEB_VENV)/bin/python
 WEB_UVICORN := $(WEB_VENV)/bin/uvicorn
@@ -48,6 +47,7 @@ help:
 	@echo "  make standalone-force   Force rebuild standalone executable"
 	@echo "  make build-desktop      Build full-featured Native Desktop GUI application (zcoder-desktop)"
 	@echo "  make cert-generate      Generate Authenticode self-signed certificate into certs/"
+@echo "  Set ZCODER_PFX_PASSWORD in environment before cert-generate/sign; no default is used."
 	@echo "  make sign               Sign Windows binaries in dist/ with Authenticode & RFC3161"
 	@echo "  make verify             Verify digital signatures in dist/"
 	@echo "  make full-build         Complete pipeline: check -> build standalone -> sign"
@@ -243,9 +243,9 @@ cert-generate:
 
 sign:
 	@echo "==> Authenticode Code-Signing & RFC3161 Timestamping..."
-	@powershell.exe -ExecutionPolicy Bypass -File scripts/sign_exe.ps1 -SearchPath $(DIST_DIR) -Pfx $(PFX_PATH) -Password $(PFX_PASSWORD) 2>/dev/null || \
-	powershell -ExecutionPolicy Bypass -File scripts/sign_exe.ps1 -SearchPath $(DIST_DIR) -Pfx $(PFX_PATH) -Password $(PFX_PASSWORD) 2>/dev/null || \
-	pwsh -ExecutionPolicy Bypass -File scripts/sign_exe.ps1 -SearchPath $(DIST_DIR) -Pfx $(PFX_PATH) -Password $(PFX_PASSWORD) 2>/dev/null || \
+	@powershell.exe -ExecutionPolicy Bypass -File scripts/sign_exe.ps1 -SearchPath $(DIST_DIR) -Pfx $(PFX_PATH) 2>/dev/null || \
+	powershell -ExecutionPolicy Bypass -File scripts/sign_exe.ps1 -SearchPath $(DIST_DIR) -Pfx $(PFX_PATH) 2>/dev/null || \
+	pwsh -ExecutionPolicy Bypass -File scripts/sign_exe.ps1 -SearchPath $(DIST_DIR) -Pfx $(PFX_PATH) 2>/dev/null || \
 	echo "[NOTE] Authenticode signing applies to Windows binaries (.exe, .dll) via PowerShell."
 
 verify:

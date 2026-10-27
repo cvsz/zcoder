@@ -42,6 +42,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($ExportPfx -and [string]::IsNullOrWhiteSpace($PfxPassword)) {
+    throw "Set ZCODER_PFX_PASSWORD before exporting a PFX. No default password is used."
+}
+
 # Ensure output directory exists
 if (-not (Test-Path -Path $OutDir)) {
     New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
@@ -73,11 +77,7 @@ Write-Host "    [OK] Exported Public Cert: $cerFile" -ForegroundColor Green
 # Optional: Export PKCS#12 bundle (.pfx)
 if ($ExportPfx) {
     $pfxFile = Join-Path $OutDir "zcoder-codesign.pfx"
-    $secPass = if ($PfxPassword) {
-        ConvertTo-SecureString -String $PfxPassword -AsPlainText -Force
-    } else {
-        ConvertTo-SecureString -String "ZCoderDesktop2026!" -AsPlainText -Force
-    }
+    $secPass = ConvertTo-SecureString -String $PfxPassword -AsPlainText -Force
     Export-PfxCertificate -Cert $cert -FilePath $pfxFile -Password $secPass -Force | Out-Null
     Write-Host "    [OK] Exported PFX Bundle: $pfxFile" -ForegroundColor Green
 }
