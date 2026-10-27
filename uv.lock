@@ -1575,7 +1575,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=1.2.0,<2.0.0" },
+    { name = "anthropic", specifier = ">=1.2.0,<3.0.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.9" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.141.1" },

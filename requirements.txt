@@ -1,4 +1,4 @@
-anthropic>=1.2.0,<2.0.0
+anthropic>=1.2.0,<3.0.0
 # 1.2.0+ needed for client.beta.agents / .environments / .sessions
 # (Claude Managed Agents — see claude_agents_sdk.ManagedAgentsClient) and
 # the streaming client used elsewhere. Most other modules in this project
