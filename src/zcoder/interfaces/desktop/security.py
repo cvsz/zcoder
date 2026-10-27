@@ -44,11 +44,7 @@ def validate_local_base_url(value: str) -> str:
         except OSError as exc:
             raise ValueError("ZCODER_BASE_URL localhost did not resolve to loopback") from exc
 
-        addresses = {
-            ipaddress.ip_address(str(answer[4][0]))
-            for answer in answers
-            if answer[4]
-        }
+        addresses = {ipaddress.ip_address(str(answer[4][0])) for answer in answers if answer[4]}
         if not addresses or any(not address.is_loopback for address in addresses):
             raise ValueError("ZCODER_BASE_URL localhost must resolve exclusively to loopback")
     else:

@@ -518,9 +518,7 @@ class ZCoderDesktopGUI:
         start_t = time.time()
         tokens_count = 0
         try:
-            base_url = validate_local_base_url(
-                os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")
-            )
+            base_url = validate_local_base_url(os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1"))
             url = f"{base_url}/chat/completions"
             import urllib.request
 
