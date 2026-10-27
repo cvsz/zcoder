@@ -47,7 +47,7 @@ help:
 	@echo "  make standalone-force   Force rebuild standalone executable"
 	@echo "  make build-desktop      Build full-featured Native Desktop GUI application (zcoder-desktop)"
 	@echo "  make cert-generate      Generate Authenticode self-signed certificate into certs/"
-@echo "  Set ZCODER_PFX_PASSWORD in environment before cert-generate/sign; no default is used."
+	@echo "  Set ZCODER_PFX_PASSWORD in environment before cert-generate/sign; no default is used."
 	@echo "  make sign               Sign Windows binaries in dist/ with Authenticode & RFC3161"
 	@echo "  make verify             Verify digital signatures in dist/"
 	@echo "  make full-build         Complete pipeline: check -> build standalone -> sign"
