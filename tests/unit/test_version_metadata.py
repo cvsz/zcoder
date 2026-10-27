@@ -1,7 +1,8 @@
 """The package metadata is the sole source for runtime version strings."""
 
-import tomllib
 from importlib.metadata import version
+
+import tomllib
 
 import zcoder
 from zcoder import main
