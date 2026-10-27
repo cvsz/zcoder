@@ -54,7 +54,22 @@ def _selected_dir(requested: str | None, *, env_name: str, default: str, invocat
     return _path(os.environ.get(env_name) or default, relative_to=PROJECT_ROOT)
 
 
+def _validate_dotenv_path(path: Path) -> None:
+    if path.is_symlink():
+        raise InstallError(
+            "Refusing to use a symlink for .env; use a regular file to keep credential permissions explicit."
+        )
+    if path.exists() and not path.is_file():
+        raise InstallError("Refusing to use .env because it is not a regular file.")
+
+
+def _paths_overlap(left: Path, right: Path) -> bool:
+    return left == right or left in right.parents or right in left.parents
+
+
 def _setup(args: argparse.Namespace, invocation_dir: Path) -> None:
+    dotenv = PROJECT_ROOT / ".env"
+    _validate_dotenv_path(dotenv)
     venv_dir = _selected_dir(
         args.install_dir, env_name="ZCODER_VENV", default="venv", invocation_dir=invocation_dir
     )
@@ -67,10 +82,11 @@ def _setup(args: argparse.Namespace, invocation_dir: Path) -> None:
     command.append(PROJECT_ROOT)
     _run(*command)
 
-    dotenv = PROJECT_ROOT / ".env"
     if not dotenv.exists():
         shutil.copyfile(PROJECT_ROOT / ".env.example", dotenv)
         print("Created .env from .env.example; configure provider credentials for live calls.")
+    if os.name != "nt":
+        dotenv.chmod(0o600)
     _run(_command_in_venv(venv_dir, "zcoder"), "--version")
     print(f"Installed ZCoder in: {venv_dir}")
     print(f"Run: {_command_in_venv(venv_dir, 'zcoder')}")
@@ -95,9 +111,21 @@ def _build(args: argparse.Namespace, invocation_dir: Path) -> None:
     artifact = dist_dir / ("zcoder.exe" if os.name == "nt" else "zcoder")
     if artifact.exists() and (not args.force or not artifact.is_file()):
         raise InstallError(f"Output already exists: {artifact}. Use --force to replace a file.")
-    if work_dir in {PROJECT_ROOT, dist_dir, build_venv, Path(work_dir.anchor)}:
+    filesystem_roots = {Path(work_dir.anchor), Path(dist_dir.anchor), Path(build_venv.anchor)}
+    if (
+        work_dir == PROJECT_ROOT
+        or dist_dir == PROJECT_ROOT
+        or build_venv == PROJECT_ROOT
+        or work_dir in filesystem_roots
+        or dist_dir in filesystem_roots
+        or build_venv in filesystem_roots
+        or _paths_overlap(work_dir, dist_dir)
+        or _paths_overlap(work_dir, build_venv)
+        or _paths_overlap(dist_dir, build_venv)
+    ):
         raise InstallError(
-            "The work directory must differ from the repository root and output/venv directories."
+            "The work, output, and build-venv directories must be distinct, non-overlapping paths "
+            "outside the repository root and filesystem roots."
         )
 
     python = _ensure_venv(build_venv)
@@ -131,8 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--build-venv", metavar="PATH", help="Directory for the build dependencies")
     build.add_argument("--force", action="store_true", help="Allow replacing an existing executable")
     args = parser.parse_args(argv)
-    if sys.version_info < (3, 10):  # noqa: UP036 -- invoked by interpreters outside project constraints
-        parser.error("Python 3.10 or newer is required")
+    if sys.version_info < (3, 12):
+        parser.error("Python 3.12 or newer is required")
     try:
         if args.action == "setup":
             _setup(args, Path.cwd())

@@ -8,7 +8,7 @@ version = "1.60.0"
 description = "ZCoder CLI — enterprise-grade edition"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
+license = { text = "MIT" }
 dependencies = [
     "anthropic>=1.2.0,<2.0.0",
     "python-dotenv>=1.2.2",
@@ -91,7 +91,7 @@ show_missing = true
 
 [tool.ruff]
 line-length = 110
-target-version = "py312"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
@@ -113,7 +113,7 @@ ignore = ["E501"]
 
 [tool.black]
 line-length = 110
-target-version = ["py312"]
+target-version = ["py310"]
 
 [tool.mypy]
 python_version = "3.12"

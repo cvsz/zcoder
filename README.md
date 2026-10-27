@@ -3,11 +3,11 @@
 > **AI Coding Platform ระดับองค์กรสำหรับการพัฒนาแบบ Local-First, Self-Hosted, และ Hybrid Cloud**
 
 [![CI](https://github.com/cvsz/zcoder/actions/workflows/ci.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
 
-**เวอร์ชันปัจจุบัน:** `1.60.0`
+**เวอร์ชันปัจจุบัน:** `1.41.5`
 
 ---
 
@@ -21,7 +21,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 |---|---|
 | **Local-First** | รันได้เต็มรูปแบบบน infrastructure ของคุณ ไม่ต้องพึ่ง cloud |
 | **Zero-Cost First** | แยก cost classification จาก runtime availability — ไม่ silent fallback ไป paid provider |
-| **Local Inference** | ใช้ llama.cpp และ GGUF ผ่าน loopback API เป็นค่าเริ่มต้น |
+| **Provider-Neutral** | รองรับ Anthropic, Gemini, xAI, Ollama, local model พร้อมกัน |
 | **Production-Ready** | Durable jobs, policy, tenant isolation, audit, queues, workers, observability, backup/restore |
 | **Security-First** | 11 ช่องบ่อน vulnerability ที่ปิดครบ (SEC-001 ถึง SEC-010) |
 | **Evidence-Based** | роверинг แบบ tiered: source → unit → integration → live-runtime → production |
@@ -47,7 +47,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 - **Subagents** — bounded budgets, permissions, frontmatter validation
 - **Hooks** — lifecycle events แบบ fail-closed
 - **MCP** — server discovery, tool trust policy, resource validation
-- **Memory** — scoped instruction hierarchy (enterprise → user → project)
+- **Memory** — scoped CLAUDE.md hierarchy (enterprise → user → project)
 - **Skills & Commands** — loader containment, install/remove/info lifecycle
 
 ### 🏗️ Architecture
@@ -70,7 +70,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
                v                               v
      +-------------------+         +--------------------+
      | Core / Domain     |         | Provider Adapters  |
-     | jobs / policy /   |         | local model gateway|
+     | jobs / policy /   |         | local / Claude /   |
      | tenants / models  |         | external optional  |
      +---------+---------+         +---------+----------+
                |                               |
@@ -96,7 +96,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) สำหรับรายละเอ
 | **RBAC** | 8 enterprise roles, 30+ permissions, provider-neutral enforcement |
 | **Quotas** | Concurrent jobs, monthly budget, project/repository limits |
 | **Audit** | Immutable append-only audit log, structured JSONL export |
-| **Billing** | Provider-neutral interface, explicit Stripe API adapter, usage metering; Stripe sandbox/live qualification remains pending |
+| **Billing** | Provider-neutral interface, Stripe adapter, usage metering |
 | **Deployment** | Health checks, backup/restore, rollback, DR rehearsal |
 | **Observability** | Prometheus `/metrics`, OTel OTLP, structured JSON logs |
 
@@ -123,13 +123,17 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 
 ### ตrequirements
 
-- Python 3.12 or later (the package requires `>=3.12`; CI validates Python 3.12 and 3.13).
-- The `--pptx` integration uses the security-fixed Pillow 13 release line.
+- Python 3.12+
+- The local `--pptx` integration is supported on Python 3.12+. `--pptx-native` avoids local PPTX conversion dependencies but does not lower the project minimum Python version.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
 
 ### Installation
+
+For custom installation paths and platform-specific standalone builds, see the [Portable Installation Guide](docs/guides/PORTABLE-INSTALL.md).
+
+**Runtime requirement:** Python 3.12 or newer is required for the security-patched dependency set.
 
 ```bash
 git clone https://github.com/cvsz/zcoder.git
@@ -149,28 +153,6 @@ pip install -e '.[dev]'
 
 Optional groups: `web`, `tui`, `excel`, `pptx`, `all`
 
-### Local PostgreSQL
-
-SQLite remains the default for a single-user local install. PostgreSQL-backed
-API, worker, and integration-test commands use the shared Docker PostgreSQL
-container named `zPostgreSQL` on the `zPostgreSQL_network` bridge. Any app
-container attached to this network can connect to `zPostgreSQL:5432`.
-Applications should use separate database names and roles on this server.
-ZCoder uses database `zcoder_db` owned by role `zcoder`. The container can be
-selected with `ZCODER_POSTGRES_CONTAINER` when its Docker name differs.
-
-Run `make postgres-setup` once to attach the database container to the shared
-network and provision the ZCoder role and database. The command stores a
-randomly generated password in
-`~/.config/zcoder/postgresql.password` with owner-only permissions and resolves
-the container's current Docker network address each time. Check connectivity
-with `make postgres-status`. `make api`, `make worker`, and
-`make test-integration` receive the database connection automatically. The
-shared PostgreSQL service lifecycle is managed outside ZCoder; ZCoder does not
-start or stop that service. To connect another app container, attach it with
-`docker network connect zPostgreSQL_network <app-container>` and use
-`zPostgreSQL` as the database hostname.
-
 ### Verification
 
 ```bash
@@ -182,7 +164,8 @@ python main.py --help
 ### การใช้งานพื้นฐาน
 
 ```bash
-# Coding request with the local GGUF model
+# Coding request with Anthropic
+export ANTHROPIC_API_KEY='sk-ant-...'
 zcoder -p 'Write a Python function to reverse a string'
 
 # File analysis
@@ -228,11 +211,6 @@ Policy Modes:
 - **Ollama** — local gateway (`http://127.0.0.1:11434`)
 - **vLLM** — high-throughput local inference
 - **OpenAI-compatible** — generic loopback servers
-
-CLI and web-console chat use loopback model servers. The web frontend does
-not request or persist provider API keys, and a legacy `api_key` request
-field is ignored. Remote providers remain separate opt-in routing adapters;
-local chat never falls back to them.
 
 ### Hardware Profiling
 
@@ -289,10 +267,8 @@ zcoder --code-agent "fix auth bug"    # Autonomous coding cycle
 zcoder --code-agent-permission ask   # Permission mode
 
 # Provider routing
-zcoder --route "Review this code" --provider groq --model "openai/gpt-oss-20b"
-zcoder --route "Explain this diff" --provider openrouter --model "openrouter/free"
-zcoder --route "Review this code" --provider openai_compatible --base-url http://localhost:1234/v1 --model "my-model"
-# Local GGUF setup: see docs/guides/LOCAL-INFERENCE.md.
+zcoder --provider anthropic           # anthropic | gemini | xai | ollama | local
+zcoder --base-url http://localhost:11434  # Custom gateway
 
 # GitHub
 zcoder --gh-issue 123                 # GitHub issue operations
@@ -312,12 +288,6 @@ zcoder --backup                       # Create backup
 zcoder --dr-rehearsal                 # DR rehearsal
 ```
 
-The `--tui` screen uses local llama.cpp at `127.0.0.1:8080` by default and
-shows the loaded GGUF model and working directory. Use `/help`, `/status`,
-`/model`, `/agent <name>`, `/skill <name>`, `/clear`, and `/settings`;
-`Ctrl+N` starts a new chat and `Ctrl+O` toggles session settings. To switch
-GGUF models, restart llama-server with the other model, then reopen the TUI.
-
 ---
 
 ## Configuration
@@ -326,17 +296,14 @@ GGUF models, restart llama-server with the other model, then reopen the TUI.
 
 | Variable | Description | Required |
 |---|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key | Optional |
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google Gemini API key | Optional |
 | `XAI_API_KEY` | xAI Grok API key | Optional |
-| `GROQ_API_KEY` | Groq router API key | Optional |
-| `OPENROUTER_API_KEY` | OpenRouter router API key | Optional |
-| `CEREBRAS_API_KEY` | Cerebras router API key | Optional |
-| `OPENAI_COMPATIBLE_API_KEY` | Optional bearer token for a custom compatible server | Optional |
 | `OLLAMA_BASE_URL` | Ollama gateway URL | Optional |
-| `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1); when enabled it overrides CLI and `ZCODER_PROVIDER` selections and blocks unmigrated provider-specific commands | Optional |
+| `ZCODER_LOCAL_MODE` | Enable local-only mode (0/1) | Optional |
 | `DATABASE_URL` | PostgreSQL connection string | Optional (SQLite default) |
 | `ZCODER_OTEL_ENDPOINT` | OpenTelemetry collector endpoint | Optional |
-| `ZCODER_PROVIDER` | Optional router provider override; local llama.cpp is the default | Optional |
+| `ZCODER_PROVIDER` | Default provider (anthropic/gemini/xai/ollama/local) | Optional |
 | `ZCODER_BASE_URL` | Default API gateway URL | Optional |
 
 ### Cost Policy
@@ -401,8 +368,9 @@ pytest --cov --cov-report=term-missing
 
 | Python Version | Status |
 |---|---|
+| 3.10 | ✅ Supported |
+| 3.11 | ✅ Supported |
 | 3.12 | ✅ Supported |
-| 3.13 | ✅ Supported |
 
 ### Additional CI Checks
 
@@ -425,8 +393,8 @@ docker build -t zcoder:local .
 # Verify
 docker run --rm zcoder:local --version
 
-# Run with the local model endpoint
-docker run --rm -e ZCODER_BASE_URL=http://127.0.0.1:8080/v1 zcoder:local
+# Run with provider key
+docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder:local
 
 # Run the API server (set DATABASE_URL to a reachable PostgreSQL database)
 docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
@@ -531,11 +499,6 @@ zcoder --health-check  # OTel bootstrap happens automatically
 ```
 
 Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashboard.json)
-
-Local model calls expose provider-neutral Prometheus counters
-`zcoder_model_calls_total`, `zcoder_model_errors_total`, and the
-`zcoder_model_duration_seconds` histogram. OpenTelemetry spans use the
-`model.*` namespace and record provider, model, and operation attributes.
 
 ---
 

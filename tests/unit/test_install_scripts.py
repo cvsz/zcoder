@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import stat
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -45,6 +47,8 @@ def test_custom_setup_installs_non_editable_package(tmp_path, monkeypatch):
     assert commands[1][-1] == str(repo)
     assert "-e" not in commands[1]
     assert commands[2] == (str(installer._command_in_venv(tmp_path / "my-venv", "zcoder")), "--version")
+    if installer.os.name == "posix":
+        assert stat.S_IMODE((repo / ".env").stat().st_mode) == 0o600
 
 
 def test_default_setup_preserves_editable_install(tmp_path, monkeypatch):
@@ -99,3 +103,43 @@ def test_nonempty_directory_cannot_be_replaced_as_virtualenv(tmp_path, monkeypat
     monkeypatch.setattr(installer, "_run", lambda *args: pytest.fail("unexpected virtualenv creation"))
     with pytest.raises(installer.InstallError, match="Refusing to replace"):
         installer._ensure_venv(tmp_path)
+
+
+def test_installer_rejects_python_311(monkeypatch):
+    monkeypatch.setattr(installer, "sys", SimpleNamespace(version_info=(3, 11, 9)))
+    with pytest.raises(SystemExit) as exc:
+        installer.main(["setup"])
+    assert exc.value.code == 2
+
+
+def test_build_rejects_overlapping_paths(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(installer, "PROJECT_ROOT", repo)
+    monkeypatch.setattr(
+        installer, "_ensure_venv", lambda _: pytest.fail("unsafe path must be rejected first")
+    )
+    args = argparse.Namespace(
+        dist_dir=str(repo / "build"),
+        work_dir=str(repo / "build" / "work"),
+        build_venv=str(repo / ".build-venv"),
+        force=False,
+    )
+    with pytest.raises(installer.InstallError, match="non-overlapping"):
+        installer._build(args, tmp_path)
+
+
+@pytest.mark.skipif(installer.os.name != "posix", reason="POSIX symlink and permission contract")
+def test_setup_rejects_dotenv_symlink_before_install(tmp_path, monkeypatch):
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    target = tmp_path / "outside.env"
+    target.write_text("SECRET=keep\n", encoding="utf-8")
+    (repo / ".env").symlink_to(target)
+    monkeypatch.setattr(installer, "PROJECT_ROOT", repo)
+    monkeypatch.setattr(
+        installer, "_ensure_venv", lambda _: pytest.fail("installer should reject .env symlink first")
+    )
+    with pytest.raises(installer.InstallError, match="symlink"):
+        installer._setup(argparse.Namespace(install_dir=None), tmp_path)
+    assert target.read_text(encoding="utf-8") == "SECRET=keep\n"
