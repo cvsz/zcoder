@@ -108,7 +108,9 @@ def _build(args: argparse.Namespace, invocation_dir: Path) -> None:
         default=".build-venv",
         invocation_dir=invocation_dir,
     )
-    artifact = dist_dir / ("zcoder.exe" if os.name == "nt" else "zcoder")
+    spec_file = PROJECT_ROOT / "spec" / ("zcoder-desktop.spec" if getattr(args, "desktop", False) else "zcoder.spec")
+    artifact_name = "zcoder-desktop" if getattr(args, "desktop", False) else "zcoder"
+    artifact = dist_dir / (f"{artifact_name}.exe" if os.name == "nt" else artifact_name)
     if artifact.exists() and (not args.force or not artifact.is_file()):
         raise InstallError(f"Output already exists: {artifact}. Use --force to replace a file.")
     filesystem_roots = {Path(work_dir.anchor), Path(dist_dir.anchor), Path(build_venv.anchor)}
@@ -140,11 +142,12 @@ def _build(args: argparse.Namespace, invocation_dir: Path) -> None:
         dist_dir,
         "--workpath",
         work_dir,
-        PROJECT_ROOT / "spec" / "zcoder.spec",
+        spec_file,
     )
     if not artifact.is_file():
         raise InstallError(f"PyInstaller did not produce an executable: {artifact}")
-    _run(artifact, "--version")
+    if not getattr(args, "desktop", False):
+        _run(artifact, "--version")
     print(f"Standalone executable: {artifact}")
 
 
@@ -157,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--dist-dir", metavar="PATH", help="Directory for the resulting executable")
     build.add_argument("--work-dir", metavar="PATH", help="Directory for intermediate build files")
     build.add_argument("--build-venv", metavar="PATH", help="Directory for the build dependencies")
+    build.add_argument("--desktop", action="store_true", help="Build full-featured desktop GUI executable (zcoder-desktop)")
     build.add_argument("--force", action="store_true", help="Allow replacing an existing executable")
     args = parser.parse_args(argv)
     if sys.version_info < (3, 12):

@@ -5,12 +5,13 @@ import subprocess
 import sys
 from inspect_video import inspect_video, format_size
 
+
 def parse_timecode(time_str, total_duration=None):
     """Parses a time string (seconds, MM:SS, HH:MM:SS, or 'last') into float seconds."""
     if not time_str:
         return 0.0
     time_str = time_str.strip().lower()
-    
+
     if time_str == "last":
         if total_duration is None:
             raise ValueError("Total duration is required to calculate 'last' starting point.")
@@ -18,7 +19,7 @@ def parse_timecode(time_str, total_duration=None):
         if total_duration <= target_dur:
             return 0.0
         return total_duration - target_dur
-        
+
     if ":" in time_str:
         parts = time_str.split(":")
         if len(parts) == 2:  # MM:SS
@@ -29,20 +30,25 @@ def parse_timecode(time_str, total_duration=None):
             return h * 3600.0 + m * 60.0 + s
         else:
             raise ValueError(f"Invalid timecode format: '{time_str}'. Use HH:MM:SS or MM:SS.")
-    
+
     try:
         return float(time_str)
     except ValueError:
         raise ValueError(f"Invalid timecode: '{time_str}'. Must be float seconds, HH:MM:SS, or 'last'.")
 
-def prep_video(input_path, output_path, start_time_str=None, duration=10, fps=None, resolution=None, strip_audio=False):
+
+def prep_video(
+    input_path, output_path, start_time_str=None, duration=10, fps=None, resolution=None, strip_audio=False
+):
     """Preps a video file by trimming, optionally re-encoding to target fps and resolution."""
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
     # Check if ffmpeg is available
     try:
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            ["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+        )
     except (subprocess.SubprocessError, FileNotFoundError):
         raise RuntimeError("ffmpeg is not installed or not found in system PATH.")
 
@@ -79,9 +85,10 @@ def prep_video(input_path, output_path, start_time_str=None, duration=10, fps=No
     except Exception as e:
         raise ValueError(f"Timecode parsing failed: {e}")
 
-
     if start_seconds < 0 or (total_duration and start_seconds >= total_duration):
-        raise ValueError(f"Start time {start_seconds}s is out of bounds for video of length {total_duration}s.")
+        raise ValueError(
+            f"Start time {start_seconds}s is out of bounds for video of length {total_duration}s."
+        )
 
     # Construct output path if not specified
     if not output_path:
@@ -126,7 +133,9 @@ def prep_video(input_path, output_path, start_time_str=None, duration=10, fps=No
             scale_filter = f"scale={width}:{height}"
             resolution = f"{width}x{height}"
         except ValueError:
-            raise ValueError(f"Invalid resolution: '{resolution}'. Format must be WIDTHxHEIGHT (e.g. 1280x720).")
+            raise ValueError(
+                f"Invalid resolution: '{resolution}'. Format must be WIDTHxHEIGHT (e.g. 1280x720)."
+            )
     elif is_large:
         if orig_width and orig_height:
             # Scale down large videos proportionally (max 1280x720 for landscape, 720x1280 for portrait)
@@ -142,7 +151,7 @@ def prep_video(input_path, output_path, start_time_str=None, duration=10, fps=No
                 width, height = orig_width, orig_height
         else:
             width, height = 1280, 720
-        
+
         # Ensure divisible by 2
         width = (width // 2) * 2
         height = (height // 2) * 2
@@ -165,34 +174,46 @@ def prep_video(input_path, output_path, start_time_str=None, duration=10, fps=No
     # ffmpeg command construction
     cmd = [
         "ffmpeg",
-        "-y",               # Overwrite output
-        "-ss", str(start_seconds), # Seek start
-        "-i", input_path,   # Input file
-        "-t", str(duration), # Duration to copy
+        "-y",  # Overwrite output
+        "-ss",
+        str(start_seconds),  # Seek start
+        "-i",
+        input_path,  # Input file
+        "-t",
+        str(duration),  # Duration to copy
     ]
     if scale_filter:
         cmd.extend(["-vf", scale_filter])
-        
-    cmd.extend([
-        "-c:v", "libx264",  # Standard H264 video codec
-        "-pix_fmt", "yuv420p", # Standard pixel format for web/Gemini compatibility
-    ])
+
+    cmd.extend(
+        [
+            "-c:v",
+            "libx264",  # Standard H264 video codec
+            "-pix_fmt",
+            "yuv420p",  # Standard pixel format for web/Gemini compatibility
+        ]
+    )
 
     if fps:
-        cmd.extend(["-r", str(fps)]) # Output frame rate if requested
+        cmd.extend(["-r", str(fps)])  # Output frame rate if requested
 
     if strip_audio or not source_info.get("has_audio", False):
         if not source_info.get("has_audio", False) and not strip_audio:
             print("No audio stream detected in source video. Disabling audio output.")
         else:
             print("Stripping audio stream from video as requested.")
-        cmd.append("-an")   # Disable audio streams completely
+        cmd.append("-an")  # Disable audio streams completely
     else:
-        cmd.extend([
-            "-c:a", "aac",      # Convert audio to standard AAC
-            "-b:a", "128k",     # Standard audio bitrate
-            "-ac", "2",         # Convert to stereo
-        ])
+        cmd.extend(
+            [
+                "-c:a",
+                "aac",  # Convert audio to standard AAC
+                "-b:a",
+                "128k",  # Standard audio bitrate
+                "-ac",
+                "2",  # Convert to stereo
+            ]
+        )
 
     cmd.append(output_path)
 
@@ -211,15 +232,43 @@ def prep_video(input_path, output_path, start_time_str=None, duration=10, fps=No
     output_info = inspect_video(output_path)
     return output_info
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Prep videos for editing (trimming, re-encoding to target fps and resolution).")
+    parser = argparse.ArgumentParser(
+        description="Prep videos for editing (trimming, re-encoding to target fps and resolution)."
+    )
     parser.add_argument("file", help="Path to the source video file to prep")
-    parser.add_argument("--start", "-s", default=None, help="Start timecode (seconds, MM:SS, HH:MM:SS, or 'last' for last 10s). Default: 0 (or prompted if > 10s)")
-    parser.add_argument("--duration", "-d", type=int, default=10, help="Duration of trimmed segment in seconds. Default: 10")
-    parser.add_argument("--fps", "-r", type=int, default=None, help="Target frame rate. Default: None (keep original frame rate)")
-    parser.add_argument("--resolution", "-g", default=None, help="Target resolution (e.g., 1280x720). Default: None (keep original resolution)")
-    parser.add_argument("--output", "-o", help="Custom output path. Defaults to media/prepped_<original_name>.mp4")
-    parser.add_argument("--strip-audio", "-a", action="store_true", help="Completely strip/disable audio stream so the model can generate new audio")
+    parser.add_argument(
+        "--start",
+        "-s",
+        default=None,
+        help="Start timecode (seconds, MM:SS, HH:MM:SS, or 'last' for last 10s). Default: 0 (or prompted if > 10s)",
+    )
+    parser.add_argument(
+        "--duration", "-d", type=int, default=10, help="Duration of trimmed segment in seconds. Default: 10"
+    )
+    parser.add_argument(
+        "--fps",
+        "-r",
+        type=int,
+        default=None,
+        help="Target frame rate. Default: None (keep original frame rate)",
+    )
+    parser.add_argument(
+        "--resolution",
+        "-g",
+        default=None,
+        help="Target resolution (e.g., 1280x720). Default: None (keep original resolution)",
+    )
+    parser.add_argument(
+        "--output", "-o", help="Custom output path. Defaults to media/prepped_<original_name>.mp4"
+    )
+    parser.add_argument(
+        "--strip-audio",
+        "-a",
+        action="store_true",
+        help="Completely strip/disable audio stream so the model can generate new audio",
+    )
 
     args = parser.parse_args()
 
@@ -231,9 +280,9 @@ def main():
             duration=args.duration,
             fps=args.fps,
             resolution=args.resolution,
-            strip_audio=args.strip_audio
+            strip_audio=args.strip_audio,
         )
-        
+
         # Display final output report
         print(f"\nPrepped Video Specifications: {info['file_name']}")
         print("=" * 50)
@@ -244,12 +293,15 @@ def main():
         print(f"Frame Rate  : {info['video']['fps']}")
         print(f"Video Codec : {info['video']['codec']}")
         if info["has_audio"]:
-            print(f"Audio Spec  : {info['audio']['codec']} | {info['audio']['channels']} ch | {info['audio']['sample_rate']}")
+            print(
+                f"Audio Spec  : {info['audio']['codec']} | {info['audio']['channels']} ch | {info['audio']['sample_rate']}"
+            )
         print()
 
     except Exception as e:
         print(f"Error prepping video: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

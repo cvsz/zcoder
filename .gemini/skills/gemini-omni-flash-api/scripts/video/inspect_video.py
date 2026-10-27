@@ -5,18 +5,20 @@ import os
 import subprocess
 import sys
 
+
 def format_size(size_bytes):
     """Formats file size in bytes to a human-readable string."""
     try:
         size_bytes = int(size_bytes)
     except (ValueError, TypeError):
         return "Unknown size"
-    
-    for unit in ['B', 'KB', 'MB', 'GB']:
+
+    for unit in ["B", "KB", "MB", "GB"]:
         if size_bytes < 1024.0:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024.0
     return f"{size_bytes:.2f} TB"
+
 
 def parse_fps(fps_str):
     """Parses fractional frame rates like '30/1' or '24000/1001' into floats."""
@@ -40,6 +42,7 @@ def parse_fps(fps_str):
     except ValueError:
         return fps_str
 
+
 def inspect_video(file_path, raw=False):
     """Runs ffprobe on the video file and returns parsed metadata dictionary."""
     if not os.path.exists(file_path):
@@ -47,34 +50,29 @@ def inspect_video(file_path, raw=False):
 
     # Check if ffprobe is available
     try:
-        subprocess.run(["ffprobe", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            ["ffprobe", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+        )
     except (subprocess.SubprocessError, FileNotFoundError):
         raise RuntimeError("ffprobe is not installed or not found in system PATH.")
 
-    cmd = [
-        "ffprobe",
-        "-v", "error",
-        "-show_format",
-        "-show_streams",
-        "-of", "json",
-        file_path
-    ]
+    cmd = ["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", file_path]
 
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
     data = json.loads(result.stdout)
-    
+
     if raw:
         return data
-    
+
     # Extract format level details
     fmt = data.get("format", {})
     duration = fmt.get("duration")
     size_bytes = fmt.get("size")
     bitrate = fmt.get("bit_rate")
-    
+
     # Format files size
     size_str = format_size(size_bytes) if size_bytes else "Unknown"
-    
+
     # Parse duration
     try:
         duration_val = float(duration) if duration else 0.0
@@ -103,7 +101,7 @@ def inspect_video(file_path, raw=False):
         codec = v.get("codec_name", "Unknown").upper()
         r_fps = parse_fps(v.get("r_frame_rate"))
         avg_fps = parse_fps(v.get("avg_frame_rate"))
-        
+
         # Prefer r_frame_rate but fallback to avg
         fps = r_fps if r_fps != "0 fps" and r_fps != "Unknown" else avg_fps
 
@@ -113,7 +111,7 @@ def inspect_video(file_path, raw=False):
             "height": height,
             "fps": fps,
             "codec": codec,
-            "duration": v.get("duration")
+            "duration": v.get("duration"),
         }
 
     audio_info = {}
@@ -124,11 +122,7 @@ def inspect_video(file_path, raw=False):
         sample_rate = a.get("sample_rate")
         sample_rate_khz = f"{float(sample_rate)/1000:.1f} kHz" if sample_rate else "Unknown"
 
-        audio_info = {
-            "codec": codec,
-            "channels": channels,
-            "sample_rate": sample_rate_khz
-        }
+        audio_info = {"codec": codec, "channels": channels, "sample_rate": sample_rate_khz}
 
     return {
         "file_name": os.path.basename(file_path),
@@ -140,8 +134,9 @@ def inspect_video(file_path, raw=False):
         "has_video": has_video,
         "video": video_info,
         "has_audio": has_audio,
-        "audio": audio_info
+        "audio": audio_info,
     }
+
 
 def print_terminal_report(info):
     """Prints an aligned terminal report."""
@@ -150,7 +145,7 @@ def print_terminal_report(info):
     print(f"File Size   : {info['file_size']}")
     print(f"Duration    : {info['duration']}")
     print(f"Bitrate     : {info['bitrate']}")
-    
+
     print("\nVideo Stream Details:")
     if info["has_video"]:
         v = info["video"]
@@ -171,8 +166,11 @@ def print_terminal_report(info):
         print("  * Status     : No Audio Stream Present")
     print()
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Inspect video details (duration, frame rate, resolution, audio presence) using ffprobe.")
+    parser = argparse.ArgumentParser(
+        description="Inspect video details (duration, frame rate, resolution, audio presence) using ffprobe."
+    )
     parser.add_argument("file", help="Path to the video file to inspect")
     parser.add_argument("--json", action="store_true", help="Output parsed summary in JSON format")
     parser.add_argument("--raw", action="store_true", help="Output raw unmodified ffprobe JSON data")
@@ -192,6 +190,7 @@ def main():
     except Exception as e:
         print(f"Error inspecting video: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
