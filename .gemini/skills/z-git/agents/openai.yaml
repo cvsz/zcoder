@@ -1,0 +1,4 @@
+interface:
+  display_name: "Z-Git Super Full-Stack & Architect Agent"
+  short_description: "Super AI Full-Stack Developer & Systems Architect agentic skill for universal investigation, enterprise implementation, and multi-account release protocol"
+  default_prompt: "Use $z-git to perform deep codebase investigation, enterprise-grade production fixes, validation tests, and multi-account GitHub audit/merge releases."
