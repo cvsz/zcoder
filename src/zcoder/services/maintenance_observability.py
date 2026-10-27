@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from enum import Enum
 from typing import Any, Protocol
 
+from zcoder.core.enums import StringEnum
 
-class MaintenanceCampaignEventType(str, Enum):
+
+class MaintenanceCampaignEventType(StringEnum):
     """Finite lifecycle events emitted by one bounded maintenance campaign."""
 
     STARTED = "campaign.started"

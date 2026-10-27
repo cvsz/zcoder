@@ -11,10 +11,14 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
+yaml: ModuleType | None
 try:
-    import yaml  # type: ignore
+    import yaml as _yaml
+
+    yaml = _yaml
 except ImportError:
     yaml = None
 

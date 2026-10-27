@@ -20,7 +20,8 @@ class MessagingCapability(Protocol):
         prompt: str,
         tools: list[dict[str, Any]],
         system: str | None = None,
-        **kwargs: Any,
+        *,
+        verbose: bool = True,
     ) -> dict[str, Any]: ...
 
 

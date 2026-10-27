@@ -99,7 +99,8 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from zcoder.core.resilience import safe_urlopen
 
@@ -318,7 +319,7 @@ class AdminApiClient:
         string in minor units (cents), per the API's convention.
         `suppress_notification` is only sent when True (omitted
         otherwise) — by default Anthropic emails the member."""
-        payload = {"user_id": user_id, "amount": amount}
+        payload: dict[str, Any] = {"user_id": user_id, "amount": amount}
         if suppress_notification:
             payload["suppress_notification"] = True
         return self._post("/spend_limits", payload)
@@ -342,7 +343,7 @@ class AdminApiClient:
         """List spend limit increase requests, most recent first. `status`
         filters by one or more of pending/approved/denied; `actor_ids`
         filters to specific requesters."""
-        params = {"limit": limit, "page": page}
+        params: dict[str, Any] = {"limit": limit, "page": page}
         if status:
             params["status[]"] = status
         if actor_ids:
@@ -433,7 +434,7 @@ class AdminApiClient:
         given, additionally requires the caller's key to carry
         write:rbac_groups (group assignment can grant that group's
         role permissions) — the API enforces this, not this client."""
-        payload = {"email": email, "role": role}
+        payload: dict[str, Any] = {"email": email, "role": role}
         if rbac_group_ids:
             payload["rbac_group_ids"] = rbac_group_ids
         return self._post("/invites", payload)
@@ -514,7 +515,7 @@ class AdminApiClient:
 
 
 def _default_date_range() -> tuple:
-    end = datetime.now(timezone.utc).date()
+    end = datetime.now(UTC).date()
     start = end - timedelta(days=30)
     return start.isoformat(), end.isoformat()
 

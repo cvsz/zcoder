@@ -10,7 +10,7 @@ import json
 import os
 import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECTS_DIR = os.path.expanduser("~/.zcoder/projects")
@@ -20,7 +20,7 @@ PROJECTS_DIR = os.path.expanduser("~/.zcoder/projects")
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _projects_dir() -> Path:
@@ -73,7 +73,7 @@ class Task:
         description: str = "",
         agent: str = "",
         priority: str = "medium",
-        task_id: str = None,
+        task_id: str | None = None,
     ):
         self.id = task_id or str(uuid.uuid4())[:8]
         self.title = title

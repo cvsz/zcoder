@@ -21,6 +21,11 @@ class EngineeringStore(ABC):
         pass
 
     @abstractmethod
+    def claim_task(self) -> EngineeringTask | None:
+        """Atomically claim the next task available for execution."""
+        pass
+
+    @abstractmethod
     def create_attempt(self, attempt: Attempt) -> None:
         """Create a new execution attempt."""
         pass

@@ -11,9 +11,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 
-import anthropic
-
 from zcoder.core.outbound_security import safe_external_urlopen
+from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.resilience import raise_for_http_error, retry
 from zcoder.core.utils import sampling_kwargs
 
@@ -55,7 +54,7 @@ class Report:
 
 class DeepResearchAgent:
     def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key)
         self.model = model
 
     def _call(self, system: str, user: str, max_tokens: int = 2048) -> str:

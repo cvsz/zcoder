@@ -25,97 +25,45 @@ CLI flags:
 """
 
 import json
-import urllib.error
-import urllib.request
 from pathlib import Path
 
-from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
-
-_breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
+from zcoder.services.coder import Coder
 
 
 class StructuredCoder:
-    """Claude client for structured / JSON outputs."""
-
-    ENDPOINT = "https://api.anthropic.com/v1/messages"
+    """Local model client for structured JSON outputs."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
-        self.api_key = api_key
+        # `api_key` stays in the constructor for source compatibility. Local
+        # inference does not read or transmit it.
+        self.api_key = ""
         self.model = model
         self.max_tokens = max_tokens
 
-    @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, payload: dict) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            self.ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
+    def _generate_json(self, prompt: str, system: str | None = None) -> dict:
+        result = Coder(model=self.model, max_tokens=self.max_tokens).generate(
+            prompt,
+            system=(system or "") + "\nReturn only one valid JSON object. Do not use markdown fences.",
         )
-        return urlopen_json(req, timeout=120)
-
-    def _post(self, payload: dict) -> dict:
-        # Preserves the pre-existing {"error": ...} contract callers below
-        # already check for, while retrying transient failures in _call().
-        try:
-            return self._call(payload)
-        except ZCoderError as e:
-            return {"error": e.message, "status": getattr(e, "status_code", None)}
-        except Exception as e:
-            return {"error": str(e)}
+        if not isinstance(result, str) or result.startswith("[ERROR]"):
+            raise RuntimeError(result if isinstance(result, str) else "Local model returned no text")
+        return json.loads(result)
 
     # ── JSON object mode ──────────────────────────────────────────────────
 
     def json_object(self, prompt: str, system: str | None = None) -> dict:
         """Return any valid JSON object. No schema enforcement."""
-        payload = {
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "output_config": {"format": {"type": "json_object"}},
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system:
-            payload["system"] = system
-
-        data = self._post(payload)
-        if "error" in data:
-            raise RuntimeError(data["error"])
-        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-        return json.loads(text)
+        return self._generate_json(prompt, system)
 
     # ── JSON schema mode ──────────────────────────────────────────────────
 
     def json_schema(self, prompt: str, schema: dict, name: str = "output", system: str | None = None) -> dict:
         """Return JSON validated against a JSON Schema."""
-        payload = {
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "output_config": {
-                "format": {
-                    "type": "json_schema",
-                    "name": name,
-                    "schema": schema,
-                    "strict": True,
-                }
-            },
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system:
-            payload["system"] = system
-
-        data = self._post(payload)
-        if "error" in data:
-            raise RuntimeError(data["error"])
-
-        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-        parsed = json.loads(text)
-        # Client-side schema validation (lightweight)
+        schema_prompt = (
+            f"Return JSON conforming exactly to this JSON Schema named {name}:\n"
+            f"{json.dumps(schema, ensure_ascii=False)}\n\n{prompt}"
+        )
+        parsed = self._generate_json(schema_prompt, system)
         self._validate(parsed, schema)
         return parsed
 
@@ -188,8 +136,8 @@ def cmd_structured(
     prompt: str,
     api_key: str,
     model: str,
-    schema_path: str = None,
-    schema_inline: str = None,
+    schema_path: str | None = None,
+    schema_inline: str | None = None,
     pretty: bool = True,
 ) -> dict:
     sc = StructuredCoder(api_key=api_key, model=model)

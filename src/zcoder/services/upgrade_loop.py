@@ -7,7 +7,6 @@ retry budgets, regression guards, idempotency, and checkpointing.
 
 from __future__ import annotations
 
-import enum
 import hashlib
 import json
 import time
@@ -16,8 +15,10 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 
-class WorkKind(str, enum.Enum):
+
+class WorkKind(StringEnum):
     """Kinds of work the continuous loop can schedule."""
 
     UPGRADE = "UPGRADE"
@@ -26,7 +27,7 @@ class WorkKind(str, enum.Enum):
     REPAIR = "REPAIR"
 
 
-class WorkState(str, enum.Enum):
+class WorkState(StringEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     VALIDATING = "VALIDATING"
@@ -34,7 +35,7 @@ class WorkState(str, enum.Enum):
     BLOCKED = "BLOCKED"
 
 
-class LoopState(str, enum.Enum):
+class LoopState(StringEnum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     HALTED = "HALTED"
@@ -206,14 +207,16 @@ class ContinuousUpgradeLoop:
                 halt_reason = f"discovery_error:{type(exc).__name__}"
                 break
 
-            item = self._next_pending()
-            if item is None:
+            candidate = self._next_pending()
+            if candidate is None:
                 if blocked:
                     final_state = LoopState.HALTED
                     halt_reason = "blocked_work_remaining"
                 else:
                     final_state = LoopState.COMPLETED
                 break
+
+            item = candidate
 
             item.state = WorkState.RUNNING
             item.attempts += 1

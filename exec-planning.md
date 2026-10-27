@@ -1,13 +1,44 @@
 # zcoder Production Readiness & Execution Planning
 
 **Document Status:** ACTIVE // CANONICAL EXECUTION PLAN  
-**Current Baseline:** `main@9cff601` (closure docs + migration evidence + release scripts; descends from `2ec89ce` py310 drop)  
-**Last Updated:** 2026-08-22  
+**Current Baseline:** `main@4d2ed5f` (2026-10-25 audit snapshot; uncommitted worktree changes are not qualified)
+**Last Updated:** 2026-10-25
 **Scope:** Drive `cvsz/zcoder` from the verified Clean Architecture baseline to enterprise-grade-ready, production-grade-ready final release while preserving Upgrade-20/24 bounded execution, provider-neutral model routing, security gates, test/coverage thresholds, exact-head hosted verification, and rollback-safe delivery.
 
 ---
 
 ## 1. Executive State
+
+### Current audit snapshot (2026-10-25)
+
+- The repository HEAD before this work is `4d2ed5f`; the v1.42.0 local
+  reconciliation changes are uncommitted and are not a release candidate.
+- `pyproject.toml` requires Python `>=3.12`; CI currently tests Python 3.12
+  and 3.13. Current README and GitHub workflow guidance now match that policy.
+- The full suite on the current worktree passed 1,531 tests; 28
+  PostgreSQL-dependent tests were skipped because the service was unavailable.
+- Package wheel build and Docker build passed; the image reports version
+  `1.42.0`. `uv lock --check`, `pip check`, Ruff, Black, Bandit, and
+  `pip-audit` passed.
+- Mypy reports 499 errors across 45 source files. Static scans still find
+  Anthropic SDK/endpoint references in 28 source modules; local-only coverage
+  is therefore incomplete. A real CPU generation against
+  `/home/cvsz/zgpu/qwen-7b-q4km.gguf` returned `LOCAL_OK` through loopback;
+  other models and task-quality acceptance remain unverified.
+- GitHub main protection is enabled with strict status checks and one required
+  approval, but its required test contexts still include Python 3.10 and 3.11.
+  The local CI matrix now emits Python 3.12 and 3.13. Local `main` is 10
+  commits ahead of `origin/main`; repository settings and remote workflow
+  definitions still need a coordinated update before delivery.
+- `scripts/release_gate.py --check` is **NOT QUALIFIED**: exact-candidate
+  version and test evidence, security evidence, PITR evidence, and the final
+  gate are UNKNOWN. Existing PASS rows are not release approval.
+- The local-model migration is incomplete. A 2026-10-25 static scan found
+  direct Anthropic SDK or endpoint references in 28 source modules. The
+  `--live` path was migrated to loopback; the remaining call paths require
+  behavior-level review and migration or explicit local-mode rejection. The
+  CLI now fails closed for the audited direct-provider command set when its
+  resolved model endpoint is local.
 
 The repository has completed the Upgrade-01..25 foundation, durable engineering runtime, bounded continuous engineering loop, canonical `src/zcoder` migration, service/infrastructure architecture hardening, and the first six confirmed AI-agent security remediation slices (SEC-001..006, SEC-OUTPUT).
 
@@ -44,7 +75,7 @@ Implementation is not completion. A slice is complete only when its exact PR hea
 - Domain/application dependency direction is guarded by architecture tests.
 - Upgrade-20 remains task-level engineering authority; Upgrade-24 owns bounded queue policy; durable continuous engineering composes persistence, leases, fencing, and runtime around them.
 - SQLite/PostgreSQL durable engineering state, cross-process run leases, fencing, restart/idempotency, and maintenance orchestration are implemented.
-- CI supports Python 3.10, 3.11, and 3.12 plus Ruff, Black, Bandit/security, Docker, CodeQL, Dependency Review, Helm, Release Gate, and SDK/TypeScript validation (3.9 dropped in `2ec89ce` — `pytest 9.1.1`/`black 26.5.1`/`starlette 1.6.0`/`python-dotenv 1.2.3` require `>=3.10`).
+- CI supports Python 3.12 and 3.13 plus Ruff, Black, Bandit/security, Docker, CodeQL, Dependency Review, Helm, Release Gate, and SDK/TypeScript validation. Historical migration records below retain the older Python matrices they describe.
 - Local/offline/no-cost operation remains a first-class path; paid-provider fallback must never be implicit.
 - CodeAgent filesystem access now uses the centralized canonical containment primitive for `Read`, `Write`, `Edit`, `Glob`, `Grep`, and `LS`.
 - API server default bind is loopback-safe (`127.0.0.1`) while preserving explicit operator override through configuration.

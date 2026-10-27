@@ -1,0 +1,10 @@
+# U66 — Pricing and cost engine
+Priority: P1. Size: M. Depends on: U63.
+
+Facts: Opus 5.5 $4/$20 per MTok (Opus 5 $5/$25). Fable 5.1 and Mythos 5.1 $10/$50 with cache reads $0.25 (0.025x base input). Sonnet 5.5 cache reads cut to $0.10 (0.05x base) on 2026-10-07; writes unchanged. Sonnet 5 $2/$10 is the permanent standard price (2026-08-10). Other models: cache read 0.1x. `inference_geo` "us" costs 1.1x for models released after 2026-02-01. Refusals before output are billable again for bio / frontier_llm / reasoning_extraction. Fast mode carries premium pricing. Usage tiers consolidated to Start / Build / Scale. Newer tokenizer yields ~30% more tokens for the same text on Opus 4.7+ era models; use the token counting API for real numbers.
+
+Requirements:
+- per-model cache-read multiplier in the catalog; estimator uses it; tests per model.
+- model refusal billing and `usage.speed` into estimates; inference-geo multiplier gated by model release date.
+- `--estimate` shows tokenizer caveat and marks figures UNVERIFIED when from static tables.
+- no price literals outside the catalog.

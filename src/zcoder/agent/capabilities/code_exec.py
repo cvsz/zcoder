@@ -100,7 +100,7 @@ class CodeExecutionCoder:
         self,
         prompt: str,
         system: str | None = None,
-        file_ids: list[str] = None,
+        file_ids: list[str] | None = None,
         output_dir: str | None = None,
     ) -> dict:
         """
@@ -220,8 +220,8 @@ def cmd_code_exec(
     prompt: str,
     api_key: str,
     model: str,
-    file_ids: list[str] = None,
-    output_dir: str = None,
+    file_ids: list[str] | None = None,
+    output_dir: str | None = None,
     code_exec_version: str = DEFAULT_CODE_EXEC_VERSION,
 ):
     print("\033[94mℹ Code Execution Tool (Anthropic sandbox)\033[0m\n")

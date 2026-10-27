@@ -64,6 +64,7 @@ CLI flags:
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from zcoder.agent.models.registry import (
     FAST_MODE_SUPPORTED,
@@ -92,7 +93,7 @@ OPUS5_EFFORT_LEVELS = list(OPUS5_EFFORT_BUDGETS.keys())
 # Effort levels at which thinking MAY be disabled. xhigh/max + disabled = 400.
 OPUS5_THINKING_DISABLE_ALLOWED = {"low", "medium", "high"}
 
-OPUS5_INFO = {
+OPUS5_INFO: dict[str, Any] = {
     "display_name": "Claude Opus 5",
     "tier": "current",
     "launched": "2026-07-24",

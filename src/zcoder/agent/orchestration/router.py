@@ -7,7 +7,7 @@ by asking a lightweight classifier call first, then forwarding to the
 winner. Supports fallback chains and parallel fan-out.
 
 Provider neutrality (Slice E):
-  --provider / ZCODER_PROVIDER selects the gateway (anthropic|gemini|xai|ollama|local)
+  --provider / ZCODER_PROVIDER selects a registered gateway
   --base-url / ZCODER_BASE_URL / OLLAMA_BASE_URL overrides the default gateway
   --api-key  / provider-specific env vars supply the credential
   local provider requires no network and returns a stub response.
@@ -18,7 +18,7 @@ CLI flags:
   --route-parallel        Fan-out to ALL agents and return the best answer
   --route-add-agent NAME  Register a custom agent description in the routing table
   --route-list            List all agents in the routing table
-  --provider NAME         Gateway provider (anthropic|gemini|xai|ollama|local)
+  --provider NAME         Gateway provider (see --help)
   --base-url URL          Override the provider gateway base URL
 """
 
@@ -33,9 +33,6 @@ from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 from zcoder.core.utils import sampling_kwargs
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
-
-# Kept for backward compatibility; new code should resolve via providers module.
-ENDPOINT = "https://api.anthropic.com/v1/messages"
 
 # ── Built-in routing table ──────────────────────────────────────────────────
 DEFAULT_ROUTING_TABLE = {
@@ -75,11 +72,30 @@ def _call(
 ) -> dict:
     prov, url, key = _resolve_provider_kwargs(provider, base_url, api_key, model)
     if prov == "local":
-        return {"text": "[local mode] No upstream call — local stub response."}
-    mdl = model or "claude-sonnet-5"
+        local_messages = list(payload.get("messages") or [])
+        local_system = payload.get("system")
+        if local_messages and local_messages[0].get("role") == "system":
+            local_system = local_system or local_messages.pop(0).get("content")
+        local_prompt = local_messages.pop().get("content", "") if local_messages else ""
+        local_history = local_messages
+        from zcoder.services.coder import Coder
+
+        coder = Coder(
+            model=model or payload.get("model"),
+            temperature=float(payload.get("temperature", 0.3)),
+            max_tokens=int(payload.get("max_tokens", 4096)),
+            provider="local",
+            base_url=url or None,
+        )
+        return {
+            "text": coder.generate(local_prompt, system=local_system, history=local_history),
+            "_provider": prov,
+        }
+    if prov in {"groq", "openrouter", "cerebras"} and not key:
+        raise ValueError(f"{prov} requires an API key; check the provider-specific environment variable")
+    mdl = model or "zqwen2.5-coder-7b-instruct-q4_k_m"
     # Build provider-specific request
-    # payload is the Anthropic-shaped dict produced by callers; decompose it
-    # into normalized fields so the provider adapter can translate.
+    # Decompose the router payload into normalized fields for the adapter.
     messages: list[dict] = list(payload.get("messages") or [])
     system: str | None = payload.get("system")
     max_tokens: int = int(payload.get("max_tokens", 4096))
@@ -94,10 +110,7 @@ def _call(
         method="POST",
     )
     raw = urlopen_json(req, timeout=60)
-    # Normalize provider responses to an Anthropic-shaped dict so downstream
-    # _text/parse logic keeps working; also stash the raw provider payload.
-    if prov == "anthropic":
-        return raw
+    # Normalize provider responses for downstream router parsing.
     text = providers.parse_response(prov, raw)
     return {"content": [{"type": "text", "text": text}], "_provider": prov, "_raw": raw}
 

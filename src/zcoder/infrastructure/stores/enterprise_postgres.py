@@ -64,9 +64,11 @@ END $$;
 
 -- Application role: used by normal API/worker connections.
 -- MUST NOT have BYPASSRLS. MUST NOT own tables created with FORCE ROW LEVEL SECURITY.
+-- Provision authentication separately through the deployment secret manager.
+-- This role intentionally has no password set by repository DDL.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'zcoder_app') THEN
-    CREATE ROLE zcoder_app LOGIN PASSWORD 'zcoder_app_placeholder';
+    CREATE ROLE zcoder_app LOGIN;
   END IF;
 END $$;
 
@@ -148,7 +150,7 @@ CREATE TABLE IF NOT EXISTS tenant_jobs (
     workspace TEXT NOT NULL DEFAULT '.',
     created_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
     updated_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
-    model TEXT NOT NULL DEFAULT 'claude-sonnet-5',
+    model TEXT NOT NULL DEFAULT 'zqwen2.5-coder-7b-instruct-q4_k_m',
     budget_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
     claimed_by TEXT,
@@ -908,38 +910,56 @@ class EnterprisePostgresStore:
                 )
 
     def authenticate_api_key(self, raw_key: str) -> RequestContext | None:
-        (
-            raw_key.split("_")[0] + "_" + raw_key.split("_")[1] + "_" + raw_key.split("_")[2]
-            if raw_key.count("_") >= 2
-            else ""
-        )
+        parts = raw_key.split("_")
+        org_prefix = parts[1] if len(parts) > 1 else ""
         secret_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
         with self._raw_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
-                    SELECT id, organization_id, project_id, principal_id, scopes, status, expires_at
-                    FROM api_keys
-                    WHERE secret_hash = %s AND status = 'ACTIVE'
-                    """,
-                    (secret_hash,),
+                    "SELECT id FROM organizations WHERE id LIKE %s",
+                    (org_prefix + "%",),
                 )
-                row = cur.fetchone()
-        if not row:
-            return None
+                org_rows = cur.fetchall()
 
-        key_id, org_id, proj_id, principal_id, scopes, status, expires_at = row
-        if expires_at and time.time() > expires_at:
-            return None
+        candidate_orgs = [row[0] for row in org_rows]
+        if not candidate_orgs:
+            with self._raw_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM organizations")
+                    org_rows = cur.fetchall()
+            candidate_orgs = [row[0] for row in org_rows]
 
-        scopes if isinstance(scopes, list) else json.loads(scopes)
-        return RequestContext(
-            principal_id=principal_id,
-            organization_id=org_id,
-            project_id=proj_id,
-            role=EnterpriseRole.OPERATOR,
-            authentication_method="apikey",
-        )
+        for org_id in candidate_orgs:
+            ctx = RequestContext(principal_id="auth_probe", organization_id=org_id)
+            try:
+                with self.scoped_conn(ctx) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            SELECT id, organization_id, project_id, principal_id, scopes, status, expires_at
+                            FROM api_keys
+                            WHERE secret_hash = %s AND status = 'ACTIVE'
+                            """,
+                            (secret_hash,),
+                        )
+                        row = cur.fetchone()
+                if row:
+                    key_id, org_id_res, proj_id, principal_id, scopes, status, expires_at = row
+                    if expires_at and time.time() > expires_at:
+                        return None
+                    scopes if isinstance(scopes, list) else json.loads(scopes)
+                    return RequestContext(
+                        principal_id=principal_id,
+                        organization_id=org_id_res,
+                        project_id=proj_id,
+                        role=EnterpriseRole.OPERATOR,
+                        authentication_method="apikey",
+                    )
+            except Exception:
+                continue
+
+        return None
 
     # ─── Metering, Quotas & Atomic Reservations ──────────────────────────
 
@@ -1017,7 +1037,8 @@ class EnterprisePostgresStore:
     # ─── Audit Logging & Export ──────────────────────────────────────────
 
     def record_audit_event(self, event: EnterpriseAuditEvent) -> None:
-        with self._raw_conn() as conn:
+        ctx = RequestContext(principal_id="system", organization_id=event.organization_id)
+        with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -1039,7 +1060,6 @@ class EnterprisePostgresStore:
                         event.schema_version,
                     ),
                 )
-            conn.commit()
 
     def export_audit_log(self, ctx: RequestContext, limit: int = 100) -> list[dict[str, Any]]:
         ctx.require_permission("audit.export")

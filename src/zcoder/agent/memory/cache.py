@@ -53,6 +53,7 @@ Mid-conversation system messages vs. the top-level `system` field:
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -243,8 +244,8 @@ class CachingCoder:
         self,
         prompt: str,
         system: str | None = None,
-        cached_docs: list[str] = None,
-        history: list[dict] = None,
+        cached_docs: list[str] | None = None,
+        history: list[dict[str, Any]] | None = None,
         diagnose: bool = False,
         mid_system: str | None = None,
     ) -> str:
@@ -319,7 +320,7 @@ class CachingCoder:
 
     # ── Cache pre-warming ──────────────────────────────────────────────────
 
-    def warm_cache(self, system: str = None, docs: list[str] = None) -> dict:
+    def warm_cache(self, system: str | None = None, docs: list[str] | None = None) -> dict:
         """
         Pre-warm cache by sending a max_tokens=0 request.
         No output is produced and no output tokens are billed.
@@ -403,7 +404,7 @@ class CachingCoder:
                 f"{sorted(MID_SYSTEM_SUPPORTED_MODELS)}; got {self.model!r}."
             )
 
-        messages = []
+        messages: list[dict[str, Any]] = []
         responses = []
         mid_system_updates = mid_system_updates or {}
 
@@ -412,7 +413,7 @@ class CachingCoder:
             if messages:
                 # Add cache_control to last message
                 last = dict(messages[-1])
-                content = last.get("content", "")
+                content: Any = last.get("content", "")
                 if isinstance(content, str):
                     content = [{"type": "text", "text": content}]
                 if content:
@@ -488,8 +489,8 @@ def cmd_cache_generate(
     prompt: str,
     api_key: str,
     model: str,
-    system: str = None,
-    docs: list[str] = None,
+    system: str | None = None,
+    docs: list[str] | None = None,
     ttl: str = "5m",
     show_stats: bool = True,
     diagnose: bool = False,
@@ -507,9 +508,9 @@ def cmd_cache_multi_turn(
     turns: list[str],
     api_key: str,
     model: str,
-    system: str = None,
+    system: str | None = None,
     ttl: str = "5m",
-    mid_system: str = None,
+    mid_system: str | None = None,
     mid_system_after: int = 0,
     show_stats: bool = True,
 ) -> list[str]:
@@ -543,7 +544,11 @@ def cmd_cache_multi_turn(
 
 
 def cmd_cache_warm(
-    api_key: str, model: str, system: str = None, doc_files: list[str] = None, ttl: str = "5m"
+    api_key: str,
+    model: str,
+    system: str | None = None,
+    doc_files: list[str] | None = None,
+    ttl: str = "5m",
 ):
     print(f"\033[94mℹ Pre-warming cache (TTL={ttl})…\033[0m")
     docs = []

@@ -123,13 +123,17 @@ See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอีย�
 
 ### ตrequirements
 
-- Python 3.10+
-- The local `--pptx` integration requires Python 3.11+ because its Pillow dependency is pinned to the security-fixed release line. Use `--pptx-native` on Python 3.10 for the Anthropic-managed PPTX path.
+- Python 3.12+
+- The local `--pptx` integration is supported on Python 3.12+. `--pptx-native` avoids local PPTX conversion dependencies but does not lower the project minimum Python version.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
 
 ### Installation
+
+For custom installation paths and platform-specific standalone builds, see the [Portable Installation Guide](docs/guides/PORTABLE-INSTALL.md).
+
+**Runtime requirement:** Python 3.12 or newer is required for the security-patched dependency set.
 
 ```bash
 git clone https://github.com/cvsz/zcoder.git

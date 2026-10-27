@@ -1,5 +1,41 @@
 # CHECKLIST.md
 
+## v1.60.0 — Model catalog migration
+
+- [x] Extracted and verified the supplied archive without replacing the
+  canonical modular repository.
+- [x] Added current 5.5-generation model metadata, upgrade target choices,
+  and explicit Haiku 5.5 variable pricing.
+- [x] Kept inference local-only; no hosted-model call is enabled by the
+  catalog update.
+- [x] Added catalog and dry-run upgrade-target tests.
+- [x] Extended local-mode egress protection to the hosted model API domains
+  present in the repository; focused regression suite passes.
+- [x] Full PostgreSQL-backed suite passes: 1,637 tests; Ruff, Black, mypy,
+  Bandit, actionlint, locked dependency audit, wheel build, and Docker build
+  pass.
+- [x] Updated the Black lock entry and pinned Docker build tool after
+  reviewing upstream security advisories; locked dependency audit found no
+  known vulnerabilities.
+- [ ] Full release qualification remains pending; see the current release
+  gate report and exact-candidate requirements.
+
+## v1.42.0 — U61 local lineage reconciliation
+
+- [x] Canonical tree decision and archive comparison recorded in
+  `docs/upgrades/55_lineage_reconciliation_v1.42.0.md`.
+- [x] `pyproject.toml` is the runtime version source.
+- [x] Local plugin validation CLI wired to existing validator.
+- [x] Anthropic catalog and remote Compliance API additions excluded per
+  local-only scope.
+- [x] Post-advisor-migration full suite: 1,531 passed, 28 PostgreSQL-dependent skips; focused tests, stress-stable TUI generation test, Ruff, Black, Bandit, `pip-audit`, `pip check`, wheel/Docker build, `uv lock --check`, and package metadata checks passed.
+- [ ] Production release gate: `VERSION_INTEGRITY`, `TEST_ACCOUNTING`,
+  `PITR`, `SECURITY`, and `FINAL` remain UNKNOWN for this uncommitted candidate.
+- [ ] Type-check remediation: mypy reports 499 errors across 45 files; the CLI entry point passes an isolated mypy check.
+- [ ] Local-only migration: 28 source modules still reference Anthropic SDK or endpoints. Audited provider-specific CLI requests fail closed in local mode; `--advisor` now uses local two-pass generation. One real CPU inference against `qwen-7b-q4km.gguf` returned `LOCAL_OK`; other models, hardware, and task-quality acceptance remain unverified.
+- [ ] GitHub delivery alignment: protection requires Python 3.10/3.11 checks, while local CI emits 3.12/3.13; update repository settings together with the PR workflow revision.
+- [ ] Hosted exact-head checks, independent review, merge, and post-merge verification remain pending.
+
 **zcoder v1.36.0 — Roadmap Execution Checklist**
 Derived from `ROADMAP.md` Part 2 (Gap Audit vs. `platform.claude.com/docs`,
 originally checked 2026-07-04, kept current through the v1.33.0 cycle

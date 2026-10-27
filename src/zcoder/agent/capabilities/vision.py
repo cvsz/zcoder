@@ -18,7 +18,7 @@ import mimetypes
 import sys
 from pathlib import Path
 
-import anthropic
+from zcoder.core.provider_policy import create_anthropic_client
 
 SUPPORTED_IMAGE_TYPES = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 SUPPORTED_DOC_TYPES = {".pdf"}
@@ -43,9 +43,11 @@ def _encode_file(path: str) -> tuple[str, str]:
     return data, mt
 
 
-def _image_block(path: str = None, url: str = None) -> dict:
+def _image_block(path: str | None = None, url: str | None = None) -> dict:
     if url:
         return {"type": "image", "source": {"type": "url", "url": url}}
+    if path is None:
+        raise ValueError("Provide an image path or URL")
     data, mt = _encode_file(path)
     return {"type": "image", "source": {"type": "base64", "media_type": mt, "data": data}}
 
@@ -63,25 +65,29 @@ class VisionCoder:
     """Claude client for image and PDF analysis."""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.client = create_anthropic_client(api_key)
         self.model = model
         self.max_tokens = max_tokens
 
     def analyse_image(
         self,
-        path: str = None,
-        url: str = None,
+        path: str | None = None,
+        url: str | None = None,
         prompt: str = "Describe this image in detail.",
-        system: str = None,
+        system: str | None = None,
     ) -> str:
         content = [_image_block(path=path, url=url), {"type": "text", "text": prompt}]
         return self._call(content, system)
 
-    def analyse_pdf(self, path: str, prompt: str = "Summarise this document.", system: str = None) -> str:
+    def analyse_pdf(
+        self, path: str, prompt: str = "Summarise this document.", system: str | None = None
+    ) -> str:
         content = [_doc_block(path), {"type": "text", "text": prompt}]
         return self._call(content, system)
 
-    def code_from_screenshot(self, path: str = None, url: str = None, language: str = "auto") -> str:
+    def code_from_screenshot(
+        self, path: str | None = None, url: str | None = None, language: str = "auto"
+    ) -> str:
         prompt = (
             f"This is a screenshot of a UI or code. "
             f"Generate {'the ' + language + ' ' if language != 'auto' else ''}code "
@@ -102,13 +108,13 @@ class VisionCoder:
         )
         return self._call(content)
 
-    def extract_text(self, path: str = None, url: str = None) -> str:
+    def extract_text(self, path: str | None = None, url: str | None = None) -> str:
         """OCR – extract all text from an image."""
         prompt = "Extract and transcribe ALL text visible in this image. Preserve formatting."
         content = [_image_block(path=path, url=url), {"type": "text", "text": prompt}]
         return self._call(content)
 
-    def _call(self, content: list, system: str = None) -> str:
+    def _call(self, content: list, system: str | None = None) -> str:
         kwargs = dict(
             model=self.model,
             max_tokens=self.max_tokens,

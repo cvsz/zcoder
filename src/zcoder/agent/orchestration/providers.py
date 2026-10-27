@@ -1,12 +1,11 @@
 """
 providers.py — Provider-neutral gateway abstraction for ZCoder
 
-Maps the router (and future CLI capabilities) across Anthropic,
-Gemini, X.AI Grok, local Ollama, and the local-mode stub via an
-explicit provider selection + gateway override contract.
+Maps the multi-agent router across native APIs, OpenAI-compatible hosted
+gateways, local inference servers, and the deterministic offline stub.
 
 Precedence:
-  provider:  --provider > ZCODER_PROVIDER env > ZCODER_LOCAL_MODE=1 > "anthropic"
+  provider:  ZCODER_LOCAL_MODE=1 > --provider > ZCODER_PROVIDER env > "openai_compatible"
   api_key:   --api-key > provider-specific env var(s) > ""
   base_url:  --base-url > ZCODER_BASE_URL env > provider-specific env (OLLAMA_BASE_URL) > provider default
 
@@ -15,9 +14,8 @@ All provider base URLs are scheme-checked (http/https only) via
 Explicit operator-configured gateways are trusted for egress; only
 untrusted model-chosen URLs go through SSRF-aware ``safe_external_urlopen``.
 
-Gemini auth uses ``x-goog-api-key`` header (query-param form is NOT used
-so keys do not leak into URLs/logs). X.AI uses OpenAI-compatible
-``Authorization: Bearer``. Ollama and local require no key.
+Gemini uses ``x-goog-api-key`` without placing secrets in request URLs.
+OpenAI-compatible hosts use bearer tokens; local runtimes may omit keys.
 """
 
 from __future__ import annotations
@@ -25,15 +23,20 @@ from __future__ import annotations
 import os
 import urllib.parse
 
-PROVIDER_CHOICES = ("anthropic", "gemini", "xai", "ollama", "local")
+PROVIDER_CHOICES = (
+    "gemini",
+    "xai",
+    "groq",
+    "openrouter",
+    "cerebras",
+    "openai_compatible",
+    "ollama",
+    "local",
+)
+
+OPENAI_COMPATIBLE_PROVIDERS = frozenset({"xai", "groq", "openrouter", "cerebras", "openai_compatible"})
 
 PROVIDER_DEFAULTS: dict[str, dict] = {
-    "anthropic": {
-        "base_url": "https://api.anthropic.com",
-        "path": "/v1/messages",
-        "env_keys": ("ANTHROPIC_API_KEY",),
-        "auth": "x-api-key",
-    },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com",
         "path": "/v1beta/models/{model}:generateContent",
@@ -44,6 +47,30 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
         "base_url": "https://api.x.ai",
         "path": "/v1/chat/completions",
         "env_keys": ("XAI_API_KEY",),
+        "auth": "bearer",
+    },
+    "groq": {
+        "base_url": "https://api.groq.com",
+        "path": "/openai/v1/chat/completions",
+        "env_keys": ("GROQ_API_KEY",),
+        "auth": "bearer",
+    },
+    "openrouter": {
+        "base_url": "https://openrouter.ai",
+        "path": "/api/v1/chat/completions",
+        "env_keys": ("OPENROUTER_API_KEY",),
+        "auth": "bearer",
+    },
+    "cerebras": {
+        "base_url": "https://api.cerebras.ai",
+        "path": "/v1/chat/completions",
+        "env_keys": ("CEREBRAS_API_KEY",),
+        "auth": "bearer",
+    },
+    "openai_compatible": {
+        "base_url": "",
+        "path": "/chat/completions",
+        "env_keys": ("OPENAI_COMPATIBLE_API_KEY",),
         "auth": "bearer",
     },
     "ollama": {
@@ -62,14 +89,19 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
 
 
 def _validate_base_url(url: str) -> None:
-    scheme = urllib.parse.urlparse(url).scheme.lower()
+    parsed = urllib.parse.urlparse(url)
+    scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError(
             f"Unsupported provider base URL scheme: {scheme or '<missing>'} — expected http or https"
         )
+    if not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("Provider base URL must have a host and no credentials, query, or fragment")
 
 
 def resolve_provider(cli_provider: str | None = None) -> str:
+    if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in ("1", "true", "yes"):
+        return "local"
     if cli_provider and cli_provider.strip():
         p = cli_provider.strip().lower()
         if p not in PROVIDER_CHOICES:
@@ -84,22 +116,17 @@ def resolve_provider(cli_provider: str | None = None) -> str:
                 f"Unknown ZCODER_PROVIDER '{env_provider}' — expected one of {', '.join(PROVIDER_CHOICES)}"
             )
         return env_provider
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in ("1", "true", "yes"):
-        return "local"
-    return "anthropic"
+    return "openai_compatible"
 
 
 def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
+    if provider == "local":
+        return ""
     if cli_key and cli_key.strip():
         return cli_key.strip()
     spec = PROVIDER_DEFAULTS.get(provider, {})
     for env_name in spec.get("env_keys", ()):
         v = os.getenv(env_name, "").strip()
-        if v:
-            return v
-    # generic fallback for anthropic-compatible gateways
-    if provider == "anthropic":
-        v = os.getenv("ANTHROPIC_API_KEY", "").strip()
         if v:
             return v
     return ""
@@ -120,7 +147,10 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
             _validate_base_url(ollama_env)
             return ollama_env
     spec = PROVIDER_DEFAULTS.get(provider, {})
-    return spec.get("base_url", "")
+    default = spec.get("base_url", "")
+    if provider == "openai_compatible" and not default:
+        return "http://127.0.0.1:8080/v1"
+    return default
 
 
 def endpoint_for(provider: str, base_url: str, model: str) -> str:
@@ -130,7 +160,7 @@ def endpoint_for(provider: str, base_url: str, model: str) -> str:
         # Gemini interpolates the model into the path
         path = path_tmpl.format(model=model)
         return f"{base_url}{path}"
-    if provider in ("anthropic", "xai", "ollama"):
+    if provider in ("anthropic", "ollama") or provider in OPENAI_COMPATIBLE_PROVIDERS:
         return f"{base_url}{path_tmpl}"
     # local has no endpoint
     return ""
@@ -172,7 +202,7 @@ def build_payload(
             payload["system"] = system
         payload.update(sampling)
         return payload
-    if provider == "xai":
+    if provider in OPENAI_COMPATIBLE_PROVIDERS:
         xai_messages: list[dict] = []
         if system:
             xai_messages.append({"role": "system", "content": system})
@@ -231,11 +261,15 @@ def build_payload(
 def parse_response(provider: str, data: dict) -> str:
     if provider == "anthropic":
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    if provider == "xai":
+    if provider in OPENAI_COMPATIBLE_PROVIDERS:
         choices = data.get("choices", [])
         if choices:
             msg = choices[0].get("message", {})
-            return msg.get("content", "") or ""
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                return "".join(p.get("text", "") for p in content if isinstance(p, dict))
         return ""
     if provider == "gemini":
         candidates = data.get("candidates", [])

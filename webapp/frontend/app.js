@@ -1,6 +1,6 @@
 const el=(id)=>document.getElementById(id);
 const state={sessionId:null,busy:false,apiBase:"",online:false};
-const ids=["transcript","chatForm","promptInput","sendBtn","modelSelect","personalitySelect","agentSelect","skillSelect","tempRange","tempVal","systemPrompt","apiKeyInput","newSessionBtn","sessionIdTag","healthText","streamToggle","sessionList","sessionCount","connectionPill","connectionLabel","connectionDialog","apiBaseInput","openConnectionBtn","heroConnectBtn","connectionForm","clearApiBtn","themeToggle","modelMetric","agentMetric","skillMetric","versionMetric","pipelineState"];
+const ids=["transcript","chatForm","promptInput","sendBtn","modelSelect","personalitySelect","agentSelect","skillSelect","tempRange","tempVal","systemPrompt","newSessionBtn","sessionIdTag","healthText","streamToggle","sessionList","sessionCount","connectionPill","connectionLabel","connectionDialog","apiBaseInput","openConnectionBtn","heroConnectBtn","connectionForm","clearApiBtn","themeToggle","modelMetric","agentMetric","skillMetric","versionMetric","pipelineState"];
 const ui=Object.fromEntries(ids.map(id=>[id,el(id)]));
 
 function isPages(){return location.hostname.endsWith("github.io")}
@@ -54,7 +54,7 @@ async function loadSession(id){try{const data=await getJSON(`/sessions/${id}`);s
 function newSession(){state.sessionId=null;ui.sessionIdTag.textContent="session:new";ui.transcript.innerHTML='<div class="welcome-card"><span class="mini-mark">Z</span><h3>New engineering session.</h3><p>Choose a configuration and describe the bounded task you want ZCoder to execute.</p></div>';refreshSessions()}
 ui.newSessionBtn.addEventListener("click",newSession);
 
-function payload(){return{prompt:ui.promptInput.value.trim(),session_id:state.sessionId,model:ui.modelSelect.value,temperature:Number(ui.tempRange.value),system:ui.systemPrompt.value.trim()||null,personality:ui.personalitySelect.value||null,agent:ui.agentSelect.value||null,skill:ui.skillSelect.value||null,api_key:ui.apiKeyInput.value||null}}
+function payload(){return{prompt:ui.promptInput.value.trim(),session_id:state.sessionId,model:ui.modelSelect.value,temperature:Number(ui.tempRange.value),system:ui.systemPrompt.value.trim()||null,personality:ui.personalitySelect.value||null,agent:ui.agentSelect.value||null,skill:ui.skillSelect.value||null}}
 async function runNonStreaming(body){const data=await postJSON("/chat",body);state.sessionId=data.session_id;ui.sessionIdTag.textContent=`session:${data.session_id.slice(0,8)}`;addMessage("assistant",data.response,`${data.model} · completed`)}
 async function runStreaming(body){
   const res=await fetch(apiUrl("/chat/stream"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(!res.ok){const data=await res.json().catch(()=>({}));throw new Error(data.detail||`stream → HTTP ${res.status}`)}

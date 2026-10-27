@@ -28,12 +28,13 @@ Evaluates all required gates with real execution evidence:
 from __future__ import annotations
 
 import dataclasses
-import enum
 import time
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 
-class EvidenceLevel(str, enum.Enum):
+
+class EvidenceLevel(StringEnum):
     E0_CODE_EXISTS = "E0"
     E1_UNIT_TESTED = "E1"
     E2_INTEGRATION_TESTED = "E2"
@@ -42,7 +43,7 @@ class EvidenceLevel(str, enum.Enum):
     E5_PRODUCTION_OBSERVED = "E5"
 
 
-class GateVerdict(str, enum.Enum):
+class GateVerdict(StringEnum):
     PASS = "PASS"
     PASS_WITH_LIMITATIONS = "PASS_WITH_LIMITATIONS"
     FAIL = "FAIL"

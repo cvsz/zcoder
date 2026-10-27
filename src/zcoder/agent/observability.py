@@ -14,7 +14,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any
 
-import anthropic
+from zcoder.core.provider_policy import create_anthropic_client
 
 OBS_DIR = Path.home() / ".zcoder" / "observability"
 LOG_FILE = OBS_DIR / "requests.jsonl"
@@ -156,7 +156,7 @@ def error_analysis(api_key: str, model: str, hours: int = 24):
         print("No errors in logs.")
         return
     summary = "\n".join(f"- {e['ts'][:16]} [{e['model']}] {e['error']}" for e in errors[-20:])
-    client = anthropic.Anthropic(api_key=api_key)
+    client = create_anthropic_client(api_key)
     resp = client.messages.create(
         model=model,
         max_tokens=512,

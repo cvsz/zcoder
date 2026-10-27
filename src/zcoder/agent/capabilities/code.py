@@ -1,6 +1,5 @@
 """
-claude_code.py — Claude Code / Agent SDK (all features)
-ZCoder CLI v1.8.0
+Local ZCoder coding agent with Agent SDK-compatible session features.
 
 Implements every Claude Code / Agent SDK feature from docs.claude.com:
 
@@ -65,6 +64,9 @@ PLUGINS
 CLI flags: see main.py --code-agent-*
 """
 
+from __future__ import annotations
+
+import builtins
 import json
 import os
 import subprocess
@@ -76,6 +78,7 @@ from enum import Enum
 from pathlib import Path
 
 from zcoder.agent.optimization.cost import context_window, estimate_cost
+from zcoder.infrastructure.observability.otel import trace_model_call
 
 # ── Storage paths ──────────────────────────────────────────────────────────
 SESSIONS_DIR = Path(os.path.expanduser("~/.zcoder/code_sessions"))
@@ -277,11 +280,11 @@ class CodeSession:
 
     def __init__(
         self,
-        session_id: str = None,
+        session_id: str | None = None,
         cwd: str = ".",
-        model: str = "claude-sonnet-5",
+        model: str = "zqwen2.5-coder-7b-instruct-q4_k_m",
         permission_mode: str = "askPermission",
-        system_prompt: str = None,
+        system_prompt: str | None = None,
         tenant_id: str = "",
     ):
         self.id = session_id or str(uuid.uuid4())[:16]
@@ -304,7 +307,7 @@ class CodeSession:
         self.tenant_id: str = tenant_id
 
     @classmethod
-    def load(cls, session_id: str) -> "CodeSession":
+    def load(cls, session_id: str) -> CodeSession:
         p = SESSIONS_DIR / f"{session_id}.json"
         if not p.exists():
             raise FileNotFoundError(f"Session '{session_id}' not found.")
@@ -317,7 +320,7 @@ class CodeSession:
         self.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
         (SESSIONS_DIR / f"{self.id}.json").write_text(json.dumps(self.__dict__, indent=2))
 
-    def add_turn(self, role: str, content: str, usage: dict = None):
+    def add_turn(self, role: str, content: str, usage: dict | None = None):
         self.turns.append(
             {
                 "role": role,
@@ -329,10 +332,15 @@ class CodeSession:
         if usage:
             self.input_tokens += usage.get("input_tokens", 0)
             self.output_tokens += usage.get("output_tokens", 0)
-            self.cost_usd += estimate_cost(
-                self.model,
-                usage.get("input_tokens", 0),
-                usage.get("output_tokens", 0),
+            self.cost_usd += float(
+                usage.get(
+                    "cost_usd",
+                    estimate_cost(
+                        self.model,
+                        usage.get("input_tokens", 0),
+                        usage.get("output_tokens", 0),
+                    ),
+                )
             )
 
     def add_tool_call(self, name: str, inputs: dict, result: str, approved: bool = True):
@@ -346,7 +354,7 @@ class CodeSession:
             }
         )
 
-    def add_audit(self, event: str, detail: dict = None):
+    def add_audit(self, event: str, detail: dict | None = None):
         self.audit_events.append(
             {
                 "event": event,
@@ -381,7 +389,7 @@ class CodeSession:
         self.checkpoints = [c for c in self.checkpoints if c["turn"] <= turn]
         self.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    def branch(self, checkpoint_id: str, name: str = None) -> "CodeSession":
+    def branch(self, checkpoint_id: str, name: str | None = None) -> CodeSession:
         """Create a new session branched from a checkpoint."""
         cp = self._find_checkpoint(checkpoint_id)
         turn = cp["turn"]
@@ -408,7 +416,13 @@ class CodeSession:
         return branched
 
     def messages(self) -> list[dict]:
-        return [{"role": t["role"], "content": t["content"]} for t in self.turns]
+        messages = []
+        for turn in self.turns:
+            message = {"role": turn["role"], "content": turn["content"]}
+            if turn.get("local_tool_calls"):
+                message["tool_calls"] = turn["local_tool_calls"]
+            messages.append(message)
+        return messages
 
     def cost_summary(self) -> str:
         return (
@@ -455,7 +469,7 @@ class HooksEngine:
       exit 1  → non-blocking warning
     """
 
-    def __init__(self, hooks_config: dict = None):
+    def __init__(self, hooks_config: dict | None = None):
         # hooks_config: {event_name: [{"command": "...", "env": {...}}]}
         raw = hooks_config or {}
         self.config = {}
@@ -466,7 +480,7 @@ class HooksEngine:
             self.config[event] = handlers
 
     @classmethod
-    def from_settings(cls, settings_path: Path = SETTINGS_JSON) -> "HooksEngine":
+    def from_settings(cls, settings_path: Path = SETTINGS_JSON) -> HooksEngine:
         if settings_path.exists():
             try:
                 data = json.loads(settings_path.read_text())
@@ -476,7 +490,7 @@ class HooksEngine:
         return cls()
 
     @classmethod
-    def from_file(cls, hooks_file: str) -> "HooksEngine":
+    def from_file(cls, hooks_file: str) -> HooksEngine:
         try:
             data = json.loads(Path(hooks_file).read_text())
             return cls(data)
@@ -485,7 +499,7 @@ class HooksEngine:
             return cls()
 
     @classmethod
-    def with_plugins(cls, base: "HooksEngine") -> "HooksEngine":
+    def with_plugins(cls, base: HooksEngine) -> HooksEngine:
         """Merge plugin-bundled hooks.json files into an existing engine's config."""
         try:
             from zcoder.agent.tools.plugins import load_plugin_hooks
@@ -598,7 +612,7 @@ class McpConnector:
         self.servers: dict = {}
 
     @classmethod
-    def from_json_file(cls, path: Path = MCP_JSON) -> "McpConnector":
+    def from_json_file(cls, path: Path = MCP_JSON) -> McpConnector:
         mc = cls()
         if path.exists():
             try:
@@ -630,7 +644,7 @@ class McpConnector:
             pass
         return mc
 
-    def add_stdio(self, name: str, command: str, args: list = None, env: dict = None):
+    def add_stdio(self, name: str, command: str, args: list | None = None, env: dict | None = None):
         self.servers[name] = {
             "type": "stdio",
             "command": command,
@@ -638,14 +652,14 @@ class McpConnector:
             "env": env or {},
         }
 
-    def add_http(self, name: str, url: str, headers: dict = None):
+    def add_http(self, name: str, url: str, headers: dict | None = None):
         self.servers[name] = {
             "type": "http",
             "url": url,
             "headers": headers or {},
         }
 
-    def add_sse(self, name: str, url: str, headers: dict = None):
+    def add_sse(self, name: str, url: str, headers: dict | None = None):
         self.servers[name] = {
             "type": "sse",
             "url": url,
@@ -796,7 +810,7 @@ class SubagentRegistry:
     def list(self) -> list:
         return list(self._agents.values())
 
-    def get(self, name: str) -> dict:
+    def get(self, name: str) -> dict | None:
         return self._agents.get(name)
 
     def create(
@@ -837,7 +851,7 @@ class SkillsRegistry:
     """
 
     def __init__(self, skills_dir: Path = SKILLS_DIR):
-        self.dir = skills_dir
+        self.dir = Path(skills_dir).resolve()
         self._skills: dict = {}
 
     @staticmethod
@@ -918,7 +932,7 @@ class SkillsRegistry:
     def list(self) -> list:
         return list(self._skills.values())
 
-    def get(self, name: str) -> dict:
+    def get(self, name: str) -> dict | None:
         return self._skills.get(name)
 
 
@@ -966,7 +980,7 @@ class TodoManager:
     def list(self) -> list:
         return self._todos
 
-    def pending(self) -> list:
+    def pending(self) -> builtins.list[dict]:
         return [t for t in self._todos if t["status"] != "done"]
 
 
@@ -1121,10 +1135,11 @@ class MemoryManager:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# CORE AGENT (Messages API agentic loop)
+# CORE AGENT (loopback OpenAI-compatible tool loop)
 # ══════════════════════════════════════════════════════════════════════════
 
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from zcoder.core.exceptions import ZCoderError
@@ -1134,7 +1149,6 @@ from zcoder.core.resilience import (
     raise_for_http_error,
     retry,
     shell_command_argv,
-    urlopen_json,
 )
 from zcoder.core.security import (
     build_child_env,
@@ -1144,38 +1158,178 @@ from zcoder.core.security import (
     validate_url,
 )
 
-MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 WEBFETCH_MAX_RESPONSE_BYTES = 1_048_576
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
+class _RejectModelRedirects(urllib.request.HTTPRedirectHandler):
+    """Prevent a local inference endpoint from redirecting model traffic."""
+
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
 class CodeAgent:
     """
-    Full Claude Code / Agent SDK implementation using the Messages API.
-    Replicates the Agent SDK's query() loop in pure stdlib Python.
+    Local agentic coding loop using an OpenAI-compatible llama-server endpoint.
     """
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 8192):
-        self.api_key = api_key
+    def __init__(
+        self, api_key: str = "", model: str = "zqwen2.5-coder-7b-instruct-q4_k_m", max_tokens: int = 8192
+    ):
+        # Keep the argument for source compatibility; local inference never
+        # consumes provider credentials.
+        del api_key
         self.model = model
         self.max_tokens = max_tokens
+        self.base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip().rstrip("/")
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict, betas: list | None = None) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
+        del betas  # Provider-specific beta features are not part of local inference.
+        parsed = urllib.parse.urlsplit(self.base_url)
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("ZCODER_BASE_URL must point to a local llama-server on loopback")
+        endpoint_base = self.base_url if parsed.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
+        messages = self._local_messages(payload.get("messages", []))
+        local_payload = {
+            "model": payload.get("model", self.model),
+            "max_tokens": payload.get("max_tokens", self.max_tokens),
+            "messages": messages,
         }
-        if betas:
-            headers["anthropic-beta"] = ",".join(betas)
+        if payload.get("system"):
+            local_payload["messages"].insert(0, {"role": "system", "content": payload["system"]})
+        if payload.get("temperature") is not None:
+            local_payload["temperature"] = payload["temperature"]
+        if payload.get("tools"):
+            local_payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool["name"],
+                        "description": tool.get("description", ""),
+                        "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+                    },
+                }
+                for tool in payload["tools"]
+            ]
         req = urllib.request.Request(
-            MESSAGES_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
+            f"{endpoint_base}/chat/completions",
+            data=json.dumps(local_payload).encode(),
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
             method="POST",
         )
-        return urlopen_json(req, timeout=300)
+        opener = urllib.request.build_opener(_RejectModelRedirects())
+        with trace_model_call(provider="local", model=self.model):
+            with opener.open(req, timeout=300) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+        choices = raw.get("choices") or []
+        if not choices:
+            raise ValueError("Local model returned no completion choices")
+        message = choices[0].get("message") or {}
+        content = message.get("content") or ""
+        if not isinstance(content, str):
+            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        tool_calls = message.get("tool_calls") or []
+        if not tool_calls and payload.get("tools"):
+            tool_calls = self._tool_calls_from_json(content, payload["tools"])
+            if tool_calls:
+                content = ""
+        blocks: list[dict] = [{"type": "text", "text": content}] if content else []
+        for call in tool_calls:
+            function = call.get("function") or {}
+            try:
+                arguments = function.get("arguments", "{}")
+                inputs = json.loads(arguments) if isinstance(arguments, str) else arguments
+            except (TypeError, json.JSONDecodeError):
+                inputs = {}
+            blocks.append(
+                {
+                    "type": "tool_use",
+                    "id": call.get("id", str(uuid.uuid4())),
+                    "name": function.get("name", ""),
+                    "input": inputs if isinstance(inputs, dict) else {},
+                }
+            )
+        raw_usage = raw.get("usage") or {}
+        return {
+            "content": blocks,
+            "stop_reason": "tool_use" if tool_calls else "end_turn",
+            "usage": {
+                "input_tokens": int(raw_usage.get("prompt_tokens", 0)),
+                "output_tokens": int(raw_usage.get("completion_tokens", 0)),
+                "cost_usd": 0.0,
+            },
+            "_local_tool_calls": tool_calls,
+        }
+
+    @staticmethod
+    def _tool_calls_from_json(content: str, tools: list[dict]) -> list[dict]:
+        """Accept a strict JSON tool envelope from local models without native calls."""
+        candidate = content.strip()
+        if candidate.startswith("```") and candidate.endswith("```"):
+            lines = candidate.splitlines()
+            if len(lines) >= 3:
+                candidate = "\n".join(lines[1:-1]).strip()
+        try:
+            value = json.loads(candidate)
+        except (TypeError, json.JSONDecodeError):
+            return []
+        if not isinstance(value, dict):
+            return []
+        name = value.get("name") or value.get("tool")
+        arguments = value.get("arguments", value.get("input"))
+        allowed = {tool.get("name") for tool in tools}
+        if name not in allowed or not isinstance(arguments, dict):
+            return []
+        return [
+            {
+                "id": f"call_{uuid.uuid4().hex}",
+                "type": "function",
+                "function": {"name": name, "arguments": json.dumps(arguments)},
+            }
+        ]
+
+    @staticmethod
+    def _local_messages(messages: list[dict]) -> list[dict]:
+        """Convert stored turns and tool results to local chat protocol messages."""
+        converted = []
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            if role == "assistant" and message.get("tool_calls"):
+                converted.append(
+                    {"role": "assistant", "content": content or None, "tool_calls": message["tool_calls"]}
+                )
+                continue
+            if role == "user" and isinstance(content, str):
+                try:
+                    results = json.loads(content)
+                except json.JSONDecodeError:
+                    results = None
+                if (
+                    isinstance(results, list)
+                    and results
+                    and all(isinstance(item, dict) and item.get("type") == "tool_result" for item in results)
+                ):
+                    converted.extend(
+                        {
+                            "role": "tool",
+                            "tool_call_id": item.get("tool_use_id", ""),
+                            "content": item.get("content", ""),
+                        }
+                        for item in results
+                    )
+                    continue
+            converted.append({"role": role, "content": content})
+        return converted
 
     def _post(self, payload: dict, betas: list | None = None) -> dict:
         try:
@@ -1315,7 +1469,7 @@ class CodeAgent:
         session: CodeSession,
         hooks: HooksEngine,
         permission: str,
-        can_use_tool: Callable = None,
+        can_use_tool: Callable | None = None,
     ) -> str:
         """Execute a tool call with permission checking and hooks."""
 
@@ -1340,7 +1494,7 @@ class CodeAgent:
             if name not in READ_ONLY_TOOLS and name not in FILE_EDIT_TOOLS:
                 permission = "askPermission"
         if permission == "askPermission":
-            if can_use_tool:
+            if can_use_tool is not None:
                 if not can_use_tool(name, inputs):
                     session.add_tool_call(name, inputs, "[DENIED by user]", approved=False)
                     return "[DENIED by user]"
@@ -1482,7 +1636,7 @@ class CodeAgent:
     def compact(
         self,
         session: CodeSession,
-        hooks: "HooksEngine | None" = None,
+        hooks: HooksEngine | None = None,
         instructions: str | None = None,
     ) -> str | None:
         """Summarize the transcript and replace it in place (W1 / Upgrade-56).
@@ -1553,17 +1707,17 @@ class CodeAgent:
         prompt: str,
         session: CodeSession,
         tools: str = "all",
-        allowed: list = None,
-        disallowed: list = None,
+        allowed: list | None = None,
+        disallowed: list | None = None,
         permission: str = "askPermission",
-        hooks: HooksEngine = None,
+        hooks: HooksEngine | None = None,
         max_turns: int = 10,
-        can_use_tool: Callable = None,
+        can_use_tool: Callable | None = None,
         output_mode: str = "stream",
         system_extra: str = "",
         context_management: dict | None = None,
         load_project_memory: bool = True,
-        max_cost_usd: float = None,
+        max_cost_usd: float | None = None,
     ) -> str:
         """
         Full agentic query loop.
@@ -1644,7 +1798,11 @@ class CodeAgent:
                     print(text)
 
             # Update session
-            session.add_turn("assistant", text or "[tool use]", usage)
+            session.add_turn(
+                "assistant", text or ("" if data.get("_local_tool_calls") else "[tool use]"), usage
+            )
+            if data.get("_local_tool_calls"):
+                session.turns[-1]["local_tool_calls"] = data["_local_tool_calls"]
             session.save()
 
             if max_cost_usd is not None and session.cost_usd >= max_cost_usd:
@@ -1767,17 +1925,17 @@ def cmd_code_agent(
     cwd: str = ".",
     tools: str = "all",
     permission: str = "askPermission",
-    session_id: str = None,
-    system: str = None,
-    mcp_urls: list = None,
+    session_id: str | None = None,
+    system: str | None = None,
+    mcp_urls: list | None = None,
     output_mode: str = "stream",
-    hooks_file: str = None,
+    hooks_file: str | None = None,
     checkpoint: bool = False,
-    output_file: str = None,
-    output_style: str = None,
+    output_file: str | None = None,
+    output_style: str | None = None,
     sandbox: bool = False,
     sandbox_allow_net: bool = False,
-    sandbox_roots: list = None,
+    sandbox_roots: list | None = None,
     headless: bool = False,
     agent_context_editing: bool = False,
     load_project_memory: bool = True,
@@ -1920,7 +2078,7 @@ def cmd_code_subagent(
     cwd: str = ".",
     load_project_memory: bool = True,
     max_turns: int = 10,
-    max_cost_usd: float = None,
+    max_cost_usd: float | None = None,
     tenant_id: str = "",
 ):
     """Spawn a focused subagent for a sub-task."""
@@ -2053,6 +2211,7 @@ def cmd_code_slash(
         "mcp",
         "agents",
         "skills",
+        "skill",
         "memory",
         "doctor",
         "plugin",
@@ -2071,20 +2230,15 @@ def cmd_code_slash(
             else:
                 print("  No MCP servers configured. Add to .mcp.json")
         elif cmd == "agents":
-            reg = SubagentRegistry()
-            reg.load()
-            for a in reg.list():
+            subagents = SubagentRegistry()
+            subagents.load()
+            for a in subagents.list():
                 tag = f" [{a['plugin']}]" if a.get("plugin") else ""
                 print(f"  {a['name']}{tag}: {a['description']}")
         elif cmd == "skills":
-            reg = SkillsRegistry()
-            reg.load()
-            for s in reg.list():
-                print(f"  {s['name']} ({s['source']}): {s['description']}")
-        elif cmd == "skills":
-            reg = SkillsRegistry()
-            reg.load()
-            for s in reg.list():
+            skills = SkillsRegistry()
+            skills.load()
+            for s in skills.list():
                 print(f"  {s['name']} ({s['source']}): {s['description']}")
         elif cmd == "skill":
             if not prompt:
@@ -2095,19 +2249,19 @@ def cmd_code_slash(
                 print("Usage: /skill <install|remove|info> <name>")
                 return
             action, name = parts[0], parts[1]
-            reg = SkillsRegistry()
-            reg.load()
+            skills = SkillsRegistry()
+            skills.load()
             if action == "info":
-                skill = reg.get(name)
+                skill = skills.get(name)
                 if not skill:
                     print(f"Skill '{name}' not found")
                     return
                 print(f"Name: {skill['name']}")
                 print(f"Source: {skill['source']}")
                 print(f"Description: {skill['description']}")
-                print(f"Path: {skill['file']}")
+                print(f"Path: {skill['path']}")
             elif action == "remove":
-                skill_path = reg.dir / name / "SKILL.md"
+                skill_path = skills.dir / name / "SKILL.md"
                 if not skill_path.exists():
                     print(f"Skill '{name}' not found")
                     return

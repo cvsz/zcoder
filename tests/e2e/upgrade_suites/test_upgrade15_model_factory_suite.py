@@ -63,14 +63,16 @@ def test_model_acquisition_download_plan_dry_run():
     assert plan["license"] == "Apache-2.0"
 
 
-def test_llamacpp_runtime_adapter():
+def test_llamacpp_runtime_adapter(monkeypatch):
     runtime = LlamaCppRuntime()
+    monkeypatch.setattr(runtime, "is_running", lambda: False)
     models = runtime.list_models()
-    assert len(models) >= 1
-    assert models[0].provider == "llama.cpp"
+    assert models == []
 
-    res = runtime.chat_complete("qwen2.5-coder:7b-gguf", "def subtract(a, b):")
-    assert "LOCAL_LLAMACPP" in res
+    import pytest
+
+    with pytest.raises(RuntimeError, match="llama.cpp inference server is unavailable"):
+        runtime.chat_complete("qwen2.5-coder:7b-gguf", "def subtract(a, b):")
 
 
 def test_hardware_auto_tuner():

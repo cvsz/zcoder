@@ -39,6 +39,7 @@ import math
 import os
 import urllib.error
 import urllib.request
+from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
@@ -144,7 +145,7 @@ class EmbeddingIndex:
         if not self._vecs:
             return []
         [qvec] = embed([query], model=self.model, input_type="query", api_key=self.api_key)
-        scored = [
+        scored: list[dict[str, Any]] = [
             {"id": i, "text": t, "score": cosine_similarity(qvec, v)}
             for i, t, v in zip(self._ids, self._texts, self._vecs, strict=False)
         ]

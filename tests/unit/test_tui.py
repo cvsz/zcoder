@@ -1,56 +1,91 @@
-"""tests/test_tui.py — tui.py (the --tui Textual front end).
+"""Tests for the local llama-server Textual front end."""
 
-Runs Textual's headless test harness (App.run_test()) so no real terminal
-is needed. Every test is skipped, not failed, if `textual` isn't
-installed, matching how tests for other optional-dependency modules
-(claude_excel.py/claude_powerpoint.py) handle the same situation — see
-tests/test_config.py's pattern for the equivalent skip-if-missing idiom.
-"""
+from __future__ import annotations
+
+import asyncio
+import io
+import json
+import types
 
 import pytest
 
-textual = pytest.importorskip("textual", reason="optional dependency for --tui, see requirements.txt")
+pytest.importorskip("textual", reason="optional dependency for --tui")
 
 import zcoder.interfaces.cli.tui as tui  # noqa: E402
 
 
+@pytest.fixture
+def local_server(monkeypatch):
+    """Provide deterministic model discovery and completion responses."""
+    requests = []
+
+    def open_local(request, *, timeout):
+        payload = json.loads(request.data) if request.data else None
+        requests.append((request, payload, timeout))
+        if payload is None:
+            body = {"data": [{"id": "zcoder-qwen2.5-coder-7b"}]}
+        elif payload["stream"]:
+            body = (
+                b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+                b'data: {"choices":[{"delta":{"content":" there"}}]}\n\n'
+                b"data: [DONE]\n\n"
+            )
+            return io.BytesIO(body)
+        else:
+            body = {"choices": [{"message": {"content": "local response"}}]}
+        return io.BytesIO(json.dumps(body).encode("utf-8"))
+
+    monkeypatch.setattr(tui, "_open_local", open_local)
+    return requests
+
+
 @pytest.mark.asyncio
-async def test_compose_builds_sidebar_and_transcript():
-    app = tui.ZCoderTUI(api_key="test-key")
+async def test_compose_builds_settings_and_transcript(local_server):
+    app = tui.ZCoderTUI()
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.query_one("#sidebar") is not None
         assert app.query_one("#transcript") is not None
         assert app.query_one("#prompt_input") is not None
+        assert app.loaded_model == "zcoder-qwen2.5-coder-7b"
 
 
 @pytest.mark.asyncio
-async def test_missing_api_key_shows_error_message():
-    app = tui.ZCoderTUI(api_key="")
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        transcript = app.query_one("#transcript")
-        texts = [c.raw_text for c in transcript.children if isinstance(c, tui.ChatMessage)]
-        assert any("ANTHROPIC_API_KEY" in t for t in texts)
-
-
-@pytest.mark.asyncio
-async def test_submitting_prompt_adds_user_and_assistant_messages():
-    app = tui.ZCoderTUI(api_key="test-key")
+async def test_prompt_uses_local_server_without_credentials(local_server):
+    app = tui.ZCoderTUI(api_key="ignored")
     async with app.run_test() as pilot:
         await pilot.pause()
         app.query_one("#prompt_input").value = "hello there"
         await pilot.press("enter")
         await pilot.pause(0.2)
         transcript = app.query_one("#transcript")
-        roles = [c.role for c in transcript.children if isinstance(c, tui.ChatMessage)]
-        assert "user" in roles
-        assert "assistant" in roles
+        messages = [c for c in transcript.children if isinstance(c, tui.ChatMessage)]
+        assert any(message.role == "user" and message.raw_text == "hello there" for message in messages)
+        assert any(message.role == "assistant" and message.raw_text == "Hello there" for message in messages)
+        assert len(local_server) == 2
+        assert local_server[1][0].full_url == "http://127.0.0.1:8080/v1/chat/completions"
 
 
 @pytest.mark.asyncio
-async def test_new_session_clears_transcript_and_history():
-    app = tui.ZCoderTUI(api_key="test-key")
+async def test_generation_guard_prevents_overlapping_requests(local_server):
+    app = tui.ZCoderTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.query_one("#prompt_input").value = "first request"
+        app._send()
+        app.query_one("#prompt_input").value = "second request"
+        app._send()
+        deadline = asyncio.get_running_loop().time() + 5
+        while app._generation_active and asyncio.get_running_loop().time() < deadline:
+            await pilot.pause(0.05)
+        assert not app._generation_active, "local generation did not finish before the test timeout"
+        assert len([request for request, payload, _ in local_server if payload is not None]) == 1
+        assert app.history[-2]["content"] == "first request"
+
+
+@pytest.mark.asyncio
+async def test_new_session_clears_transcript_and_history(local_server):
+    app = tui.ZCoderTUI()
     async with app.run_test() as pilot:
         await pilot.pause()
         app.history = [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y"}]
@@ -58,12 +93,13 @@ async def test_new_session_clears_transcript_and_history():
         await pilot.pause()
         assert app.history == []
         transcript = app.query_one("#transcript")
-        assert len(transcript.children) == 1  # just the "new session started" system message
+        assert len(transcript.children) == 1
+        assert transcript.children[0].raw_text == "new session started."
 
 
 @pytest.mark.asyncio
-async def test_build_system_prompt_combines_agent_skill_personality():
-    app = tui.ZCoderTUI(api_key="test-key")
+async def test_build_system_prompt_combines_agent_skill_personality(local_server):
+    app = tui.ZCoderTUI()
     async with app.run_test() as pilot:
         await pilot.pause()
         app.query_one("#agent_select").value = "code_reviewer"
@@ -76,105 +112,61 @@ async def test_build_system_prompt_combines_agent_skill_personality():
 
 
 @pytest.mark.asyncio
-async def test_temperature_falls_back_to_default_on_bad_input():
-    app = tui.ZCoderTUI(api_key="test-key")
+async def test_temperature_falls_back_to_default_and_clamps(local_server):
+    app = tui.ZCoderTUI()
     async with app.run_test() as pilot:
         await pilot.pause()
         temp_input = app.query_one("#temp_input")
         temp_input.value = "not-a-number"
         assert app._temperature() == 0.3
-        temp_input.value = "5.0"  # out of 0..1 range
+        temp_input.value = "5.0"
         assert app._temperature() == 1.0
 
 
-def test_run_tui_entry_point_exists():
-    assert callable(tui.run_tui)
+def test_local_server_url_rejects_non_loopback(monkeypatch):
+    for url in ("https://127.0.0.1:8080", "http://model.example:8080", "http://user@127.0.0.1"):
+        monkeypatch.setenv("ZCODER_BASE_URL", url)
+        with pytest.raises(ValueError, match="loopback"):
+            tui._local_server_base_url()
 
 
-@pytest.mark.parametrize(
-    "model,expected_extra_body",
-    [
-        ("claude-sonnet-5", None),
-        ("claude-sonnet-4-6", {"temperature": 0.3}),
-    ],
-)
-def test_streamed_reply_shows_full_text_even_when_gated(monkeypatch, model, expected_extra_body):
-    """A fast, short stream must flush its final unpainted deltas."""
-    import sys
-    import types
+def test_local_server_endpoint_supports_existing_v1_prefix(monkeypatch):
+    monkeypatch.setenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1/")
+    assert tui._local_server_endpoint("chat/completions") == "http://127.0.0.1:8080/v1/chat/completions"
 
-    class Delta:
-        type = "text_delta"
 
-        def __init__(self, text):
-            self.text = text
+def test_run_tui_entry_point_ignores_legacy_api_key(monkeypatch):
+    created = []
 
-    class Event:
-        type = "content_block_delta"
+    class FakeApp:
+        def __init__(self):
+            created.append(self)
 
-        def __init__(self, text):
-            self.delta = Delta(text)
+        def run(self):
+            return None
 
-    class Stream:
-        def __enter__(self):
-            return iter([Event("Hi"), Event(" there"), Event("!")])
+    monkeypatch.setattr(tui, "ZCoderTUI", FakeApp)
+    tui.run_tui(api_key="must-not-be-used")
+    assert len(created) == 1
 
-        def __exit__(self, *args):
-            return False
 
-    calls = []
-
-    class Messages:
-        def stream(self, *, model, max_tokens, messages, system=None, extra_body=None):
-            calls.append((model, extra_body))
-            return Stream()
-
-    class Client:
-        def __init__(self, **kwargs):
-            self.messages = Messages()
-
-    monkeypatch.setitem(sys.modules, "anthropic", types.SimpleNamespace(Anthropic=Client))
+def test_streamed_reply_flushes_final_text(monkeypatch):
     monkeypatch.setattr(tui.time, "monotonic", lambda: 1.0)
-
     updates = []
     transcript = types.SimpleNamespace(scroll_end=lambda **kwargs: None)
     owner = types.SimpleNamespace(
-        api_key="test-key",
         call_from_thread=lambda callback, *args, **kwargs: callback(*args, **kwargs),
         query_one=lambda selector: transcript,
     )
+    stream = io.BytesIO(
+        b'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n'
+        b'data: {"choices":[{"delta":{"content":" there"}}]}\n\n'
+        b"data: [DONE]\n\n"
+    )
+    owner._local_request = lambda *args, **kwargs: stream
     widget = types.SimpleNamespace(update_text=updates.append)
 
-    result = tui.ZCoderTUI._stream_reply(owner, "hello", model, None, 0.3, [], widget)
+    result = tui.ZCoderTUI._stream_reply(owner, "hello", "local-model", None, 0.3, [], widget)
 
-    assert result == "Hi there!"
-    assert updates == ["Hi", "Hi there!"]
-    assert calls == [(model, expected_extra_body)]
-
-
-def _purge_tui_modules(modules):
-    """Remove the canonical src-layout TUI module."""
-    for mod in list(modules):
-        if mod == "zcoder.interfaces.cli.tui" or mod.startswith("zcoder.interfaces.cli.tui."):
-            del modules[mod]
-
-
-def test_import_error_message_is_actionable_when_textual_missing(monkeypatch):
-    # Simulate the "not installed" path without actually uninstalling
-    # textual -- checks tui.py's own guard message stays informative.
-    import importlib
-    import sys as _sys
-
-    real_textual = _sys.modules.get("textual")
-    _sys.modules["textual"] = None  # forces an ImportError on next canonical import
-    _purge_tui_modules(_sys.modules)
-    try:
-        with pytest.raises(ImportError, match="pip install textual"):
-            importlib.import_module("zcoder.interfaces.cli.tui")
-    finally:
-        if real_textual is not None:
-            _sys.modules["textual"] = real_textual
-        else:
-            _sys.modules.pop("textual", None)
-        _purge_tui_modules(_sys.modules)
-        importlib.import_module("zcoder.interfaces.cli.tui")
+    assert result == "Hi there"
+    assert updates[-1] == "Hi there"

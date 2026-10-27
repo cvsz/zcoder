@@ -105,6 +105,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from zcoder.core.resilience import safe_urlopen
 
@@ -471,7 +472,7 @@ class ComplianceApiClient:
         """GET /v1/compliance/apps/sessions/local/{id}/messages — returns
         the full transcript (prompts, tool calls, responses) for a local
         session. Requires read:compliance_user_data."""
-        params = {}
+        params: dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
         if page:

@@ -78,7 +78,6 @@
             <label>Personality<select id="personalitySelect"><option value="">None</option></select></label>
             <label>Temperature <span class="value" id="tempVal">0.30</span><input id="tempRange" type="range" min="0" max="1" step="0.05" value="0.3" /></label>
             <label>System instructions<textarea id="systemPrompt" rows="4" placeholder="Optional instructions for this run…"></textarea></label>
-            <label>API key <span class="hint">memory only</span><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Optional runtime key" /></label>
             <label class="toggle-row"><span><b>Streaming</b><small>Server-Sent Events</small></span><input id="streamToggle" type="checkbox" checked /></label>
             <div class="session-block">
               <div class="panel-title"><span>SESSIONS</span><b id="sessionCount">0</b></div>
@@ -127,7 +126,7 @@
       <div class="dialog-head"><div><span>BACKEND CONNECTION</span><h3>Connect ZCoder API</h3></div><button class="icon-btn" value="cancel" aria-label="Close">×</button></div>
       <p>GitHub Pages hosts the frontend only. Enter the HTTPS origin of your deployed ZCoder FastAPI service. Localhost HTTP is allowed for local development.</p>
       <label>API base URL<input id="apiBaseInput" type="url" placeholder="https://api.example.com" /></label>
-      <div class="security-note"><b>Security boundary</b><span>Provider keys are sent only with chat requests when supplied. The API base URL may be stored locally; API keys are never persisted by this frontend.</span></div>
+      <div class="security-note"><b>Security boundary</b><span>Inference is sent only to the configured loopback model server. The API base URL for the web backend may be stored locally.</span></div>
       <div class="dialog-actions"><button class="button ghost" id="clearApiBtn" type="button">Use same origin</button><button class="button primary" id="saveApiBtn" type="submit" value="default">Save & connect</button></div>
     </form>
   </dialog>

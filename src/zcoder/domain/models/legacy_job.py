@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import enum
 import json
 import sqlite3
 import time
@@ -12,8 +11,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 
-class JobStatus(str, enum.Enum):
+
+class JobStatus(StringEnum):
     CREATED = "CREATED"
     PLANNING = "PLANNING"
     READY = "READY"
@@ -36,7 +37,7 @@ class Job:
     workspace: str = "."
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    model: str = "claude-sonnet-5"
+    model: str = "zqwen2.5-coder-7b-instruct-q4_k_m"
     budget_usd: float = 0.0
     cost_usd: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -254,7 +255,7 @@ class JobStore:
             conn.execute("UPDATE approvals SET status = ? WHERE id = ?", (status, approval_id))
 
 
-class ToolPolicy(str, enum.Enum):
+class ToolPolicy(StringEnum):
     ALLOW = "ALLOW"
     DENY = "DENY"
     REQUIRE_APPROVAL = "REQUIRE_APPROVAL"
@@ -314,7 +315,11 @@ class JobOrchestrator:
         self.policy = PolicyEngine()
 
     def submit_job(
-        self, task: str, runtime: str = "direct", model: str = "claude-sonnet-5", budget_usd: float = 0.0
+        self,
+        task: str,
+        runtime: str = "direct",
+        model: str = "zqwen2.5-coder-7b-instruct-q4_k_m",
+        budget_usd: float = 0.0,
     ) -> Job:
         job_id = f"job_{uuid.uuid4().hex[:8]}"
         job = Job(id=job_id, task=task, runtime=runtime, model=model, budget_usd=budget_usd)

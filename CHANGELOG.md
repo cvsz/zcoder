@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+- Refresh the locked dependency set to patched releases for truststore, numpy, pandas, platformdirs, and related transitive packages. Keep the Anthropic SDK on the supported v1 range until a separate v2 compatibility migration is verified.
+
+### Compatibility
+- Raise the minimum supported Python version to 3.12 because the patched numerical dependency line requires Python 3.12 or newer. Python 3.10 and 3.11 are no longer supported by this upcoming release.
+
 Full per-version detail lives in `docs/*_upgrade_*.md` — this file is a
 high-level index. Two project lineages (`zcoder-cli-v1`, the modular
 `claude_*.py`-per-feature codebase, and `zcoder-cli-v2`, a smaller

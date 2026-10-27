@@ -34,12 +34,17 @@ Slash commands inside the session:
 
 import re
 import sys
+from typing import Any
+
+Presentation: Any = None
 
 try:
-    from pptx import Presentation
+    from pptx import Presentation as _Presentation
+
+    Presentation = _Presentation
     from pptx.util import Inches, Pt
 except ImportError:
-    Presentation = None
+    pass
 
 SYSTEM_PROMPT = """\
 You are a slide-deck assistant embedded in a CLI tool. The user is \
