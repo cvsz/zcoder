@@ -27,8 +27,8 @@ from zcoder.main import AGENT_SYSTEM_PROMPTS, _api_key  # noqa: E402
 
 class TestZCoderFeaturesWithoutKey(unittest.TestCase):
     def setUp(self):
-        # Enforce no Anthropic key / Local mode for THIS test class only, then
-        # restore afterwards so the rest of the suite is not polluted.
+        # Keep a sentinel environment value to ensure local mode never turns
+        # it into an API credential, then restore the developer environment.
         self._old_local_mode = os.environ.get("ZCODER_LOCAL_MODE")
         self._old_api_key = os.environ.get("ANTHROPIC_API_KEY")
         os.environ["ZCODER_LOCAL_MODE"] = "1"
@@ -44,14 +44,15 @@ class TestZCoderFeaturesWithoutKey(unittest.TestCase):
             else:
                 os.environ[name] = old
 
-    def test_01_api_key_guard_bypass(self):
-        """Verify _api_key does not raise or exit when ZCODER_LOCAL_MODE=1."""
+    def test_01_local_mode_does_not_expose_api_key(self):
+        """Local execution must not promote an environment key into CLI auth."""
 
         class MockArgs:
             api_key = None
 
         key = _api_key(MockArgs())
-        self.assertEqual(key, "local-mode-no-key-required")
+        self.assertEqual(key, "")
+        self.assertNotEqual(key, os.environ["ANTHROPIC_API_KEY"])
 
     def test_02_personalities_and_agents_registry(self):
         """Verify all agent roles and personalities load offline without network."""

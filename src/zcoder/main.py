@@ -16,6 +16,7 @@ See docs/42_upgrade_v1.30.0.md, CHANGELOG.md, and ROADMAP.md.
 import argparse
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 # Both are tiny, dependency-free dicts (no urllib/API calls at import time),
@@ -24,22 +25,209 @@ from pathlib import Path
 # second hardcoded list drifting from it.
 from zcoder.agent.personalities import AGENT_SYSTEM_PROMPTS, PERSONALITIES
 
-VERSION = "1.41.5"
+try:
+    VERSION = version("zcoder")
+except PackageNotFoundError:
+    VERSION = "0+unknown"
 BANNER = f"\033[94mZCoder CLI v{VERSION}\033[0m"
 
 
 def _api_key(args):
-    if os.getenv("ZCODER_LOCAL_MODE", "").strip() in ("1", "true", "yes"):
-        return os.getenv("ANTHROPIC_API_KEY", "local-mode-no-key-required")
-    k = getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", "")
-    if not k:
-        print("[ERROR] ANTHROPIC_API_KEY not set.", file=sys.stderr)
-        sys.exit(1)
-    return k
+    return getattr(args, "api_key", None) or ""
 
 
 def _model(args):
-    return getattr(args, "model", "claude-sonnet-5") or "claude-sonnet-5"
+    return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+
+
+def _is_local_only(args) -> bool:
+    """Return whether CLI provider settings require outbound AI calls to fail closed."""
+    local_mode = os.getenv("ZCODER_LOCAL_MODE", "").strip().lower() in {"1", "true", "yes"}
+    # Local-only is a safety boundary, so it must take precedence over a
+    # conflicting provider override (including an invalid one). Otherwise a
+    # stale ZCODER_PROVIDER value could bypass the guard below.
+    if local_mode:
+        return True
+
+    from zcoder.agent.orchestration.providers import resolve_base_url, resolve_provider
+
+    try:
+        provider = resolve_provider(getattr(args, "provider", None))
+        if provider in {"local", "ollama"}:
+            return True
+        if provider == "openai_compatible":
+            base_url = resolve_base_url(provider, getattr(args, "base_url", None))
+            from urllib.parse import urlsplit
+
+            return urlsplit(base_url).hostname in {"127.0.0.1", "localhost", "::1"}
+        return False
+    except ValueError:
+        return local_mode
+
+
+DIRECT_PROVIDER_FEATURE_FLAGS = (
+    "browse",
+    "list_models",
+    "model_info",
+    "fable5",
+    "mythos5",
+    "opus5",
+    "sonnet5",
+    "haiku45",
+    "obs_errors",
+    "workflow_run",
+    "research",
+    "optimized",
+    "plan",
+    "thinking",
+    "adaptive",
+    "effort_legacy_budget",
+    "web_search",
+    "web_fetch",
+    "fetch_url",
+    "vision",
+    "vision_pdf",
+    "vision_url",
+    "vision_compare",
+    "vision_ocr",
+    "batch_submit",
+    "batch_status",
+    "batch_results",
+    "batch_cancel",
+    "batch_list",
+    "batch_generate",
+    "cache_warm",
+    "cache_multi_turn",
+    "cache",
+    "tool_agent",
+    "server_tool",
+    "memory_agent",
+    "stream_tools",
+    "file_upload",
+    "file_list",
+    "file_delete",
+    "file_ask",
+    "file_download",
+    "code_exec",
+    "code_debug",
+    "count_tokens",
+    "embed",
+    "embed_file",
+    "embed_similarity",
+    "computer_use",
+    "interleaved_thinking",
+    "agent_session",
+    "agent_orchestrate",
+    "agent_rewind",
+    "agent_dream",
+    "agent_dream_get",
+    "agent_dream_cancel",
+    "agent_dream_archive",
+    "agent_dream_list",
+    "agent_webhook_register",
+    "agent_vault_create",
+    "agent_vault_add_credential",
+    "agent_vault_list",
+    "agent_schedule_create",
+    "agent_schedule_list",
+    "agent_schedule_cancel",
+    "agent_review_multiagent",
+    "agent_outcome_rubric_upload",
+    "agent_env_self_hosted",
+    "agent_env_work_stats",
+    "agent_managed_run",
+    "agent_create",
+    "agent_get",
+    "agent_list",
+    "agent_update",
+    "agent_session_get",
+    "agent_session_budget_set",
+    "agent_session_budget_remove",
+    "agent_memory_store_create",
+    "agent_memory_list",
+    "agent_memory_stores_list",
+    "agent_memory_store_archive",
+    "agent_memory_store_delete",
+    "agent_memory_get",
+    "agent_memory_create",
+    "agent_memory_update",
+    "agent_memory_delete",
+    "cowork",
+    "excel_native",
+    "pptx_native",
+    "code_agent_mcp_tunnel",
+    "project_plan",
+    "project_run",
+    "artifact_iterate",
+    "members_list",
+    "member_get",
+    "member_role_set",
+    "member_remove",
+    "invite_create",
+    "invites_list",
+    "invite_withdraw",
+    "groups_list",
+    "group_create",
+    "group_delete",
+    "group_members_list",
+    "group_member_add",
+    "group_member_remove",
+    "roles_list",
+    "role_permissions",
+    "compliance_activities",
+    "compliance_chats_list",
+    "compliance_chat_messages",
+    "compliance_chat_delete",
+    "compliance_file_download",
+    "compliance_file_delete",
+    "compliance_projects_list",
+    "compliance_project_info",
+    "compliance_project_attachments",
+    "compliance_project_delete",
+    "compliance_orgs_list",
+    "compliance_org_users",
+    "compliance_org_roles",
+    "compliance_org_settings",
+    "compliance_groups_list",
+    "compliance_group_members",
+    "compliance_local_sessions_list",
+    "compliance_local_session_info",
+    "compliance_local_session_messages",
+    "admin_create_key",
+    "usage_report",
+    "cost_report",
+    "admin_list_keys",
+    "admin_revoke_key",
+    "spend_limits_list",
+    "spend_limit_set",
+    "spend_limit_get",
+    "spend_limit_delete",
+    "spend_limit_requests_list",
+    "spend_limit_request_approve",
+    "spend_limit_request_deny",
+    "rate_limits",
+    "rate_limits_workspace",
+    "claude_code_usage_report",
+    "cmek_list",
+    "wif_exchange_token",
+    "wif_create_service_account",
+    "wif_list_service_accounts",
+    "wif_create_issuer",
+    "wif_list_issuers",
+    "wif_create_rule",
+    "wif_list_rules",
+)
+
+
+def _has_direct_provider_feature(args) -> bool:
+    """Identify commands that bypass the local Coder provider abstraction."""
+    if any(getattr(args, name, None) for name in DIRECT_PROVIDER_FEATURE_FLAGS):
+        return True
+    # Model-specific/admin/compliance flags are direct service integrations.
+    return any(
+        name.startswith(("admin_", "compliance_", "wif_")) and value is True
+        for name, value in vars(args).items()
+    )
 
 
 def _read_file(path):
@@ -78,10 +266,10 @@ def build_parser():
     g.add_argument(
         "--tui",
         action="store_true",
-        help="Launch the full-screen Textual TUI (see tui.py) — model/personality/"
-        "agent/skill sidebar plus a streaming chat transcript, in the terminal",
+        help="Launch the full-screen Textual coding assistant with chat, slash commands, "
+        "and session settings",
     )
-    g.add_argument("--model", default="claude-sonnet-5")
+    g.add_argument("--model", default=None)
     g.add_argument("--temperature", type=float, default=0.3)
     g.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens")
     g.add_argument("--api-key", default="", dest="api_key")
@@ -89,8 +277,17 @@ def build_parser():
         "--provider",
         default=None,
         dest="provider",
-        choices=["anthropic", "gemini", "xai", "ollama", "local"],
-        help="Model gateway provider (default: anthropic; env ZCODER_PROVIDER / ZCODER_LOCAL_MODE)",
+        choices=[
+            "gemini",
+            "xai",
+            "groq",
+            "openrouter",
+            "cerebras",
+            "openai_compatible",
+            "ollama",
+            "local",
+        ],
+        help="Model gateway provider (local llama.cpp is the default)",
     )
     g.add_argument(
         "--base-url",
@@ -126,14 +323,14 @@ def build_parser():
         "--health-check",
         action="store_true",
         dest="health_check",
-        help="Run liveness/readiness checks and exit (config, API key, "
+        help="Run liveness/readiness checks and exit (config, local model URL, "
         "disk-writable); prints JSON, exit code 0=healthy 1=unhealthy",
     )
     g.add_argument(
         "--health-check-deep",
         action="store_true",
         dest="health_check_deep",
-        help="With --health-check, also make one minimal live API call "
+        help="With --health-check, also make one minimal local model call "
         "(use for a startup probe, not a frequent liveness probe)",
     )
 
@@ -407,9 +604,9 @@ def build_parser():
     )
     adv.add_argument(
         "--advisor-model",
-        default="claude-opus-4-8",
+        default=None,
         dest="advisor_model",
-        help="Advisor model (default: claude-opus-4-8)",
+        help="Local advisor model (default: same as --model / ZCODER_MODEL)",
     )
     adv.add_argument(
         "--advisor-max-uses",
@@ -517,7 +714,7 @@ def build_parser():
         choices=sorted(UPGRADE_TARGETS),
         default="fable5",
         dest="upgrade_target",
-        help="Target for --upgrade-all: fable5 (claude-fable-5) or opus (claude-opus-4-8). Default: fable5",
+        help="Target for --upgrade-all. Choices include fable51, opus55, sonnet55, and haiku55. Default: fable5",
     )
     mo.add_argument(
         "--upgrade-yes",
@@ -1938,7 +2135,12 @@ def build_parser():
     ses.add_argument("--away-summary", metavar="SESSION_ID", dest="away_summary")
 
     lv = p.add_argument_group("zcoder-live")
-    lv.add_argument("--live", action="store_true", dest="live")
+    lv.add_argument(
+        "--live",
+        action="store_true",
+        dest="live",
+        help="Start a local-model REPL with ambient context and slash commands",
+    )
 
     rs = p.add_argument_group("Deep Research")
     rs.add_argument("--research", metavar="TOPIC", dest="research")
@@ -2179,6 +2381,15 @@ def main():
         report = run_health_check(deep=getattr(args, "health_check_deep", False))
         print(_json.dumps(report.to_dict(), indent=2))
         sys.exit(0 if report.healthy else 1)
+
+    if _is_local_only(args) and _has_direct_provider_feature(args):
+        print(
+            "[ERROR] This command currently uses a provider-specific remote API and is "
+            "unavailable in local-only mode. Use a migrated local command or unset "
+            "ZCODER_LOCAL_MODE to explicitly enable a configured provider.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     # ── No-key listing ──
     if args.list_skills:
@@ -3071,11 +3282,17 @@ def main():
     if args.tui:
         from zcoder.interfaces.cli.tui import run_tui
 
-        run_tui(api_key=getattr(args, "api_key", None) or os.getenv("ANTHROPIC_API_KEY", ""))
+        run_tui()
         return
 
-    # ── API key required ──
-    key = _api_key(args)
+    # ── API key required except for providers resolved by the router ──
+    if args.route:
+        from zcoder.agent.orchestration.providers import resolve_api_key, resolve_provider
+
+        selected_provider = resolve_provider(args.provider)
+        key = resolve_api_key(selected_provider, args.api_key)
+    else:
+        key = _api_key(args)
     model = _model(args)
 
     if args.interactive:
@@ -3196,10 +3413,7 @@ def main():
     if args.live:
         from zcoder.agent.orchestration.live import cmd_live
 
-        # --temperature was accepted by the parser but never reached cmd_live,
-        # so live mode always used LiveSession's 0.7 default regardless of the
-        # flag. Now threaded through (still safely dropped by sampling_kwargs()
-        # for claude-sonnet-5 and later, which reject it).
+        # --temperature is passed to the local inference client.
         cmd_live(key, model=model, temperature=args.temperature)
         return
 
@@ -3264,8 +3478,8 @@ def main():
     if args.git_blame_explain:
         from zcoder.agent.integrations.git import cmd_git_blame_explain
 
-        f, s, e = args.git_blame_explain
-        cmd_git_blame_explain(f, int(s), int(e), key, model)
+        file_path, start_line, end_line = args.git_blame_explain
+        cmd_git_blame_explain(file_path, int(start_line), int(end_line), key, model)
         return
 
     # ── GitHub Integration ──
@@ -4157,6 +4371,7 @@ def main():
         c = Coder(
             api_key=key,
             model=model,
+            base_url=args.base_url,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             service_tier=args.service_tier,

@@ -1,0 +1,15 @@
+# U62 — Local provider and model deprecation review
+
+Scope: review deprecation behavior for local providers and locally installed
+models only. Do not query or call Anthropic endpoints, use remote Compliance
+APIs, or add cloud catalog entries.
+
+Before changing code, inventory local provider identifiers and their actual
+runtime support. Make removal/retirement behavior explicit and opt-in where
+configuration is involved. Add behavior tests for every supported path and
+record unsupported local models without inventing compatibility.
+
+Run the focused tests, touched-file lint, and full suite. Keep all existing
+gates intact. Update the changelog, roadmap, checklist, implementation
+checklist, README, pyproject version, versioned upgrade note, and the next
+cycle prompt. Stop before commit, push, approval, or merge.

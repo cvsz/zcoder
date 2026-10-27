@@ -1,0 +1,12 @@
+# U76 — Enterprise hardening and release engineering
+Priority: P1 (runs in parallel after U61). Size: L. Depends on: U61.
+
+Known baselines: `ruff check .` reported 891 findings (241 auto-fixable) on the flat tree; one test did a live DNS lookup and failed in a network-restricted sandbox; e2e tests need optional packages (psycopg2, fastapi); the release-candidate script requires a clean HEAD, synced versions, uv.lock, ruff, black, bandit, and hosted checks.
+
+Requirements:
+- ruff/black backlog in small mechanical commits-worth batches (safe fixes first, unsafe fixes reviewed); no behavior change.
+- make tests hermetic: inject a resolver for SSRF tests; mark network/optional-dependency tests with markers and a CI matrix that installs the extras.
+- CI: lint, type check (add mypy/pyright if absent), tests with coverage threshold, bandit, dependency audit, CodeQL, dependabot, SBOM, reproducible build, signed release artifacts (human-held keys).
+- docs: SECURITY.md, CONTRIBUTING.md, runbooks current; every doc references the real version; link check.
+- do NOT automate self-approval or merge; branch protection and required reviewers stay human.
+Verify: CI green on a clean clone; counts reported before/after.

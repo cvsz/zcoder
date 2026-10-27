@@ -44,9 +44,8 @@ EVIDENCE_SCHEMA_VERSION = 1
 REQUIRED_CHECKS: tuple[str, ...] = (
     "lint",
     "security",
-    "test (3.10)",
-    "test (3.11)",
     "test (3.12)",
+    "test (3.13)",
     "docker-build",
     "Analyze Python Code Security",
     "Bandit and pip-audit",

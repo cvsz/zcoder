@@ -10,7 +10,10 @@ imported (see ``scripts/import_release_evidence.py``).
 from __future__ import annotations
 
 import json
+import os
+import re
 import subprocess
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ._release_gate_legacy import (  # re-export stable public types
@@ -41,6 +44,7 @@ _PATH_REWRITES = {
 # candidate SHA, committed under docs/evidence/. Anchor arithmetic: from
 # src/zcoder/services/release_gate.py the repository root is parents[3].
 EVIDENCE_DIR = Path(__file__).resolve().parents[3] / "docs" / "evidence"
+PITR_EVIDENCE_SCHEMA_VERSION = 1
 
 # Hosted checks each promoted gate depends on. PITR relies on the hosted
 # test matrix, which executes the backup/restore drill coverage; the
@@ -49,7 +53,7 @@ EVIDENCE_DIR = Path(__file__).resolve().parents[3] / "docs" / "evidence"
 # gate-keeper itself on tag builds, not evidence the gate can consume.
 _PROMOTION_REQUIREMENTS = {
     "VERSION_INTEGRITY": ["lint"],
-    "TEST_ACCOUNTING": ["test (3.10)", "test (3.11)", "test (3.12)"],
+    "TEST_ACCOUNTING": ["test (3.12)", "test (3.13)"],
     "SECURITY": [
         "security",
         "Analyze Python Code Security",
@@ -57,7 +61,7 @@ _PROMOTION_REQUIREMENTS = {
         "Dependency Review & Vulnerability Check",
         "Gitleaks secret scan",
     ],
-    "PITR": ["test (3.10)", "test (3.11)", "test (3.12)"],
+    "PITR": ["test (3.12)", "test (3.13)"],
     "FINAL": [
         "docker-build",
         "Validate TypeScript SDK & Types",
@@ -107,7 +111,7 @@ class ProductionReleaseGate(_LegacyProductionReleaseGate):
         stays fail-closed.
         """
         sha = self._candidate_sha()
-        if not sha:
+        if not sha or self._working_tree_dirty():
             self._mark_validation_pending()
             return
 
@@ -117,6 +121,44 @@ class ProductionReleaseGate(_LegacyProductionReleaseGate):
             return
 
         self._promote_from_evidence(record, sha)
+
+    @staticmethod
+    def _working_tree_dirty() -> bool:
+        """Do not qualify a commit while uncommitted source can change its meaning."""
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode != 0 or bool(result.stdout.strip())
+
+    @staticmethod
+    def _load_pitr_evidence(sha: str) -> dict | None:
+        """Load production WAL/restore evidence bound to the exact candidate."""
+        configured = os.environ.get("ZCODER_PITR_EVIDENCE_JSON")
+        try:
+            if configured:
+                data = json.loads(configured)
+            else:
+                path = EVIDENCE_DIR / f"pitr-qualification-{sha[:8]}.json"
+                data = json.loads(path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        required = (
+            data.get("schema") == PITR_EVIDENCE_SCHEMA_VERSION,
+            data.get("sha") == sha,
+            data.get("wal_archive_verified") is True,
+            data.get("restore_drill_passed") is True,
+            _pitr_evidence_is_fresh(data),
+            isinstance(data.get("evidence_ref"), str)
+            and bool(re.fullmatch(r"[A-Za-z0-9._:/#-]{1,240}", data["evidence_ref"])),
+            isinstance(data.get("evidence_sha256"), str)
+            and bool(re.fullmatch(r"[a-f0-9]{64}", data["evidence_sha256"])),
+        )
+        return data if all(required) else None
 
     @staticmethod
     def _load_bound_evidence(sha: str) -> dict | None:
@@ -166,6 +208,28 @@ class ProductionReleaseGate(_LegacyProductionReleaseGate):
                 lim for lim in gate.limitations if "no imported validation evidence" not in lim
             ]
 
+        pitr = self.gates.get("PITR")
+        if pitr is not None:
+            operational = self._load_pitr_evidence(sha)
+            if operational is None:
+                self._mark_gate_pending(pitr, "PITR")
+                pitr.limitations.append(
+                    "Requires exact-candidate production WAL archive verification and a successful restore drill."
+                )
+            else:
+                pitr.verdict = GateVerdict.PASS
+                pitr.evidence_level = evidence_level
+                pitr.notes = (
+                    f"Hosted test matrix and production WAL/restore evidence bound to "
+                    f"release-candidate {sha[:12]} ({operational['evidence_ref']})."
+                )
+                pitr.limitations = [
+                    lim
+                    for lim in pitr.limitations
+                    if "no imported validation evidence" not in lim
+                    and "Requires exact-candidate production" not in lim
+                ]
+
     @staticmethod
     def _mark_gate_pending(gate: GateResult, name: str) -> None:
         gate.verdict = GateVerdict.UNKNOWN
@@ -194,6 +258,18 @@ __all__ = [
     "GateVerdict",
     "ProductionReleaseGate",
 ]
+
+
+def _pitr_evidence_is_fresh(data: dict) -> bool:
+    tested_at = data.get("tested_at")
+    if not isinstance(tested_at, str) or not tested_at.endswith("Z"):
+        return False
+    try:
+        timestamp = datetime.fromisoformat(tested_at[:-1] + "+00:00")
+    except ValueError:
+        return False
+    now = datetime.now(UTC)
+    return now - timedelta(days=30) <= timestamp <= now
 
 
 if __name__ == "__main__":

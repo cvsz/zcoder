@@ -15,9 +15,8 @@ _NODE = shutil.which("node")
 _REQUIRED_CHECKS = [
     "lint",
     "security",
-    "test (3.10)",
-    "test (3.11)",
     "test (3.12)",
+    "test (3.13)",
     "docker-build",
     "Analyze Python Code Security",
     "Bandit and pip-audit",
@@ -59,6 +58,7 @@ def candidate(tmp_path):
     ):
         subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    source_sha = "a" * 40
     bin_path = tmp_path / "bin"
     bin_path.mkdir()
     for name in ("uv", "gh"):
@@ -68,6 +68,10 @@ def candidate(tmp_path):
             "import json, os, sys\n"
             "if sys.argv[0].endswith('/uv'): sys.exit(0)\n"
             "if sys.argv[1] == 'auth': sys.exit(int(os.environ.get('AUTH_STATUS', '0')))\n"
+            "url = next((arg for arg in sys.argv if arg.startswith('repos/')), '')\n"
+            "if url.endswith('/pulls'): print(os.environ.get('PULLS_JSON', '[]')); sys.exit(0)\n"
+            "if os.environ.get('SOURCE_SHA') and os.environ['SOURCE_SHA'] in url:\n"
+            " print(os.environ.get('SOURCE_CHECKS_JSON', '[]')); sys.exit(0)\n"
             "print(os.environ['CHECKS_JSON'])\n"
             "sys.exit(int(os.environ.get('API_STATUS', '0')))\n"
         )
@@ -80,6 +84,25 @@ def candidate(tmp_path):
         **os.environ,
         "PATH": str(bin_path) + os.pathsep + os.environ["PATH"],
         "CHECKS_JSON": json.dumps([{"check_runs": checks}]),
+        "SOURCE_SHA": source_sha,
+        "PULLS_JSON": json.dumps(
+            [[{"merged_at": "2026-10-26T00:00:00Z", "merge_commit_sha": sha, "head": {"sha": source_sha}}]]
+        ),
+        "SOURCE_CHECKS_JSON": json.dumps(
+            [
+                {
+                    "check_runs": [
+                        {
+                            "name": "Dependency Review & Vulnerability Check",
+                            "status": "completed",
+                            "conclusion": "success",
+                            "head_sha": source_sha,
+                            "id": 999,
+                        }
+                    ]
+                }
+            ]
+        ),
     }
 
     def run(*args, updates=None, runs=None):
@@ -132,6 +155,47 @@ def test_incomplete_hosted_evidence_cannot_pass(candidate, mode):
 def test_all_required_successful_checks_pass(candidate):
     run, sha, _, _ = candidate
     assert run("--check", "--sha", sha).returncode == 0
+
+
+def test_dependency_review_from_merged_pull_request_is_bound_to_merge(candidate):
+    run, sha, checks, _ = candidate
+    source_checks = [check for check in checks if check["name"] != "Dependency Review & Vulnerability Check"]
+
+    result = run("--check", "--sha", sha, runs=source_checks)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_version_sync_rejects_runtime_version_drift(candidate):
+    run, _, _, root = candidate
+    main_file = root / "src/zcoder/main.py"
+    source = main_file.read_text()
+    source = source.replace('VERSION = version("zcoder")', 'VERSION = "0.0.0"')
+    main_file.write_text(source)
+    subprocess.run(["git", "add", "src/zcoder/main.py"], cwd=root, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Release Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "version drift",
+        ],
+        cwd=root,
+        check=True,
+    )
+    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+
+    result = run("--check", "--sha", sha)
+
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    version_check = next(item for item in report["results"] if item["name"] == "version-sync")
+    assert not version_check["ok"]
 
 
 def test_dirty_checkout_cannot_qualify_committed_sha(candidate):

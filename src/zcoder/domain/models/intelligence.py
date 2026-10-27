@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import enum
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 
-class SignalType(str, enum.Enum):
+
+class SignalType(StringEnum):
     CI_FAILURE = "CI_FAILURE"
     DEPENDENCY_OUTDATED = "DEPENDENCY_OUTDATED"
     SECURITY_FINDING = "SECURITY_FINDING"

@@ -1,147 +1,118 @@
 # Deployment Guide
 
-## Configuration
+## Local runtime configuration
 
-All configuration is via environment variables (preferred for production)
-or `~/.zcoder-config.json` (fine for local dev; see `SECURITY.md` for
-why env vars are preferred).
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `ZCODER_BASE_URL` | No | `http://127.0.0.1:8080/v1` | Loopback llama.cpp chat endpoint |
+| `ZCODER_MODEL` | No | `zqwen2.5-coder-7b-instruct-q4_k_m` | Local request label |
+| `DATABASE_URL` | No | SQLite | PostgreSQL DSN for API, worker, and integration-test commands |
+| `ZCODER_AUTH_ENABLED` | Production API | `false` | Require verified OIDC bearer-token authentication |
+| `ZCODER_OIDC_ISSUER` | Production API | — | OIDC issuer used to validate tokens |
+| `ZCODER_OIDC_AUDIENCE` | Production API | — | Required token audience claim |
+| `ZCODER_CORS_ORIGINS` | No | Empty | Explicit browser origins; wildcards are rejected |
+| `ZCODER_WORKER_ORGANIZATION_ID` | Tenant worker | Empty | Organization scope for tenant job claims |
+| `ZCODER_WORKER_PROJECT_ID` | No | Empty | Optional project scope for a tenant worker |
+| `GITHUB_TOKEN` | Optional integration | — | GitHub REST access for GitHub operations |
+| `ZCODER_LOG_LEVEL` | No | `INFO` | Log verbosity |
+| `ZCODER_LOG_FORMAT` | No | TTY-dependent | Force `json` or `text` logs |
 
-| Variable                    | Required | Default | Purpose |
-|------------------------------|----------|---------|---------|
-| `ANTHROPIC_API_KEY`          | yes*     | —       | Anthropic API key (*not needed in `ZCODER_LOCAL_MODE`) |
-| `ZCODER_LOCAL_MODE`          | no       | —       | `1`/`true`/`yes` switches generation/git/live/prompt-optimization to deterministic offline synthesis with no network I/O |
-| `DATABASE_URL`               | no       | —       | PostgreSQL DSN for the control-plane/engineering stores; Prisma-style params (`?schema=public`) are stripped automatically before `psycopg2` connects |
-| `ZCODER_AUTH_ENABLED`        | production | `false` | Enable verified OIDC bearer-token authentication |
-| `ZCODER_OIDC_ISSUER`         | production | —       | OIDC issuer URL used to validate API tokens |
-| `ZCODER_OIDC_AUDIENCE`       | production | —       | Required OIDC audience claim |
-| `ZCODER_CORS_ORIGINS`        | no       | empty   | Comma-separated explicit HTTP(S) browser origins; wildcards are rejected |
-| `ZCODER_WORKER_ORGANIZATION_ID` | tenant worker | empty | Organization scope for a PostgreSQL worker; required to claim tenant jobs |
-| `ZCODER_WORKER_PROJECT_ID`    | no       | empty   | Optional project scope for a tenant worker |
-| `GITHUB_TOKEN`                | no       | —       | `src/zcoder/claude/integrations/github.py` integration |
-| `VOYAGE_API_KEY`              | no       | —       | `claude_embeddings.py` |
-| `ZCODER_LOG_LEVEL`            | no       | `INFO`  | `DEBUG`/`INFO`/`WARNING`/`ERROR` |
-| `ZCODER_LOG_FORMAT`           | no       | `text` (TTY) / `json` (non-TTY) | Force `json` or `text` |
-| `ZCODER_MAX_FILE_SIZE_BYTES`  | no       | `26214400` (25MB) | Upper bound for `--file`/`--file-upload` |
+The main prompt client accepts loopback HTTP only and refuses redirects.
+Start the model server before issuing inference requests. See
+[`LOCAL-INFERENCE.md`](../guides/LOCAL-INFERENCE.md).
 
-## Running locally
+## Run from source
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-python main.py -p "explain this repo"
+make setup
+export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
+zcoder -p "Explain this repository"
 ```
 
-### Tenant-scoped API workers
+## Shared PostgreSQL
+
+The shared Docker PostgreSQL container is named `zPostgreSQL`. ZCoder uses
+database `zcoder_db` and role `zcoder` on the `zPostgreSQL_network` bridge.
+Provision and check it with:
+
+```bash
+make postgres-setup
+make postgres-status
+```
+
+Applications sharing this PostgreSQL server should use separate databases and
+roles. Do not put database credentials in source control.
+
+## Tenant-scoped API workers
 
 The public `/api/v1/jobs` routes use the durable PostgreSQL `tenant_jobs`
-queue. A worker must be assigned an explicit organization before it can claim
-those jobs:
+queue. A worker must have an explicit organization scope before it can claim
+tenant jobs:
 
 ```bash
 export ZCODER_WORKER_ORGANIZATION_ID=org_example
-export DATABASE_URL='postgresql://...'
-python -m zcoder.worker.process --pool-type standard
+make worker
 ```
 
-Set `ZCODER_WORKER_PROJECT_ID` as well when the worker should process only one
-project. Leaving both values empty retains the legacy single-tenant worker
-path and does not claim tenant-scoped jobs.
+Set `ZCODER_WORKER_PROJECT_ID` when the worker should process only one project.
 
-## Running the test suite
+## Validation commands
 
 ```bash
-pip install -r requirements-dev.txt
-pytest                       # run tests
-pytest --cov                 # with coverage
-ruff check .                 # lint
-black --check .              # format check
-bandit -r . -x ./tests       # security static analysis
+python -m pytest tests/unit
+python -m pytest tests/integration
+ruff check .
+black --check .
+bandit -r src
 ```
 
-## Running in Docker
+Integration tests require the shared PostgreSQL service and use the database
+configured by `scripts/local_postgres.py`.
+
+## Container deployment
 
 ```bash
-docker build -t zcoder .
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder -p "hello"
-
-# Run the API server (provide DATABASE_URL through a secret manager)
-docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
-  -e DATABASE_URL="$DATABASE_URL" zcoder
-
-# or via compose (reads ANTHROPIC_API_KEY from the environment or a .env file)
-docker compose run --rm zcoder -p "hello"
+docker build -t zcoder:local .
+docker run --rm zcoder:local --version
 ```
 
-The image runs as a non-root user, has a `HEALTHCHECK` wired to
-`--health-check`, and never bakes `.env`/secrets into layers (see
-`.dockerignore`).
+The image does not bundle GGUF weights or a model server. The containerized
+inference network has not been verified; use the local source installation
+for the supported loopback model workflow. Do not expose an unauthenticated
+model endpoint publicly.
 
-Container publication to GHCR runs only for `v*` release tags and starts only
-after the exact tagged commit passes hosted-check import and the production
-release gate. Stable semantic-version tags update `latest`; prerelease tags do
-not. Merging to `main` does not publish or move container tags.
+The API server uses the configured `DATABASE_URL` and authentication settings.
+Use a secret manager for production database and identity-provider values.
 
 ## Health checks
 
 ```bash
-python main.py --health-check          # fast: config + key presence only
-python main.py --health-check --deep   # also makes one minimal live API call
+zcoder --health-check
+zcoder --health-check --health-check-deep
 ```
 
-Exit code `0` = healthy, `1` = unhealthy. Output is JSON:
+The standard check validates the Python runtime, writable configuration
+directory, and loopback model configuration. The deep check makes one local
+inference request and is intended for startup or manual diagnosis, not frequent
+liveness probes.
 
-```json
-{
-  "status": "healthy",
-  "checks": [
-    {"name": "python_version", "ok": true, "detail": "3.12.3 (ok)"},
-    {"name": "config_dir_writable", "ok": true, "detail": ""},
-    {"name": "api_key_configured", "ok": true, "detail": ""}
-  ]
-}
-```
+## Logging and rollback
 
-Use the fast check as a container liveness/readiness probe (it's cheap —
-no network call). Use `--deep` only for a startup probe or manual
-diagnosis; it makes a real, billed API call.
+In non-interactive environments, JSON logs are enabled by default. Credential
+patterns and authorization header values are redacted by
+`src/zcoder/config/logging.py`.
 
-## Logging & observability
+Deploy tagged artifacts only after the exact commit passes the required CI,
+security, packaging, and runtime gates. Roll back by deploying the previous
+known-good tag. Validate database backup and restore procedures before a
+production migration.
 
-Set `ZCODER_LOG_FORMAT=json` in any non-interactive environment (this is
-the default when stdout isn't a TTY, e.g. under Docker/systemd/CI) to get
-one JSON object per log line, suitable for shipping to a log aggregator
-(CloudWatch, Datadog, ELK, etc). Every line carries a `correlation_id`
-that's stable for the lifetime of one CLI invocation, so you can trace a
-single `--agent-orchestrate` run's log lines across modules.
+## Incident response
 
-API keys, `Authorization`/`x-api-key` header values, and known env var
-names (`ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `VOYAGE_API_KEY`) are redacted
-automatically before any log line is emitted — see `src/zcoder/config/logging.py`.
-
-See `docs/observability.md` for metrics/tracing hooks (`src/zcoder/claude/enterprise/metrics.py`,
-`src/zcoder/claude/observability.py`) that predate this pass and remain unchanged.
-
-## Rollback
-
-Every release is tagged. To roll back a container deployment:
-
-```bash
-docker pull zcoder:<previous-tag>
-docker compose up -d
-```
-
-Config/state on the `zcoder-home` volume is forward/backward compatible
-within a major version (flat JSON files, no schema migrations as of
-1.12.x).
-
-## Incident response quick reference
-
-| Symptom | Likely cause | First step |
-|---|---|---|
-| `--health-check` exits 1, `api_key_configured: false` | Env var not propagated to container | Check `docker inspect` env, secrets manager wiring |
-| Every call returns a `[zCoder local offline response]` | `ZCODER_LOCAL_MODE` accidentally set in the environment | `unset ZCODER_LOCAL_MODE`; check systemd/CI/shell rc files |
-| Every call returns `[API ERROR 429]` | Rate limited, retries exhausted | Check `retry_after` in logs; consider `--service-tier auto` if you have a Priority Tier commitment |
-| Every call returns `[API ERROR 401]` | Key rotated/revoked | Rotate key in secrets manager, redeploy |
-| PostgreSQL connect fails with `invalid dsn: invalid URI query parameter: "schema"` | DSN carries a Prisma-style `?schema=...` param | DSNs are sanitized automatically since the v1.40.0 post-pass; upgrade the installed build, or drop `?schema=` from `DATABASE_URL` |
-| Circuit breaker open (`circuit_breaker_open` in logs) | Sustained upstream errors | Check Anthropic status page before assuming a local bug |
+| Symptom | First step |
+|---|---|
+| Local inference fails | Check `llama-server` health, GGUF path, and loopback URL |
+| Model URL validation fails | Set `ZCODER_BASE_URL` to an HTTP loopback URL without credentials or query parameters |
+| PostgreSQL connection fails | Check container `zPostgreSQL`, network membership, role, database, and secret-file permissions |
+| API readiness returns 503 | Check database health and API configuration before adding traffic |
+| Circuit breaker opens | Inspect the local service logs and dependency health; avoid repeated retries while the dependency is unavailable |

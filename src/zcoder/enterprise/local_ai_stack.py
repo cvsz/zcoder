@@ -24,7 +24,6 @@ Provides:
 from __future__ import annotations
 
 import dataclasses
-import enum
 import json
 import os
 import platform
@@ -36,6 +35,7 @@ import urllib.request
 from collections.abc import Callable
 from typing import Any
 
+from zcoder.core.enums import StringEnum
 from zcoder.core.resilience import safe_urlopen
 
 # ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ from zcoder.core.resilience import safe_urlopen
 # ---------------------------------------------------------------------------
 
 
-class ModelFit(str, enum.Enum):
+class ModelFit(StringEnum):
     FITS = "FITS"
     MAYBE = "MAYBE"
     DOES_NOT_FIT = "DOES_NOT_FIT"
@@ -160,7 +160,7 @@ class LocalModelMetadata:
 # ---------------------------------------------------------------------------
 
 
-class ModelState(str, enum.Enum):
+class ModelState(StringEnum):
     CATALOG = "CATALOG"
     DISCOVERED = "DISCOVERED"
     DOWNLOADING = "DOWNLOADING"
@@ -172,7 +172,7 @@ class ModelState(str, enum.Enum):
     REMOVED = "REMOVED"
 
 
-class ModelSourceType(str, enum.Enum):
+class ModelSourceType(StringEnum):
     LOCAL_FILE = "LOCAL_FILE"
     HUGGING_FACE = "HUGGING_FACE"
     OLLAMA = "OLLAMA"
@@ -322,11 +322,7 @@ class LlamaCppRuntime(LocalModelProvider):
 
     def list_models(self) -> list[LocalModelMetadata]:
         if not self.is_running():
-            return [
-                LocalModelMetadata(
-                    provider="llama.cpp", model_id="qwen2.5-coder:7b-gguf", parameter_size_b=7.0
-                )
-            ]
+            return []
         try:
             req = urllib.request.Request(f"{self.base_url}/v1/models")
             with safe_urlopen(req, timeout=2) as resp:
@@ -345,7 +341,7 @@ class LlamaCppRuntime(LocalModelProvider):
 
     def chat_complete(self, model_id: str, prompt: str, tools: list[dict[str, Any]] | None = None) -> str:
         if not self.is_running():
-            return f"[LOCAL_LLAMACPP:{model_id}] Simulated execution for: {prompt[:35]}"
+            raise RuntimeError("llama.cpp inference server is unavailable")
         try:
             body = json.dumps(
                 {"model": model_id, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}
@@ -358,8 +354,8 @@ class LlamaCppRuntime(LocalModelProvider):
             with safe_urlopen(req, timeout=30) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("choices", [{}])[0].get("message", {}).get("content", "")
-        except Exception:
-            return f"[LOCAL_LLAMACPP:{model_id}] Simulated execution for: {prompt[:35]}"
+        except Exception as exc:
+            raise RuntimeError("llama.cpp inference request failed") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -478,15 +474,7 @@ class OllamaAdapter(LocalModelProvider):
 
     def list_models(self) -> list[LocalModelMetadata]:
         if not self.is_available():
-            # Return discovered default offline definitions
-            return [
-                LocalModelMetadata(
-                    provider="ollama", model_id="qwen2.5-coder:7b", context_window=32768, parameter_size_b=7.0
-                ),
-                LocalModelMetadata(
-                    provider="ollama", model_id="llama3.3:70b", context_window=131072, parameter_size_b=70.0
-                ),
-            ]
+            return []
         try:
             req = urllib.request.Request(f"{self.base_url}/api/tags")
             with safe_urlopen(req, timeout=2) as resp:
@@ -500,12 +488,12 @@ class OllamaAdapter(LocalModelProvider):
                     )
                     for m in data.get("models", [])
                 ]
-        except Exception:
-            return []
+        except Exception as exc:
+            raise RuntimeError("Ollama model discovery failed") from exc
 
     def chat_complete(self, model_id: str, prompt: str, tools: list[dict[str, Any]] | None = None) -> str:
         if not self.is_available():
-            return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
+            raise RuntimeError("Ollama inference server is unavailable")
         try:
             body = json.dumps({"model": model_id, "prompt": prompt, "stream": False}).encode()
             req = urllib.request.Request(
@@ -514,8 +502,8 @@ class OllamaAdapter(LocalModelProvider):
             with safe_urlopen(req, timeout=120) as resp:
                 res = json.loads(resp.read().decode())
                 return res.get("response", "")
-        except Exception as e:
-            return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]} (Error: {e})"
+        except Exception as exc:
+            raise RuntimeError("Ollama inference request failed") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -651,9 +639,10 @@ class TransportCallMonitor:
 
 
 class AutonomousLocalCodingPipeline:
-    """Executes an end-to-end coding task: Inspect -> Plan -> Edit -> Test -> Validate.
+    """Builds local repository context and generates a task plan.
 
-    Guarantees 100% offline local execution with zero paid commercial API calls.
+    This planning pipeline does not edit files, run tests, or validate changes.
+    It uses the configured local model provider and makes no paid model calls.
     """
 
     def __init__(
@@ -685,7 +674,7 @@ class AutonomousLocalCodingPipeline:
         # 4. Synthesize result
         return {
             "task": task_prompt,
-            "status": "COMPLETED",
+            "status": "PLAN_GENERATED",
             "context_files": [r[0] for r in search_results],
             "completion": completion,
             "paid_transport_calls": self.monitor.total_paid_calls,
@@ -698,12 +687,12 @@ class AutonomousLocalCodingPipeline:
 # ---------------------------------------------------------------------------
 
 
-class RuntimeOwner(str, enum.Enum):
+class RuntimeOwner(StringEnum):
     ZCODER_MANAGED = "ZCODER_MANAGED"
     EXTERNAL = "EXTERNAL"
 
 
-class RuntimeState(str, enum.Enum):
+class RuntimeState(StringEnum):
     STARTING = "STARTING"
     READY = "READY"
     BUSY = "BUSY"
@@ -712,7 +701,7 @@ class RuntimeState(str, enum.Enum):
     FAILED = "FAILED"
 
 
-class ModelResidency(str, enum.Enum):
+class ModelResidency(StringEnum):
     COLD = "COLD"
     LOADING = "LOADING"
     WARM = "WARM"
@@ -866,7 +855,7 @@ class LocalInferenceScheduler:
 # ---------------------------------------------------------------------------
 
 
-class ModelQualityState(str, enum.Enum):
+class ModelQualityState(StringEnum):
     PREFERRED = "PREFERRED"
     CANDIDATE = "CANDIDATE"
     DEGRADED = "DEGRADED"
@@ -1031,12 +1020,12 @@ class ProjectBootstrapService:
         self.quality = quality_svc or QualityEngineeringService()
 
     def detect_stack(self, file_paths: list[str]) -> DetectedStack:
-        languages = set()
-        frameworks = set()
-        pkg_managers = set()
-        build_tools = set()
-        test_frameworks = set()
-        linters = set()
+        languages: set[str] = set()
+        frameworks: set[str] = set()
+        pkg_managers: set[str] = set()
+        build_tools: set[str] = set()
+        test_frameworks: set[str] = set()
+        linters: set[str] = set()
 
         for p in file_paths:
             p_lower = p.lower()
@@ -1139,7 +1128,7 @@ class ProjectBootstrapService:
 # ── Task Lifecycle ──────────────────────────────────────────────────────────
 
 
-class TaskStatus(str, enum.Enum):
+class TaskStatus(StringEnum):
     """18-state lifecycle for autonomous engineering tasks (§7)."""
 
     CREATED = "CREATED"
@@ -1163,7 +1152,7 @@ class TaskStatus(str, enum.Enum):
     BUDGET_REACHED = "BUDGET_REACHED"
 
 
-class TaskSource(str, enum.Enum):
+class TaskSource(StringEnum):
     CLI = "CLI"
     API = "API"
     GITHUB_ISSUE = "GITHUB_ISSUE"
@@ -1171,7 +1160,7 @@ class TaskSource(str, enum.Enum):
     MANUAL = "MANUAL"
 
 
-class TaskRisk(str, enum.Enum):
+class TaskRisk(StringEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -1245,7 +1234,7 @@ class EngineeringPlan:
 # ── Validation ──────────────────────────────────────────────────────────────
 
 
-class ValidationState(str, enum.Enum):
+class ValidationState(StringEnum):
     """Semantically correct: DISCOVERED ≠ EXECUTED_PASS (§2 of Upgrade-20 fixes)."""
 
     DISCOVERED = "DISCOVERED"
@@ -1475,14 +1464,14 @@ class NoProgressDetector:
 # ── Static Review ─────────────────────────────────────────────────────────────
 
 
-class ReviewSeverity(str, enum.Enum):
+class ReviewSeverity(StringEnum):
     INFO = "INFO"
     WARNING = "WARNING"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
 
-class ReviewCategory(str, enum.Enum):
+class ReviewCategory(StringEnum):
     SECRET = "SECRET"
     SECURITY_WEAKENING = "SECURITY_WEAKENING"
     TEST_DELETION = "TEST_DELETION"
@@ -1577,7 +1566,7 @@ class StaticReviewer:
 # ── Security Gate ─────────────────────────────────────────────────────────────
 
 
-class SecurityGateResult(str, enum.Enum):
+class SecurityGateResult(StringEnum):
     PASSED = "PASSED"
     FAILED_SECRET = "FAILED_SECRET"
     FAILED_TEST_WEAKENING = "FAILED_TEST_WEAKENING"
@@ -1621,7 +1610,7 @@ class SecurityGate:
 # ── Push/PR Policy ────────────────────────────────────────────────────────────
 
 
-class PushPolicy(str, enum.Enum):
+class PushPolicy(StringEnum):
     AUTO_LOCAL_ONLY = "AUTO_LOCAL_ONLY"  # Safe default: local commit only
     APPROVAL_BEFORE_PUSH = "APPROVAL_BEFORE_PUSH"
     AUTO_PUSH_ALLOWED = "AUTO_PUSH_ALLOWED"  # Explicitly opted in

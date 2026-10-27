@@ -1,83 +1,54 @@
-# Zero-Cost & Offline Capability Matrix
+# Local Inference and Storage Matrix
 
-`zcoder` provides a 100% free, offline, and credential-free operational tier. This document catalogs all local capabilities, zero-cost backends, and their runtime characteristics.
+The primary coding prompt path uses the local llama.cpp server. This matrix
+describes that path and the local persistence choices; it does not claim that
+every optional integration in the repository has completed migration.
 
----
-
-## 1. Zero-Cost Architecture Overview
-
-The zero-cost architecture allows engineers and air-gapped environments to run autonomous coding workflows with zero commercial API keys and zero cloud dependencies.
+## Local architecture
 
 ```text
- ┌────────────────────────────────────────────────────────┐
- │                   zcoder CLI / SDK                     │
- └───────────────────────────┬────────────────────────────┘
-                             │
-       ┌─────────────────────┼─────────────────────┐
-       ▼                     ▼                     ▼
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│ Local Model  │      │ Local SQLite │      │ Local Object │
-│ (Ollama/vLLM)│      │  Task Store  │      │   Storage    │
-└──────────────┘      └──────────────┘      └──────────────┘
+ZCoder CLI / API
+      |
+      +---- local llama.cpp server ---- GGUF model
+      |
+      +---- SQLite (single-user default)
+      |
+      +---- PostgreSQL container zPostgreSQL (shared local service)
 ```
 
----
+## Runtime and persistence
 
-## 2. Capability Matrix
+| Area | Local implementation | Notes |
+|---|---|---|
+| Inference | llama.cpp with GGUF | Loopback endpoint at `127.0.0.1:8080/v1` by default |
+| Model selection | `ZCODER_MODEL` | Defaults to `zqwen2.5-coder-7b-instruct-q4_k_m` |
+| Single-user persistence | SQLite | Default for the local installation |
+| Shared PostgreSQL | Docker container `zPostgreSQL` | Applications use separate databases and roles |
+| ZCoder PostgreSQL database | `zcoder_db` | Provisioned by `make postgres-setup` |
+| Artifacts | Local filesystem | Subject to filesystem permissions and available disk space |
+| Telemetry | Configured local collector or local storage | Configure endpoints and retention explicitly |
 
-| Dimension | Enterprise / Cloud Tier | Zero-Cost / Local Tier |
-| :--- | :--- | :--- |
-| **LLM Inference** | Anthropic Claude 3.7 / Opus / Sonnet | Ollama / vLLM / llama.cpp / Local OpenAI-compat |
-| **Persistence** | Multi-tenant PostgreSQL 16 (HA) | SQLite (WAL mode, crash-consistent) |
-| **Object Storage** | AWS S3 / GCS / Azure Blob | Sandboxed Local Filesystem (`~/.zcoder/storage`) |
-| **Telemetry** | OpenTelemetry Collector / Datadog | In-Memory / SQLite Local Analytics |
-| **Notifications** | SendGrid Email / Slack Webhooks | Console Output / In-App Notification Center |
-| **Cost Policy** | Budget caps with paid fallbacks | `CostPolicy.ZERO_COST_ONLY` (Strict zero paid calls) |
+## Local model server
 
----
+```bash
+llama-server \
+  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --ctx-size 4096
+```
 
-## 3. Supported Local Model Runtimes
+Set `ZCODER_MODEL` to a local request label when needed. The model file loaded
+by the server determines the actual inference weights.
 
-| Runtime | Protocol | Default Endpoint | Recommended Models |
-| :--- | :--- | :--- | :--- |
-| **Ollama** | OpenAI compatible / Native | `http://localhost:11434/v1` | `qwen2.5-coder:32b`, `deepseek-coder-v2`, `codellama` |
-| **vLLM** | OpenAI compatible | `http://localhost:8000/v1` | `Qwen/Qwen2.5-Coder-32B-Instruct`, `Mistral-Small` |
-| **llama.cpp** | OpenAI compatible | `http://localhost:8080/v1` | GGUF quantized models (Q4_K_M, Q8_0) |
-| **LM Studio** | OpenAI compatible | `http://localhost:1234/v1` | Developer local testing models |
+## Boundaries
 
----
-
-## 4. Cost Policy Enforcement
-
-When `--zero-cost` or `CostPolicy.ZERO_COST_ONLY` is enabled:
-- Network calls to `api.anthropic.com` or other commercial providers are strictly blocked.
-- Any task requesting a paid model will automatically route to the best matching local model or fail fast.
-- Billing meters remain inactive and report zero charges.
-
----
-
-## 5. Offline Synthesis Mode (`ZCODER_LOCAL_MODE`)
-
-Separate from the local-model tier above, `ZCODER_LOCAL_MODE=1` (or
-`true`/`yes`) enables a **pure offline synthesis tier with no model
-engine at all**:
-
-| Dimension | Local-Model Tier (Ollama/vLLM) | Offline Synthesis Tier |
-| :--- | :--- | :--- |
-| **Model engine** | Required (downloaded weights) | None — deterministic in-process synthesis |
-| **Network** | None | None |
-| **API key** | Not required | Not required (`zcoder.main._api_key` returns a placeholder) |
-| **Generation** | Real local inference | `[zCoder local offline response]` stub |
-| **Git helpers** | Real local inference | Deterministic commit-message/PR/review stubs |
-| **Live mode** | Real local inference | Streamed echo fallback |
-| **Prompt optimize/score** | Real local inference | Rule-based enhancement / heuristic scoring |
-| **Missing-key behavior** | Error outside local mode | Works only when `ZCODER_LOCAL_MODE` is set |
-
-Notes:
-- Outside local mode a missing `ANTHROPIC_API_KEY` is a hard error — the
-  CLI never silently pretends to generate.
-- A network/auth failure in the git helper synthesizes an offline reply
-  for that one call only; it does **not** flip the process into local
-  mode for every later call.
-- Purpose: trying the CLI, running the test suite, air-gapped smoke
-  tests, and deterministic CI fixtures.
+- Local inference uses local compute and storage resources; it is not resource
+  free.
+- A missing model server is reported as an error. ZCoder does not fabricate a
+  successful model response.
+- Specialized features that still use legacy remote clients are not covered
+  by this local matrix and must be migrated or disabled before a complete
+  local-only release can be claimed.
+- Never store database credentials in source control. Use per-application
+  roles and databases on the shared PostgreSQL service.

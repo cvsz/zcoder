@@ -11,5 +11,5 @@
 ## Secret Rotation Policy
 - **Database Credentials**: Managed via Kubernetes Secret reference or External Secrets Operator (Vault / AWS Secrets Manager). Applications use connection pool with auto-reconnect upon credential update.
 - **GitHub App Private Key**: Loaded via file mount or environment variable reference; rotated by uploading new PEM to secret store.
-- **Anthropic API Key**: Injected via secret reference `ANTHROPIC_API_KEY`.
+- **Local model access**: The primary prompt client uses the loopback model endpoint and requires no hosted model credential.
 - **Break-Glass Admin**: Configured via `ZCODER_BREAK_GLASS_SECRET` with mandatory structured audit logging on every activation.

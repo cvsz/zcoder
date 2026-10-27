@@ -130,7 +130,7 @@ def github_ci_repair_hook(
         repository = str(item.payload.get("github_repo", item.payload.get("repository", "")))
         pr_number = item.payload.get("github_pr")
         if not job_id or not repository or pr_number is None:
-            return True
+            return False
         return bool(
             orchestrator.execute_ci_repair_loop(job_id, repository, int(pr_number), max_repairs=max_repairs)
         )
@@ -205,9 +205,11 @@ class ContinuousEngineeringPipeline:
 
     def _run_locked(self, seed_items: Iterable[UpgradeWorkItem]) -> LoopReport:
         seed = self.ledger.load_resumable(retry_blocked=self.retry_blocked)
-        seed.extend(self._restore(item) for item in seed_items)
-        normalized_seed = [item for item in seed if item is not None]
-        for item in normalized_seed:
+        for item in seed_items:
+            restored = self._restore(item)
+            if restored is not None:
+                seed.append(restored)
+        for item in seed:
             self._items_by_id[item.item_id] = item
 
         loop = ContinuousUpgradeLoop(
@@ -217,7 +219,7 @@ class ContinuousEngineeringPipeline:
             checkpoint=self._checkpoint,
             policy=self.policy,
         )
-        report = loop.run(normalized_seed)
+        report = loop.run(seed)
         persisted_blocked = self.ledger.blocked_item_ids()
         if persisted_blocked:
             blocked_ids = tuple(dict.fromkeys((*report.blocked_item_ids, *persisted_blocked)))
@@ -325,6 +327,16 @@ def build_local_pipeline(
     )
 
 
+PostgresStoreComposer = Callable[..., ContinuousEngineeringPipeline]
+_postgres_store_composer: PostgresStoreComposer | None = None
+
+
+def register_postgres_store_composer(composer: PostgresStoreComposer) -> None:
+    """Register the outward interface's PostgreSQL composition function."""
+    global _postgres_store_composer
+    _postgres_store_composer = composer
+
+
 def build_postgres_store_pipeline(
     repository_root: str | Path,
     database_url: str,
@@ -340,7 +352,7 @@ def build_postgres_store_pipeline(
 ) -> ContinuousEngineeringPipeline:
     """Compatibility seam for a composer registered by the outward interface."""
 
-    composer = getattr(build_postgres_store_pipeline, "_outward_composer", None)
+    composer = _postgres_store_composer
     if composer is None:
         raise RuntimeError(
             "PostgreSQL composition belongs to zcoder.interfaces.cli.continuous_engineering; "

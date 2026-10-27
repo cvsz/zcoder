@@ -1,25 +1,14 @@
-"""
-health.py — Liveness/readiness checks for container orchestration
-
-Exposed via `--health-check` (main.py) and used as the Docker HEALTHCHECK
-command (see Dockerfile). Deliberately does NOT make a real API call on
-every check (that would burn quota / money on every orchestrator probe,
-which commonly run every few seconds) — it verifies the things that would
-make the process itself unhealthy: config readable, API key present in
-some form, disk-writable for config/cache dirs.
-
-For a true end-to-end check against the live API, use `--health-check --deep`
-sparingly (e.g. a startup probe run once, not a liveness probe run every 5s).
-"""
+"""Liveness/readiness checks for the local model client and CLI runtime."""
 
 from __future__ import annotations
 
 import os
 import sys
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 
-from zcoder.config.settings import CONFIG_PATH, Config
+from zcoder.config.settings import CONFIG_PATH
 
 
 @dataclass
@@ -45,12 +34,23 @@ class HealthReport:
         }
 
 
-def _check_api_key() -> CheckResult:
-    cfg = Config()
-    key = cfg.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
-    return CheckResult(
-        "api_key_configured", bool(key), "" if key else "ANTHROPIC_API_KEY not set and no key in config"
+def _check_model_config() -> CheckResult:
+    base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip()
+    model = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m").strip()
+    parsed = urllib.parse.urlsplit(base_url)
+    valid_url = (
+        parsed.scheme == "http"
+        and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
     )
+    if not valid_url:
+        return CheckResult("local_model_configured", False, "ZCODER_BASE_URL must use loopback HTTP")
+    if not model:
+        return CheckResult("local_model_configured", False, "ZCODER_MODEL must not be empty")
+    return CheckResult("local_model_configured", True)
 
 
 def _check_config_writable() -> CheckResult:
@@ -67,35 +67,34 @@ def _check_config_writable() -> CheckResult:
 
 
 def _check_python_version() -> CheckResult:
-    ok = sys.version_info >= (3, 10)
+    ok = sys.version_info >= (3, 12)
     return CheckResult(
-        "python_version", ok, f"{sys.version.split()[0]} ({'ok' if ok else 'requires >= 3.10'})"
+        "python_version", ok, f"{sys.version.split()[0]} ({'ok' if ok else 'requires >= 3.12'})"
     )
 
 
-def _check_live_api(api_key: str, model: str = "claude-sonnet-5") -> CheckResult:
-    """Deep check — makes one minimal live call. Only run explicitly."""
+def _check_live_model(model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> CheckResult:
+    """Deep check — make one minimal request to the configured local model."""
     try:
         from zcoder.services.coder import Coder
 
-        c = Coder(api_key=api_key, model=model, max_tokens=8)
+        c = Coder(model=model, max_tokens=8)
         result = c.generate("Reply with the single word: ok")
         ok = not str(result).startswith("[ERROR]") and not str(result).startswith("[API ERROR")
-        return CheckResult("live_api_call", ok, str(result)[:200])
+        return CheckResult("local_model_call", ok, str(result)[:200])
     except Exception as e:
-        return CheckResult("live_api_call", False, str(e))
+        return CheckResult("local_model_call", False, str(e))
 
 
 def run_health_check(deep: bool = False) -> HealthReport:
     report = HealthReport()
     report.checks.append(_check_python_version())
     report.checks.append(_check_config_writable())
-    key_check = _check_api_key()
-    report.checks.append(key_check)
+    model_check = _check_model_config()
+    report.checks.append(model_check)
 
-    if deep and key_check.ok:
-        cfg = Config()
-        key = cfg.get("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
-        report.checks.append(_check_live_api(key))
+    if deep and model_check.ok:
+        model = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+        report.checks.append(_check_live_model(model))
 
     return report

@@ -77,3 +77,12 @@ def test_filesystem_allowed_values_pass(tmp_path):
         _write_manifest(tmp_path, {"name": "ok", "permissions": {"filesystem": fs}})
         findings = validate_plugin(tmp_path)
         assert not _levels(findings, "error"), f"filesystem={fs!r} should not error"
+
+
+def test_plugin_validate_cli_flag_is_not_exposed():
+    import pytest
+
+    from zcoder.main import build_parser
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--plugin-validate", "/tmp/plugin"])

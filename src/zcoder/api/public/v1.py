@@ -86,9 +86,11 @@ class PublicAPIV1Router:
         self,
         entitlement_service: EntitlementService | None = None,
         job_store: TenantJobStore | None = None,
+        job_runtime_ready: bool = False,
     ):
         self.entitlements = entitlement_service or EntitlementService()
         self.job_store = job_store
+        self.job_runtime_ready = job_runtime_ready
         self.idempotency_store: dict[str, dict[str, Any]] = {}
         self.rate_limit_tracker: dict[str, list[float]] = {}
 
@@ -165,14 +167,14 @@ class PublicAPIV1Router:
             )
 
         runtime = payload.get("runtime", "direct")
-        if not isinstance(runtime, str) or runtime not in {"direct", "fake", "noop"}:
+        if not isinstance(runtime, str) or runtime != "direct":
             raise APIError(
                 "VALIDATION_ERROR",
-                "Field 'runtime' must be one of: direct, fake, noop",
+                "Field 'runtime' must be 'direct'",
                 status_code=422,
             )
 
-        model = payload.get("model", "claude-sonnet-5")
+        model = payload.get("model", "zqwen2.5-coder-7b-instruct-q4_k_m")
         if not isinstance(model, str) or not model.strip() or len(model) > 256:
             raise APIError(
                 "VALIDATION_ERROR",
@@ -319,6 +321,12 @@ class PublicAPIV1Router:
         if p == "/api/v1/jobs":
             if method == "POST":
                 store = self._require_job_store()
+                if not self.job_runtime_ready:
+                    raise APIError(
+                        "JOB_RUNTIME_UNAVAILABLE",
+                        "Job submission is unavailable until a local execution adapter is configured",
+                        status_code=501,
+                    )
                 job = self._new_job(ctx, payload)
                 try:
                     persisted = store.enqueue_job(

@@ -3,6 +3,7 @@ candidate commit that the working tree is checked out at."""
 
 import json
 import subprocess
+from datetime import UTC, datetime
 
 import pytest
 
@@ -19,6 +20,7 @@ def _head_sha() -> str:
 @pytest.fixture
 def evidence_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(release_gate_module, "EVIDENCE_DIR", tmp_path)
+    monkeypatch.setattr(ProductionReleaseGate, "_working_tree_dirty", staticmethod(lambda: False))
     return tmp_path
 
 
@@ -41,6 +43,18 @@ def _write_evidence(path, record: dict) -> None:
     path.write_text(json.dumps(record, indent=2), encoding="utf-8")
 
 
+def _pitr_evidence(sha: str) -> dict:
+    return {
+        "schema": 1,
+        "sha": sha,
+        "wal_archive_verified": True,
+        "restore_drill_passed": True,
+        "tested_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "evidence_ref": "change-record:DR-2026-10",
+        "evidence_sha256": "a" * 64,
+    }
+
+
 def _gate(verdicts: set[GateVerdict] | None = None) -> ProductionReleaseGate:
     gate = ProductionReleaseGate()
     verdicts = verdicts or set()
@@ -57,15 +71,14 @@ def test_gate_stays_unknown_without_evidence(evidence_dir):
         assert gate.gates[name].verdict == GateVerdict.UNKNOWN
 
 
-def test_gate_promotes_from_evidence_bound_to_head(evidence_dir):
+def test_gate_promotes_from_evidence_bound_to_head(evidence_dir, monkeypatch):
     sha = _head_sha()
     checks = {
         name: _required_check(name)
         for name in (
             "lint",
-            "test (3.10)",
-            "test (3.11)",
             "test (3.12)",
+            "test (3.13)",
             "security",
             "Analyze Python Code Security",
             "Bandit and pip-audit",
@@ -80,6 +93,7 @@ def test_gate_promotes_from_evidence_bound_to_head(evidence_dir):
     }
     record = _valid_evidence(sha, checks)
     _write_evidence(evidence_dir / f"release-evidence-{sha[:8]}.json", record)
+    monkeypatch.setenv("ZCODER_PITR_EVIDENCE_JSON", json.dumps(_pitr_evidence(sha)))
 
     gate = ProductionReleaseGate()
     for name in (
@@ -93,6 +107,49 @@ def test_gate_promotes_from_evidence_bound_to_head(evidence_dir):
         assert f"bound to release-candidate {sha[:12]}" in gate.gates[name].notes
     # The documented WAL-target limitation stays on the record after promotion.
     assert "external object storage target" in " ".join(gate.gates["PITR"].limitations)
+
+
+def test_pitr_stays_unknown_without_operational_restore_evidence(evidence_dir, monkeypatch):
+    monkeypatch.delenv("ZCODER_PITR_EVIDENCE_JSON", raising=False)
+    sha = _head_sha()
+    checks = {
+        name: _required_check(name)
+        for name in (
+            "test (3.12)",
+            "test (3.13)",
+        )
+    }
+    _write_evidence(evidence_dir / f"release-evidence-{sha[:8]}.json", _valid_evidence(sha, checks))
+
+    gate = ProductionReleaseGate()
+
+    assert gate.gates["PITR"].verdict == GateVerdict.UNKNOWN
+    assert "restore drill" in " ".join(gate.gates["PITR"].limitations)
+
+
+def test_pitr_rejects_stale_or_unverifiable_operational_evidence(evidence_dir, monkeypatch):
+    sha = _head_sha()
+    checks = {name: _required_check(name) for name in ("test (3.12)", "test (3.13)")}
+    _write_evidence(evidence_dir / f"release-evidence-{sha[:8]}.json", _valid_evidence(sha, checks))
+    record = _pitr_evidence(sha)
+    record["tested_at"] = "2020-01-01T00:00:00Z"
+    record["evidence_sha256"] = "invalid"
+    monkeypatch.setenv("ZCODER_PITR_EVIDENCE_JSON", json.dumps(record))
+
+    gate = ProductionReleaseGate()
+
+    assert gate.gates["PITR"].verdict == GateVerdict.UNKNOWN
+
+
+def test_gate_stays_unknown_when_worktree_is_dirty(evidence_dir, monkeypatch):
+    sha = _head_sha()
+    checks = {"lint": _required_check("lint")}
+    _write_evidence(evidence_dir / f"release-evidence-{sha[:8]}.json", _valid_evidence(sha, checks))
+    monkeypatch.setattr(ProductionReleaseGate, "_working_tree_dirty", staticmethod(lambda: True))
+
+    gate = ProductionReleaseGate()
+
+    assert gate.gates["VERSION_INTEGRITY"].verdict == GateVerdict.UNKNOWN
 
 
 def test_gate_ignores_stale_evidence_bound_to_another_sha(evidence_dir):
@@ -110,9 +167,8 @@ def test_gate_rejects_evidence_with_failed_check(evidence_dir):
     sha = _head_sha()
     checks = {
         "lint": _required_check("lint", conclusion="failure"),
-        "test (3.10)": _required_check("test (3.10)"),
-        "test (3.11)": _required_check("test (3.11)"),
         "test (3.12)": _required_check("test (3.12)"),
+        "test (3.13)": _required_check("test (3.13)"),
         "security": _required_check("security"),
         "Analyze Python Code Security": _required_check("Analyze Python Code Security"),
         "Bandit and pip-audit": _required_check("Bandit and pip-audit"),

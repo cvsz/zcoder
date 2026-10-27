@@ -98,6 +98,12 @@ def main():
                 time.sleep(0.25)
 
         worker._run_job_runtime = types.MethodType(hold_forever, worker)
+    else:
+        def complete_test_job(self, job, fencing_token):
+            if job.runtime != "fake":
+                raise RuntimeError("unexpected runtime in cross-process test")
+
+        worker._run_job_runtime = types.MethodType(complete_test_job, worker)
 
     worker.install_signal_handlers()
     worker.run()

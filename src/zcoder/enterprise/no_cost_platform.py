@@ -14,7 +14,6 @@ Implements Upgrade-13 No-Cost Core Architecture:
 from __future__ import annotations
 
 import dataclasses
-import enum
 import hashlib
 import pathlib
 import tempfile
@@ -22,12 +21,14 @@ import time
 import uuid
 from typing import Any
 
+from zcoder.core.enums import StringEnum
+
 # ---------------------------------------------------------------------------
 # 1. Cost Classification & Policy
 # ---------------------------------------------------------------------------
 
 
-class CostClass(str, enum.Enum):
+class CostClass(StringEnum):
     FREE_LOCAL = "FREE_LOCAL"
     FREE_REMOTE = "FREE_REMOTE"
     CUSTOMER_KEY = "CUSTOMER_KEY"
@@ -35,7 +36,7 @@ class CostClass(str, enum.Enum):
     UNKNOWN = "UNKNOWN"
 
 
-class CostPolicy(str, enum.Enum):
+class CostPolicy(StringEnum):
     ZERO_COST_ONLY = "ZERO_COST_ONLY"
     PREFER_ZERO_COST = "PREFER_ZERO_COST"
     PERMIT_PAID = "PERMIT_PAID"
@@ -178,7 +179,7 @@ class LocalObjectStorage:
 # ---------------------------------------------------------------------------
 
 
-class NotificationSeverity(str, enum.Enum):
+class NotificationSeverity(StringEnum):
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"

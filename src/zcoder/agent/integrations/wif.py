@@ -59,7 +59,9 @@ import json
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen, urlopen_json
@@ -101,7 +103,7 @@ class WIFCredentialExchanger:
         """Returns the OAuth 2.0 token response: access_token, expires_in,
         token_type, and scope. Never logs `identity_token` or the
         returned `access_token`, including on failure."""
-        body = {
+        body: dict[str, Any] = {
             "grant_type": JWT_BEARER_GRANT,
             "assertion": identity_token,
             "federation_rule_id": federation_rule_id,
@@ -135,7 +137,7 @@ class WIFCredentialExchanger:
             raise WIFExchangeError(None, e.details.get("body", "")) from None
 
 
-def resolve_wif_env(env: dict | None = None) -> dict | None:
+def resolve_wif_env(env: Mapping[str, str] | None = None) -> dict[str, str | None] | None:
     """Mirrors the first-party SDKs' zero-argument-constructor behavior:
     reads ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID,
     ANTHROPIC_SERVICE_ACCOUNT_ID (all required), ANTHROPIC_WORKSPACE_ID
@@ -156,7 +158,7 @@ def resolve_wif_env(env: dict | None = None) -> dict | None:
     if not (rule_id and org_id and svc_account_id):
         return None
 
-    identity_token = None
+    identity_token: str | None = None
     token_file = env.get("ANTHROPIC_IDENTITY_TOKEN_FILE")
     if token_file:
         try:
@@ -243,7 +245,7 @@ class WIFAdminClient:
         oauth_scope: str | None = None,
         token_lifetime_seconds: int | None = None,
     ) -> dict:
-        payload = {
+        payload: dict[str, Any] = {
             "name": name,
             "issuer_id": issuer_id,
             "service_account_id": service_account_id,

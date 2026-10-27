@@ -8,7 +8,7 @@ and modules `main.py` already uses:
     coder.Coder              -> chat/generation
     personalities.py         -> PersonalityManager
     skills.py                -> SkillManager
-    agent_models.py         -> MODEL_CATALOG (dropdown list)
+    ZCODER_MODEL            -> local-only model dropdown
     main.py                  -> VERSION, AGENT_SYSTEM_PROMPTS
     config.py                -> Config (persisted to ~/.zcoder-config.json)
     health.py                -> run_health_check (used for Docker/orchestrator
@@ -24,6 +24,9 @@ import json
 import os
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -39,13 +42,11 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from zcoder.agent.models.registry import MODEL_CATALOG  # noqa: E402
 from zcoder.agent.personalities import PersonalityManager  # noqa: E402
 from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
 from zcoder.config.settings import Config  # noqa: E402
 from zcoder.core.health import run_health_check  # noqa: E402
-from zcoder.core.utils import sdk_sampling_kwargs  # noqa: E402
 from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
 from zcoder.services.coder import Coder  # noqa: E402
 from zcoder.services.skills import SkillManager  # noqa: E402
@@ -96,13 +97,14 @@ _SESSION_LIMIT = 200  # oldest session dropped past this to bound memory
 class ChatRequest(BaseModel):
     prompt: str
     session_id: str | None = None
-    model: str = "claude-sonnet-5"
+    model: str = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
     temperature: float = 0.3
     max_tokens: int = 4096
     system: str | None = None
     personality: str | None = None
     agent: str | None = None
     skill: str | None = None
+    # Retained for older clients; local inference never forwards credentials.
     api_key: str | None = None
 
     @field_validator("prompt")
@@ -155,8 +157,60 @@ def _check_rate_limit(ip: str) -> None:
     _rate_buckets[ip] = bucket
 
 
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    """Prevent a local model server redirecting inference off-loopback."""
+
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+def _local_model_endpoint(path: str) -> str:
+    base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080").strip().rstrip("/")
+    parsed = urllib.parse.urlsplit(base_url)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise HTTPException(503, "ZCODER_BASE_URL must point to a local llama-server on loopback")
+    prefix = parsed.path.rstrip("/")
+    if not prefix.endswith("/v1"):
+        prefix = f"{prefix}/v1"
+    return f"{urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, prefix, '', ''))}/{path.lstrip('/')}"
+
+
+def _local_model_request(req: ChatRequest, history: list[dict], system: str | None, *, stream: bool):
+    messages = list(history)
+    if system:
+        messages.insert(0, {"role": "system", "content": system})
+    messages.append({"role": "user", "content": req.prompt})
+    payload = {
+        "model": req.model,
+        "max_tokens": req.max_tokens,
+        "temperature": req.temperature,
+        "messages": messages,
+        "stream": stream,
+    }
+    request = urllib.request.Request(
+        _local_model_endpoint("chat/completions"),
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "text/event-stream, application/json"},
+        method="POST",
+    )
+    opener = urllib.request.build_opener(_RejectRedirects())
+    try:
+        return opener.open(request, timeout=300)
+    except urllib.error.HTTPError as exc:
+        exc.close()
+        raise HTTPException(502, f"Local model server returned HTTP {exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise HTTPException(503, "Cannot connect to the local llama-server") from exc
+
+
 class ConfigUpdate(BaseModel):
-    api_key: str | None = None
     model: str | None = None
     temperature: float | None = None
 
@@ -192,10 +246,8 @@ def get_health(deep: bool = False):
 
 @app.get("/api/models")
 def get_models():
-    return [
-        {"id": model_id, "display_name": info.get("display_name", model_id), "tier": info.get("tier", "")}
-        for model_id, info in MODEL_CATALOG.items()
-    ]
+    model_id = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m").strip()
+    return [{"id": model_id, "display_name": model_id, "tier": "local"}]
 
 
 @app.get("/api/personalities")
@@ -216,18 +268,12 @@ def get_agents():
 @app.get("/api/config")
 def get_config():
     cfg = Config().all()
-    key = cfg.get("api_key")
-    if key:
-        # Never echo a full stored key back to the browser.
-        cfg["api_key"] = f"sk-ant-***{key[-4:]}" if len(key) > 4 else "***"
-    return cfg
+    return {"model": cfg.get("model"), "temperature": cfg.get("temperature")}
 
 
 @app.post("/api/config")
 def set_config(update: ConfigUpdate):
     cfg = Config()
-    if update.api_key:
-        cfg.set("api_key", update.api_key)
     if update.model:
         cfg.set("model", update.model)
     if update.temperature is not None:
@@ -278,7 +324,9 @@ def chat(req: ChatRequest, request: Request):
     system = _build_system_prompt(req)
 
     coder = Coder(
-        api_key=req.api_key or None,
+        # Legacy API-key fields are accepted by the request model for client
+        # compatibility, but local inference never consumes credentials.
+        api_key=None,
         model=req.model,
         temperature=req.temperature,
         max_tokens=req.max_tokens,
@@ -319,29 +367,37 @@ def chat_stream(req: ChatRequest, request: Request):
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
     system = _build_system_prompt(req)
-    api_key = req.api_key or Config().get("api_key") or os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(400, "No API key. Set ANTHROPIC_API_KEY, use /api/config, or pass api_key.")
 
     def event_stream():
-        import anthropic
-
         full_text = ""
         try:
-            client = anthropic.Anthropic(api_key=api_key)
-            messages = list(history) + [{"role": "user", "content": req.prompt}]
-            kwargs = dict(model=req.model, max_tokens=req.max_tokens, messages=messages)
-            if system:
-                kwargs["system"] = system
-            kwargs.update(sdk_sampling_kwargs(req.model, temperature=req.temperature))
-            with client.messages.stream(**kwargs) as stream:
-                for event in stream:
-                    if getattr(event, "type", "") == "content_block_delta":
-                        delta = event.delta
-                        if getattr(delta, "type", "") == "text_delta":
-                            text = getattr(delta, "text", "")
-                            full_text += text
-                            yield f"data: {json.dumps({'type': 'token', 'text': text})}\n\n"
+            with _local_model_request(req, history, system, stream=True) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = event.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = (choices[0].get("delta") or {}).get("content", "")
+                    if isinstance(delta, str) and delta:
+                        full_text += delta
+                        yield f"data: {json.dumps({'type': 'token', 'text': delta})}\n\n"
+        except HTTPException as exc:
+            public_message = (
+                "ZCODER_BASE_URL must point to a local llama-server on loopback"
+                if "ZCODER_BASE_URL must point to a local llama-server on loopback" in str(exc.detail)
+                else "Local model request failed"
+            )
+            yield f"data: {json.dumps({'type': 'error', 'message': public_message})}\n\n"
+            return
         except Exception:
             logger.exception("stream_chat_failed", extra={"model": req.model})
             yield f"data: {json.dumps({'type': 'error', 'message': 'Upstream provider request failed'})}\n\n"

@@ -90,6 +90,9 @@ class FencedUpgradeEngineeringStore(EngineeringStore):
     def get_task(self, task_id: str) -> EngineeringTask | None:
         return self.delegate.get_task(task_id)
 
+    def claim_task(self) -> EngineeringTask | None:
+        return self.delegate.claim_task()
+
     def create_attempt(self, attempt: Attempt) -> None:
         raise PostgresFencedRunLeaseError("fenced upgrade store does not permit attempt mutations")
 
