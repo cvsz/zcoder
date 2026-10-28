@@ -386,17 +386,35 @@ pytest --cov --cov-report=term-missing
 
 ## Docker
 
-```bash
-# Build
-docker build -t zcoder:local .
+### Local GGUF inference (recommended)
 
-# Verify
+The Compose stack runs ZCoder and a separate llama.cpp server. It does not
+require an Anthropic API key. Put the selected GGUF in `models/` (default:
+`models/qwen-7b-q4km.gguf`), then run:
+
+```bash
+cp .env.example .env
+docker compose config
+docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
+docker compose logs -f llama-server
+docker compose down
+```
+
+Use `ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf` and
+`ZCODER_MODEL=qwen-1.5b-q4km` in `.env` to select the smaller model.
+The model directory is mounted read-only. GGUF files are excluded from Git
+and from the Docker build context. The inference service publishes no host
+port; ZCoder shares its network namespace and uses the loopback endpoint.
+See [QUICKSTART.md](QUICKSTART.md) and
+[Local Inference Configuration](docs/guides/LOCAL-INFERENCE.md).
+
+### Build and run the application image directly
+
+```bash
+docker build -t zcoder:local .
 docker run --rm zcoder:local --version
 
-# Run with provider key
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder:local
-
-# Run the API server (set DATABASE_URL to a reachable PostgreSQL database)
+# Run the API server against a reachable PostgreSQL database
 docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
   -e DATABASE_URL=postgresql://user:password@host:5432/zcoder \
   zcoder:local
