@@ -1,24 +1,59 @@
 services:
+  llama-server:
+    image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    command:
+      - --model
+      - /models/${ZCODER_GGUF_FILE:-qwen-7b-q4km.gguf}
+      - --alias
+      - ${ZCODER_MODEL:-qwen-7b-q4km}
+      - --host
+      - 127.0.0.1
+      - --port
+      - "8080"
+      - --ctx-size
+      - "${ZCODER_CTX_SIZE:-4096}"
+    volumes:
+      - type: bind
+        source: ${ZCODER_MODELS_DIR:-./models}
+        target: /models
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    init: true
+    restart: unless-stopped
+    # Deliberately no published ports. ZCoder shares this network namespace
+    # and reaches the loopback-only inference endpoint at 127.0.0.1:8080.
+
   zcoder:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: zcoder:latest
-    container_name: zcoder
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY must be set in the environment or .env file}
-      - ZCODER_LOG_FORMAT=json
-      - ZCODER_LOG_LEVEL=INFO
+      ZCODER_BASE_URL: http://127.0.0.1:8080/v1
+      ZCODER_MODEL: ${ZCODER_MODEL:-qwen-7b-q4km}
+      ZCODER_LOG_FORMAT: json
+      ZCODER_LOG_LEVEL: INFO
     volumes:
       # Persist config/cache across container restarts without baking
       # secrets or state into the image.
       - zcoder-home:/home/zcoder
+    network_mode: "service:llama-server"
+    depends_on:
+      llama-server:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "main.py", "--health-check"]
+      test: ["CMD", "python", "-m", "zcoder.main", "--health-check"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
-    restart: unless-stopped
-    # Interactive CLI usage: docker compose run --rm zcoder -p "..."
+      start_period: 10s
     stdin_open: true
     tty: true
 
