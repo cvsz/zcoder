@@ -25,11 +25,13 @@ against it. Copy `.env.example` to `.env`, then confirm the configured
 model file exists in the configured models directory:
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 ls -lh models/qwen-7b-q4km.gguf
 docker compose config
 docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
 ```
+
+If `.env` already exists, keep it and update only the required model settings.
 
 The default settings are:
 
