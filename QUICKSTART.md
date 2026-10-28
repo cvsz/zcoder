@@ -33,10 +33,12 @@ directory read-only into the inference container. Model weights are excluded
 from Git and the Docker build context.
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 docker compose config
 docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
 ```
+
+If `.env` already exists, keep it and update only the required model settings.
 
 The first run downloads the llama.cpp server image and builds the ZCoder image.
 The server loads the GGUF before the command runs; the first model load can take
