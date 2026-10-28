@@ -25,3 +25,7 @@ coverage.xml
 .coverage
 logs
 .web.pid
+# Model weights must be mounted at runtime, never copied into the image.
+models/
+*.gguf
+*.gguf.*
