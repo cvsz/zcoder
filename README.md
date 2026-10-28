@@ -393,12 +393,14 @@ require an Anthropic API key. Put the selected GGUF in `models/` (default:
 `models/qwen-7b-q4km.gguf`), then run:
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 docker compose config
 docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
 docker compose logs -f llama-server
 docker compose down
 ```
+
+If `.env` already exists, keep it and update only the required model settings.
 
 Use `ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf` and
 `ZCODER_MODEL=qwen-1.5b-q4km` in `.env` to select the smaller model.
