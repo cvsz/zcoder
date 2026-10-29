@@ -80,7 +80,7 @@ def parse_and_validate_duration(value):
         try:
             val = float(clean_value)
         except ValueError:
-            raise ValueError(f"Invalid duration value: '{value}'. Must be an integer (e.g., 5, 10).")
+            raise ValueError(f"Invalid duration value: '{value}'. Must be an integer (e.g., 5, 10).") from None
 
     if not val.is_integer():
         raise ValueError(f"Duration must be an integer, not a float (e.g., got {value}).")
@@ -99,7 +99,7 @@ def argparse_duration_type(value):
     try:
         return parse_and_validate_duration(value)
     except ValueError as e:
-        raise argparse.ArgumentTypeError(str(e))
+        raise argparse.ArgumentTypeError(str(e)) from e
 
 
 def resolve_or_upload_asset(asset_path, mime_type, api_key, strip_audio=False):
@@ -138,7 +138,7 @@ def resolve_or_upload_asset(asset_path, mime_type, api_key, strip_audio=False):
                 raise RuntimeError(
                     "Error: ffmpeg is not installed or not found in system PATH. "
                     "ffmpeg is required to strip audio from local videos."
-                )
+                ) from None
 
             try:
                 os.makedirs("media", exist_ok=True)
@@ -148,7 +148,7 @@ def resolve_or_upload_asset(asset_path, mime_type, api_key, strip_audio=False):
 
                 # Fast stream-copy audio stripping
                 cmd = ["ffmpeg", "-y", "-i", asset_path, "-c:v", "copy", "-an", temp_stripped_path]
-                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                subprocess.run(cmd, capture_output=True, check=True)
 
                 print(f"Successfully stripped audio. Temporary video file created at: {temp_stripped_path}")
                 upload_path = temp_stripped_path
@@ -203,7 +203,7 @@ def download_video_file(file_uri, output_path, api_key):
                     f.write(chunk)
         print(f"Video successfully saved to: {output_path}")
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Error downloading video file: {e.code} - {e.read().decode()}")
+        raise RuntimeError(f"Error downloading video file: {e.code} - {e.read().decode()}") from e
 
 
 def generate_video(
@@ -267,7 +267,7 @@ def generate_video(
             previous_interaction_id=previous_interaction_id,
         )
     except Exception as e:
-        raise RuntimeError(f"Error generating video via SDK: {e}")
+        raise RuntimeError(f"Error generating video via SDK: {e}") from e
 
     print(f"Generation complete for '{prompt}'! Processing response...")
 
