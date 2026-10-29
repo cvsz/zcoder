@@ -43,7 +43,7 @@ def test_hard_deny_in_every_mode_even_bypass(tmp_path, cmd):
     [
         ("ls -la", True),
         ("git status", True),
-        ("git diff HEAD", True),
+        ("git diff HEAD", False),
         ("git log --oneline | head -5", True),
         ("git branch", True),
         ("git branch newbranch", False),
@@ -142,3 +142,12 @@ def test_deny_rules_win(pol):
 def test_cycle_mode_skips_bypass(pol):
     seen = [pol.cycle_mode() for _ in range(3)]
     assert seen == [Mode.ACCEPT_EDITS, Mode.PLAN, Mode.DEFAULT]
+
+
+def test_git_diff_requires_explicit_approval_even_with_session_rule(pol):
+    tool, args = bash("git diff HEAD")
+    pol.remember(tool, args)
+
+    assert pol.check(tool, args).action == "ask"
+    pol.mode = Mode.PLAN
+    assert pol.check(tool, args).action == "deny"
