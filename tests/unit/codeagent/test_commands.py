@@ -47,8 +47,10 @@ async def test_permissions_rules_editing(make_agent):
     await dispatch(agent, "/permissions deny Bash(npm publish:*)")
     out = (await dispatch(agent, "/permissions")).output
     assert "Bash(npm:*)" in out and "Bash(npm publish:*)" in out
-    await dispatch(agent, "/permissions reset")
-    assert agent.policy.allow_rules == [] and agent.policy.deny_rules == []
+    reset = await dispatch(agent, "/permissions reset")
+    assert agent.policy.allow_rules == []
+    assert agent.policy.deny_rules == ["Bash(npm publish:*)"]
+    assert "deny rules are preserved" in reset.output
 
 
 async def test_status_cost_tools_memory_todos(make_agent):
