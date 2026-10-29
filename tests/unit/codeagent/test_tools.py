@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import subprocess
 import threading
 import time
 
@@ -166,3 +167,30 @@ def test_bash_output_capture_is_bounded(ctx):
 
     assert len(output) <= MAX_OUTPUT_CHARS + 100
     assert "output truncated after 120000 bytes" in output
+
+
+def test_bash_does_not_execute_configured_external_diff(ctx, tmp_path, monkeypatch):
+    marker = tmp_path / "external-diff-ran.txt"
+    helper = tmp_path / "external-diff.sh"
+    helper.write_text(
+        f"#!/bin/sh\nprintf invoked > {shlex.quote(str(marker))}\n",
+        encoding="utf-8",
+    )
+    helper.chmod(0o700)
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "source.txt").write_text("before\n", encoding="utf-8")
+    subprocess.run(["git", "add", "source.txt"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "initial"],
+        cwd=tmp_path,
+        check=True,
+    )
+    (tmp_path / "source.txt").write_text("after\n", encoding="utf-8")
+    subprocess.run(["git", "config", "diff.external", str(helper)], cwd=tmp_path, check=True)
+    monkeypatch.setenv("GIT_EXTERNAL_DIFF", str(helper))
+
+    output = run(ctx, "Bash", command="git diff -- source.txt").text
+
+    assert "before" in output and "after" in output
+    assert not marker.exists()
