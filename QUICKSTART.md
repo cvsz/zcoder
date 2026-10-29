@@ -61,6 +61,22 @@ Stop the inference service and remove the Compose network when finished:
 docker compose down
 ```
 
+## Shared PostgreSQL (zPostgreSQL) for Integration Tests
+
+```bash
+# Start shared PostgreSQL container
+make postgres-setup
+
+# Run integration tests
+python scripts/local_postgres.py run -- python -m pytest tests/integration -q
+
+# Run E2E tests
+python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
+
+# Check status
+make postgres-status
+```
+
 The Makefile equivalents are `make docker-build`,
 `make docker-run ARGS='-p "Reply with exactly LOCAL_OK"'`,
 `make docker-logs`, and `make docker-down`.

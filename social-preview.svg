@@ -1,0 +1,42 @@
+<svg width="1280" height="640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1280" height="8" fill="url(#accent)"/>
+  
+  <text x="640" y="200" font-family="system-ui, sans-serif" font-size="64" font-weight="bold" fill="white" text-anchor="middle">ZCoder</text>
+  <text x="640" y="280" font-family="system-ui, sans-serif" font-size="24" fill="#94a3b8" text-anchor="middle">Enterprise AI Coding Platform</text>
+  <text x="640" y="320" font-family="system-ui, sans-serif" font-size="18" fill="#64748b" text-anchor="middle">Local-First • Self-Hosted • Hybrid Cloud</text>
+  
+  <g transform="translate(440, 400)">
+    <rect width="400" height="60" rx="8" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <text x="200" y="38" font-family="system-ui, sans-serif" font-size="20" fill="#3b82f6" text-anchor="middle" font-weight="bold">zcoder -p "code"</text>
+  </g>
+  
+  <g transform="translate(440, 480)">
+    <rect width="120" height="40" rx="6" fill="#3b82f6"/>
+    <text x="60" y="26" font-family="system-ui, sans-serif" font-size="14" fill="white" text-anchor="middle" font-weight="bold">CLI</text>
+  </g>
+  <g transform="translate(580, 480)">
+    <rect width="120" height="40" rx="6" fill="#8b5cf6"/>
+    <text x="60" y="26" font-family="system-ui, sans-serif" font-size="14" fill="white" text-anchor="middle" font-weight="bold">TUI</text>
+  </g>
+  <g transform="translate(720, 480)">
+    <rect width="120" height="40" rx="6" fill="#10b981"/>
+    <text x="60" y="26" font-family="system-ui, sans-serif" font-size="14" fill="white" text-anchor="middle" font-weight="bold">Web</text>
+  </g>
+  <g transform="translate(860, 480)">
+    <rect width="120" height="40" rx="6" fill="#f59e0b"/>
+    <text x="60" y="26" font-family="system-ui, sans-serif" font-size="14" fill="white" text-anchor="middle" font-weight="bold">API</text>
+  </g>
+  
+  <text x="640" y="580" font-family="system-ui, sans-serif" font-size="14" fill="#64748b" text-anchor="middle">github.com/cvsz/zcoder • MIT License • Python 3.10+</text>
+</svg>
