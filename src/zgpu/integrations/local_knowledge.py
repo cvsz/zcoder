@@ -137,6 +137,7 @@ class LocalKnowledgeStore:
                 f"""SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes,
                            created_at, updated_at FROM documents d
                      WHERE {scope_sql} ORDER BY updated_at DESC, id LIMIT ?""",  # nosec B608
+                (*scope_params, limit),
             ).fetchall()
         return [dict(row) for row in rows]
 
