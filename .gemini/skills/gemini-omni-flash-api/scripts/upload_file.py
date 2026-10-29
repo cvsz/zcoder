@@ -101,7 +101,7 @@ def upload_file(file_path, display_name=None, api_key=None):
                                 "Error: Video pre-processing failed. Proceeding with original file upload is not recommended."
                             )
                     except Exception as e:
-                        raise RuntimeError(f"Error executing prep_video.py: {e}")
+                        raise RuntimeError(f"Error executing prep_video.py: {e}") from e
                 else:
                     proceed_choice = (
                         input(
@@ -115,7 +115,7 @@ def upload_file(file_path, display_name=None, api_key=None):
                             "Upload cancelled by user. Please pre-process the video manually first."
                         )
             except (KeyboardInterrupt, EOFError):
-                raise RuntimeError("\nNo input received. Upload cancelled to prevent OOM.")
+                raise RuntimeError("\nNo input received. Upload cancelled to prevent OOM.") from None
         else:
             # Non-interactive mode
             if file_size > 100 * 1024 * 1024:  # Block files larger than 100MB in non-interactive mode
@@ -151,7 +151,7 @@ def upload_file(file_path, display_name=None, api_key=None):
             file_dict["mimeType"] = file_dict["mime_type"]
         return file_dict
     except Exception as e:
-        raise RuntimeError(f"Error uploading file via SDK: {e}")
+        raise RuntimeError(f"Error uploading file via SDK: {e}") from e
 
 
 def wait_for_active(
@@ -196,7 +196,9 @@ def wait_for_active(
         except Exception as e:
             consecutive_errors += 1
             if consecutive_errors >= max_consecutive_errors:
-                raise RuntimeError(f"Error: Too many consecutive errors checking status ({e}). Exiting.")
+                raise RuntimeError(
+                    f"Error: Too many consecutive errors checking status ({e}). Exiting."
+                ) from e
 
             print(f"Warning: Error checking status ({e}). Retrying in {current_interval:.1f}s...")
             time.sleep(current_interval)
