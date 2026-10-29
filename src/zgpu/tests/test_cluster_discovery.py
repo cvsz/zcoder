@@ -29,7 +29,7 @@ def test_scanner_probe_node_success():
     mock_resp.read.return_value = json.dumps({"ok": True, "node_type": "network_cpu"}).encode("utf-8")
     mock_resp.__enter__.return_value = mock_resp
 
-    with patch("urllib.request.urlopen", return_value=mock_resp):
+    with patch("zgpu.cluster.discovery.scanner._open_discovery_request", return_value=mock_resp):
         node = scanner.probe_node("127.0.0.1", 9200)
         assert node is not None
         assert node.ip == "127.0.0.1"
@@ -111,7 +111,7 @@ def test_network_pool_auto_discovery():
     }
     with (
         patch.dict(os.environ, {"ZGPU_CLUSTER_WORKER_TOKENS": json.dumps(tokens)}),
-        patch("cluster.discovery.scanner.NetworkComputeScanner.scan_subnet", return_value=mock_nodes),
+        patch("zgpu.cluster.discovery.scanner.NetworkComputeScanner.scan_subnet", return_value=mock_nodes),
     ):
         count = pool.auto_discover_and_powerup(subnet_prefix="192.168.1", start_host=10, end_host=20)
         assert count == 2
