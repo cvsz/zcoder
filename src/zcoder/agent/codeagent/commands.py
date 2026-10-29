@@ -217,7 +217,10 @@ async def _perms(agent, arg):
         (p.allow_rules if verb == "allow" else p.deny_rules).append(rule.strip())
     elif verb == "reset":
         p.allow_rules.clear()
-        p.deny_rules.clear()
+        return CommandResult(
+            "Cleared allow rules; deny rules are preserved.\n"
+            f"Mode: {p.mode.value}\nAllow: {', '.join(p.allow_rules) or '—'}\nDeny: {', '.join(p.deny_rules) or '—'}"
+        )
     return CommandResult(
         f"Mode: {p.mode.value}\nAllow: {', '.join(p.allow_rules) or '—'}\nDeny: {', '.join(p.deny_rules) or '—'}"
     )
