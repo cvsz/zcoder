@@ -383,7 +383,13 @@ def test_config_validation_and_origins(tmp_path):
     with pytest.raises(ValueError):
         web.WebConfig(root=tmp_path, token="short")
     extra_origin = urlunsplit(("https", "dev.example", "", "", ""))
-    cfg = web.WebConfig(root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=(extra_origin,))
+    cfg = web.WebConfig(
+        root=tmp_path,
+        token=TOKEN,
+        host="127.0.0.1",
+        port=9000,
+        extra_origins=(extra_origin,),
+    )
     assert cfg.allowed_origins == {
         "http://127.0.0.1:9000",
         "http://localhost:9000",
