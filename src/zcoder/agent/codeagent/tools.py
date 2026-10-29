@@ -83,8 +83,16 @@ def bash_environment(ctx: ToolContext) -> dict[str, str]:
         env = {k: v for k, v in os.environ.items() if k in keep or not _SECRET_NAME.search(k)}
     # Non-interactive Bash reads BASH_ENV before executing the requested command.
     # Never inherit shell startup hooks, even when secret scrubbing is explicitly disabled.
-    for key in ("BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS"):
+    for key in ("BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "GIT_EXTERNAL_DIFF", "GIT_CONFIG_PARAMETERS"):
         env.pop(key, None)
+    # Override repository/global diff.external configuration so read-only git diff
+    # cannot execute an arbitrary helper from inherited or workspace-local Git config.
+    for key in tuple(env):
+        if key == "GIT_CONFIG_COUNT" or key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")):
+            env.pop(key, None)
+    env["GIT_CONFIG_COUNT"] = "1"
+    env["GIT_CONFIG_KEY_0"] = "diff.external"
+    env["GIT_CONFIG_VALUE_0"] = ""
     return env
 
 
