@@ -101,7 +101,7 @@ def upload_file(file_path, display_name=None, api_key=None):
                                 "Error: Video pre-processing failed. Proceeding with original file upload is not recommended."
                             )
                     except Exception as e:
-                        raise RuntimeError(f"Error executing prep_video.py: {e}")
+                        raise RuntimeError(f"Error executing prep_video.py: {e}") from e
                 else:
                     proceed_choice = (
                         input(
