@@ -127,7 +127,7 @@ test-cov:
 	$(PYTHON) -m pytest --cov --cov-report=term-missing
 
 lint:
-	$(PYTHON) -m ruff check src/zcoder
+	$(PYTHON) -m ruff check .
 
 format:
 	$(PYTHON) -m black .
