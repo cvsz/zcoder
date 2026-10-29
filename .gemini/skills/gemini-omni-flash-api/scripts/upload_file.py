@@ -10,6 +10,7 @@ import mimetypes
 import os
 import sys
 import time
+
 from google import genai
 from google.genai import types
 
@@ -230,7 +231,7 @@ def main():
         file_meta = upload_file(args.file, args.name, api_key)
         file_name = file_meta.get("name")
 
-        print(f"File metadata created:")
+        print("File metadata created:")
         print(f"  Name: {file_name}")
         print(f"  URI:  {file_meta.get('uri')}")
         print(f"  Type: {file_meta.get('mimeType')}")

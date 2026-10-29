@@ -7,16 +7,16 @@ Uses the official google-genai SDK.
 """
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 import re
 import sys
-import time
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from google import genai
 
 # Load local upload helper logic inline to prevent dependency issues
@@ -401,7 +401,7 @@ def main():
             print(f"Error: Batch JSON file '{args.batch}' not found.", file=sys.stderr)
             sys.exit(1)
         try:
-            with open(args.batch, "r", encoding="utf-8") as f:
+            with open(args.batch, encoding="utf-8") as f:
                 jobs = json.load(f)
             if not isinstance(jobs, list):
                 print("Error: Batch JSON file must contain a list/array of job objects.", file=sys.stderr)
@@ -419,7 +419,7 @@ def main():
             sys.exit(1)
 
         jobs = []
-        with open(args.prompts_file, "r", encoding="utf-8") as f:
+        with open(args.prompts_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#"):
