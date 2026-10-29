@@ -36,7 +36,6 @@ def _open_discovery_request(request: urllib.request.Request, timeout: float):
     return opener.open(request, timeout=timeout)  # nosec B310 - redirects are disabled
 
 
-
 @dataclass
 class DiscoveredNode:
     ip: str
