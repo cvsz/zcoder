@@ -1,9 +1,16 @@
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Known synthetic credential values used by unit tests"
+[[allowlists]]
+description = "Synthetic credential values used by unit tests"
 regexTarget = "match"
 regexes = [
     '''^(dummy|test-token|fake-token|test-token-123|hunter2|s3cr3t)$''',
+]
+
+[[allowlists]]
+description = "Exact non-secret curl-header test fixture in historical PR commit"
+regexTarget = "line"
+regexes = [
+    '''^[[:space:]]*assert "token" not in redact\("curl -H 'X-Custom-Header: dummy'"\)[[:space:]]*$''',
 ]
