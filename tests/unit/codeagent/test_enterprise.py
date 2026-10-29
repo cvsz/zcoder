@@ -1,3 +1,5 @@
+from zcoder.agent.codeagent.enterprise import redact
+
 def test_redaction_masks_credentials():
     assert "hunter2" not in redact("deploy --password=hunter2")
     assert "token" not in redact("curl -H 'X-Custom-Header: dummy'")
