@@ -94,7 +94,7 @@ def test_compiler_service_rejects_network_wide_bind():
     from zgpu.compiler.service import run_compiler_service
 
     with pytest.raises(ValueError, match="loopback only"):
-        run_compiler_service(host="0.0.0.0")
+        run_compiler_service(host="0.0.0.0")  # nosec B104
 
 
 def test_compiler_service_rejects_malformed_and_oversized_requests():

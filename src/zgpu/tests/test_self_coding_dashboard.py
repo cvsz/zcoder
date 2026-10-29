@@ -1293,7 +1293,7 @@ def test_knowledge_service_configuration_stays_server_side(monkeypatch):
 
 def test_dashboard_rejects_network_wide_bind():
     with pytest.raises(ValueError, match="loopback only"):
-        dashboard_server.run_dashboard(host="0.0.0.0")
+        dashboard_server.run_dashboard(host="0.0.0.0")  # nosec B104
 
 
 def test_dashboard_rejects_spoofed_host_and_cross_site_posts(monkeypatch):

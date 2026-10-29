@@ -77,7 +77,7 @@ def test_server_rpc_methods():
 
 def test_llm_api_rejects_network_wide_bind():
     with pytest.raises(ValueError, match="loopback only"):
-        run_server(host="0.0.0.0")
+        run_server(host="0.0.0.0")  # nosec B104
 
 
 def test_server_exposes_openai_model_discovery():
@@ -103,7 +103,7 @@ def test_server_serves_openai_model_discovery_over_loopback_http():
     try:
         host, port = server.server_address
         assert host == "127.0.0.1"
-        with urlopen(f"http://{host}:{port}/v1/models", timeout=2) as response:
+        with urlopen(f"http://{host}:{port}/v1/models", timeout=2) as response:  # nosec B310
             payload = json.load(response)
         assert payload["object"] == "list"
         assert payload["data"]

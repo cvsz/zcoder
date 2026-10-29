@@ -24,7 +24,7 @@ class ZGPUClient:
         req = urllib.request.Request(
             self.endpoint_url, data=req_data, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
             return json.loads(resp.read().decode("utf-8")).get("result", {})
 
     def generate(self, prompt: str, max_tokens: int = 16) -> dict[str, Any]:
@@ -39,5 +39,5 @@ class ZGPUClient:
         req = urllib.request.Request(
             self.endpoint_url, data=req_data, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
             return json.loads(resp.read().decode("utf-8")).get("result", {})

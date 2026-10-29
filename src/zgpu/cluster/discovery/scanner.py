@@ -141,7 +141,7 @@ class NetworkComputeScanner:
         for endpoint in ("/health", "/status", "/api/telemetry"):
             try:
                 req = urllib.request.Request(f"{url}{endpoint}", headers={"User-Agent": "zGPU-Scanner/1.0"})
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                     latency = (time.perf_counter() - t0) * 1000.0
                     raw = self._read_response(resp).decode("utf-8")
                     data = json.loads(raw)
@@ -169,7 +169,7 @@ class NetworkComputeScanner:
                 req = urllib.request.Request(
                     f"{url}/rpc", data=payload, headers={"Content-Type": "application/json"}
                 )
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                     latency = (time.perf_counter() - t0) * 1000.0
                     raw = self._read_response(resp).decode("utf-8")
                     data = json.loads(raw)

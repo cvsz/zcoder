@@ -80,10 +80,10 @@ def test_config_command_uses_explicit_safe_loopback_arguments():
         batch_size=256,
         gpu_layers=0,
     )
-    args = config.command("/tmp/key-file")
+    args = config.command("/tmp/key-file")  # nosec B108
     assert args[0] == "/opt/llama build/llama-server"
     assert args[args.index("--model") + 1] == "/srv/private model.gguf"
-    assert args[args.index("--api-key-file") + 1] == "/tmp/key-file"
+    assert args[args.index("--api-key-file") + 1] == "/tmp/key-file"  # nosec B108
     assert args[args.index("--host") + 1] == "127.0.0.1"
     assert args[args.index("--ctx-size") + 1] == "8192"
     assert args[args.index("--threads") + 1] == "6"

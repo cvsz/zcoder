@@ -135,7 +135,7 @@ def test_cpu_worker_requires_bearer_token_when_configured():
 def test_cpu_worker_refuses_non_loopback_bind_without_long_token(monkeypatch):
     monkeypatch.delenv("ZGPU_CPU_WORKER_TOKEN", raising=False)
     with pytest.raises(ValueError, match=r"non-loopback.*require"):
-        run_cpu_worker(host="0.0.0.0", port=0, token=None)
+        run_cpu_worker(host="0.0.0.0", port=0, token=None)  # nosec B104
 
 
 def test_cpu_worker_rejects_non_finite_and_oversized_compute_inputs():

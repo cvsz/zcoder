@@ -159,7 +159,7 @@ def _extract_docx_text(data: bytes) -> str:
     if b"<!doctype" in normalized_xml or b"<!entity" in normalized_xml:
         raise DocumentLoadError("DOCX document contains a forbidden XML declaration", status=415)
     try:
-        root = ElementTree.fromstring(xml)
+        root = ElementTree.fromstring(xml)  # nosec B314 - XML pre-validated for DOCTYPE/ENTITY
     except ElementTree.ParseError as exc:
         raise DocumentLoadError("DOCX document XML is malformed") from exc
 

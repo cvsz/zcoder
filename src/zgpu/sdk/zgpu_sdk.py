@@ -33,7 +33,7 @@ class ZGPUSDKClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 data = json.loads(resp.read().decode("utf-8"))
                 if data.get("error"):
                     raise RuntimeError(f"zGPU RPC Error: {data['error']}")

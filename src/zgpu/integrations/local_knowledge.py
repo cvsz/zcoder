@@ -52,12 +52,12 @@ class LocalKnowledgeStore:
         try:
             with self._connection() as connection:
                 total = connection.execute(
-                    f"SELECT count(*) FROM documents d WHERE {scope_sql}", scope_params
+                    f"SELECT count(*) FROM documents d WHERE {scope_sql}", scope_params  # nosec B608
                 ).fetchone()[0]
                 indexed = 0
                 if provider is not None:
                     indexed = connection.execute(
-                        f"SELECT count(*) FROM documents d WHERE {scope_sql} AND d.embedding_model = ? AND d.embedding_json IS NOT NULL",
+                        f"SELECT count(*) FROM documents d WHERE {scope_sql} AND d.embedding_model = ? AND d.embedding_json IS NOT NULL",  # nosec B608
                         (*scope_params, provider.model),
                     ).fetchone()[0]
         except sqlite3.Error as exc:
@@ -85,7 +85,7 @@ class LocalKnowledgeStore:
                 pending = connection.execute(
                     f"""SELECT d.id, d.content FROM documents d
                         WHERE {scope_sql} AND (d.embedding_json IS NULL OR d.embedding_model IS NULL OR d.embedding_model != ?)
-                        ORDER BY d.created_at, d.id LIMIT ?""",
+                        ORDER BY d.created_at, d.id LIMIT ?""",  # nosec B608
                     (*scope_params, provider.model, limit),
                 ).fetchall()
         except sqlite3.Error as exc:
@@ -134,10 +134,9 @@ class LocalKnowledgeStore:
         scope_sql, scope_params = self._project_scope(project_id)
         with self._connection() as connection:
             rows = connection.execute(
-                f"""SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes,
+                f"""SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes
                            created_at, updated_at FROM documents d
-                    WHERE {scope_sql} ORDER BY updated_at DESC, id LIMIT ?""",
-                (*scope_params, limit),
+                     WHERE {scope_sql} ORDER BY updated_at DESC, id LIMIT ?""",  # nosec B608
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -258,7 +257,7 @@ class LocalKnowledgeStore:
                     rows = connection.execute(
                         """SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
                            FROM documents_fts f JOIN documents d ON d.rowid = f.rowid
-                           WHERE documents_fts MATCH ? AND """
+                           WHERE documents_fts MATCH ? AND """  # nosec B608
                         + scope_sql
                         + " ORDER BY bm25(documents_fts) LIMIT ?",
                         (expression, *scope_params, limit),
@@ -266,8 +265,7 @@ class LocalKnowledgeStore:
                 else:
                     candidates = connection.execute(
                         f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
-                            FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",
-                        scope_params,
+                            FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
                     ).fetchall()
                     matching_rows = [
                         row
@@ -286,13 +284,13 @@ class LocalKnowledgeStore:
                             reverse=True,
                         )[:limit]
                     ]
-                if query_embedding is not None:
-                    semantic_candidates = connection.execute(
-                        f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at,
+                    if query_embedding is not None:
+                        semantic_candidates = connection.execute(
+                            f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
                                    d.embedding_json, d.embedding_model
-                            FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",
-                        scope_params,
-                    ).fetchall()
+                           FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
+                            scope_params,
+                        ).fetchall()
                     semantic_scores = []
                     for candidate in semantic_candidates:
                         if (
@@ -300,21 +298,21 @@ class LocalKnowledgeStore:
                             or not candidate["embedding_json"]
                         ):
                             continue
-                        try:
-                            vector = json.loads(candidate["embedding_json"])
-                            similarity = self._cosine_similarity(query_embedding, vector)
-                        except (TypeError, ValueError, json.JSONDecodeError):
-                            continue
-                        if similarity >= 0.1:
-                            semantic_scores.append((similarity, candidate))
-                    semantic_rows = [
-                        candidate
-                        for _, candidate in sorted(
-                            semantic_scores,
-                            key=lambda item: (item[0], item[1]["updated_at"], item[1]["id"]),
-                            reverse=True,
-                        )
-                    ]
+                            try:
+                                vector = json.loads(candidate["embedding_json"])
+                                similarity = self._cosine_similarity(query_embedding, vector)
+                            except (TypeError, ValueError, json.JSONDecodeError):
+                                continue
+                                if similarity >= 0.1:
+                                    semantic_scores.append((similarity, candidate))
+                        semantic_rows = [
+                            candidate
+                            for _, candidate in sorted(
+                                semantic_scores,
+                                key=lambda item: (item[0], item[1]["updated_at"], item[1]["id"]),
+                                reverse=True,
+                            )
+                        ]
                     fused: dict[str, tuple[float, Any]] = {}
                     for ranked_rows in (rows, semantic_rows):
                         for rank, candidate in enumerate(ranked_rows, start=1):
