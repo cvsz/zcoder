@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="description" content="Local zGPU simulator telemetry and development console.">
+  <title>zGPU Console</title>
+  <link rel="stylesheet" href="/dashboard.css">
+  <script src="/dashboard.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="/" aria-label="zGPU Console home">
+        <span class="brand-mark">z</span><span><strong>zGPU</strong><small>DEVELOPER CONSOLE</small></span>
+      </a>
+      <div class="nav-label">WORKSPACE</div>
+      <a class="nav-item active" href="#overview"><span class="nav-icon">◫</span>Overview</a>
+      <a class="nav-item" href="#chat"><span class="nav-icon">✳</span>AI workspace</a>
+      <a class="nav-item" href="#prompts"><span class="nav-icon">⌁</span>Prompt library</a>
+      <a class="nav-item" href="#notes"><span class="nav-icon">▧</span>Workspace notes</a>
+      <a class="nav-item" href="#knowledge"><span class="nav-icon">▤</span>Knowledge</a>
+      <a class="nav-item" href="#inference"><span class="nav-icon">✳</span>Inference lab</a>
+      <a class="nav-item" href="#kernels"><span class="nav-icon">⌘</span>Kernel studio</a>
+      <a class="nav-item" href="#cluster"><span class="nav-icon">◎</span>Compute grid</a>
+      <div class="sidebar-bottom">
+        <div class="simulator-note"><span class="status-dot"></span><span><strong>Software simulator</strong><small>No physical GPU attached</small></span></div>
+        <div class="sidebar-version">zISA · 32-bit · SIMT</div>
+      </div>
+    </aside>
+
+    <main id="overview" class="main-content">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark">z</span><strong>zGPU Console</strong></div>
+        <div class="breadcrumbs">Workspace <span>/</span> Overview</div>
+        <div class="topbar-right"><span id="connection-status" class="connection"><i></i> Connecting</span><button id="refresh-button" class="icon-button" aria-label="Refresh telemetry" title="Refresh telemetry">↻</button></div>
+      </header>
+
+      <section class="page-heading">
+        <div><div class="eyebrow">LOCAL DEVELOPMENT ENVIRONMENT</div><h1>System overview</h1><p>Live counters and tools for the zGPU software simulator.</p></div>
+        <div class="heading-meta"><span class="tag">SIMULATION</span><span id="last-updated">Waiting for telemetry</span></div>
+      </section>
+
+      <section class="metric-grid" aria-label="Performance counters">
+        <article class="metric-card"><div class="metric-top"><span>Instructions per cycle</span><span class="metric-icon violet">↗</span></div><div id="metric-ipc" class="metric-value">—</div><div class="metric-caption">Simulator IPC · SM 0</div><div class="metric-foot"><span id="metric-insts">—</span> instructions retired</div></article>
+        <article class="metric-card"><div class="metric-top"><span>Simulation cycles</span><span class="metric-icon blue">◷</span></div><div id="metric-cycles" class="metric-value">—</div><div class="metric-caption">Cumulative SM cycles</div><div class="metric-foot">Warp width <span id="metric-warp">—</span></div></article>
+        <article class="metric-card"><div class="metric-top"><span>Memory traffic</span><span class="metric-icon cyan">⇄</span></div><div id="metric-dram" class="metric-value">—</div><div class="metric-caption">Estimated simulator DRAM I/O</div><div class="metric-foot"><span id="metric-conflicts">—</span> shared-memory bank conflicts</div></article>
+        <article class="metric-card"><div class="metric-top"><span>Compute workers</span><span class="metric-icon green">⌘</span></div><div id="metric-workers" class="metric-value">—</div><div class="metric-caption">Registered / active nodes</div><div class="metric-foot">Discovery is user-triggered</div></article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel chart-panel">
+          <div class="panel-heading"><div><div class="eyebrow">SIMULATOR TELEMETRY</div><h2>Execution activity</h2></div><span class="live-pill"><i></i> LIVE</span></div>
+          <div class="chart-wrap"><canvas id="activity-chart" role="img" aria-label="Recent simulator IPC values"></canvas><div id="chart-empty" class="chart-empty">Counters will appear as simulator work runs.</div></div>
+          <div class="chart-legend"><span><i class="legend-dot"></i>IPC samples · last 60 updates</span><span>Auto refresh every 2.5 sec</span></div>
+        </article>
+        <article class="panel config-panel">
+          <div class="panel-heading"><div><div class="eyebrow">ACTIVE CONFIGURATION</div><h2>Device profile</h2></div><span class="config-icon">◈</span></div>
+          <div class="device-title"><div class="device-glyph">z</div><div><strong id="device-name">zGPU simulator</strong><small>Software execution backend</small></div></div>
+          <div class="config-list"><div><span>Streaming multiprocessors</span><strong id="config-sms">—</strong></div><div><span>Warp width</span><strong id="config-warp">— threads</strong></div><div><span>Model width</span><strong id="config-model">—</strong></div><div><span>Vocabulary size</span><strong id="config-vocab">—</strong></div><div><span>Transformer layers</span><strong id="config-layers">—</strong></div></div>
+          <div class="simulator-disclaimer">Metrics describe the Python simulator. They do not represent physical GPU silicon performance.</div>
+        </article>
+      </section>
+
+      <section class="section-heading" id="chat"><div><div class="eyebrow">ZGPU AI WORKSPACE</div><h2>Chat</h2></div><span id="chat-runtime-label" class="tag muted-tag">LOCAL SIMULATOR</span></section>
+      <section class="panel chat-panel" aria-label="zGPU AI workspace">
+        <div class="chat-toolbar"><div><strong>zGPU Assistant</strong><small id="chat-runtime-description">Responses are generated by the local software simulator.</small></div><div class="chat-controls"><label class="sr-only" for="chat-search">Search conversations</label><input id="chat-search" type="search" maxlength="256" placeholder="Search chats"><label for="chat-conversation">Conversation</label><select id="chat-conversation" aria-label="Select conversation"></select><button id="chat-new" class="text-button" type="button">New chat</button><button id="chat-rename" class="text-button" type="button" disabled>Rename</button><button id="chat-export" class="text-button" type="button" disabled>Export</button><button id="chat-delete" class="text-button" type="button" disabled>Delete chat</button><label for="chat-project">Project</label><select id="chat-project" aria-label="Assign conversation to a project"><option value="">No project</option></select><button id="project-create" class="text-button" type="button">New project</button><button id="project-rename" class="text-button" type="button" disabled>Rename project</button><button id="project-delete" class="text-button" type="button" disabled>Delete project</button><label for="chat-assistant">Assistant profile</label><select id="chat-assistant" aria-label="Select assistant profile"><option value="">Default</option></select><label for="chat-model">Model</label><select id="chat-model" aria-label="Select model"></select><label class="chat-context-toggle" for="chat-use-knowledge"><input id="chat-use-knowledge" type="checkbox"> Use knowledge sources</label><label class="chat-context-toggle" for="chat-use-notes"><input id="chat-use-notes" type="checkbox"> Use workspace notes</label><label class="chat-context-toggle" for="chat-enable-tools"><input id="chat-enable-tools" type="checkbox" disabled> Enable zGPU tools</label></div></div>
+        <details class="local-model-inventory"><summary>Local GGUF file inventory</summary><p class="fine-print">Metadata only. Files are listed from directories explicitly configured with <code>ZGPU_MODEL_DIRS</code>; listing a file does not load or run it.</p><div class="button-row"><button id="local-model-refresh" class="text-button" type="button">Refresh inventory</button><button id="local-model-manifest" class="text-button" type="button">Generate SHA-256 manifest</button></div><p id="local-model-manifest-status" class="fine-print" role="status" aria-live="polite"></p><div id="local-model-list" class="knowledge-documents" aria-live="polite">Loading local model metadata…</div></details>
+        <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"><div class="chat-empty">Ask a question to start a local zGPU chat session.</div></div>
+        <div id="chat-attachment-status" class="chat-attachment-status" role="status" aria-live="polite" hidden><span id="chat-attachment-name"></span><button id="chat-attachment-remove" class="text-button" type="button">Remove image</button></div>
+        <form id="chat-form" class="chat-form"><label class="secondary-button chat-attach-button" for="chat-image">Attach image</label><input id="chat-image" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Attach an image" disabled><label class="sr-only" for="chat-input">Message</label><textarea id="chat-input" rows="2" maxlength="4000" placeholder="Message zGPU…" required></textarea><button id="chat-send" class="primary-button" type="submit">Send <span>↑</span></button><button id="chat-stop" class="secondary-button chat-stop-button" type="button" hidden disabled>Stop generation</button></form>
+        <p id="chat-context-status" class="fine-print" role="status" aria-live="polite"></p><p class="fine-print">zGPU tools run only when explicitly enabled with a remote model. They expose simulator telemetry, zISA assembly, and bounded software simulation.</p>
+        <p id="chat-capability-note" class="fine-print">This local chat uses the bundled demonstration model. It is not a hosted assistant or physical-GPU inference.</p>
+      </section>
+
+      <section class="section-heading" id="assistants"><div><div class="eyebrow">ZGPU WORKSPACE</div><h2>Assistant profiles</h2></div><span class="tag muted-tag">LOCAL PROFILES</span></section>
+      <section class="panel prompt-library" aria-label="zGPU assistant profiles">
+        <p class="fine-print">Choose a profile for the active conversation or create a local custom profile. Its system prompt is sent with chat requests.</p>
+        <form id="assistant-form" class="prompt-form"><input id="assistant-id" type="hidden"><label for="assistant-name">Name</label><input id="assistant-name" maxlength="120" required><label for="assistant-description">Description</label><input id="assistant-description" maxlength="240"><label for="assistant-system-prompt">System prompt</label><textarea id="assistant-system-prompt" rows="4" maxlength="8000" required></textarea><div class="button-row"><button id="assistant-save" class="primary-button" type="submit">Save profile</button><button id="assistant-reset" class="secondary-button" type="button">Clear form</button></div><p id="assistant-status" class="fine-print" role="status" aria-live="polite"></p></form>
+        <div id="assistant-profiles" class="prompt-list" aria-live="polite">Loading profiles…</div>
+      </section>
+
+      <section class="section-heading" id="prompts"><div><div class="eyebrow">ZGPU WORKSPACE</div><h2>Prompt library</h2></div><span class="tag muted-tag">LOCAL TEMPLATES</span></section>
+      <section class="panel prompt-library" aria-label="zGPU prompt library">
+        <form id="prompt-form" class="prompt-form">
+          <input id="prompt-id" type="hidden">
+          <label for="prompt-title">Prompt name</label>
+          <input id="prompt-title" maxlength="120" required placeholder="Code review checklist">
+          <label for="prompt-content">Template</label>
+          <textarea id="prompt-content" maxlength="4000" rows="4" required placeholder="Review the following code for correctness, security, and performance:\n\n{{input}}"></textarea>
+          <p class="fine-print">Use <code>{{input}}</code> to insert your chat text. Without it, the template is added before your text.</p>
+          <div class="prompt-form-actions"><button id="prompt-save" class="primary-button" type="submit">Save prompt</button><button id="prompt-cancel" class="text-button" type="button" hidden>Cancel edit</button><span id="prompt-status" role="status" aria-live="polite"></span></div>
+        </form>
+        <div id="prompt-list" class="prompt-list" aria-live="polite"><p class="empty-state">Loading saved prompts…</p></div>
+      </section>
+
+      <section class="section-heading" id="notes"><div><div class="eyebrow">ZGPU WORKSPACE</div><h2>Workspace notes</h2></div><span class="tag muted-tag">PRIVATE LOCAL NOTES</span></section>
+      <section class="panel prompt-library" aria-label="zGPU workspace notes">
+        <form id="note-form" class="prompt-form">
+          <input id="note-id" type="hidden">
+          <label for="note-title">Note title</label>
+          <input id="note-title" maxlength="120" required placeholder="Project invariants">
+          <label for="note-project">Project scope</label>
+          <select id="note-project"><option value="">General notes</option></select>
+          <label for="note-content">Note</label>
+          <textarea id="note-content" maxlength="20000" rows="6" required placeholder="Save decisions, constraints, and other context you want to reuse."></textarea>
+          <p class="fine-print">Notes stay in the local zGPU database. Enable “Use workspace notes” in chat to retrieve relevant excerpts; selected excerpts are sent to the chosen model as untrusted context.</p>
+          <div class="prompt-form-actions"><button id="note-save" class="primary-button" type="submit">Save note</button><button id="note-cancel" class="text-button" type="button" hidden>Cancel edit</button><span id="note-status" role="status" aria-live="polite"></span></div>
+        </form>
+        <div id="note-list" class="prompt-list" aria-live="polite"><p class="empty-state">Loading workspace notes…</p></div>
+      </section>
+
+      <section class="section-heading" id="knowledge"><div><div class="eyebrow">ZGPU KNOWLEDGE</div><h2>Documents &amp; search</h2></div><span id="knowledge-search-mode" class="tag muted-tag">LOCAL LEXICAL SEARCH</span></section>
+      <section class="tool-grid knowledge-grid" aria-label="zGPU local knowledge library">
+        <article class="panel tool-panel"><div class="tool-title"><span class="tool-icon cyan">▤</span><div><h3>Add a document</h3><p>Save local text, Markdown, HTML, DOCX, or PDF documents in the zGPU knowledge library. PDF text extraction is optional and runs locally.</p></div></div><form id="knowledge-add-form" class="knowledge-form"><label for="knowledge-title">Title</label><input id="knowledge-title" maxlength="200" required><label for="knowledge-file">Choose a document</label><input id="knowledge-file" type="file" accept=".txt,.md,.markdown,.html,.htm,.docx,.pdf,text/plain,text/markdown,text/html,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"><label for="knowledge-content">Content or extracted text</label><textarea id="knowledge-content" rows="7" maxlength="262144"></textarea><label for="knowledge-project">Save to project</label><select id="knowledge-project"><option value="">General Knowledge</option></select><button id="knowledge-add" class="primary-button" type="submit">Add document <span>＋</span></button><div id="knowledge-add-status" class="fine-print" aria-live="polite"></div></form></article>
+        <article class="panel tool-panel"><div class="tool-title"><span class="tool-icon violet">⌕</span><div><h3>Search sources</h3><p>Find matching text in locally stored sources. Results use lexical matching.</p></div></div><form id="knowledge-search-form" class="knowledge-form"><label for="knowledge-query">Search query</label><input id="knowledge-query" maxlength="256" required><label for="knowledge-scope">Knowledge scope</label><select id="knowledge-scope"><option value="*">All knowledge</option><option value="">General Knowledge</option></select><button id="knowledge-search" class="secondary-button" type="submit">Search library <span>⌕</span></button></form><div id="knowledge-search-results" class="knowledge-results" aria-live="polite">Enter a query to search.</div></article>
+      </section>
+      <article class="panel knowledge-library"><div class="panel-heading"><div><div class="eyebrow">SAVED SOURCES</div><h2>Local library</h2></div><div><button id="knowledge-reindex" class="text-button" type="button" disabled>Index existing documents</button> <button id="knowledge-refresh" class="text-button" type="button">Refresh</button></div></div><p id="knowledge-index-status" class="fine-print" role="status" aria-live="polite">Existing documents use lexical search until indexed.</p><div id="knowledge-documents" class="knowledge-documents" aria-live="polite">Loading sources…</div></article>
+
+      <article id="knowledge-base-panel" class="panel knowledge-library connected-knowledge" hidden aria-label="Connected knowledge service"><div class="panel-heading"><div><div class="eyebrow">CONNECTED KNOWLEDGE</div><h2>Knowledge service</h2></div><button id="knowledge-base-refresh" class="text-button" type="button">Refresh</button></div><p id="knowledge-base-status" class="fine-print" role="status" aria-live="polite">Checking service…</p><form id="knowledge-base-upload-form" class="knowledge-form"><label for="knowledge-base-file">Upload a source to the connected service</label><input id="knowledge-base-file" type="file" accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf"><button id="knowledge-base-upload" class="secondary-button" type="submit">Queue ingestion</button><p id="knowledge-base-upload-status" class="fine-print" role="status" aria-live="polite"></p></form><h3>Ingestion jobs</h3><div id="knowledge-base-jobs" class="knowledge-documents" aria-live="polite">No jobs loaded.</div><h3>Connected documents</h3><div id="knowledge-base-documents" class="knowledge-documents" aria-live="polite">No documents loaded.</div></article>
+
+      <section id="engineering-workspace" hidden>
+        <div class="section-heading"><div><div class="eyebrow">ZGPU ENGINEERING</div><h2>Jobs &amp; tasks</h2></div><span class="tag muted-tag">CONNECTED SERVICE</span></div><p id="engineering-entitlements" class="fine-print" role="status" aria-live="polite">Loading service capabilities…</p>
+        <article class="panel engineering-submit"><div class="tool-title"><span class="tool-icon violet">⌘</span><div><h3>Submit an engineering task</h3><p>Task execution occurs in the configured service under its authorization policy.</p></div></div><form id="engineering-submit-form" class="knowledge-form"><label for="engineering-task">Task</label><textarea id="engineering-task" rows="4" maxlength="100000" required></textarea><div class="field-row"><div><label for="engineering-runtime">Runtime</label><select id="engineering-runtime"><option value="noop" selected>noop</option><option value="fake">fake</option><option value="direct">direct execution</option></select></div><div><label for="engineering-budget">Budget cap (USD)</label><input id="engineering-budget" type="number" min="0" step="0.01" value="0"></div></div><label for="engineering-model">Model override (optional)</label><input id="engineering-model" maxlength="256" placeholder="Use service default"><button id="engineering-submit" class="primary-button" type="submit">Submit task <span>→</span></button><div id="engineering-submit-status" class="fine-print" aria-live="polite"></div></form></article>
+        <article class="panel engineering-panel"><div class="engineering-toolbar"><p>View jobs available to the configured service account.</p><button id="engineering-refresh" class="secondary-button" type="button">Refresh jobs <span>↻</span></button></div><div id="engineering-jobs" class="engineering-jobs" aria-live="polite">Jobs have not been loaded.</div></article>
+      </section>
+
+      <section class="section-heading" id="inference"><div><div class="eyebrow">DEVELOPER TOOLS</div><h2>Inference lab</h2></div><span class="tag muted-tag">DEMO MODEL</span></section>
+      <section class="tool-grid">
+        <article class="panel tool-panel"><div class="tool-title"><span class="tool-icon violet">✳</span><div><h3>Text generation</h3><p>Run the bundled tiny transformer simulation.</p></div></div><label for="llm-prompt">Prompt</label><textarea id="llm-prompt" rows="3" maxlength="2000">Hello zGPU</textarea><div class="field-row"><label for="llm-max-tokens">Max tokens</label><select id="llm-max-tokens"><option>8</option><option selected>16</option><option>32</option></select></div><button id="llm-run" class="primary-button">Run simulated inference <span>→</span></button><div id="llm-output" class="result-box" aria-live="polite">Results will appear here.</div></article>
+        <article class="panel tool-panel" id="kernels"><div class="tool-title"><span class="tool-icon blue">⌘</span><div><h3>Kernel studio · zISA Explorer</h3><p>Compile a restricted elementwise expression, assemble zISA, or execute one bounded 32-lane warp on the software simulator. Simulation does not imply physical GPU execution.</p></div></div><label for="kernel-expression">Elementwise Python expression</label><input id="kernel-expression" value="a + b" maxlength="256" spellcheck="false"><button id="kernel-compile-expression" class="secondary-button">Compile expression to zISA <span>→</span></button><div id="kernel-expression-output" class="result-box" aria-live="polite">Compilation output will appear here.</div><label for="kernel-a-values">Input a (32 FP32 values, JSON)</label><textarea id="kernel-a-values" rows="2" spellcheck="false">[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]</textarea><label for="kernel-b-values">Input b (32 FP32 values, JSON)</label><textarea id="kernel-b-values" rows="2" spellcheck="false">[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]</textarea><button id="kernel-run-expression" class="primary-button">Compile &amp; run 32 lanes in simulator <span>▶</span></button><div id="kernel-run-output" class="result-box" aria-live="polite">Simulation results will appear here.</div><label for="isa-source">zISA source</label><textarea id="isa-source" rows="8" maxlength="65536" spellcheck="false">VADD R3, R1, R2&#10;HALT</textarea><div class="button-row"><button id="isa-assemble" class="secondary-button">Assemble zISA <span>→</span></button><button id="isa-simulate" class="primary-button">Run in simulator <span>▶</span></button></div><div id="isa-output" class="result-box" aria-live="polite">Compiled words will appear here.</div><label for="isa-input-registers">Initial registers (JSON; scalar or 32 lane values)</label><textarea id="isa-input-registers" rows="3" spellcheck="false">{"R1":1,"R2":2}</textarea><label for="isa-output-registers">Output registers</label><input id="isa-output-registers" value="3" inputmode="numeric"><label for="isa-max-cycles">Cycle budget</label><input id="isa-max-cycles" type="number" min="1" max="20000" value="10000"><div id="isa-simulation-output" class="result-box" aria-live="polite">Simulator results will appear here.</div><details class="kernel-demo"><summary>Self-coding kernel demo</summary><label for="kernel-name">Kernel name</label><input id="kernel-name" maxlength="64" value="vec_fmul_demo"><label for="kernel-op">Operation</label><select id="kernel-op"><option value="fmul">Vector float multiply</option><option value="fadd">Vector float add</option><option value="fsub">Vector float subtract</option></select><button id="kernel-run" class="secondary-button">Synthesize &amp; evaluate <span>→</span></button><div id="kernel-output" class="result-box" aria-live="polite">Results will appear here.</div></details></article>
+      </section>
+
+      <section class="section-heading" id="cluster"><div><div class="eyebrow">DISTRIBUTED COMPUTE</div><h2>Compute grid</h2></div><span class="tag muted-tag">OPT-IN SCAN</span></section>
+      <section class="tool-grid cluster-grid">
+        <article class="panel tool-panel"><div class="tool-title"><span class="tool-icon cyan">◎</span><div><h3>Discover workers</h3><p>Probe a small, explicit host range. Default scope stays on this machine.</p></div></div><label for="scan-subnet">IPv4 prefix</label><input id="scan-subnet" value="127.0.0" maxlength="32" autocomplete="off"><div class="field-row"><div><label for="scan-start">First host</label><input id="scan-start" type="number" min="1" max="254" value="1"></div><div><label for="scan-end">Last host</label><input id="scan-end" type="number" min="1" max="254" value="2"></div></div><button id="scan-run" class="secondary-button">Scan selected hosts <span>→</span></button><div id="cluster-output" class="result-box" aria-live="polite">No scan has been run.</div></article>
+        <article class="panel tool-panel"><div class="tool-title"><span class="tool-icon green">▦</span><div><h3>Hybrid GEMM demo</h3><p>Run a small matrix operation through the local compute pool.</p></div></div><div class="demo-spec"><span>Matrix size</span><strong>16 × 16</strong><span>GPU allocation parameter</span><strong>50%</strong></div><button id="gemm-run" class="primary-button">Run matrix demo <span>→</span></button><div id="gemm-output" class="result-box" aria-live="polite">Results will appear here.</div><p class="fine-print">This is a simulator demonstration, not a hardware benchmark.</p></article>
+      </section>
+      <footer>zGPU Developer Console <span>·</span> Local simulator tools <span>·</span> <a href="https://github.com/cvsz/zgpu">Source repository</a></footer>
+    </main>
+  </div>
+</body>
+</html>

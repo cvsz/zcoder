@@ -1,10 +1,12 @@
-anthropic>=1.2.0,<2.0.0
 # 1.2.0+ needed for client.beta.agents / .environments / .sessions
 # (Claude Managed Agents — see claude_agents_sdk.ManagedAgentsClient) and
 # the streaming client used elsewhere. Most other modules in this project
 # talk to the Messages API directly over urllib and don't need the SDK at
 # all, so an older pin would still "work" for those — but --agent-managed-run
 # needs 1.2.0+ specifically.
+# Optional: install with `pip install zcoder[anthropic]`
+# anthropic>=1.2.0,<2.0.0
+
 python-dotenv>=1.2.2
 Pillow>=13.0.0; python_version >= "3.11"
 

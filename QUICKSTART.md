@@ -6,7 +6,7 @@ Start llama.cpp in a separate terminal:
 
 ```bash
 llama-server \
-  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
+  --model /home/cvsz/zcoder/models/qwen-7b-q4km.gguf \
   --host 127.0.0.1 \
   --port 8080 \
   --ctx-size 4096
@@ -17,13 +17,69 @@ Then install and run ZCoder:
 ```bash
 make setup
 export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-export ZCODER_MODEL=zqwen2.5-coder-7b-instruct-q4_k_m
+export ZCODER_MODEL=qwen-7b-q4km
 zcoder -p "Write a function to reverse a string"
 ```
 
-For a smaller model, load `/home/cvsz/zgpu/qwen-1.5b-q4km.gguf` in the server.
+For lower memory use, load `/home/cvsz/zcoder/models/qwen-1.5b-q4km.gguf` instead.
 See [Local inference configuration](docs/guides/LOCAL-INFERENCE.md) for
 details and endpoint checks.
+
+## Run with Docker Compose (local GGUF, no Anthropic API key)
+
+Place the model files in the repository's `models/` directory. The expected
+default path is `models/qwen-7b-q4km.gguf`; Docker Compose mounts this
+directory read-only into the inference container. Model weights are excluded
+from Git and the Docker build context.
+
+```bash
+cp -n .env.example .env
+docker compose config
+docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
+```
+
+If `.env` already exists, keep it and update only the required model settings.
+
+The first run downloads the llama.cpp server image and builds the ZCoder image.
+The server loads the GGUF before the command runs; the first model load can take
+a while. The inference port is not published to the host or LAN. ZCoder shares
+the inference service's network namespace and uses its loopback endpoint.
+
+To use the smaller model, edit `.env`:
+
+```dotenv
+ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf
+ZCODER_MODEL=qwen-1.5b-q4km
+```
+
+Then run the same `docker compose run` command. Ensure the selected GGUF
+exists in the configured `ZCODER_MODELS_DIR` (default: `./models`).
+
+Stop the inference service and remove the Compose network when finished:
+
+```bash
+docker compose down
+```
+
+## Shared PostgreSQL (zPostgreSQL) for Integration Tests
+
+```bash
+# Start shared PostgreSQL container
+make postgres-setup
+
+# Run integration tests
+python scripts/local_postgres.py run -- python -m pytest tests/integration -q
+
+# Run E2E tests
+python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
+
+# Check status
+make postgres-status
+```
+
+The Makefile equivalents are `make docker-build`,
+`make docker-run ARGS='-p "Reply with exactly LOCAL_OK"'`,
+`make docker-logs`, and `make docker-down`.
 
 ## Choose the installation directory
 

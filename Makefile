@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run start stop restart update upgrade status logs postgres-setup postgres-status clean
+.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status clean
 
 VENV_DIR ?= .venv
 PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin/python"; elif [ -f "$(VENV_DIR)/Scripts/python.exe" ]; then echo "$(VENV_DIR)/Scripts/python.exe"; elif [ -n "$$VIRTUAL_ENV" ]; then echo "$$VIRTUAL_ENV/bin/python"; else echo "python3"; fi)
@@ -43,7 +43,7 @@ help:
 	@echo "  make check              Run full quality gate (lint + typecheck + security + test-cov)"
 	@echo ""
 	@echo "Build & Code Signing:"
-	@echo "  make standalone         Build platform standalone executable (dist/zcoder or .exe)"
+	@echo "  make standalone         Build platform standalone executable (zcoder or .exe)"
 	@echo "  make standalone-force   Force rebuild standalone executable"
 	@echo "  make build-desktop      Build full-featured Native Desktop GUI application (zcoder-desktop)"
 	@echo "  make cert-generate      Generate Authenticode self-signed certificate into certs/"
@@ -69,7 +69,7 @@ help:
 	@echo "  make stop-worker        Stop background queue worker"
 	@echo "  make restart-worker     Restart background queue worker"
 	@echo "  make status-worker      Check status of background queue worker"
-	@echo "  make logs-worker        Tail background queue worker log file"
+	@echo "  make logs-worker       Tail background queue worker log file"
 	@echo "  make stop-all           Stop all background services (api + worker + web)"
 	@echo "  make restart-all        Restart all background services (api + worker + web)"
 	@echo ""
@@ -82,8 +82,10 @@ help:
 	@echo "  make logs               Tail web console log file"
 	@echo ""
 	@echo "Docker & Database:"
-	@echo "  make docker-build       Build Docker container image (zcoder:latest)"
-	@echo "  make docker-run         Run Docker container interactively"
+	@echo "  make docker-build       Build ZCoder image (zcoder:latest)"
+	@echo "  make docker-run         Run ZCoder with local GGUF inference (ARGS='-p "..."')"
+	@echo "  make docker-logs        Follow llama.cpp model-server logs"
+	@echo "  make docker-down        Stop local inference and remove Compose resources"
 	@echo "  make postgres-setup     Initialize and migrate local PostgreSQL database"
 	@echo "  make postgres-status    Inspect local PostgreSQL container status"
 	@echo ""
@@ -307,10 +309,16 @@ postgres-status:
 	$(PYTHON) scripts/local_postgres.py status
 
 docker-build:
-	docker build -t zcoder:latest .
+	docker compose build zcoder
 
 docker-run:
-	docker run --rm -e ANTHROPIC_API_KEY=$${ANTHROPIC_API_KEY} zcoder:latest
+	docker compose run --build --rm zcoder $(ARGS)
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs --tail=100 -f llama-server
 
 clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true

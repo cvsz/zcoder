@@ -14,6 +14,11 @@ __pycache__/
 venv/
 env/
 
+# Local model weights — mount at runtime, do not commit.
+models/
+*.gguf
+*.gguf.*
+
 # Env / secrets — never commit real credentials
 .env
 .env.*
