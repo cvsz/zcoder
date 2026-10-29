@@ -7,24 +7,13 @@ paths = [
     "tests/**/*.py",
     "tests/**/*.md",
     "tests/**/*.txt",
-    "tests/unit/codeagent/test_enterprise.py",
 ]
-
-[[allow]]
-description = "Fake tokens in tests"
 regexes = [
+    "dummy",
     "test-token",
     "fake-token",
     "test-token-123",
     "hunter2",
     "s3cr3t",
     "test-token",
-]
-
-[[allow]]
-description = "Ignore historical commits with fake tokens in test file"
-commits = [
-    "046824e5b8568045274367d6c0e6158ed1c3c3e7",
-    "c57e8aaa17d6d2110452c9df06e6e4d54c3eea43",
-    "712ddb3fc7251076234e7dbeaa690c97f980fbc0",
 ]
