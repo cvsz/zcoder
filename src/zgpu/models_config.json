@@ -1,0 +1,29 @@
+{
+  "active_default_model": "qwen2.5-coder-1.5b",
+  "models": {
+    "qwen2.5-coder-1.5b": {
+      "file_path": "qwen-1.5b-q4km.gguf",
+      "quantization": "Q4_K_M",
+      "parameters": "1.5B",
+      "d_model": 32,
+      "num_layers": 4,
+      "num_heads": 4,
+      "vocab_size": 512,
+      "max_seq_len": 128,
+      "mmap_enabled": true,
+      "description": "Qwen 2.5 Coder 1.5B Instruct - Fast local coding and script generation"
+    },
+    "qwen2.5-coder-7b": {
+      "file_path": "qwen-7b-q4km.gguf",
+      "quantization": "Q4_K_M",
+      "parameters": "7B",
+      "d_model": 64,
+      "num_layers": 8,
+      "num_heads": 8,
+      "vocab_size": 512,
+      "max_seq_len": 256,
+      "mmap_enabled": true,
+      "description": "Qwen 2.5 Coder 7B Instruct - Top-tier code intelligence and advanced media scripting"
+    }
+  }
+}
