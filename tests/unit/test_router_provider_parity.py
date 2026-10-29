@@ -19,6 +19,7 @@ def test_provider_choices_and_defaults():
         "groq",
         "openrouter",
         "cerebras",
+        "nvidia",
         "openai_compatible",
         "ollama",
         "local",
