@@ -26,6 +26,16 @@ DEFAULT_BEACON_PORT = 9998
 DEFAULT_PROBE_PORTS = [8880, 9200, 9000]
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open_discovery_request(request: urllib.request.Request, timeout: float):
+    opener = urllib.request.build_opener(_NoRedirectHandler())
+    return opener.open(request, timeout=timeout)  # nosec B310 - redirects are disabled
+
+
 @dataclass
 class DiscoveredNode:
     ip: str
@@ -141,7 +151,7 @@ class NetworkComputeScanner:
         for endpoint in ("/health", "/status", "/api/telemetry"):
             try:
                 req = urllib.request.Request(f"{url}{endpoint}", headers={"User-Agent": "zGPU-Scanner/1.0"})
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
+                with _open_discovery_request(req, timeout=self.timeout) as resp:  # nosec B310
                     latency = (time.perf_counter() - t0) * 1000.0
                     raw = self._read_response(resp).decode("utf-8")
                     data = json.loads(raw)
@@ -169,7 +179,7 @@ class NetworkComputeScanner:
                 req = urllib.request.Request(
                     f"{url}/rpc", data=payload, headers={"Content-Type": "application/json"}
                 )
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
+                with _open_discovery_request(req, timeout=self.timeout) as resp:  # nosec B310
                     latency = (time.perf_counter() - t0) * 1000.0
                     raw = self._read_response(resp).decode("utf-8")
                     data = json.loads(raw)

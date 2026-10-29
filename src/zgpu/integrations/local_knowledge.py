@@ -134,9 +134,10 @@ class LocalKnowledgeStore:
         scope_sql, scope_params = self._project_scope(project_id)
         with self._connection() as connection:
             rows = connection.execute(
-                f"""SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes
+                f"""SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes,
                            created_at, updated_at FROM documents d
                      WHERE {scope_sql} ORDER BY updated_at DESC, id LIMIT ?""",  # nosec B608
+                (*scope_params, limit),
             ).fetchall()
         return [dict(row) for row in rows]
 
@@ -254,7 +255,7 @@ class LocalKnowledgeStore:
             with self._connection() as connection:
                 if self._has_fts(connection):
                     expression = " AND ".join(f'"{term.replace(chr(34), chr(34) * 2)}"' for term in terms)
-                    rows = connection.execute(
+                    lexical_rows = connection.execute(
                         """SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
                            FROM documents_fts f JOIN documents d ON d.rowid = f.rowid
                            WHERE documents_fts MATCH ? AND """  # nosec B608
@@ -266,6 +267,7 @@ class LocalKnowledgeStore:
                     candidates = connection.execute(
                         f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
                             FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
+                        scope_params,
                     ).fetchall()
                     matching_rows = [
                         row
@@ -276,7 +278,7 @@ class LocalKnowledgeStore:
                         terms,
                         [f"{row['title']}\n{row['content']}" for row in matching_rows],
                     )
-                    rows = [
+                    lexical_rows = [
                         row
                         for _, row in sorted(
                             zip(scores, matching_rows, strict=True),
@@ -284,13 +286,15 @@ class LocalKnowledgeStore:
                             reverse=True,
                         )[:limit]
                     ]
-                    if query_embedding is not None:
-                        semantic_candidates = connection.execute(
-                            f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
+
+                semantic_rows = []
+                if query_embedding is not None:
+                    semantic_candidates = connection.execute(
+                        f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at,
                                    d.embedding_json, d.embedding_model
-                           FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
-                            scope_params,
-                        ).fetchall()
+                            FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
+                        scope_params,
+                    ).fetchall()
                     semantic_scores = []
                     for candidate in semantic_candidates:
                         if (
@@ -298,23 +302,27 @@ class LocalKnowledgeStore:
                             or not candidate["embedding_json"]
                         ):
                             continue
-                            try:
-                                vector = json.loads(candidate["embedding_json"])
-                                similarity = self._cosine_similarity(query_embedding, vector)
-                            except (TypeError, ValueError, json.JSONDecodeError):
-                                continue
-                                if similarity >= 0.1:
-                                    semantic_scores.append((similarity, candidate))
-                        semantic_rows = [
-                            candidate
-                            for _, candidate in sorted(
-                                semantic_scores,
-                                key=lambda item: (item[0], item[1]["updated_at"], item[1]["id"]),
-                                reverse=True,
-                            )
-                        ]
+                        try:
+                            vector = json.loads(candidate["embedding_json"])
+                            similarity = self._cosine_similarity(query_embedding, vector)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        if similarity >= 0.1:
+                            semantic_scores.append((similarity, candidate))
+                    semantic_rows = [
+                        candidate
+                        for _, candidate in sorted(
+                            semantic_scores,
+                            key=lambda item: (item[0], item[1]["updated_at"], item[1]["id"]),
+                            reverse=True,
+                        )[:limit]
+                    ]
+
+                if query_embedding is None:
+                    rows = lexical_rows
+                else:
                     fused: dict[str, tuple[float, Any]] = {}
-                    for ranked_rows in (rows, semantic_rows):
+                    for ranked_rows in (lexical_rows, semantic_rows):
                         for rank, candidate in enumerate(ranked_rows, start=1):
                             document_id = candidate["id"]
                             score, _ = fused.get(document_id, (0.0, candidate))

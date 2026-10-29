@@ -128,7 +128,7 @@ def test_server_exposes_openai_chat_completion_route():
     handler.wfile = MagicMock()
     expected = {"id": "chatcmpl-test", "object": "chat.completion", "choices": []}
 
-    with patch("llm.server.openai_adapter.create_completion", return_value=expected):
+    with patch("zgpu.llm.server.openai_adapter.create_completion", return_value=expected):
         handler.do_POST()
 
     response = json.loads(b"".join(call.args[0] for call in handler.wfile.write.call_args_list))
@@ -151,7 +151,7 @@ def test_server_streams_openai_chat_completion_as_sse():
     def fake_completion(_payload, event_callback):
         event_callback({"object": "chat.completion.chunk", "choices": [{"delta": {"content": "Hi"}}]})
 
-    with patch("llm.server.openai_adapter.create_completion", side_effect=fake_completion):
+    with patch("zgpu.llm.server.openai_adapter.create_completion", side_effect=fake_completion):
         handler.do_POST()
 
     stream = b"".join(call.args[0] for call in handler.wfile.write.call_args_list).decode()
