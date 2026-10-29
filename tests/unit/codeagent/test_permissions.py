@@ -60,6 +60,8 @@ def test_hard_deny_in_every_mode_even_bypass(tmp_path, cmd):
         ("echo hi > out.txt", False),
         ("echo $(whoami)", False),
         ("ls && rm x", False),
+        ("ls & touch out.txt", False),
+        ("ls & whoami", False),
         ("rg --pre ./evil x", False),
         ("git diff --output=f", False),
         ("python -c 'x'", False),
