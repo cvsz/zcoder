@@ -38,7 +38,14 @@ def test_bypass_requires_explicit_flag_and_passes_opt_in(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(cli, "run_agent_tui", lambda agent: None)
 
-    cli.main(["--cwd", str(tmp_path), "--dangerously-skip-permissions", "--no-discover-model"])
+    cli.main(
+        [
+            "--cwd",
+            str(tmp_path),
+            "--dangerously-skip-permissions",
+            "--no-discover-model",
+        ]
+    )
 
     assert calls["kwargs"]["mode"] == "bypass"
     assert calls["kwargs"]["allow_bypass"] is True
