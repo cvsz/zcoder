@@ -58,6 +58,7 @@ exclude = ["zgpu.tests*"]
 
 [tool.setuptools.package-data]
 zcoder = ["api/*.yaml"]
+zgpu = ["dashboard/*.html", "dashboard/*.css", "dashboard/*.js"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
