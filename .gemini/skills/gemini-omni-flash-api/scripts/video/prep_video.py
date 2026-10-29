@@ -3,7 +3,8 @@ import argparse
 import os
 import subprocess
 import sys
-from inspect_video import inspect_video, format_size
+
+from inspect_video import inspect_video
 
 
 def parse_timecode(time_str, total_duration=None):
@@ -161,7 +162,7 @@ def prep_video(
         scale_filter = f"scale={width}:{height}"
 
     fps_spec = f"{fps} fps" if fps else "Original frame rate"
-    print(f"\nPreparing Video Processing:")
+    print("\nPreparing Video Processing:")
     print(f"  * Source Duration: {total_duration:.2f}s")
     print(f"  * Trim Range     : Start at {start_seconds:.2f}s | Length {duration:.2f}s")
     if resolution:
