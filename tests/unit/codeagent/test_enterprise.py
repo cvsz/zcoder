@@ -1,4 +1,5 @@
-from zcoder.agent.codeagent.enterprise import redact
+from zcoder.agent.codeagent.audit import redact
+
 
 def test_redaction_masks_credentials():
     assert "hunter2" not in redact("deploy --password=hunter2")
