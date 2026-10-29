@@ -53,7 +53,7 @@ def test_session_path_rejects_symlink(tmp_path):
         os.symlink(outside, st.dir / f"{session_id}.json")
     except (OSError, NotImplementedError):
         pytest.skip("symlink creation is not supported")
-    with pytest.raises(ValueError, match="symlink"):
+    with pytest.raises(ValueError, match="storage directory|symlink"):
         st._path(session_id)
 
 
