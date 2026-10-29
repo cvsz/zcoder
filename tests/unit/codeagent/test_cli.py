@@ -16,7 +16,13 @@ def test_main_builds_agent_and_launches_tui(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run_agent_tui", lambda value: calls.update(launched=value))
 
     result = cli.main(
-        ["--cwd", str(tmp_path), "--model", "test-local-model", "--no-discover-model"]
+        [
+            "--cwd",
+            str(tmp_path),
+            "--model",
+            "test-local-model",
+            "--no-discover-model",
+        ]
     )
 
     assert result == 0
