@@ -35,7 +35,7 @@ def parse_timecode(time_str, total_duration=None):
     try:
         return float(time_str)
     except ValueError:
-        raise ValueError(f"Invalid timecode: '{time_str}'. Must be float seconds, HH:MM:SS, or 'last'.")
+        raise ValueError(f"Invalid timecode: '{time_str}'. Must be float seconds, HH:MM:SS, or 'last'.") from None
 
 
 def prep_video(
@@ -51,7 +51,7 @@ def prep_video(
             ["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
         )
     except (subprocess.SubprocessError, FileNotFoundError):
-        raise RuntimeError("ffmpeg is not installed or not found in system PATH.")
+        raise RuntimeError("ffmpeg is not installed or not found in system PATH.") from None
 
     # Inspect input video first
     print(f"Analyzing source video: {os.path.basename(input_path)}...")
@@ -84,7 +84,7 @@ def prep_video(
     try:
         start_seconds = parse_timecode(start_time_str, total_duration)
     except Exception as e:
-        raise ValueError(f"Timecode parsing failed: {e}")
+        raise ValueError(f"Timecode parsing failed: {e}") from e
 
     if start_seconds < 0 or (total_duration and start_seconds >= total_duration):
         raise ValueError(
@@ -136,7 +136,7 @@ def prep_video(
         except ValueError:
             raise ValueError(
                 f"Invalid resolution: '{resolution}'. Format must be WIDTHxHEIGHT (e.g. 1280x720)."
-            )
+            ) from None
     elif is_large:
         if orig_width and orig_height:
             # Scale down large videos proportionally (max 1280x720 for landscape, 720x1280 for portrait)
@@ -219,7 +219,7 @@ def prep_video(
     cmd.append(output_path)
 
     print("Running ffmpeg encoding...")
-    process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process = subprocess.run(cmd, capture_output=True, text=True)
 
     if process.returncode != 0:
         print("Error: ffmpeg failed. Stderr output follows:", file=sys.stderr)
