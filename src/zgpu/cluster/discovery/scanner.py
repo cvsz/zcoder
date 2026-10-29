@@ -239,7 +239,7 @@ class NetworkComputeScanner:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            sock.bind(("", port))
+            sock.bind(("", port))  # nosec B104 - UDP beacon listener must bind to all interfaces for network discovery
         except Exception as e:
             log.debug("Could not bind UDP beacon listener: %s", e)
             return []
