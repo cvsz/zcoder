@@ -113,7 +113,6 @@ _READONLY_CMDS = {
     "basename",
     "dirname",
     "uniq",
-    "diff",
     "true",
     "id",
 }
@@ -154,6 +153,18 @@ def _tokens(segment: str) -> list[str] | None:
         return shlex.split(segment)
     except ValueError:
         return None
+
+
+def _contains_git_diff(command: str) -> bool:
+    """Identify git diff commands that may invoke repository-configured external helpers."""
+    segments = split_command(command)
+    if not segments:
+        return False
+    for segment in segments:
+        toks = _tokens(segment)
+        if toks and toks[0] == "git" and len(toks) > 1 and toks[1] == "diff":
+            return True
+    return False
 
 
 def _escapes_workspace(token: str) -> bool:
@@ -290,6 +301,8 @@ class PermissionPolicy:
             return Verdict("allow")
         if self.mode == Mode.BYPASS and self.allow_bypass:
             return Verdict("allow")
+        if tool.category == "exec" and _contains_git_diff(str(args.get("command", ""))):
+            return Verdict("ask", "Git diff may invoke configured external helpers; approve each invocation.")
         sensitive = False
         if tool.category == "edit" and self.workspace is not None:
             try:
