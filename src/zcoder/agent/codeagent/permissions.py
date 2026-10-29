@@ -118,7 +118,6 @@ _READONLY_CMDS = {
 }
 _GIT_READONLY = {
     "status",
-    "diff",
     "log",
     "show",
     "rev-parse",
