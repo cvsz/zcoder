@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
+import shlex
 import threading
 import time
 
 import pytest
 
-from zcoder.agent.codeagent.tools import ToolContext, default_tools, validate_args
+from zcoder.agent.codeagent.tools import MAX_OUTPUT_CHARS, ToolContext, default_tools, validate_args
 from zcoder.agent.codeagent.workspace import ToolError, Workspace
 
 
@@ -147,3 +148,21 @@ def test_validate_args_coerces_and_rejects():
         validate_args(t, {})
     with pytest.raises(ToolError, match="valid JSON"):
         validate_args(t, {"__parse_error__": "{"})
+
+
+def test_bash_does_not_execute_inherited_startup_hooks(ctx, tmp_path, monkeypatch):
+    startup = tmp_path / "bash_env.sh"
+    marker = tmp_path / "startup-ran.txt"
+    startup.write_text(f"printf executed > {shlex.quote(str(marker))}\n", encoding="utf-8")
+    monkeypatch.setenv("BASH_ENV", str(startup))
+    monkeypatch.setenv("ENV", str(startup))
+
+    assert run(ctx, "Bash", command="printf safe").text == "safe"
+    assert not marker.exists()
+
+
+def test_bash_output_capture_is_bounded(ctx):
+    output = run(ctx, "Bash", command="python -c 'print(\"x\" * 500000)'").text
+
+    assert len(output) <= MAX_OUTPUT_CHARS + 100
+    assert "output truncated after 120000 bytes" in output
