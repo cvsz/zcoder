@@ -131,7 +131,7 @@ _GIT_READONLY = {
     "remote",
 }
 _COMPOUND = re.compile(r"&&|\|\||;|\||\n")
-_UNSAFE_SHELL = re.compile(r"\$\(|`|>|<\(|<<|\$\{|(?<!&)&(?!&)")
+_UNSAFE_SHELL = re.compile(r"\$|`|>|<\(|<<|(?<!&)&(?!&)")
 
 
 def hard_deny_reason(command: str) -> str | None:
