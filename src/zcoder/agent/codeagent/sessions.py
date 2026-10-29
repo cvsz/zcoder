@@ -35,10 +35,13 @@ class SessionStore:
         self.dir = Path(directory) if directory else zcoder_home() / "sessions"
 
     def _path(self, session_id: str) -> Path:
-        if not isinstance(session_id, str) or not _ID.fullmatch(session_id):
+        if not isinstance(session_id, str):
+            raise ValueError("invalid session id")
+        safe_id = os.path.basename(session_id)
+        if safe_id != session_id or not _ID.fullmatch(safe_id):
             raise ValueError("invalid session id")
         root = self.dir.resolve()
-        expected = root / f"{session_id}.json"
+        expected = root / f"{safe_id}.json"
         resolved = expected.resolve(strict=False)
         try:
             resolved.relative_to(root)

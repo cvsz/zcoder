@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from urllib.parse import urlunsplit
 
 import pytest
 
@@ -381,10 +382,14 @@ def test_disconnect_during_approval_fails_closed(tmp_path):
 def test_config_validation_and_origins(tmp_path):
     with pytest.raises(ValueError):
         web.WebConfig(root=tmp_path, token="short")
-    cfg = web.WebConfig(
-        root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=("https://dev.example",)
-    )
-    assert cfg.allowed_origins.issuperset({"http://localhost:9000", "https://dev.example"})
+    extra_origin = urlunsplit(("https", "dev.example", "", "", ""))
+    cfg = web.WebConfig(root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=(extra_origin,))
+    assert cfg.allowed_origins == {
+        "http://127.0.0.1:9000",
+        "http://localhost:9000",
+        "http://[::1]:9000",
+        extra_origin,
+    }
     assert "evil.com" not in cfg.allowed_hosts and "127.0.0.1" in cfg.allowed_hosts
 
 
