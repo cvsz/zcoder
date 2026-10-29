@@ -80,7 +80,9 @@ def parse_and_validate_duration(value):
         try:
             val = float(clean_value)
         except ValueError:
-            raise ValueError(f"Invalid duration value: '{value}'. Must be an integer (e.g., 5, 10).") from None
+            raise ValueError(
+                f"Invalid duration value: '{value}'. Must be an integer (e.g., 5, 10)."
+            ) from None
 
     if not val.is_integer():
         raise ValueError(f"Duration must be an integer, not a float (e.g., got {value}).")

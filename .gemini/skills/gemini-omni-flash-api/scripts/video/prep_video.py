@@ -35,7 +35,9 @@ def parse_timecode(time_str, total_duration=None):
     try:
         return float(time_str)
     except ValueError:
-        raise ValueError(f"Invalid timecode: '{time_str}'. Must be float seconds, HH:MM:SS, or 'last'.") from None
+        raise ValueError(
+            f"Invalid timecode: '{time_str}'. Must be float seconds, HH:MM:SS, or 'last'."
+        ) from None
 
 
 def prep_video(

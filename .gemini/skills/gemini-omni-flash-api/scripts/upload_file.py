@@ -196,7 +196,9 @@ def wait_for_active(
         except Exception as e:
             consecutive_errors += 1
             if consecutive_errors >= max_consecutive_errors:
-                raise RuntimeError(f"Error: Too many consecutive errors checking status ({e}). Exiting.") from e
+                raise RuntimeError(
+                    f"Error: Too many consecutive errors checking status ({e}). Exiting."
+                ) from e
 
             print(f"Warning: Error checking status ({e}). Retrying in {current_interval:.1f}s...")
             time.sleep(current_interval)
