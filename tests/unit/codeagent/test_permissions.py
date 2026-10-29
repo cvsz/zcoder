@@ -57,6 +57,8 @@ def test_hard_deny_in_every_mode_even_bypass(tmp_path, cmd):
         ("cat ../secret", False),
         ("cat /etc/passwd", False),
         ("cat ~/.ssh/id_rsa", False),
+        ('cat "$HOME/.ssh/id_ed25519"', False),
+        ("echo $PATH", False),
         ("echo hi > out.txt", False),
         ("echo $(whoami)", False),
         ("ls && rm x", False),
