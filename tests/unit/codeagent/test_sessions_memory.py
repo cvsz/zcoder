@@ -43,6 +43,20 @@ def test_session_ids_cannot_traverse(tmp_path, bad):
         SessionStore(tmp_path)._path(bad)
 
 
+def test_session_path_rejects_symlink(tmp_path):
+    st = SessionStore(tmp_path / "sessions")
+    st.dir.mkdir(parents=True)
+    session_id = "20240101-000000-aaaaaa"
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    try:
+        os.symlink(outside, st.dir / f"{session_id}.json")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is not supported")
+    with pytest.raises(ValueError, match="symlink"):
+        st._path(session_id)
+
+
 def test_list_skips_corrupt_files_and_sorts_newest_first(tmp_path):
     st = SessionStore(tmp_path)
     a, b = "20240101-000000-aaaaaa", "20240102-000000-bbbbbb"

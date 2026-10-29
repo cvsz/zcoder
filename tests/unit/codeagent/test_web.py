@@ -384,7 +384,7 @@ def test_config_validation_and_origins(tmp_path):
     cfg = web.WebConfig(
         root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=("https://dev.example",)
     )
-    assert "http://localhost:9000" in cfg.allowed_origins and "https://dev.example" in cfg.allowed_origins
+    assert cfg.allowed_origins.issuperset({"http://localhost:9000", "https://dev.example"})
     assert "evil.com" not in cfg.allowed_hosts and "127.0.0.1" in cfg.allowed_hosts
 
 

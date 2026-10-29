@@ -35,9 +35,18 @@ class SessionStore:
         self.dir = Path(directory) if directory else zcoder_home() / "sessions"
 
     def _path(self, session_id: str) -> Path:
-        if not _ID.match(session_id):  # blocks path traversal from the web API
+        if not isinstance(session_id, str) or not _ID.fullmatch(session_id):
             raise ValueError("invalid session id")
-        return self.dir / f"{session_id}.json"
+        root = self.dir.resolve()
+        expected = root / f"{session_id}.json"
+        resolved = expected.resolve(strict=False)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("session path escapes storage directory") from exc
+        if resolved != expected:
+            raise ValueError("session path must not resolve through a symlink")
+        return resolved
 
     def save(
         self, session_id: str, cwd: str, messages: list[dict[str, Any]], usage: dict[str, int] | None = None

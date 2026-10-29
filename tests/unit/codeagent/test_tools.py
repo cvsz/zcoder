@@ -44,6 +44,16 @@ def test_sandbox_blocks_escape_and_symlink(ctx, tmp_path):
         run(ctx, "Read", path="link.txt")
 
 
+def test_grep_does_not_read_external_symlink(ctx, tmp_path):
+    outside = tmp_path.parent / "private-marker.txt"
+    outside.write_text("credential-marker")
+    try:
+        os.symlink(outside, tmp_path / "external.txt")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is not supported")
+    assert run(ctx, "Grep", pattern="credential-marker", output_mode="content").text == "No matches found"
+
+
 def test_write_creates_then_requires_read_then_overwrites(ctx, tmp_path):
     assert "Created" in run(ctx, "Write", path="d/n.py", content="x = 1\n").text
     (tmp_path / "e.txt").write_text("old\n")

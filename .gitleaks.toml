@@ -1,19 +1,9 @@
 [extend]
 useDefault = true
 
-[[allow]]
-description = "Test files with fake tokens"
-paths = [
-    "tests/**/*.py",
-    "tests/**/*.md",
-    "tests/**/*.txt",
-]
+[allowlist]
+description = "Known synthetic credential values used by unit tests"
+regexTarget = "match"
 regexes = [
-    "dummy",
-    "test-token",
-    "fake-token",
-    "test-token-123",
-    "hunter2",
-    "s3cr3t",
-    "test-token",
+    '''^(dummy|test-token|fake-token|test-token-123|hunter2|s3cr3t)$''',
 ]

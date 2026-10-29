@@ -227,10 +227,13 @@ def _grep(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         if file_glob and not (fnmatch.fnmatch(f.name, file_glob) or fnmatch.fnmatch(ws.rel(f), file_glob)):
             continue
         try:
-            if f.stat().st_size > MAX_READ_BYTES:
+            # Resolve each discovered file again before reading: recursive walks can
+            # include symlinks that point outside the allowed workspace roots.
+            safe_file = ws.resolve(str(f))
+            if not safe_file.is_file() or safe_file.stat().st_size > MAX_READ_BYTES:
                 continue
-            raw = f.read_bytes()
-        except OSError:
+            raw = safe_file.read_bytes()
+        except (OSError, ToolError):
             continue
         if b"\x00" in raw[:8192]:
             continue
@@ -241,7 +244,7 @@ def _grep(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         ]
         if not matches:
             continue
-        rel = ws.rel(f)
+        rel = ws.rel(safe_file)
         if mode == "files_with_matches":
             out.append(rel)
         elif mode == "count":
