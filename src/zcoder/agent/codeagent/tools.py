@@ -18,6 +18,7 @@ from typing import Any
 from zcoder.agent.codeagent.workspace import IGNORED_DIRS, ToolError, Workspace
 
 MAX_OUTPUT_CHARS = 30_000
+MAX_OUTPUT_BYTES = 120_000
 MAX_READ_BYTES = 2_000_000
 MAX_LINE_CHARS = 2_000
 
@@ -74,11 +75,17 @@ _SECRET_NAME = re.compile(r"(?i)(key|token|secret|passw|credential|auth|cookie|s
 
 
 def bash_environment(ctx: ToolContext) -> dict[str, str]:
-    """Environment for Bash: by default drop anything that looks like a credential."""
+    """Build a Bash environment without credential-like variables or startup hooks."""
     if not ctx.scrub_env:
-        return dict(os.environ)
-    keep = set(ctx.pass_env)
-    return {k: v for k, v in os.environ.items() if k in keep or not _SECRET_NAME.search(k)}
+        env = dict(os.environ)
+    else:
+        keep = set(ctx.pass_env)
+        env = {k: v for k, v in os.environ.items() if k in keep or not _SECRET_NAME.search(k)}
+    # Non-interactive Bash reads BASH_ENV before executing the requested command.
+    # Never inherit shell startup hooks, even when secret scrubbing is explicitly disabled.
+    for key in ("BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS"):
+        env.pop(key, None)
+    return env
 
 
 def _read_text(path: Path) -> str:
@@ -283,11 +290,22 @@ def _bash(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         start_new_session=True,
     )
     chunks: list[bytes] = []
+    captured_bytes = 0
+    output_truncated = False
 
     def pump() -> None:
+        nonlocal captured_bytes, output_truncated
         assert proc.stdout is not None
         for block in iter(lambda: proc.stdout.read(4096), b""):  # type: ignore[union-attr]
-            chunks.append(block)
+            if captured_bytes >= MAX_OUTPUT_BYTES:
+                output_truncated = True
+                continue
+            keep = block[: MAX_OUTPUT_BYTES - captured_bytes]
+            if keep:
+                chunks.append(keep)
+                captured_bytes += len(keep)
+            if len(keep) < len(block):
+                output_truncated = True
 
     reader = threading.Thread(target=pump, daemon=True)
     reader.start()
@@ -308,6 +326,8 @@ def _bash(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     proc.wait()
     reader.join(timeout=2)
     text = b"".join(chunks).decode("utf-8", errors="replace")
+    if output_truncated:
+        text += f"\n[output truncated after {MAX_OUTPUT_BYTES} bytes]"
     text = truncate(text)
     if status:
         text += f"\n[command {status}]"
