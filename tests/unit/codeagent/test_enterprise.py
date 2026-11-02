@@ -19,7 +19,7 @@ from zcoder.agent.codeagent.workspace import Workspace
 # ---------------------------------------------------------------- audit
 def test_redaction_masks_credentials():
     assert "hunter2" not in redact("deploy --password=hunter2")
-    assert "TEST_TOKEN_12345" not in redact("curl -H 'Authorization: Bearer TEST_TOKEN_12345'")
+    assert "test-token-123" not in redact("deploy --token=test-token-123")
     assert "s3cr3t" not in redact("git clone https://user:s3cr3t@host/repo.git")
     assert "API_TOKEN=***" in redact("API_TOKEN=abc123 run")
     assert redact("ls -la") == "ls -la"
