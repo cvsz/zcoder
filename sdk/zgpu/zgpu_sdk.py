@@ -41,7 +41,9 @@ class ZGPUSDKClient:
         except Exception as err:
             raise RuntimeError(f"Failed to communicate with zGPU server at {self.rpc_url}: {err}") from err
 
-    def generate(self, prompt: str, model: str = "qwen2.5-coder-1.5b", max_tokens: int = 32) -> dict[str, Any]:
+    def generate(
+        self, prompt: str, model: str = "qwen2.5-coder-1.5b", max_tokens: int = 32
+    ) -> dict[str, Any]:
         """Generate text / code using zGPU LLM engine."""
         return self.rpc_call("generate", {"prompt": prompt, "model": model, "max_tokens": max_tokens})
 
