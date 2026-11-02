@@ -34,22 +34,27 @@ class SessionStore:
     def __init__(self, directory: Path | None = None):
         self.dir = Path(directory) if directory else zcoder_home() / "sessions"
 
-    def _path(self, session_id: str) -> Path:
+    def _validate_session_id(self, session_id: str) -> str:
+        """Validate and return a sanitized session ID safe for filesystem use.
+
+        Session IDs are strictly formatted (YYYYMMDD-HHMMSS-XXXXXX) with no
+        path separators or traversal sequences, so the returned value can be
+        embedded directly into a filesystem path without traversal risk.
+        """
         if not isinstance(session_id, str):
             raise ValueError("invalid session id")
-        # Reject any path separators or traversal before basename; session IDs
-        # are strictly formatted (YYYYMMDD-HHMMSS-XXXXXX) so a basename that
-        # differs from the input means a separator was present.
         if "/" in session_id or "\\" in session_id or ".." in session_id:
             raise ValueError("invalid session id")
         safe_id = os.path.basename(session_id)
         if safe_id != session_id or not _ID.fullmatch(safe_id):
             raise ValueError("invalid session id")
+        return safe_id
+
+    def _path(self, session_id: str) -> Path:
+        safe_id = self._validate_session_id(session_id)
         root = self.dir.resolve()
         expected = root / f"{safe_id}.json"
-        resolved = expected.resolve(
-            strict=False
-        )  # nosec: session_id is strictly validated above (basename + _ID pattern + no separators)
+        resolved = expected.resolve(strict=False)
         try:
             resolved.relative_to(root)
         except ValueError as exc:
@@ -108,7 +113,4 @@ class SessionStore:
         return sorted(infos, key=lambda i: i.updated, reverse=True)
 
     def delete(self, session_id: str) -> None:
-        # _path() validates session_id strictly (basename + _ID pattern +
-        # no separators + resolve containment + symlink check) before
-        # returning the path, so this unlink is safe.
-        self._path(session_id).unlink(missing_ok=True)  # nosec: path validated in _path()
+        self._path(self._validate_session_id(session_id)).unlink(missing_ok=True)
