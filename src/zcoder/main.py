@@ -288,6 +288,7 @@ def build_parser():
             "groq",
             "openrouter",
             "cerebras",
+            "nvidia",
             "openai_compatible",
             "ollama",
             "local",

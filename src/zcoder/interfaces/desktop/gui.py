@@ -18,19 +18,32 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import subprocess  # nosec B404 - nvidia-smi is a trusted local GPU monitoring command
 import threading
 import time
 import tkinter as tk
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Any
+from typing import Any, TypedDict
 
 from zcoder import __version__ as VERSION
+from zcoder.agent.orchestration.providers import (
+    build_payload,
+    endpoint_for,
+    headers_for,
+    parse_response,
+    resolve_api_key,
+    resolve_base_url,
+    resolve_provider,
+)
 from zcoder.agent.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
 from zcoder.config.settings import Config
 from zcoder.core.health import run_health_check
-from zcoder.interfaces.desktop.security import open_local_request, validate_local_base_url
+from zcoder.interfaces.desktop.security import open_local_request
 from zcoder.services.skills import SkillManager
 
 
@@ -184,6 +197,7 @@ class ZCoderDesktopGUI:
             ("skills", "🧩 Skills & Personas"),
             ("health", "🩺 Health & Telemetry"),
             ("code", "📂 Workspace & Code"),
+            ("providers", "🔌 Providers & Models"),
             ("settings", "⚙️ Studio Settings"),
         ]
 
@@ -261,6 +275,7 @@ class ZCoderDesktopGUI:
         self._init_health_view()
         self._init_code_view()
         self._init_settings_view()
+        self._init_providers_view()
 
         self._switch_tab("chat")
 
@@ -329,6 +344,50 @@ class ZCoderDesktopGUI:
             ribbon, textvariable=self.agent_var, values=agent_opts, state="readonly", width=14
         )
         combo_agent.pack(side="left", padx=4)
+
+        # Provider indicator
+        tk.Label(
+            ribbon,
+            text="Provider:",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.c["card_bg"],
+            fg=self.c["fg_dim"],
+        ).pack(side="left", padx=(10, 4))
+        self.provider_var = tk.StringVar(value="auto")
+        provider_opts = [
+            "auto",
+            "groq",
+            "cerebras",
+            "together",
+            "groqcloud",
+            "ollama",
+            "gemini",
+            "openrouter",
+            "openai",
+            "anthropic",
+            "xai",
+            "nvidia",
+            "cloudflare",
+        ]
+        combo_provider = ttk.Combobox(
+            ribbon, textvariable=self.provider_var, values=provider_opts, state="readonly", width=12
+        )
+        combo_provider.pack(side="left", padx=4)
+
+        # GPU selector
+        tk.Label(
+            ribbon,
+            text="GPU:",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.c["card_bg"],
+            fg=self.c["fg_dim"],
+        ).pack(side="left", padx=(10, 4))
+        self.gpu_var = tk.StringVar(value="auto")
+        gpu_opts = ["auto", "cuda:0", "cuda:1", "cuda:2", "cuda:3", "cpu"]
+        combo_gpu = ttk.Combobox(
+            ribbon, textvariable=self.gpu_var, values=gpu_opts, state="readonly", width=10
+        )
+        combo_gpu.pack(side="left", padx=4)
 
         self.stream_var = tk.BooleanVar(value=True)
         chk_stream = tk.Checkbutton(
@@ -498,6 +557,20 @@ class ZCoderDesktopGUI:
         ).start()
 
     def _worker_generate(self, prompt: str, model: str, agent_role: str, stream: bool) -> None:
+        # Auto-route to best free model if enabled
+        routed_provider, routed_model = self._get_best_provider_for_model(model)
+        if routed_provider and routed_model:
+            model = routed_model
+            # Update the model display in chat view
+            self.root.after(0, lambda: self.model_var.set(f"{model} (via {routed_provider})"))
+
+        # Resolve the actual provider to use (explicit selection overrides auto-route)
+        selected_provider = self.provider_var.get() or "auto"
+        if selected_provider == "auto" and routed_provider:
+            provider = routed_provider
+        else:
+            provider = selected_provider
+
         system_prompt = AGENT_SYSTEM_PROMPTS.get(agent_role, "")
 
         messages = []
@@ -507,60 +580,86 @@ class ZCoderDesktopGUI:
             messages.append(item)
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 4096,
-            "stream": stream,
-        }
+        # Resolve provider gateway via the shared provider abstraction
+        try:
+            prov = resolve_provider(provider if provider != "auto" else None)
+        except ValueError:
+            prov = "openai_compatible"
+        api_key = resolve_api_key(prov)
+        base_url = resolve_base_url(prov)
+
+        sampling = {"temperature": 0.3}
+        payload = build_payload(prov, model, messages, system_prompt, 4096, sampling)
+        if not payload:
+            # Fallback OpenAI-compatible payload for providers without a native builder
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.3,
+                "max_tokens": 4096,
+                "stream": stream,
+            }
+
+        url = endpoint_for(prov, base_url, model)
+        headers = headers_for(prov, api_key)
+        headers["Content-Type"] = "application/json"
 
         start_t = time.time()
         tokens_count = 0
+        full_response = ""
         try:
-            base_url = validate_local_base_url(os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1"))
-            url = f"{base_url}/chat/completions"
-            import urllib.request
-
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 method="POST",
             )
 
-            full_response = ""
-            with open_local_request(req, timeout=120) as resp:
-                if stream:
-                    self.root.after(0, self._append_transcript_header, "Assistant", "assistant_head")
-                    for raw in resp:
-                        line = raw.decode("utf-8", errors="replace").strip()
-                        if not line.startswith("data:"):
-                            continue
-                        chunk = line[5:].strip()
-                        if chunk == "[DONE]":
-                            break
-                        try:
-                            parsed = json.loads(chunk)
-                            choices = parsed.get("choices") or []
-                            if choices:
-                                delta = choices[0].get("delta", {}).get("content", "")
+            if prov == "ollama":
+                # Ollama returns JSON directly (not SSE by default in this payload shape)
+                with open_local_request(req, timeout=120) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    full_response = parse_response(prov, data)
+                    tokens_count = len(full_response.split())
+                self.root.after(0, self._append_transcript, "Assistant", full_response + "\n\n", "assistant")
+            else:
+                with open_local_request(req, timeout=120) as resp:
+                    if stream:
+                        self.root.after(0, self._append_transcript_header, "Assistant", "assistant_head")
+                        for raw in resp:
+                            line = raw.decode("utf-8", errors="replace").strip()
+                            if not line.startswith("data:"):
+                                continue
+                            chunk = line[5:].strip()
+                            if chunk == "[DONE]":
+                                break
+                            try:
+                                parsed = json.loads(chunk)
+                                if prov == "gemini":
+                                    candidates = parsed.get("candidates", [])
+                                    if candidates:
+                                        content = candidates[0].get("content", {})
+                                        parts = content.get("parts", [])
+                                        delta = "".join(p.get("text", "") for p in parts)
+                                else:
+                                    choices = parsed.get("choices") or []
+                                    delta = ""
+                                    if choices:
+                                        delta = choices[0].get("delta", {}).get("content", "")
                                 if delta:
                                     full_response += delta
                                     tokens_count += 1
                                     self.root.after(0, self._append_raw, delta, "assistant_body")
-                        except Exception:
-                            continue
-                    self.root.after(0, self._append_raw, "\n\n", "assistant_body")
-                else:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    choices = data.get("choices") or []
-                    if choices:
-                        full_response = choices[0].get("message", {}).get("content", "")
-                    tokens_count = len(full_response.split())
-                    self.root.after(
-                        0, self._append_transcript, "Assistant", full_response + "\n\n", "assistant"
-                    )
+                            except Exception:  # nosec B112 - skip malformed SSE chunks in stream parsing
+                                continue
+                        self.root.after(0, self._append_raw, "\n\n", "assistant_body")
+                    else:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        full_response = parse_response(prov, data)
+                        tokens_count = len(full_response.split())
+                        self.root.after(
+                            0, self._append_transcript, "Assistant", full_response + "\n\n", "assistant"
+                        )
 
             elapsed = max(0.01, time.time() - start_t)
             speed = tokens_count / elapsed
@@ -653,7 +752,7 @@ class ZCoderDesktopGUI:
                     "end",
                     values=(s.get("name", ""), s.get("category", "General"), s.get("description", "")),
                 )
-        except Exception:
+        except Exception:  # nosec B110 - skill registry load is non-critical UI enrichment
             pass
 
     # ── View 3: System Health & Live Telemetry ───────────────────────────
@@ -827,7 +926,472 @@ class ZCoderDesktopGUI:
         self.model_var.set(self.ent_default_model.get().strip())
         messagebox.showinfo("Studio Settings", "Parameters successfully updated and applied.")
 
-    # ── Bottom Telemetry Bar ─────────────────────────────────────────────
+    # ── View 6: Providers & Multi-Account Model Router ────────────────────────
+    def _init_providers_view(self) -> None:
+        view = tk.Frame(self.content_area, bg=self.c["bg_dark"])
+        self.views["providers"] = view
+
+        # Header
+        tk.Label(
+            view,
+            text="🔌 Provider Connectors & Multi-Account Model Router",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.c["bg_dark"],
+            fg=self.c["accent_cyan"],
+        ).pack(anchor="w", pady=(0, 10))
+
+        # Auto-route free models toggle
+        auto_frame = tk.Frame(view, bg=self.c["card_bg"], padx=12, pady=10)
+        auto_frame.pack(fill="x", pady=(0, 10))
+
+        self.auto_route_var = tk.BooleanVar(value=os.getenv("ZCODER_AUTO_ROUTE_FREE", "1") == "1")
+        auto_chk = tk.Checkbutton(
+            auto_frame,
+            text="🚀 Auto-Route Free Models (prefer free tiers: Groq, Cerebras, GroqCloud, Together, Ollama)",
+            variable=self.auto_route_var,
+            font=("Segoe UI", 10),
+            bg=self.c["card_bg"],
+            fg=self.c["fg"],
+            selectcolor=self.c["input_bg"],
+            activebackground=self.c["card_bg"],
+            command=self._save_auto_route,
+        )
+        auto_chk.pack(anchor="w")
+
+        # Provider tree
+        tree_card = tk.Frame(view, bg=self.c["card_bg"], padx=10, pady=10)
+        tree_card.pack(fill="both", expand=True)
+
+        cols = ("provider", "account", "models", "status", "free_tier")
+        self.prov_tree = ttk.Treeview(tree_card, columns=cols, show="headings", height=12)
+        self.prov_tree.heading("provider", text="Provider")
+        self.prov_tree.heading("account", text="Account / Key")
+        self.prov_tree.heading("models", text="Available Models")
+        self.prov_tree.heading("status", text="Status")
+        self.prov_tree.heading("free_tier", text="Free Tier")
+        self.prov_tree.column("provider", width=140)
+        self.prov_tree.column("account", width=180)
+        self.prov_tree.column("models", width=300)
+        self.prov_tree.column("status", width=100)
+        self.prov_tree.column("free_tier", width=80)
+        self.prov_tree.pack(side="left", fill="both", expand=True)
+
+        scroll = ttk.Scrollbar(tree_card, orient="vertical", command=self.prov_tree.yview)
+        scroll.pack(side="right", fill="y")
+        self.prov_tree.configure(yscrollcommand=scroll.set)
+
+        # Populate providers from config/env
+        self._refresh_provider_tree()
+
+        # Buttons
+        btn_frame = tk.Frame(view, bg=self.c["bg_dark"])
+        btn_frame.pack(fill="x", pady=(10, 0))
+
+        tk.Button(
+            btn_frame,
+            text="➕ Add Account",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.c["accent_cyan"],
+            fg="#0d0e15",
+            bd=0,
+            padx=12,
+            pady=6,
+            command=self._add_provider_account,
+        ).pack(side="left", padx=(0, 8))
+
+        tk.Button(
+            btn_frame,
+            text="🗑️ Remove Selected",
+            font=("Segoe UI", 9),
+            bg=self.c["sidebar_active"],
+            fg=self.c["neon_red"],
+            bd=0,
+            padx=12,
+            pady=6,
+            command=self._remove_provider_account,
+        ).pack(side="left")
+
+        tk.Button(
+            btn_frame,
+            text="🔄 Refresh",
+            font=("Segoe UI", 9),
+            bg=self.c["sidebar_active"],
+            fg=self.c["fg"],
+            bd=0,
+            padx=12,
+            pady=6,
+            command=self._refresh_provider_tree,
+        ).pack(side="left", padx=8)
+
+        tk.Button(
+            btn_frame,
+            text="💾 Save Config",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.c["accent_violet"],
+            fg="#0d0e15",
+            bd=0,
+            padx=12,
+            pady=6,
+            command=self._save_provider_config,
+        ).pack(side="right")
+
+    def _save_auto_route(self) -> None:
+        os.environ["ZCODER_AUTO_ROUTE_FREE"] = "1" if self.auto_route_var.get() else "0"
+
+    def _refresh_provider_tree(self) -> None:
+        for item in self.prov_tree.get_children():
+            self.prov_tree.delete(item)
+
+        # Built-in provider configs with free tier info
+        class _ProviderInfo(TypedDict):
+            free: bool
+            models: list[str]
+
+        providers: dict[str, _ProviderInfo] = {
+            "groq": {
+                "free": True,
+                "models": [
+                    "llama-3.1-70b-versatile",
+                    "llama-3.1-8b-instant",
+                    "mixtral-8x7b-32768",
+                    "gemma2-9b-it",
+                ],
+            },
+            "cerebras": {"free": True, "models": ["llama3.1-8b", "llama3.1-70b"]},
+            "together": {
+                "free": True,
+                "models": ["meta-llama/Meta-Llama-3.1-70B-Instruct", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
+            },
+            "groqcloud": {"free": True, "models": ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"]},
+            "ollama": {
+                "free": True,
+                "models": ["llama3.1", "llama3.1:8b", "llama3.1:70b", "qwen2.5", "qwen2.5:7b", "codellama"],
+            },
+            "gemini": {"free": True, "models": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]},
+            "openrouter": {
+                "free": True,
+                "models": ["openrouter/auto", "google/gemini-flash-1.5", "meta-llama/llama-3.1-70b"],
+            },
+            "nvidia": {
+                "free": False,
+                "models": [
+                    "nvidia/nemotron-3-ultra",
+                    "nvidia/llama-3.1-nemotron-70b",
+                    "nvidia/llama-3.1-nemotron-ultra-253b",
+                ],
+            },
+            "cloudflare": {
+                "free": True,
+                "models": [
+                    "@cf/meta/llama-3.1-8b-instruct",
+                    "@cf/meta/llama-3.1-70b-instruct",
+                    "@cf/mistral/mistral-7b-instruct-v0.2",
+                    "@hf/thebloke/zephyr-7b-beta-awq",
+                ],
+            },
+            "xai": {"free": False, "models": ["grok-beta", "grok-2"]},
+            "openai": {"free": False, "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]},
+            "anthropic": {
+                "free": False,
+                "models": ["claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus"],
+            },
+        }
+
+        # Read saved accounts from env (ZCODER_PROVIDER_<PROVIDER>_<N>_KEY) and disk config
+        saved_accounts: dict[str, list[dict[str, str]]] = {}
+        for key, value in os.environ.items():
+            m = re.match(r"ZCODER_PROVIDER_(\w+)_(\d+)_KEY", key)
+            if m:
+                provider = m.group(1).lower()
+                idx = m.group(2)
+                if provider not in saved_accounts:
+                    saved_accounts[provider] = []
+                saved_accounts[provider].append({"idx": idx, "key": value[:8] + "..."})
+        # Merge accounts persisted to disk (~/.zcoder-config.json)
+        try:
+            disk_accts = self.config.get("provider_accounts", {}) or {}
+            for provider, accts in disk_accts.items():
+                if provider not in saved_accounts:
+                    saved_accounts[provider] = []
+                for acc in accts:
+                    saved_accounts[provider].append(
+                        {
+                            "idx": str(acc.get("idx", "")),
+                            "key": (acc.get("key", "")[:8] + "...") if acc.get("key") else "",
+                        }
+                    )
+        except Exception:  # nosec B110 - disk provider config read is non-critical
+            pass
+
+        for provider, info in providers.items():
+            is_free = info["free"]
+            models_str = ", ".join(info["models"][:3]) + ("..." if len(info["models"]) > 3 else "")
+            free_badge = "✅ FREE" if is_free else "💰 PAID"
+
+            accounts = saved_accounts.get(provider, [])
+            if accounts:
+                for acc in accounts:
+                    self.prov_tree.insert(
+                        "",
+                        "end",
+                        values=(
+                            provider.upper(),
+                            f"Account #{acc['idx']} ({acc['key']})",
+                            models_str,
+                            "🟢 Connected",
+                            free_badge,
+                        ),
+                    )
+            else:
+                self.prov_tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        provider.upper(),
+                        "— No Account —",
+                        models_str,
+                        "🔴 Not Configured",
+                        free_badge,
+                    ),
+                )
+
+    def _add_provider_account(self) -> None:
+        # Dialog to add new provider account
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Provider Account")
+        dialog.geometry("420x320")
+        dialog.configure(bg=self.c["bg_dark"])
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(
+            dialog,
+            text="Add Provider Account",
+            font=("Segoe UI", 12, "bold"),
+            bg=self.c["bg_dark"],
+            fg=self.c["accent_cyan"],
+        ).pack(pady=12)
+
+        # Provider selector
+        tk.Label(dialog, text="Provider:", bg=self.c["bg_dark"], fg=self.c["fg"]).pack(
+            anchor="w", padx=16, pady=(8, 0)
+        )
+        provider_var = tk.StringVar(value="groq")
+        provider_combo = ttk.Combobox(
+            dialog,
+            textvariable=provider_var,
+            values=[
+                "groq",
+                "cerebras",
+                "together",
+                "groqcloud",
+                "ollama",
+                "gemini",
+                "openrouter",
+                "xai",
+                "openai",
+                "anthropic",
+                "nvidia",
+                "cloudflare",
+            ],
+            state="readonly",
+            width=28,
+        )
+        provider_combo.pack(fill="x", padx=16)
+
+        # API Key
+        tk.Label(dialog, text="API Key:", bg=self.c["bg_dark"], fg=self.c["fg"]).pack(
+            anchor="w", padx=16, pady=(8, 0)
+        )
+        key_entry = tk.Entry(
+            dialog,
+            font=("Consolas", 10),
+            bg="#0d0e15",
+            fg="#cad3f5",
+            insertbackground="#00f0ff",
+            width=40,
+            show="*",
+        )
+        key_entry.pack(fill="x", padx=16)
+
+        # Account name (optional)
+        tk.Label(dialog, text="Account Name (optional):", bg=self.c["bg_dark"], fg=self.c["fg"]).pack(
+            anchor="w", padx=16, pady=(8, 0)
+        )
+        name_entry = tk.Entry(
+            dialog, font=("Segoe UI", 10), bg="#0d0e15", fg="#cad3f5", insertbackground="#00f0ff", width=40
+        )
+        name_entry.pack(fill="x", padx=16)
+
+        def save_account():
+            provider = provider_var.get().lower()
+            key = key_entry.get().strip()
+            name = name_entry.get().strip()
+            if not key:
+                messagebox.showerror("Error", "API Key is required")
+                return
+            # Find next available index
+            existing = [
+                int(re.search(r"_(\d+)_KEY", k).group(1))
+                for k in os.environ
+                if re.match(rf"ZCODER_PROVIDER_{provider.upper()}_\d+_KEY", k)
+            ]
+            next_idx = max(existing) + 1 if existing else 1
+            os.environ[f"ZCODER_PROVIDER_{provider.upper()}_{next_idx}_KEY"] = key
+            if name:
+                os.environ[f"ZCODER_PROVIDER_{provider.upper()}_{next_idx}_NAME"] = name
+            # Persist to disk
+            try:
+                accts = self.config.get("provider_accounts", {})
+                provider_accts = accts.get(provider, [])
+                provider_accts.append(
+                    {
+                        "idx": next_idx,
+                        "key": key,
+                        "name": name,
+                    }
+                )
+                accts[provider] = provider_accts
+                self.config.set("provider_accounts", accts)
+            except Exception as exc:
+                messagebox.showwarning("Warning", f"Key saved to session only (disk write failed): {exc}")
+            dialog.destroy()
+            self._refresh_provider_tree()
+            messagebox.showinfo(
+                "Success", f"Added {provider.upper()} account #{next_idx}" + (f" ({name})" if name else "")
+            )
+
+        tk.Button(
+            dialog,
+            text="Save",
+            font=("Segoe UI", 9, "bold"),
+            bg="#00f0ff",
+            fg="#0d0e15",
+            command=save_account,
+        ).pack(pady=16)
+
+    def _remove_provider_account(self) -> None:
+        selection = self.prov_tree.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Select an account to remove")
+            return
+        item = self.prov_tree.item(selection[0])
+        values = item["values"]
+        provider = values[0].lower()
+        # Find the account index from the displayed text
+        match = re.search(r"Account #(\d+)", values[1])
+        if match:
+            idx = match.group(1)
+            os.environ.pop(f"ZCODER_PROVIDER_{provider.upper()}_{idx}_KEY", None)
+            os.environ.pop(f"ZCODER_PROVIDER_{provider.upper()}_{idx}_NAME", None)
+            # Remove from disk config
+            try:
+                accts = self.config.get("provider_accounts", {})
+                provider_accts = accts.get(provider, [])
+                accts[provider] = [a for a in provider_accts if str(a.get("idx")) != idx]
+                self.config.set("provider_accounts", accts)
+            except Exception as exc:
+                messagebox.showwarning("Warning", f"Removed from session only (disk write failed): {exc}")
+            self._refresh_provider_tree()
+            messagebox.showinfo("Removed", f"Removed {provider.upper()} account #{idx}")
+
+    def _save_provider_config(self) -> None:
+        # Persist auto-route setting to disk
+        os.environ["ZCODER_AUTO_ROUTE_FREE"] = "1" if self.auto_route_var.get() else "0"
+        try:
+            self.config.set("provider_auto_route", self.auto_route_var.get())
+        except Exception as exc:
+            messagebox.showwarning("Warning", f"Auto-route saved to session only (disk write failed): {exc}")
+        messagebox.showinfo("Saved", "Provider configuration saved.")
+
+    # Auto-route logic for free models
+    def _auto_route_free_model(self, requested_model: str = "") -> tuple[str, str]:
+        """
+        Auto-route to best free model based on availability.
+        Returns: (provider, model)
+        """
+        if not self.auto_route_var.get():
+            return ("", requested_model)
+
+        # Priority order for free providers
+        free_providers = [
+            (
+                "groq",
+                ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
+            ),
+            ("cerebras", ["llama3.1-8b", "llama3.1-70b"]),
+            ("together", ["meta-llama/Meta-Llama-3.1-70B-Instruct", "mistralai/Mixtral-8x7B-Instruct-v0.1"]),
+            ("groqcloud", ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"]),
+            ("ollama", ["llama3.1", "llama3.1:8b", "llama3.1:70b", "qwen2.5", "qwen2.5:7b", "codellama"]),
+            ("gemini", ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]),
+            ("openrouter", ["openrouter/auto", "google/gemini-flash-1.5", "meta-llama/llama-3.1-70b"]),
+            (
+                "cloudflare",
+                [
+                    "@cf/meta/llama-3.1-8b-instruct",
+                    "@cf/meta/llama-3.1-70b-instruct",
+                    "@cf/mistral/mistral-7b-instruct-v0.2",
+                    "@hf/thebloke/zephyr-7b-beta-awq",
+                ],
+            ),
+        ]
+
+        # Check if requested model is in free tier
+        if requested_model:
+            for provider, models in free_providers:
+                if requested_model in models:
+                    return (provider, requested_model)
+                # Check if model matches partially
+                for m in models:
+                    if requested_model.lower() in m.lower() or m.lower() in requested_model.lower():
+                        return (provider, m)
+
+        # Return best available free model (first provider with valid key)
+        for provider, models in free_providers:
+            # Check if we have a valid key for this provider
+            has_key = any(re.match(rf"ZCODER_PROVIDER_{provider.upper()}_\d+_KEY", k) for k in os.environ)
+            if has_key:
+                return (provider, models[0])
+
+        # Fallback: no free provider configured
+        return ("", requested_model)
+
+    def _get_best_provider_for_model(self, model: str) -> tuple[str, str]:
+        """Get the best provider for a given model (prefers free tier)."""
+        return self._auto_route_free_model(model)
+
+    def _get_gpu_memory(self) -> dict:
+        """Get GPU memory usage from nvidia-smi."""
+        try:
+            out = subprocess.run(  # nosec B603 B607 - nvidia-smi is a trusted local GPU monitoring command
+                ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if out.returncode == 0 and out.stdout.strip():
+                used, total = map(int, out.stdout.strip().split(", "))
+                return {"used_mib": used, "total_mib": total, "free_mib": total - used}
+        except Exception:  # nosec B110 - GPU monitoring is non-critical telemetry
+            pass
+        return {}
+
+    def _start_gpu_memory_monitor(self) -> None:
+        """Update GPU memory label every 5 seconds."""
+
+        def update_gpu_label():
+            mem = self._get_gpu_memory()
+            if mem:
+                used = mem.get("used_mib", 0)
+                total = mem.get("total_mib", 0)
+                free = mem.get("free_mib", 0)
+                pct = (used / total * 100) if total else 0
+                self.gpu_mem_label.config(text=f"GPU: {used}/{total} MiB ({pct:.0f}%)  Free: {free} MiB")
+            else:
+                self.gpu_mem_label.config(text="GPU: Not Available")
+            self.root.after(5000, update_gpu_label)
+
+        update_gpu_label()
 
     def _build_bottom_telemetry_bar(self) -> None:
         bar = tk.Frame(self.root, bg=self.c["sidebar_bg"], height=28)
@@ -844,6 +1408,20 @@ class ZCoderDesktopGUI:
         )
         self.telemetry_label.pack(side="left")
 
+        # GPU VRAM indicator
+        self.gpu_mem_label = tk.Label(
+            bar,
+            text="GPU: Detecting...",
+            font=("Consolas", 9),
+            bg=self.c["sidebar_bg"],
+            fg=self.c["neon_green"],
+            padx=12,
+        )
+        self.gpu_mem_label.pack(side="right")
+
+        # Start GPU memory monitor
+        self._start_gpu_memory_monitor()
+
 
 def run_desktop_gui() -> None:
     """Launch the ZCoder Studio Ultra-Luxury Desktop GUI."""
@@ -853,7 +1431,7 @@ def run_desktop_gui() -> None:
         try:
             img = tk.PhotoImage(file=icon_path)
             root.iconphoto(False, img)
-        except Exception:
+        except Exception:  # nosec B110 - window icon is non-critical UI polish
             pass
     _app = ZCoderDesktopGUI(root)
     root.mainloop()
