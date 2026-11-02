@@ -63,7 +63,7 @@ zgpu = ["dashboard/*.html", "dashboard/*.css", "dashboard/*.js"]
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers"
-testpaths = ["tests", "src/zgpu/tests"]
+testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 
