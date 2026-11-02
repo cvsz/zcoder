@@ -17,4 +17,6 @@ regexes = [
     "s3cr3t",
     "test-token",
     "abcdef123456xyz",
+    "Authorization: Bearer",
+    "curl -H 'Authorization:",
 ]
