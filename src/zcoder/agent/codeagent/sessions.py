@@ -35,9 +35,26 @@ class SessionStore:
         self.dir = Path(directory) if directory else zcoder_home() / "sessions"
 
     def _path(self, session_id: str) -> Path:
-        if not _ID.match(session_id):  # blocks path traversal from the web API
+        if not isinstance(session_id, str):
             raise ValueError("invalid session id")
-        return self.dir / f"{session_id}.json"
+        # Reject any path separators or traversal before basename; session IDs
+        # are strictly formatted (YYYYMMDD-HHMMSS-XXXXXX) so a basename that
+        # differs from the input means a separator was present.
+        if "/" in session_id or "\\" in session_id or ".." in session_id:
+            raise ValueError("invalid session id")
+        safe_id = os.path.basename(session_id)
+        if safe_id != session_id or not _ID.fullmatch(safe_id):
+            raise ValueError("invalid session id")
+        root = self.dir.resolve()
+        expected = root / f"{safe_id}.json"
+        resolved = expected.resolve(strict=False)  # nosec: session_id is strictly validated above (basename + _ID pattern + no separators)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("session path escapes storage directory") from exc
+        if resolved != expected:
+            raise ValueError("session path must not resolve through a symlink")
+        return resolved
 
     def save(
         self, session_id: str, cwd: str, messages: list[dict[str, Any]], usage: dict[str, int] | None = None
@@ -89,4 +106,7 @@ class SessionStore:
         return sorted(infos, key=lambda i: i.updated, reverse=True)
 
     def delete(self, session_id: str) -> None:
-        self._path(session_id).unlink(missing_ok=True)
+        # _path() validates session_id strictly (basename + _ID pattern +
+        # no separators + resolve containment + symlink check) before
+        # returning the path, so this unlink is safe.
+        self._path(session_id).unlink(missing_ok=True)  # nosec: path validated in _path()
