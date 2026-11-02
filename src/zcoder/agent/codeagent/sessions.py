@@ -47,7 +47,9 @@ class SessionStore:
             raise ValueError("invalid session id")
         root = self.dir.resolve()
         expected = root / f"{safe_id}.json"
-        resolved = expected.resolve(strict=False)  # nosec: session_id is strictly validated above (basename + _ID pattern + no separators)
+        resolved = expected.resolve(
+            strict=False
+        )  # nosec: session_id is strictly validated above (basename + _ID pattern + no separators)
         try:
             resolved.relative_to(root)
         except ValueError as exc:
