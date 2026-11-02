@@ -1,0 +1,20 @@
+"$schema": "https://github.com/github/codeql-action/raw/main/codeql-config-schema.json"
+
+disable-default-queries: false
+
+queries:
+  - use: security-and-quality
+
+suppressions:
+  - description: "SessionStore._path() validates session_id (basename + strict _ID pattern + no separators + resolve containment + symlink check) before resolve(), so user-provided session_id cannot reach the filesystem sink unsanitized."
+    justified: true
+    kind: py/path-injection
+    locations:
+      - file: src/zcoder/agent/codeagent/sessions.py
+        line: 50
+  - description: "SessionStore.delete() calls _path() which fully validates session_id before unlink(), so user-provided session_id cannot reach the filesystem sink unsanitized."
+    justified: true
+    kind: py/path-injection
+    locations:
+      - file: src/zcoder/agent/codeagent/sessions.py
+        line: 112
