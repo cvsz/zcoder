@@ -3,7 +3,7 @@
 disable-default-queries: false
 
 queries:
-  - use: security-and-quality
+  - uses: security-and-quality
 
 suppressions:
   - description: "SessionStore._path() validates session_id (basename + strict _ID pattern + no separators + resolve containment + symlink check) before resolve(), so user-provided session_id cannot reach the filesystem sink unsanitized."
