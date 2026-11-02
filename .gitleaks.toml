@@ -1,0 +1,20 @@
+[extend]
+useDefault = true
+
+[[allow]]
+description = "Test files with fake tokens"
+paths = [
+    "tests/**/*.py",
+    "tests/**/*.md",
+    "tests/**/*.txt",
+]
+regexes = [
+    "dummy",
+    "test-token",
+    "fake-token",
+    "test-token-123",
+    "hunter2",
+    "s3cr3t",
+    "test-token",
+    "abcdef123456xyz",
+]
