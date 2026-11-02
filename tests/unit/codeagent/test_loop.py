@@ -7,7 +7,15 @@ import pytest
 
 from tests.unit.codeagent.conftest import collect
 from zcoder.agent.codeagent.audit import AuditLog
-from zcoder.agent.codeagent.events import Decision, ModeChanged, Notice, TextDelta, ToolEnd, ToolStart, TurnDone
+from zcoder.agent.codeagent.events import (
+    Decision,
+    ModeChanged,
+    Notice,
+    TextDelta,
+    ToolEnd,
+    ToolStart,
+    TurnDone,
+)
 from zcoder.agent.codeagent.hooks import Hooks
 from zcoder.agent.codeagent.llm import LLMError
 from zcoder.agent.codeagent.permissions import Mode
@@ -53,7 +61,9 @@ async def test_edit_requires_approval_and_applies_when_allowed(make_agent, tmp_p
         asked.append(req)
         return Decision("allow")
 
-    agent = make_agent([{"calls": [("Write", {"path": "n.py", "content": "x = 1\n"})]}, {"text": "done"}], ask=ask)
+    agent = make_agent(
+        [{"calls": [("Write", {"path": "n.py", "content": "x = 1\n"})]}, {"text": "done"}], ask=ask
+    )
     events = await collect(agent, "make n.py")
     assert (tmp_path / "n.py").read_text() == "x = 1\n"
     assert asked[0].tool == "Write" and "+x = 1" in asked[0].diff
@@ -134,7 +144,9 @@ async def test_rejecting_plan_keeps_plan_mode(make_agent):
     async def ask(req):
         return Decision("deny", "also cover tests")
 
-    agent = make_agent([{"calls": [("ExitPlanMode", {"plan": "p"})]}, {"text": "revising"}], ask=ask, mode=Mode.PLAN)
+    agent = make_agent(
+        [{"calls": [("ExitPlanMode", {"plan": "p"})]}, {"text": "revising"}], ask=ask, mode=Mode.PLAN
+    )
     events = await collect(agent, "plan")
     assert agent.mode == Mode.PLAN and "cover tests" in ends(events)[0].output
 
@@ -167,7 +179,9 @@ async def test_step_limit_stops_the_turn(make_agent):
     script = [{"calls": [("Grep", {"pattern": f"p{i}"})]} for i in range(5)]
     agent = make_agent(script, max_steps=2)
     events = await collect(agent, "go")
-    assert done(events) == "max_turns" and any(isinstance(e, Notice) and "Stopped after 2" in e.text for e in events)
+    assert done(events) == "max_turns" and any(
+        isinstance(e, Notice) and "Stopped after 2" in e.text for e in events
+    )
 
 
 async def test_interrupt_during_approval_ends_turn(make_agent, tmp_path):
@@ -177,7 +191,9 @@ async def test_interrupt_during_approval_ends_turn(make_agent, tmp_path):
         holder["agent"].interrupt()
         return Decision("allow")
 
-    agent = make_agent([{"calls": [("Write", {"path": "z.txt", "content": "x"})]}, {"text": "never"}], ask=ask)
+    agent = make_agent(
+        [{"calls": [("Write", {"path": "z.txt", "content": "x"})]}, {"text": "never"}], ask=ask
+    )
     holder["agent"] = agent
     events = await collect(agent, "go")
     assert done(events) == "interrupted" and not (tmp_path / "z.txt").exists()
@@ -207,7 +223,9 @@ async def test_llm_error_ends_turn_with_notice(make_agent):
 
 
 async def test_transient_error_is_retried(make_agent):
-    agent = make_agent([LLMError("Cannot reach llama-server", retryable=True), {"text": "back"}], retry_delays=(0.0,))
+    agent = make_agent(
+        [LLMError("Cannot reach llama-server", retryable=True), {"text": "back"}], retry_delays=(0.0,)
+    )
     events = await collect(agent, "go")
     assert done(events) == "end"
     assert any(isinstance(e, Notice) and e.level == "warn" and "retrying" in e.text for e in events)
@@ -315,13 +333,19 @@ async def test_audit_trail_records_decisions_without_contents(make_agent, tmp_pa
     tools = [r for r in rows if r["event"] == "tool"]
     assert [t["decision"] for t in tools] == ["user_allow", "auto", "policy_deny"]
     assert tools[0]["args"] == {"path": "s.txt", "bytes": 15}
-    assert rows[0]["event"] == "turn_start" and rows[-1]["event"] == "turn_end" and rows[-1]["stop_reason"] == "end"
+    assert (
+        rows[0]["event"] == "turn_start"
+        and rows[-1]["event"] == "turn_end"
+        and rows[-1]["stop_reason"] == "end"
+    )
     assert all(r["session"] == agent.session_id for r in rows)
     assert (log.stat().st_mode & 0o777) == 0o600
 
 
 async def test_pre_tool_hook_can_block(make_agent, tmp_path):
-    hooks = Hooks({"PreToolUse": [{"matcher": "Bash", "command": "echo 'no shell today' >&2; exit 2"}]}, tmp_path)
+    hooks = Hooks(
+        {"PreToolUse": [{"matcher": "Bash", "command": "echo 'no shell today' >&2; exit 2"}]}, tmp_path
+    )
     agent = make_agent([{"calls": [("Bash", {"command": "ls"})]}, {"text": "ok"}], hooks=hooks)
     events = await collect(agent, "go")
     assert ends(events)[0].is_error and "no shell today" in ends(events)[0].output
@@ -329,7 +353,9 @@ async def test_pre_tool_hook_can_block(make_agent, tmp_path):
 
 async def test_post_tool_hook_feedback_reaches_model(make_agent, tmp_path):
     (tmp_path / "f.txt").write_text("x")
-    hooks = Hooks({"PostToolUse": [{"matcher": "Read", "command": "echo 'lint failed' >&2; exit 2"}]}, tmp_path)
+    hooks = Hooks(
+        {"PostToolUse": [{"matcher": "Read", "command": "echo 'lint failed' >&2; exit 2"}]}, tmp_path
+    )
     agent = make_agent([{"calls": [("Read", {"path": "f.txt"})]}, {"text": "ok"}], hooks=hooks)
     events = await collect(agent, "go")
     assert "lint failed" in ends(events)[0].output and not ends(events)[0].is_error
