@@ -643,4 +643,3 @@ pytest --cov --cov-report=term-missing
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow.
-test
