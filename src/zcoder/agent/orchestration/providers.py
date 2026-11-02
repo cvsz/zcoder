@@ -29,12 +29,15 @@ PROVIDER_CHOICES = (
     "groq",
     "openrouter",
     "cerebras",
+    "nvidia",
     "openai_compatible",
     "ollama",
     "local",
 )
 
-OPENAI_COMPATIBLE_PROVIDERS = frozenset({"xai", "groq", "openrouter", "cerebras", "openai_compatible"})
+OPENAI_COMPATIBLE_PROVIDERS = frozenset(
+    {"xai", "groq", "openrouter", "cerebras", "nvidia", "openai_compatible"}
+)
 
 PROVIDER_DEFAULTS: dict[str, dict] = {
     "gemini": {
@@ -65,6 +68,12 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
         "base_url": "https://api.cerebras.ai",
         "path": "/v1/chat/completions",
         "env_keys": ("CEREBRAS_API_KEY",),
+        "auth": "bearer",
+    },
+    "nvidia": {
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "path": "/chat/completions",
+        "env_keys": ("NVIDIA_API_KEY",),
         "auth": "bearer",
     },
     "openai_compatible": {

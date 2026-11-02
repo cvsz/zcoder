@@ -14,10 +14,24 @@ __pycache__/
 venv/
 env/
 
+# Local model weights — mount at runtime, do not commit.
+models/
+*.gguf
+*.gguf.*
+
 # Env / secrets — never commit real credentials
 .env
 .env.*
 !.env.example
+
+# Code-signing certificates and private keys
+certs/
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
 
 # Test / coverage / lint / type-check caches
 .pytest_cache/

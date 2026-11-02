@@ -6,8 +6,14 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zPostgreSQL-blue.svg)](docs/operations/deployment.md)
+[![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
 
-**เวอร์ชันปัจจุบัน:** `1.41.5`
+![ZCoder Social Preview](social-preview.svg)
+
+**เวอร์ชันปัจจุบัน:** `1.60.0`
 
 ---
 
@@ -386,17 +392,37 @@ pytest --cov --cov-report=term-missing
 
 ## Docker
 
-```bash
-# Build
-docker build -t zcoder:local .
+### Local GGUF inference (recommended)
 
-# Verify
+The Compose stack runs ZCoder and a separate llama.cpp server. It does not
+require an Anthropic API key. Put the selected GGUF in `models/` (default:
+`models/qwen-7b-q4km.gguf`), then run:
+
+```bash
+cp -n .env.example .env
+docker compose config
+docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
+docker compose logs -f llama-server
+docker compose down
+```
+
+If `.env` already exists, keep it and update only the required model settings.
+
+Use `ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf` and
+`ZCODER_MODEL=qwen-1.5b-q4km` in `.env` to select the smaller model.
+The model directory is mounted read-only. GGUF files are excluded from Git
+and from the Docker build context. The inference service publishes no host
+port; ZCoder shares its network namespace and uses the loopback endpoint.
+See [QUICKSTART.md](QUICKSTART.md) and
+[Local Inference Configuration](docs/guides/LOCAL-INFERENCE.md).
+
+### Build and run the application image directly
+
+```bash
+docker build -t zcoder:local .
 docker run --rm zcoder:local --version
 
-# Run with provider key
-docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... zcoder:local
-
-# Run the API server (set DATABASE_URL to a reachable PostgreSQL database)
+# Run the API server against a reachable PostgreSQL database
 docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
   -e DATABASE_URL=postgresql://user:password@host:5432/zcoder \
   zcoder:local
@@ -404,6 +430,53 @@ docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
 
 The image pins its Python and uv builder images by digest and installs the
 runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
+
+The image pins its Python and uv builder images by digest and installs the
+runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
+
+---
+
+## Bridge Infrastructure
+
+ZCoder supports a shared PostgreSQL container (`zPostgreSQL`) on a dedicated
+Docker network (`zPostgreSQL_network`) for integration tests and local
+development:
+
+### Shared PostgreSQL Container
+
+```bash
+# Start the shared PostgreSQL container
+make postgres-setup
+
+# Check status
+make postgres-status
+```
+
+**Default Configuration:**
+- **Container:** `zPostgreSQL`
+- **Network:** `zPostgreSQL_network`
+- **Database:** `zcoder_db`
+- **Role:** `zcoder`
+- **Connection:** `postgresql://zcoder@zPostgreSQL:5432/zcoder_db`
+
+### Local Testing with Shared PostgreSQL
+
+```bash
+# Run integration tests against shared PostgreSQL
+python scripts/local_postgres.py run -- python -m pytest tests/integration -q
+
+# Run E2E tests against shared PostgreSQL
+python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
+```
+
+### Connection String
+
+For local development with the shared container:
+```bash
+export DATABASE_URL=postgresql://zcoder@localhost:5432/zcoder_db
+```
+
+Or use the compose stack which auto-configures the network.
 
 ---
 

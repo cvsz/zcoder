@@ -65,18 +65,61 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# -- Guard: path must exist -------------------------------------------------
 if (-not (Test-Path -Path $SearchPath)) {
-    throw "Target search path not found: '$SearchPath'. Run build first."
+    Write-Host ""
+    Write-Host "ERROR: Search path not found: '$SearchPath'" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Build the ZCoder Desktop executable first:" -ForegroundColor Yellow
+    Write-Host "  Option A  (Windows CMD / PowerShell, using Windows Python):"
+    Write-Host "    scripts\build.bat"
+    Write-Host ""
+    Write-Host "  Option B  (explicit Python):"
+    Write-Host "    python scripts\install.py build"
+    Write-Host ""
+    Write-Host "  NOTE: PyInstaller must run on WINDOWS Python, not WSL python."
+    Write-Host "        Running 'build.bat' inside WSL produces a Linux ELF, not an .exe."
+    throw "Build directory '$SearchPath' not found."
 }
 
-# Resolve candidate binaries
+# -- Collect target binaries -------------------------------------------------
 $targets = @()
 foreach ($filter in $FileFilter) {
     $targets += Get-ChildItem -Path $SearchPath -Filter $filter -Recurse -File
 }
 
 if ($targets.Count -eq 0) {
-    throw "No matching files ($($FileFilter -join ', ')) found under '$SearchPath'."
+    # Detect Linux ELF executables in the dist dir (common WSL build mistake)
+    $allFiles = Get-ChildItem -Path $SearchPath -Recurse -File
+    $linuxBinaries = $allFiles | Where-Object { $_.Name -notmatch '\.' }
+
+    Write-Host ""
+    Write-Host "ERROR: No matching files ($($FileFilter -join ', ')) found under '$SearchPath'." -ForegroundColor Red
+
+    if ($linuxBinaries) {
+        Write-Host ""
+        Write-Host "HINT: Found file(s) WITHOUT extensions (likely Linux ELF binaries built from WSL):" -ForegroundColor Yellow
+        foreach ($f in $linuxBinaries) { Write-Host "  $($f.FullName)" -ForegroundColor Yellow }
+        Write-Host ""
+        Write-Host "FIX: The build must run on WINDOWS Python to produce zcoder.exe" -ForegroundColor Yellow
+        Write-Host "  1. Open a Windows CMD or PowerShell (not WSL terminal)"
+        Write-Host "  2. Navigate to: \\wsl.localhost\Ubuntu-26.04\home\cvsz\zcoder"
+        Write-Host "  3. Run: scripts\build.bat"
+        Write-Host "     (This uses the Windows Python on your PATH, not WSL python)"
+        Write-Host ""
+        Write-Host "  Or from within WSL, invoke the Windows Python explicitly:"
+        Write-Host "  powershell.exe -Command ""python scripts/install.py build"""
+    } else {
+        Write-Host ""
+        Write-Host "FIX: Run 'scripts\build.bat' from a Windows terminal first." -ForegroundColor Yellow
+    }
+
+    if ($VerifyOnly) {
+        Write-Host ""
+        Write-Host "No executables to verify. Exiting cleanly." -ForegroundColor Gray
+        return
+    }
+    throw "No signable files found under '$SearchPath'."
 }
 
 Write-Host "==> ZCoder Desktop Binary Authenticode Signing & Verification" -ForegroundColor Cyan

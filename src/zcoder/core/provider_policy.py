@@ -45,6 +45,12 @@ def enforce_outbound_url_policy(url: str) -> None:
 def create_anthropic_client(api_key: str):
     """Construct the optional Anthropic SDK client after enforcing local policy."""
     ensure_anthropic_api_allowed()
-    import anthropic
+    try:
+        import anthropic
+    except ImportError as exc:
+        raise RuntimeError(
+            "Anthropic SDK is not installed. Install with 'pip install zcoder[anthropic]' "
+            "or configure a different provider."
+        ) from exc
 
     return anthropic.Anthropic(api_key=api_key)
