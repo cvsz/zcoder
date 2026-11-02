@@ -35,7 +35,9 @@ def test_session_save_load_list_delete(tmp_path):
         st.load(sid)
 
 
-@pytest.mark.parametrize("bad", ["../../etc/passwd", "x", "20240101-000000-ZZZZZZ", "", "20240101-000000-abcdef/../x"])
+@pytest.mark.parametrize(
+    "bad", ["../../etc/passwd", "x", "20240101-000000-ZZZZZZ", "", "20240101-000000-abcdef/../x"]
+)
 def test_session_ids_cannot_traverse(tmp_path, bad):
     with pytest.raises(ValueError):
         SessionStore(tmp_path)._path(bad)
@@ -64,7 +66,9 @@ def test_project_memory_order_and_cap(tmp_path):
 def test_system_prompt_contents(tmp_path):
     ws = Workspace(tmp_path)
     prompt = build_system_prompt(ws, "plan", [("ZCODER.md", "use tabs")], ["Read", "Edit"])
-    assert "PLAN MODE" in prompt and "use tabs" in prompt and str(tmp_path) in prompt and "Read, Edit" in prompt
+    assert (
+        "PLAN MODE" in prompt and "use tabs" in prompt and str(tmp_path) in prompt and "Read, Edit" in prompt
+    )
     assert "PLAN MODE" not in build_system_prompt(ws, "default", [], ["Read"])
 
 

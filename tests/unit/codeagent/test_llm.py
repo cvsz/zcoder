@@ -35,7 +35,9 @@ def test_non_loopback_urls_rejected(url):
 
 
 def test_endpoint_handles_v1_suffix():
-    assert endpoint("chat/completions", "http://127.0.0.1:8080") == "http://127.0.0.1:8080/v1/chat/completions"
+    assert (
+        endpoint("chat/completions", "http://127.0.0.1:8080") == "http://127.0.0.1:8080/v1/chat/completions"
+    )
     assert endpoint("/models", "http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1/models"
 
 
@@ -44,7 +46,9 @@ def test_redirects_are_refused():
 
 
 def sse(*events):
-    return io.BytesIO("".join(f"data: {e if isinstance(e, str) else json.dumps(e)}\n\n" for e in events).encode())
+    return io.BytesIO(
+        "".join(f"data: {e if isinstance(e, str) else json.dumps(e)}\n\n" for e in events).encode()
+    )
 
 
 def fake_opener(body, seen=None, exc=None):
@@ -69,18 +73,30 @@ async def test_stream_parses_text_reasoning_usage_and_split_tool_calls():
         {"choices": [{"delta": {"content": "lo"}}]},
         {
             "choices": [
-                {"delta": {"tool_calls": [{"index": 0, "id": "c1", "function": {"name": "Rea", "arguments": '{"pa'}}]}}
-            ]
-        },
-        {
-            "choices": [
-                {"delta": {"tool_calls": [{"index": 0, "function": {"name": "d", "arguments": 'th": "a.py"}'}}]}}
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {"index": 0, "id": "c1", "function": {"name": "Rea", "arguments": '{"pa'}}
+                        ]
+                    }
+                }
             ]
         },
         {
             "choices": [
                 {
-                    "delta": {"tool_calls": [{"index": 1, "id": "c2", "function": {"name": "LS", "arguments": ""}}]},
+                    "delta": {
+                        "tool_calls": [{"index": 0, "function": {"name": "d", "arguments": 'th": "a.py"}'}}]
+                    }
+                }
+            ]
+        },
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [{"index": 1, "id": "c2", "function": {"name": "LS", "arguments": ""}}]
+                    },
                     "finish_reason": "tool_calls",
                 }
             ]
@@ -100,14 +116,22 @@ async def test_stream_parses_text_reasoning_usage_and_split_tool_calls():
     assert (usage.prompt_tokens, usage.completion_tokens) == (11, 7)
     assert kinds[-1] == "finish" and chunks[-1].finish_reason == "tool_calls"
     payload = json.loads(seen[0][0].data)
-    assert payload["stream"] is True and payload["tools"] == [{"type": "function"}] and payload["model"] == "m"
+    assert (
+        payload["stream"] is True and payload["tools"] == [{"type": "function"}] and payload["model"] == "m"
+    )
 
 
 async def test_malformed_tool_arguments_are_flagged_not_crashed():
     body = sse(
         {
             "choices": [
-                {"delta": {"tool_calls": [{"index": 0, "id": "c", "function": {"name": "Read", "arguments": "{oops"}}]}}
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {"index": 0, "id": "c", "function": {"name": "Read", "arguments": "{oops"}}
+                        ]
+                    }
+                }
             ]
         },
         "[DONE]",
@@ -125,7 +149,9 @@ async def test_garbage_sse_lines_are_ignored():
     assert "".join(c.text for c in chunks if c.kind == "text") == "ok"
 
 
-@pytest.mark.parametrize("code,retryable", [(503, True), (429, True), (400, False), (401, False), (500, True)])
+@pytest.mark.parametrize(
+    "code,retryable", [(503, True), (429, True), (400, False), (401, False), (500, True)]
+)
 async def test_http_errors_map_to_retryability(code, retryable):
     err = urllib.error.HTTPError("http://x", code, "boom", {}, io.BytesIO(b"details"))
     llm = LocalLLM(base_url="http://127.0.0.1:1", opener=fake_opener(None, exc=err))
@@ -135,7 +161,9 @@ async def test_http_errors_map_to_retryability(code, retryable):
 
 
 async def test_connection_refused_is_retryable():
-    llm = LocalLLM(base_url="http://127.0.0.1:1", opener=fake_opener(None, exc=urllib.error.URLError("refused")))
+    llm = LocalLLM(
+        base_url="http://127.0.0.1:1", opener=fake_opener(None, exc=urllib.error.URLError("refused"))
+    )
     with pytest.raises(LLMError) as info:
         await drain(llm)
     assert info.value.retryable and "refused" in str(info.value)

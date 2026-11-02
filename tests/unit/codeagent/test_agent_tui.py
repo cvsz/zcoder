@@ -60,7 +60,9 @@ async def test_streams_assistant_reply(tmp_path):
 
 
 async def test_permission_dialog_allows_edit(tmp_path):
-    app = make_app(tmp_path, [{"calls": [("Write", {"path": "n.py", "content": "x = 1\n"})]}, {"text": "done"}])
+    app = make_app(
+        tmp_path, [{"calls": [("Write", {"path": "n.py", "content": "x = 1\n"})]}, {"text": "done"}]
+    )
     async with app.run_test(size=(120, 40)) as pilot:
         await send(app, pilot, "make n.py")
         for _ in range(50):
@@ -137,7 +139,9 @@ async def test_shift_tab_cycles_modes_and_updates_status(tmp_path):
     app = make_app(tmp_path, [])
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("shift+tab")
-        assert app.agent.mode == Mode.ACCEPT_EDITS and "accept edits" in str(app.query_one("#status").render())
+        assert app.agent.mode == Mode.ACCEPT_EDITS and "accept edits" in str(
+            app.query_one("#status").render()
+        )
         await pilot.press("shift+tab")
         assert app.agent.mode == Mode.PLAN
 
@@ -204,7 +208,9 @@ async def test_resume_replays_history(tmp_path):
     second.agent.load_session(sid)
     async with second.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        assert "❯ question" in texts(second) and [m.text for m in second.query(tui.AssistantMessage)] == ["the answer"]
+        assert "❯ question" in texts(second) and [m.text for m in second.query(tui.AssistantMessage)] == [
+            "the answer"
+        ]
 
 
 async def test_suggester_completes_commands_and_files(tmp_path):

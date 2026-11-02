@@ -116,7 +116,11 @@ def test_bash_output_exit_code_timeout_cancel(ctx):
 
 
 def test_todos_validation(ctx):
-    run(ctx, "TodoWrite", todos=[{"content": "a", "status": "in_progress"}, {"content": "b", "status": "pending"}])
+    run(
+        ctx,
+        "TodoWrite",
+        todos=[{"content": "a", "status": "in_progress"}, {"content": "b", "status": "pending"}],
+    )
     assert len(ctx.todos) == 2
     with pytest.raises(ToolError, match="in_progress"):
         run(

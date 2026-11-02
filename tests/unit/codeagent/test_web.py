@@ -40,7 +40,9 @@ def build(tmp_path, script, *, bypass=False, **cfg_kw):
     frontend = tmp_path / "fe"
     frontend.mkdir(exist_ok=True)
     (frontend / "index.html").write_text("<!doctype html><title>agent</title>")
-    cfg = web.WebConfig(root=tmp_path, token=TOKEN, agent_factory=factory, store=store, frontend_dir=frontend, **cfg_kw)
+    cfg = web.WebConfig(
+        root=tmp_path, token=TOKEN, agent_factory=factory, store=store, frontend_dir=frontend, **cfg_kw
+    )
     return web.create_app(cfg), holder
 
 
@@ -132,7 +134,9 @@ def test_no_openapi_or_docs(client):
 
 def test_frontend_is_served_with_headers(client):
     r = client.get("/")
-    assert r.status_code == 200 and "<title>agent</title>" in r.text and "content-security-policy" in r.headers
+    assert (
+        r.status_code == 200 and "<title>agent</title>" in r.text and "content-security-policy" in r.headers
+    )
 
 
 def test_files_and_session_endpoints(tmp_path):
@@ -218,7 +222,9 @@ def test_streamed_turn(client):
 
 
 def test_approval_round_trip_allow(tmp_path):
-    app, holder = build(tmp_path, [{"calls": [("Write", {"path": "n.py", "content": "x = 1\n"})]}, {"text": "done"}])
+    app, holder = build(
+        tmp_path, [{"calls": [("Write", {"path": "n.py", "content": "x = 1\n"})]}, {"text": "done"}]
+    )
     c = TestClient(app, base_url=BASE)
     ctx, sock, _ = open_session(c)
     sock.send_json({"type": "prompt", "text": "make n.py"})
@@ -240,7 +246,9 @@ def test_approval_deny_with_feedback(tmp_path):
     ctx, sock, _ = open_session(c)
     sock.send_json({"type": "prompt", "text": "go"})
     perm, _ = until(sock, "permission")
-    sock.send_json({"type": "permission", "id": perm["id"], "behavior": "deny", "feedback": "no files please"})
+    sock.send_json(
+        {"type": "permission", "id": perm["id"], "behavior": "deny", "feedback": "no files please"}
+    )
     end, _ = until(sock, "tool_end")
     assert end["is_error"] and "no files please" in end["output"] and not (tmp_path / "n.py").exists()
     ctx.__exit__(None, None, None)
@@ -290,7 +298,9 @@ def test_second_prompt_while_busy_is_refused(tmp_path):
 
 
 def test_limits_and_malformed_input(tmp_path):
-    app, _ = build(tmp_path, [{"text": "a"}, {"text": "b"}, {"text": "c"}], max_prompt_chars=50, prompts_per_minute=2)
+    app, _ = build(
+        tmp_path, [{"text": "a"}, {"text": "b"}, {"text": "c"}], max_prompt_chars=50, prompts_per_minute=2
+    )
     c = TestClient(app, base_url=BASE)
     ctx, sock, _ = open_session(c)
     sock.send_text("{not json")
@@ -371,7 +381,9 @@ def test_disconnect_during_approval_fails_closed(tmp_path):
 def test_config_validation_and_origins(tmp_path):
     with pytest.raises(ValueError):
         web.WebConfig(root=tmp_path, token="short")
-    cfg = web.WebConfig(root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=("https://dev.example",))
+    cfg = web.WebConfig(
+        root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=("https://dev.example",)
+    )
     assert "http://localhost:9000" in cfg.allowed_origins and "https://dev.example" in cfg.allowed_origins
     assert "evil.com" not in cfg.allowed_hosts and "127.0.0.1" in cfg.allowed_hosts
 
@@ -387,7 +399,9 @@ def test_serve_refuses_remote_bind_without_flag(tmp_path, capsys):
 
 
 def test_public_args_hides_bodies_and_truncates():
-    out = web.public_args({"path": "a", "content": "BODY" * 1000, "command": "x" * 5000, "n": 3, "todos": [{"a": 1}]})
+    out = web.public_args(
+        {"path": "a", "content": "BODY" * 1000, "command": "x" * 5000, "n": 3, "todos": [{"a": 1}]}
+    )
     assert out["content"] == "<4000 chars>" and out["command"].endswith("[5000 chars]") and out["n"] == 3
     assert isinstance(out["todos"], str)
 

@@ -27,7 +27,9 @@ def test_redaction_masks_credentials():
 
 def test_summarize_args_never_includes_file_bodies():
     assert summarize_args("Write", {"path": "a", "content": "BODY"}) == {"path": "a", "bytes": 4}
-    assert "new_string" not in summarize_args("Edit", {"path": "a", "old_string": "x", "new_string": "SECRET"})
+    assert "new_string" not in summarize_args(
+        "Edit", {"path": "a", "old_string": "x", "new_string": "SECRET"}
+    )
     assert summarize_args("Bash", {"command": "x" * 900})["command"] == "x" * 500
 
 
@@ -55,7 +57,9 @@ def write(path, data):
 
 def test_defaults_when_nothing_configured(tmp_path):
     s = load_settings(tmp_path, managed_path=str(tmp_path / "none.json"))
-    assert s.default_mode == "default" and s.allow == [] and s.scrub_env and not s.managed and s.warnings == []
+    assert (
+        s.default_mode == "default" and s.allow == [] and s.scrub_env and not s.managed and s.warnings == []
+    )
 
 
 def test_user_settings_apply(tmp_path):
@@ -70,8 +74,16 @@ def test_user_settings_apply(tmp_path):
         },
     )
     s = load_settings(tmp_path, managed_path=str(tmp_path / "none"))
-    assert s.allow == ["Bash(pytest:*)"] and s.deny == ["Bash(npm publish:*)"] and s.default_mode == "acceptEdits"
-    assert s.max_steps == 12 and s.audit_log == "/var/log/z.jsonl" and s.hooks["PreToolUse"][0]["command"] == "true"
+    assert (
+        s.allow == ["Bash(pytest:*)"]
+        and s.deny == ["Bash(npm publish:*)"]
+        and s.default_mode == "acceptEdits"
+    )
+    assert (
+        s.max_steps == 12
+        and s.audit_log == "/var/log/z.jsonl"
+        and s.hooks["PreToolUse"][0]["command"] == "true"
+    )
 
 
 def test_untrusted_project_cannot_add_allow_rules_hooks_or_loosen_mode(tmp_path):
@@ -111,7 +123,10 @@ def test_trusted_via_user_list_or_env(tmp_path, monkeypatch):
 
 def test_bad_json_and_wrong_types_warn_instead_of_crash(tmp_path):
     write(tmp_path / ".zcoder" / "settings.json", "{nope")
-    write(tmp_path / ".zcoder" / "settings.local.json", {"permissions": {"deny": "not-a-list"}, "maxSteps": "ten"})
+    write(
+        tmp_path / ".zcoder" / "settings.local.json",
+        {"permissions": {"deny": "not-a-list"}, "maxSteps": "ten"},
+    )
     s = load_settings(tmp_path, managed_path=str(tmp_path / "n"))
     assert len(s.warnings) >= 2 and s.deny == []
 
@@ -180,7 +195,10 @@ def test_bash_environment_scrubs_credentials(tmp_path, monkeypatch):
     ws = Workspace(tmp_path)
     env = bash_environment(ToolContext(ws))
     assert (
-        "MY_API_KEY" not in env and "GITHUB_TOKEN" not in env and "SSH_AUTH_SOCK" not in env and env["HARMLESS"] == "v"
+        "MY_API_KEY" not in env
+        and "GITHUB_TOKEN" not in env
+        and "SSH_AUTH_SOCK" not in env
+        and env["HARMLESS"] == "v"
     )
     env = bash_environment(ToolContext(ws, pass_env=("GITHUB_TOKEN",)))
     assert env["GITHUB_TOKEN"] == "t" and "MY_API_KEY" not in env
@@ -222,7 +240,9 @@ async def test_hook_receives_json_and_scrubbed_env(tmp_path, monkeypatch):
     h = Hooks({"PreToolUse": [{"matcher": "*", "command": str(script)}]}, tmp_path, session_id="sid")
     assert not (await h.pre_tool("Bash", {"command": "ls"})).blocked
     payload = json.loads((tmp_path / "payload.json").read_text())
-    assert payload["tool"] == "Bash" and payload["args"] == {"command": "ls"} and payload["session_id"] == "sid"
+    assert (
+        payload["tool"] == "Bash" and payload["args"] == {"command": "ls"} and payload["session_id"] == "sid"
+    )
     assert (tmp_path / "env.txt").read_text().strip() == "tok=[]"
 
 

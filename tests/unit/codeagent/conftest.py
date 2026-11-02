@@ -27,7 +27,8 @@ class FakeLLM:
             yield LLMChunk("text", text=piece)
         if step.get("calls"):
             yield LLMChunk(
-                "tool_calls", tool_calls=[ToolCallRequest(f"c{i}", n, a) for i, (n, a) in enumerate(step["calls"])]
+                "tool_calls",
+                tool_calls=[ToolCallRequest(f"c{i}", n, a) for i, (n, a) in enumerate(step["calls"])],
             )
         yield LLMChunk("usage", prompt_tokens=step.get("prompt", 10), completion_tokens=5)
         yield LLMChunk("finish", finish_reason="stop")
@@ -50,7 +51,13 @@ def make_agent(ws, tmp_path):
         if mode:
             policy.mode = mode
         return CodeAgent(
-            FakeLLM(script), ws, policy=policy, ask=ask, store=SessionStore(tmp_path / "sess"), memory=[], **kw
+            FakeLLM(script),
+            ws,
+            policy=policy,
+            ask=ask,
+            store=SessionStore(tmp_path / "sess"),
+            memory=[],
+            **kw,
         )
 
     return _make
