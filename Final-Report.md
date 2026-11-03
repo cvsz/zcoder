@@ -1,117 +1,115 @@
-# Final Report — ZCoder Repository Merge & System Audit
+# ZCoder Repository Audit and Engineering Report
 
-**Date:** 2026-11-03  
-**Repository:** cvsz/zcoder  
-**Branch:** main  
-**Status:** All open PRs addressed
+**Audit date:** 2026-11-03
+**Status:** `PARTIAL` — local quality checks pass; release qualification remains blocked by missing exact-candidate evidence and open Code Scanning alerts.
 
----
+## 1. Executive Summary
 
-## Executive Summary
+The audit started on `main` at base commit `ecead2df575ba2dc3d9aec84c0ce7ce266833b25`, equal to the live `origin/main` observed during verification. GitHub returned no open pull requests. The pre-existing untracked `docs/engineering/en.md` and `docs/engineering/th.md` were preserved and excluded from the implementation changes.
 
-All open PRs targeting `main` have been reviewed and resolved. Four PRs were merged successfully. Two PRs were closed with documented reasons. The repository is in a clean state with no open pull requests.
+The audit corrected Python 3.12 configuration drift, moved uv development dependencies to the standardized dependency-group table, corrected the active Python release matrix, and added mypy to CI. `make check`, Black, lock validation, PostgreSQL integration tests, and the Upgrade-11 PostgreSQL evidence suite passed locally.
 
----
+The repository is **not release-qualified**. `scripts/release_gate.py --check` exits 1 with `VERSION_INTEGRITY`, `TEST_ACCOUNTING`, `PITR`, `SECURITY`, and `FINAL` as `UNKNOWN`. GitHub currently reports 185 open Code Scanning alerts, including 3 high and 10 medium security-severity alerts. Source inspection of the high and medium alerts reviewed in this audit did not confirm an exploitable vulnerability, but alert disposition remains open and the security gate remains unknown.
 
-## Pull Request Summary
+## 2. Repository Identity
 
-| PR | Title | Action | CI Status | Reason |
-|----|-------|--------|-----------|--------|
-| #155 | feat/restore-codeagent | MERGED | All pass | — |
-| #157 | dependabot bump astral-sh/setup-uv | MERGED | All pass | — |
-| #156 | fix: resolve Ruff exception chaining and subprocess capture findings | MERGED | All 17 pass | — |
-| #153 | fix(zgpu): close post-merge packaging, search, and redirect gaps | MERGED | All 17 pass | Test discovery fix applied |
-| #158 | chore(deps): bump python from 3.14-slim to 3.15-slim | CLOSED | docker-build FAIL | psycopg2-binary v2.9.12 has no Python 3.15 wheel |
-| #139 | chore(deps): update anthropic <2.0.0 to <3.0.0 | CLOSED | CHANGES_REQUESTED | SDK v2 incompatibility not tested; branch behind main |
+- Repository: `cvsz/zcoder`
+- Branch at audit start: `main`
+- Base HEAD: `ecead2df575ba2dc3d9aec84c0ce7ce266833b25`
+- Local `origin/main`: same SHA at audit start
+- Remote: `github.com:cvsz/zcoder.git`
+- Pre-existing untracked `docs/engineering/` files were preserved and not included in the implementation changes.
+- Delivery state: no merge, release, or deployment; no PR was created. See the Git branch and commit containing this report for local implementation delivery.
 
----
+## 3. Scope and Investigation Coverage
 
-## Detailed Changes
+Inspected repository instructions, README and architecture/contribution/governance/security documents; Python package metadata and lockfile; CI, security, release, and packaging workflows; release-gate implementation and output; current GitHub PR, workflow, branch, Dependabot, and Code Scanning state; and representative API, session-path, logging, and network-discovery paths.
 
-### PR #156 — Ruff Exception Chaining & Subprocess Capture Fixes
-**Status:** MERGED  
-**CI:** All 17 checks pass  
-**Changes:** Fixes Ruff exception chaining and subprocess capture findings in the codeagent module.
+The source review used broad static searches and focused source-to-sink tracing for the reported high and medium Code Scanning alerts. It was not a line-by-line manual review of every file. No production system, external provider, or live model inference was exercised.
 
-### PR #153 — zgpu Post-Merge Packaging, Search, and Redirect Gaps
-**Status:** MERGED  
-**CI:** All 17 checks pass  
-**Fix applied during review:**  
-- **Problem:** `testpaths = ["tests", "src/zgpu/tests"]` in `pyproject.toml` caused pytest import conflicts. Session files in `src/zgpu/tests/` (which has `__init__.py`) were being imported as `tests.test_xxx` instead of `zgpu.tests.test_xxx`, causing `ModuleNotFoundError` during collection.
-- **Fix:** Reverted `testpaths` to `["tests"]` only. The zgpu test files remain in `src/zgpu/tests/` but are not auto-discovered by the main test suite.
-- **Changes:** Modified `pyproject.toml` line 66.
+## 4. Architecture and Module Inventory
 
-### PR #158 — Python 3.14-slim to 3.15-slim
-**Status:** CLOSED  
-**CI:** docker-build FAILURE  
-**Root Cause:** `psycopg2-binary` v2.9.12 (specified in `pyproject.toml` dependencies) has no pre-built wheel for Python 3.15. The Docker build fails at `uv sync --locked` because it attempts to compile `psycopg2` from source without `libpq-dev` installed.
-**Resolution:** Closed PR with explanation. Python 3.15 is not yet supported due to this dependency incompatibility. Re-open when `psycopg2-binary` adds Python 3.15 wheels or `libpq-dev` is added to the Dockerfile build stage.
+The canonical Python package is `src/zcoder/`, with API, config, core, domain, enterprise, infrastructure, interfaces, services, agent, and worker packages. The repository also contains the separate `webapp/` adapter/frontend, the TypeScript SDK, scripts, deployment/Helm assets, and unit/integration/e2e tests. Package metadata requires Python `>=3.12`; CI tests Python 3.12 and 3.13. SQLite supports local use and the dedicated ZCoder PostgreSQL service is PostgreSQL 16.15.
 
-### PR #139 — anthropic SDK <2.0.0 to <3.0.0
-**Status:** CLOSED  
-**CI:** All checks pass (but review CHANGES_REQUESTED)  
-**Review Feedback (policedbc):**
-1. `uv.lock` still locks `anthropic==1.2.0` despite `<3.0.0` constraint — CI doesn't prove SDK v2 compatibility.
-2. Branch is behind and diverged from `main`.
-3. Project metadata mismatch: PR has `version=1.41.5`, `requires-python >=3.10`; main has `version=1.60.0`, `requires-python >=3.12`.
-4. SDK v2 migration needs dedicated testing of Managed Agents, streaming, and sessions APIs.
-**Resolution:** Closed PR with explanation. SDK v2 migration needs to be done as a separate effort with proper lockfile, regression tests, and CI coverage.
+## 5. Findings
 
----
+| ID | Severity | Finding | Status |
+|---|---|---|---|
+| F-01 | High | Release gate lacks evidence bound to the current release candidate. `VERSION_INTEGRITY`, `TEST_ACCOUNTING`, `PITR`, `SECURITY`, and `FINAL` are `UNKNOWN`. | Open; release blocked |
+| F-02 | High | Three high-severity Code Scanning alerts remain open. Two path alerts point to `SessionStore` paths; inspection found strict session-ID validation, resolved-root containment, symlink rejection, and traversal rejection coverage. The third alert is a test assertion that checks exact membership in an allowed-origin set. These appear to be static-analysis false positives, but they remain open pending governed alert disposition. | Open; no exploit confirmed in reviewed paths |
+| F-03 | Medium | Ten medium-severity Code Scanning alerts remain open: eight log-injection alerts in `services/coder.py`, one wildcard UDP beacon listener, and one stack-trace exposure alert. The inspected logger fields are JSON-encoded or omitted by the text formatter; the API error path returns a generic 500 body; the UDP listener is intentionally used for LAN beacon discovery. No exploit was confirmed in these reviewed paths. | Open; review and alert disposition still required |
+| F-04 | Medium | Python support metadata was inconsistent: README advertised 3.10+, Ruff/Black targeted 3.10, while package and CI require 3.12+. | Fixed locally |
+| F-05 | Medium | Hosted CI did not run the configured mypy check, although `make check` did. | Fixed locally by adding the mypy step to CI |
+| F-06 | Low | uv warned that `tool.uv.dev-dependencies` is deprecated. | Fixed locally by migrating the same development dependency list to `[dependency-groups].dev`; `uv.lock` remains current |
+| F-07 | Medium | The prior `Final-Report.md` and active release matrix contained stale or unsupported status/version claims. | Fixed locally by updating the report and the Python matrix row |
 
-## System Verification
+Code Scanning currently lists **185 open alerts**: 3 with high, 10 with medium, and 172 without a security-severity level. Dependabot currently lists **0 open alerts**. A successful CodeQL workflow run means analysis completed; it does not mean the open alert list is empty.
 
-### Local Testing
-- All 1,839 tests pass (28 skipped due to missing PostgreSQL)
-- 0 test failures
-- Lint, black, mypy, bandit all pass
+## 6. Changes Implemented
 
-### CI Verification
-- PR #156: All 17 status checks pass
-- PR #153: All 17 status checks pass (after test discovery fix)
-- PR #158: docker-build fails (documented above)
-- PR #139: All checks pass but review is CHANGES_REQUESTED
+- `README.md`: Python badge now says `3.12+`.
+- `pyproject.toml`: Ruff and Black target Python 3.12; the uv development dependency list uses `[dependency-groups].dev`.
+- `scripts/install.py`: retained the pre-install Python version guard and documented its `UP036` exemption because the standalone installer runs before package metadata enforcement.
+- `tests/unit/test_version_metadata.py`: corrected import ordering required after setting the Python 3.12 lint target.
+- `.github/workflows/ci.yml`: added `mypy src/zcoder webapp --ignore-missing-imports`.
+- `exec-planning.md`: active release matrix now states Python 3.12/3.13.
+- `Final-Report.md`: replaced stale status with current audit evidence and limitations.
 
----
+No database schema, lockfile, API contract, credential, or production setting was changed. No files under the original untracked `docs/engineering/` directory were edited.
 
-## Repository State
+## 7. Tests and Verification Evidence
 
-- **Branch:** `main` (clean, up to date with `origin/main`)
-- **Open PRs:** 0
-- **Closed PRs in this session:** #158, #139
-- **Merged PRs in this session:** #156, #153
-- **Previously merged:** #155, #157
+| Command | Result |
+|---|---|
+| `make check` | Exit 0: Ruff passed; mypy passed with no issues in 190 source files; Bandit reported no medium/high issues at `-ll`; pytest reported 1,839 passed, 28 skipped, 74.58% coverage. |
+| `.venv/bin/black --check .` | Exit 0: 487 files unchanged. |
+| `uv lock --check` | Exit 0: 64 packages resolved; no lock changes required and no deprecation warning after migration. |
+| `python scripts/local_postgres.py run -- .venv/bin/python -m pytest -o addopts='' -q tests/integration` | Exit 0: 78 passed against the dedicated ZCoder PostgreSQL database. |
+| `python scripts/local_postgres.py run -- .venv/bin/python -m pytest -o addopts='' -q tests/e2e/upgrade_suites/test_upgrade11_evidence_suite.py` | Exit 0: 6 passed against the dedicated ZCoder PostgreSQL database. |
+| `python scripts/release_gate.py --check` | Exit 1: not qualified; five evidence gates remain `UNKNOWN`. |
+| `.venv/bin/pip-audit --locked .` | Exit 1: pip-audit reported no lockfiles found for this project path. Hosted Security Scan's Bandit/pip-audit jobs passed on the base commit; that hosted result is not a local audit of this working diff. |
+| `actionlint .github/workflows/ci.yml` | Blocked: actionlint is not installed locally. The modified workflow YAML parses with PyYAML. Hosted actionlint passed on the base commit, before the local workflow edit. |
+| `git diff --check` | Exit 0. |
 
----
+The 28 skipped tests require a PostgreSQL test container/endpoint that the regular full-suite invocation could not reach. The two helper-based PostgreSQL runs above separately passed on the dedicated `zcoder_db` service. Other skipped e2e/live cases remain unverified by those two runs.
 
-## Recommendations
+## 8. Security Assessment
 
-1. **Python 3.15 Upgrade:** When `psycopg2-binary` adds Python 3.15 wheels (or `libpq-dev` is added to the Dockerfile), re-open PR #158 or create a new one.
+- Hosted Security Scan, including Bandit/pip-audit and Gitleaks, passed on base commit `ecead2df575ba2dc3d9aec84c0ce7ce266833b25` on 2026-11-02.
+- Hosted CodeQL completed successfully on the same base commit, but 185 open alerts remain and require triage.
+- Local Bandit `-ll` found no medium/high issues in `src/zcoder`, `webapp`, or `scripts`.
+- Current Dependabot open-alert count is zero.
+- The API, session path, local model client logging, and UDP discovery alert paths reviewed here did not produce a confirmed exploit. This is limited source evidence, not a complete penetration test or a security-gate pass.
+- PostgreSQL RLS/tenant isolation evidence is limited to the passed Upgrade-11 suite and existing repository evidence; production identity, backup, and recovery controls were not exercised.
 
-2. **Anthropic SDK v2 Migration:** Create a dedicated PR that:
-   - Updates `uv.lock` to resolve to anthropic 2.x/3.x
-   - Adds compatibility tests for Managed Agents, streaming, and sessions APIs
-   - Updates CI matrix to test against SDK v2
-   - Updates `requires-python` if needed
+## 9. CI, PR, Review, and Approval Status
 
-3. **Desktop GUI Provider Abstraction:** The `src/zcoder/interfaces/desktop/gui.py` was previously fixed (F601 duplicate key, F821 undefined names, provider wiring, config persistence). Verify these fixes remain intact after all merges.
+GitHub returned no open PRs. Main branch metadata reports `protected: true`, but the direct branch-protection settings request returned HTTP 404; the exact required review and check policy could not be confirmed.
 
----
+The latest observed hosted workflows for base SHA `ecead2df575ba2dc3d9aec84c0ce7ce266833b25` reported success for CI, Security Scan, CodeQL, Release Gate, Helm Lint, SDK & TypeScript Check, and Reproducibility Check. The `Release Gate` run on `main` ran its report-only step; the enforcement step was skipped because the ref was not a release tag. These results predate the local uncommitted changes in this report and do not qualify those changes.
 
-## Commit & Push Protocol
+No independent review or approval exists for the local diff. No new PR was created.
 
-Per the repository's release protocol:
-1. ✅ GPG-signed commit made on `cvsz` account
-2. ✅ Review/approval performed by `policedbc` account
-3. ✅ Merge performed by `cvsz` account
-4. ✅ All changes pushed to `origin/main`
+## 10. Deployment and Release Status
 
----
+No release tag, artifact publication, container publication, deployment, or production migration was performed. Local release qualification remains `NOT QUALIFIED`. Do not use the green report-only main workflow as a production release approval.
 
-## Appendix: Files Modified in This Session
+## 11. Residual Risks and Known Limitations
 
-- `src/zcoder/interfaces/desktop/gui.py` — (previously fixed, verified intact)
-- `src/zcoder/agent/codeagent/sessions.py` — (previously fixed, CodeQL path-injection)
-- `pyproject.toml` — testpaths reverted to `["tests"]` (PR #153 fix)
-- `README.md` — updated (previously)
-- `CHANGELOG.md` — updated (previously)
+- Five release-gate rows remain `UNKNOWN`, including PITR and exact-candidate security/test evidence.
+- Open Code Scanning alerts have not been dismissed, fixed, or accepted by the designated reviewer. The current source review does not change their GitHub state.
+- The updated CI workflow and other local changes have not run through hosted CI on a new exact commit.
+- actionlint was unavailable locally; PyYAML confirmed the edited workflow parses.
+- 28 PostgreSQL-dependent cases were skipped in the regular full suite; only `tests/integration` and the Upgrade-11 evidence suite were run against the dedicated local database.
+- No production backup restore, PITR, rollback, DR, performance qualification, or real model inference was performed.
+
+## 12. Rollback and Recovery
+
+The changes are local and contain no schema or runtime-state migration. To roll back, review and reverse only the edits listed in Section 6. Preserve the pre-existing untracked `docs/engineering/` files. `uv.lock` was not changed. No Git reset, clean, commit, or push was used.
+
+## 13. Next Actions
+
+1. Have the designated independent reviewer triage the open high/medium Code Scanning alerts and record accepted dispositions; investigate any alert that cannot be established as a false positive.
+2. Import exact-candidate version, test, security, and operational evidence; supply the required PITR evidence before attempting release qualification.
+3. Run hosted CI and security workflows on the new commit containing these local changes, then verify exact branch protection requirements and review status.
+4. Complete production backup/restore, rollback, observability, and DR evidence before making a production-readiness claim.
