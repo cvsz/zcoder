@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
@@ -561,30 +562,52 @@ class BackupManager:
     # ── WAL archiving configuration ───────────────────────────────────────
 
     @staticmethod
-    def get_wal_archive_config(archive_path: str = "/var/lib/zcoder/wal") -> dict[str, str]:
+    def get_wal_archive_config(
+        archive_path: str = "/var/lib/zcoder/wal",
+        *,
+        backend: str = "filesystem",
+        wal_g_path: str = "wal-g",
+    ) -> dict[str, str]:
         """
         Return PostgreSQL configuration parameters needed for WAL archiving.
 
         Apply these to postgresql.conf. They require a server restart.
+        For ``backend="s3"`` or ``backend="gcs"``, install WAL-G on the
+        PostgreSQL server and configure the corresponding storage prefix and
+        credentials in the server environment. This helper never returns or
+        reads credentials.
 
         For PITR, you need:
         1. archive_mode = on
         2. archive_command (copy WAL to archive destination)
-        3. Periodic base backup (pg_basebackup)
+        3. Periodic physical base backup
         4. Recovery using restore_command
 
         NOTE: Simply setting archive_mode=on is NOT sufficient for PITR.
         You MUST successfully archive WAL files AND perform a base backup
         AND verify that restore actually works before claiming PITR support.
         """
+        if backend not in {"filesystem", "s3", "gcs"}:
+            raise ValueError("backend must be 'filesystem', 's3', or 'gcs'")
+
+        if backend in {"s3", "gcs"}:
+            if not wal_g_path.strip():
+                raise ValueError("wal_g_path must not be empty")
+            wal_g = shlex.quote(wal_g_path)
+            archive_command = f"{wal_g} wal-push '%p'"
+            restore_command = f"{wal_g} wal-fetch '%f' '%p'"
+        else:
+            archive_command = f"cp %p {archive_path}/%f"
+            restore_command = f"cp {archive_path}/%f %p"
+
         return {
             "archive_mode": "on",
-            "archive_command": f"cp %p {archive_path}/%f",
+            "archive_command": archive_command,
             "archive_timeout": "60",  # archive WAL every 60s max
             "wal_level": "replica",
             "max_wal_senders": "3",
             # Recovery (add to recovery.conf / postgresql.conf for restore)
-            "restore_command": f"cp {archive_path}/%f %p",
+            "restore_command": restore_command,
             # Recovery target (examples)
             # "recovery_target_time": "2026-01-01 12:00:00",
             # "recovery_target_lsn": "0/15000060",

@@ -175,6 +175,107 @@ from zcoder.services.backup_restore import BackupManager
 BackupManager.get_wal_archive_config()   # → dict of postgresql.conf settings
 ```
 
+For object storage, install the same pinned WAL-G release on the PostgreSQL
+primary and every isolated recovery host, then generate the WAL-G commands.
+Use `backend="s3"` for S3-compatible storage or `backend="gcs"` for Google
+Cloud Storage:
+
+```python
+from zcoder.services.backup_restore import BackupManager
+BackupManager.get_wal_archive_config(backend="s3")
+BackupManager.get_wal_archive_config(backend="gcs")
+```
+
+Both modes return `wal-g wal-push '%p'` and `wal-g wal-fetch '%f' '%p'`. This
+helper does not install WAL-G, configure storage, pass credentials, create
+base backups, or prove recovery.
+
+For S3-compatible storage, set `WALG_S3_PREFIX=s3://<dedicated-bucket>/<cluster-prefix>`
+and `AWS_REGION` in the PostgreSQL service environment. For a compatible
+endpoint, configure WAL-G's `AWS_ENDPOINT` and path-style option only when the
+provider requires them. Provide access through a workload IAM role where
+available; otherwise use dedicated credentials from a secret manager with
+only the required bucket/prefix access.
+
+For Cloudflare R2, configure the S3-compatible endpoint and region as follows;
+use a dedicated bucket/prefix and supply credentials through the PostgreSQL
+service's secret mechanism:
+
+```dotenv
+WALG_S3_PREFIX=s3://<dedicated-r2-bucket>/zcoder/postgresql
+AWS_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+AWS_REGION=auto
+AWS_S3_FORCE_PATH_STYLE=true
+AWS_ACCESS_KEY_ID=<secret-manager-reference>
+AWS_SECRET_ACCESS_KEY=<secret-manager-reference>
+```
+
+Cloudflare R2 does not implement the S3 Object Lock API. Configure and verify
+R2 Bucket Lock Rules through Cloudflare's supported control plane if the
+retention policy requires deletion protection. Do not assume that a bucket is
+immutable because it accepts S3 writes.
+
+For Google Cloud Storage, set
+`WALG_GS_PREFIX=gs://<dedicated-bucket>/<cluster-prefix>`. WAL-G uses
+Application Default Credentials. On a GCE/GKE PostgreSQL host, grant a
+dedicated runtime service account the required access to this bucket. Do not
+use a human Cloud Shell session identity as the production database identity
+or put service-account JSON keys in this repository's `.env`.
+
+Google Cloud Shell can inspect/configure GCS and run an operator-triggered
+test, but it is an interactive shell rather than the continuously running
+PostgreSQL primary that must archive each completed WAL segment. Use the
+production database host's runtime identity for continuous archiving and the
+isolated recovery host's identity for restore. Cloud Shell success alone is
+not PITR evidence.
+
+Do not reuse ZWorkforce credentials, place access keys in this repository's
+`.env`, or expose credentials in process arguments/logs. Use a dedicated
+backup bucket/prefix with server-side encryption, retention, and protection
+against accidental deletion configured and verified. The Supabase
+S3-compatible credentials in the separate ZWorkforce release config are not
+ZCoder PITR credentials. Supabase documents that its Storage S3 API does not
+support S3 versioning or Object Lock; do not use it as the sole immutable PITR
+archive without an independently protected copy and an accepted recovery-risk
+plan. See the [WAL-G storage documentation](https://github.com/wal-g/wal-g/blob/master/docs/STORAGES.md)
+and [Google Cloud Shell authentication](https://cloud.google.com/shell/docs/auth).
+
+Use a dedicated backup bucket/prefix with server-side encryption, retention,
+and protection against accidental deletion configured and verified. The
+Supabase S3-compatible credentials currently present in the separate
+ZWorkforce release config are not ZCoder PITR credentials. Supabase documents
+that its Storage S3 API does not support S3 versioning or Object Lock; do not
+use it as the sole immutable PITR archive without an independently protected
+copy and an accepted recovery-risk plan.
+
+An S3 PITR qualification is a **physical PostgreSQL recovery**, not the
+`pg_dump`/`pg_restore` logical drill described above. On the production primary,
+verify the effective settings and archiver counters, and create periodic
+physical base backups with WAL-G as the `postgres` OS user. On an isolated,
+empty recovery host of the same PostgreSQL major version, fetch a base backup
+and replay WAL to a selected UTC target time. Keep the recovery host isolated
+from application traffic and pause at the target for inspection:
+
+```bash
+wal-g backup-fetch "$PGDATA" LATEST
+touch "$PGDATA/recovery.signal"
+```
+
+Set `restore_command` to the generated WAL-G command, set
+`recovery_target_time` to the chosen UTC target and
+`recovery_target_action = 'pause'`, then start only the isolated recovery
+instance. Verify it reached the intended target, inspect PostgreSQL recovery
+logs and `pg_is_in_recovery()`, then query known records that should exist at
+that time and records/changes that should not yet exist. Record the actual
+backup label, recovery target, WAL archiver counters, results, timestamps and
+sanitized evidence reference. Do not count a successful object upload or a
+successful `pg_restore` as proof that WAL replay works.
+
+The current `BackupManager.run_restore_drill()` restores a custom-format
+`pg_dump` file with `pg_restore`; it does not perform this physical WAL-G
+recovery. Only an Operations-run recovery on the production archive and an
+isolated target can qualify the production PITR gate.
+
 Apply and verify each item:
 
 | Setting | Value | Checklist |
@@ -196,8 +297,29 @@ SELECT COUNT(*) FROM pg_stat_archiver;   -- archived_count should advance
 ```
 
 Per the module's own warning: setting `archive_mode=on` alone is NOT PITR.
-You must confirm WAL files are actually landing in the archive directory AND
-that a test recovery works, before claiming PITR support.
+You must confirm WAL files are actually landing in the archive destination,
+physical base backups are available, and a physical recovery test works before
+claiming PITR support.
+
+### Local Cloudflare R2 verification (2026-11-03)
+
+A synthetic PostgreSQL 16 drill used WAL-G `v3.0.9` in a disposable container,
+an isolated restore volume, and a temporary prefix under the existing shared
+`z-platform` R2 bucket. The source used `archive_command = 'wal-g wal-push %p'`;
+`wal-g backup-push "$PGDATA"` created a physical backup, and the restore used
+`wal-g backup-fetch "$PGDATA" LATEST` plus
+`restore_command = 'wal-g wal-fetch %f %p'`. Recovery to
+`2026-11-03 15:42:35.80926+00` promoted successfully. The restored database
+contained the row committed before the target and did not contain the row
+committed after it. The source archiver reported 7 archived segments and 0
+failures. The temporary container, volume, and objects under the unique drill
+prefix were removed and cleanup was verified.
+
+This confirms the local WAL-G/R2 upload and recovery path for synthetic data;
+it is not production evidence. The shared `zPostgreSQL` cluster still has
+`archive_mode=off`, and `z-platform` is not a dedicated ZCoder PITR bucket.
+Only an Operations-run drill using the approved production archive and an
+isolated production recovery target can satisfy the release gate.
 
 ---
 

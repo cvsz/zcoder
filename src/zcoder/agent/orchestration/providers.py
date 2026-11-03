@@ -73,7 +73,7 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
     "nvidia": {
         "base_url": "https://integrate.api.nvidia.com/v1",
         "path": "/chat/completions",
-        "env_keys": ("NVIDIA_API_KEY",),
+        "env_keys": ("NVIDIA_API_KEY", "NVIDIA_API_KEY_1", "NVIDIA_API_KEY_2"),
         "auth": "bearer",
     },
     "openai_compatible": {
@@ -146,7 +146,20 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
         url = cli_base_url.strip().rstrip("/")
         _validate_base_url(url)
         return url
+    if provider == "nvidia":
+        nvidia_gateway = os.getenv("NVIDIA_BASE_URL", "").strip().rstrip("/")
+        if nvidia_gateway:
+            _validate_base_url(nvidia_gateway)
+            return nvidia_gateway
     env_gateway = os.getenv("ZCODER_BASE_URL", "").strip().rstrip("/")
+    if provider == "nvidia" and env_gateway:
+        # Compose may inject the loopback llama.cpp URL for local services.
+        # That URL is not an NVIDIA endpoint; use NVIDIA's default unless a
+        # provider-specific URL or explicit CLI override was supplied.
+        from urllib.parse import urlsplit
+
+        if urlsplit(env_gateway).hostname in {"127.0.0.1", "localhost", "::1"}:
+            env_gateway = ""
     if env_gateway:
         _validate_base_url(env_gateway)
         return env_gateway

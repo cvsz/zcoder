@@ -36,5 +36,5 @@ USER zcoder
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -m zcoder.main --health-check || exit 1
 
-ENTRYPOINT ["python", "-m", "zcoder.main"]
+ENTRYPOINT ["python", "scripts/docker_entrypoint.py", "python", "-m", "zcoder.main"]
 CMD ["--help"]

@@ -6,7 +6,8 @@
 |---|---|---|---|
 | `ZCODER_BASE_URL` | No | `http://127.0.0.1:8080/v1` | Loopback llama.cpp chat endpoint |
 | `ZCODER_MODEL` | No | `zqwen2.5-coder-7b-instruct-q4_k_m` | Local request label |
-| `DATABASE_URL` | No | SQLite | PostgreSQL DSN for API, worker, and integration-test commands |
+| `DATABASE_URL` | No | SQLite | PostgreSQL DSN for API and worker processes; Docker entrypoint derives it from the mounted ZCoder password secret when configured |
+| `ZCODER_POSTGRES_SECRET_SOURCE` | Compose only | `${HOME}/.config/zcoder/postgresql.password` | Host path to the password file created by `make postgres-setup`; mounted read-only into the ZCoder container |
 | `ZCODER_AUTH_ENABLED` | Production API | `false` | Require verified OIDC bearer-token authentication |
 | `ZCODER_OIDC_ISSUER` | Production API | — | OIDC issuer used to validate tokens |
 | `ZCODER_OIDC_AUDIENCE` | Production API | — | Required token audience claim |
@@ -39,6 +40,14 @@ Provision and check it with:
 make postgres-setup
 make postgres-status
 ```
+
+The ZCoder Compose stack joins the external `zPostgreSQL_network` and mounts
+the dedicated role's password file as a read-only Compose secret. The
+container entrypoint derives `DATABASE_URL` in memory for `zcoder_db`/`zcoder`;
+the DSN is not stored in the repository `.env` or baked into the image. Keep
+the password file owned by the local operator and mode `0600`. Host-side
+commands should use `python scripts/local_postgres.py run -- <command>` so the
+credential is injected only into the child process.
 
 Applications sharing this PostgreSQL server should use separate databases and
 roles. Do not put database credentials in source control.

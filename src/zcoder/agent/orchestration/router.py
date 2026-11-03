@@ -1,6 +1,6 @@
 """
 claude_router.py — Multi-Agent Conversation Router (provider-neutral)
-ZCoder CLI v1.40.x
+ZCoder CLI v1.60.0
 
 Routes every incoming prompt to the most appropriate specialist agent
 by asking a lightweight classifier call first, then forwarding to the
@@ -25,14 +25,35 @@ CLI flags:
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 
 from zcoder.agent.orchestration import providers
-from zcoder.core.exceptions import ZCoderError
+from zcoder.core.exceptions import APIError, RateLimitError, TransientAPIError, ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 from zcoder.core.utils import sampling_kwargs
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
+
+
+def _nvidia_model_chain(primary: str) -> list[str]:
+    """Return configured NVIDIA model IDs, preserving arbitrary IDs verbatim."""
+    configured = [item.strip() for item in os.getenv("ZCODER_NVIDIA_MODELS", "").split(",") if item.strip()]
+    chain = [primary, *configured]
+    result: list[str] = []
+    for model_id in chain:
+        # OpenCode's `provider/model` form can prefix NVIDIA model IDs twice.
+        api_model_id = model_id.removeprefix("nvidia/") if model_id.startswith("nvidia/nvidia/") else model_id
+        if api_model_id not in result:
+            result.append(api_model_id)
+    return result
+
+
+def _is_model_fallback_error(exc: ZCoderError) -> bool:
+    return isinstance(exc, (RateLimitError, TransientAPIError)) or (
+        isinstance(exc, APIError) and exc.status_code in {400, 404}
+    )
+
 
 # ── Built-in routing table ──────────────────────────────────────────────────
 DEFAULT_ROUTING_TABLE = {
@@ -100,19 +121,36 @@ def _call(
     system: str | None = payload.get("system")
     max_tokens: int = int(payload.get("max_tokens", 4096))
     sampling = {k: payload[k] for k in ("temperature", "top_p", "top_k") if k in payload}
-    prov_payload = providers.build_payload(prov, mdl, messages, system, max_tokens, sampling)
-    endpoint = providers.endpoint_for(prov, url, mdl)
     headers = providers.headers_for(prov, key)
-    req = urllib.request.Request(
-        endpoint,
-        data=json.dumps(prov_payload).encode(),
-        headers=headers,
-        method="POST",
-    )
-    raw = urlopen_json(req, timeout=60)
-    # Normalize provider responses for downstream router parsing.
-    text = providers.parse_response(prov, raw)
-    return {"content": [{"type": "text", "text": text}], "_provider": prov, "_raw": raw}
+    model_chain = _nvidia_model_chain(mdl) if prov == "nvidia" else [mdl]
+    last_error: ZCoderError | None = None
+    for candidate in model_chain:
+        prov_payload = providers.build_payload(prov, candidate, messages, system, max_tokens, sampling)
+        endpoint = providers.endpoint_for(prov, url, candidate)
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(prov_payload).encode(),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            raw = urlopen_json(req, timeout=60)
+        except ZCoderError as exc:
+            if prov != "nvidia" or not _is_model_fallback_error(exc):
+                raise
+            last_error = exc
+            continue
+        # Normalize provider responses for downstream router parsing.
+        text = providers.parse_response(prov, raw)
+        return {
+            "content": [{"type": "text", "text": text}],
+            "_provider": prov,
+            "_raw": raw,
+            "_model": candidate,
+        }
+    if last_error is not None:
+        raise last_error
+    raise ValueError("No NVIDIA models are configured")
 
 
 def _post(
