@@ -1,5 +1,6 @@
 services:
   llama-server:
+    container_name: zcoder-llm
     image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     command:
       - --model
@@ -25,12 +26,16 @@ services:
       timeout: 5s
       retries: 20
       start_period: 120s
+    networks:
+      - default
+      - zPostgreSQL_network
     init: true
     restart: unless-stopped
     # Deliberately no published ports. ZCoder shares this network namespace
     # and reaches the loopback-only inference endpoint at 127.0.0.1:8080.
 
   zcoder:
+    container_name: zcoder
     build:
       context: .
       dockerfile: Dockerfile
@@ -38,8 +43,17 @@ services:
     environment:
       ZCODER_BASE_URL: http://127.0.0.1:8080/v1
       ZCODER_MODEL: ${ZCODER_MODEL:-qwen-7b-q4km}
+      ZCODER_ROUTE_PROVIDER: ${ZCODER_ROUTE_PROVIDER:-}
+      ZCODER_NVIDIA_MODELS: ${ZCODER_NVIDIA_MODELS:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-${NVIDIA_API_KEY_1:-${NVIDIA_API_KEY_2:-}}}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      ZCODER_POSTGRES_HOST: zPostgreSQL
+      ZCODER_POSTGRES_PORT: "5432"
+      ZCODER_POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
       ZCODER_LOG_FORMAT: json
       ZCODER_LOG_LEVEL: INFO
+    secrets:
+      - zcoder_postgres_password
     volumes:
       # Persist config/cache across container restarts without baking
       # secrets or state into the image.
@@ -59,3 +73,11 @@ services:
 
 volumes:
   zcoder-home:
+
+networks:
+  zPostgreSQL_network:
+    external: true
+
+secrets:
+  zcoder_postgres_password:
+    file: ${ZCODER_POSTGRES_SECRET_SOURCE:-${HOME}/.config/zcoder/postgresql.password}

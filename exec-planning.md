@@ -402,7 +402,7 @@ Final Release may be declared only when every applicable release-blocking row is
 
 | Gate | Requirement | Current Program State |
 |---|---|---|
-| Python | 3.10 / 3.11 / 3.12 all green | Continuous per PR; must be green on final RC (`2ec89ce` drops 3.9) |
+| Python | 3.12 / 3.13 all green | CI matrix matches `requires-python >=3.12`; exact release-candidate evidence is still required |
 | Coverage | Existing threshold preserved or increased | Enforced; final RC evidence required |
 | Lint/Format | Ruff + Black green | Enforced |
 | Security | Bandit/security green; confirmed findings closed | SEC-007/008/010 remain to review; SEC-009 covered by Slice D |

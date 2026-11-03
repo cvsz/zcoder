@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 main.py — ZCoder CLI
-Version 1.30.0 | Gap-audit finding: --thinking always sent manual
+Version 1.60.0 | Gap-audit finding: --thinking always sent manual
 thinking.type="enabled"+budget_tokens, which is a 400 error on every
 current-generation model (Opus 4.7/4.8, Sonnet 5, Fable 5, Mythos 5,
 Mythos Preview) and deprecated on Opus 4.6/Sonnet 4.6. claude_thinking.py
@@ -38,6 +38,11 @@ def _api_key(args):
 
 def _model(args):
     return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+
+
+def _route_provider(args):
+    """Resolve route-only provider selection without changing other CLI flows."""
+    return getattr(args, "provider", None) or os.getenv("ZCODER_ROUTE_PROVIDER") or None
 
 
 def _is_local_only(args) -> bool:
@@ -3301,11 +3306,20 @@ def main():
     if args.route:
         from zcoder.agent.orchestration.providers import resolve_api_key, resolve_provider
 
-        selected_provider = resolve_provider(args.provider)
+        selected_provider = resolve_provider(_route_provider(args))
         key = resolve_api_key(selected_provider, args.api_key)
     else:
         key = _api_key(args)
     model = _model(args)
+    if args.route and not getattr(args, "model", None):
+        from zcoder.agent.orchestration.providers import resolve_provider
+
+        if resolve_provider(_route_provider(args)) == "nvidia":
+            configured_models = [
+                item.strip() for item in os.getenv("ZCODER_NVIDIA_MODELS", "").split(",") if item.strip()
+            ]
+            if configured_models:
+                model = configured_models[0]
 
     if args.interactive:
         from zcoder.agent.orchestration.interactive import cmd_interactive
@@ -3531,7 +3545,7 @@ def main():
             model,
             explain=args.route_explain,
             parallel=args.route_parallel,
-            provider=getattr(args, "provider", None),
+            provider=_route_provider(args),
             base_url=getattr(args, "base_url", None),
         )
         return

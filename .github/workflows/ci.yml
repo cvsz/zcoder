@@ -31,6 +31,7 @@ jobs:
       - run: ruff check src tests
       - run: ruff check .gemini/skills/gemini-omni-flash-api/scripts/upload_file.py .gemini/skills/gemini-omni-flash-api/scripts/video/generate_video.py .gemini/skills/gemini-omni-flash-api/scripts/video/inspect_video.py .gemini/skills/gemini-omni-flash-api/scripts/video/prep_video.py
       - run: black --check src tests
+      - run: mypy src/zcoder webapp --ignore-missing-imports
 
   security:
     runs-on: ubuntu-latest

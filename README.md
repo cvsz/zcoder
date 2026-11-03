@@ -3,7 +3,7 @@
 > **AI Coding Platform ระดับองค์กรสำหรับการพัฒนาแบบ Local-First, Self-Hosted, และ Hybrid Cloud**
 
 [![CI](https://github.com/cvsz/zcoder/actions/workflows/ci.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder)
@@ -310,7 +310,27 @@ zcoder --dr-rehearsal                 # DR rehearsal
 | `DATABASE_URL` | PostgreSQL connection string | Optional (SQLite default) |
 | `ZCODER_OTEL_ENDPOINT` | OpenTelemetry collector endpoint | Optional |
 | `ZCODER_PROVIDER` | Default provider (anthropic/gemini/xai/ollama/local) | Optional |
+| `ZCODER_ROUTE_PROVIDER` | Provider used only by `--route`; supports `nvidia` | Optional |
+| `NVIDIA_API_KEY` (or `_1` / `_2`) | NVIDIA NIM credential for routed requests | Optional |
+| `ZCODER_NVIDIA_MODELS` | Ordered, comma-separated NVIDIA route fallback model IDs | Optional |
+| `NVIDIA_BASE_URL` | NVIDIA OpenAI-compatible API base URL | Optional |
 | `ZCODER_BASE_URL` | Default API gateway URL | Optional |
+
+NVIDIA routed requests use `NVIDIA_API_KEY` or the existing numbered key
+variables, and try `ZCODER_NVIDIA_MODELS` in order after a retryable failure
+or model rejection. The model IDs accept free-form values; OpenCode's
+`nvidia/nvidia/...` prefix is normalized for NVIDIA's API. The route-specific
+provider setting does not change other local CLI flows. Example:
+
+```bash
+zcoder --route "Review this code" --route-explain
+```
+
+NVIDIA's hosted trial service may record prompts and outputs for service
+operation and improvement. Do not send confidential source code or personal
+data unless your NVIDIA terms explicitly permit it. See the [NVIDIA model
+catalog](https://build.nvidia.com/models) and the relevant model's current
+terms before use.
 
 ### Cost Policy
 
@@ -459,6 +479,12 @@ make postgres-status
 - **Role:** `zcoder`
 - **Connection:** `postgresql://zcoder@zPostgreSQL:5432/zcoder_db`
 
+The Compose service joins `zPostgreSQL_network` and mounts the password file
+created by `make postgres-setup` as a read-only secret. The container entrypoint
+builds `DATABASE_URL` at runtime without writing the password into `.env`, the
+image, or the command line. Override `ZCODER_POSTGRES_SECRET_SOURCE` only when
+the host-side password file uses a non-default path.
+
 ### Local Testing with Shared PostgreSQL
 
 ```bash
@@ -469,14 +495,15 @@ python scripts/local_postgres.py run -- python -m pytest tests/integration -q
 python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
 ```
 
-### Connection String
+Host-side commands that need the database should use the helper, which injects
+the dedicated DSN into the child process without printing it:
 
-For local development with the shared container:
 ```bash
-export DATABASE_URL=postgresql://zcoder@localhost:5432/zcoder_db
+python scripts/local_postgres.py run -- <command>
 ```
 
-Or use the compose stack which auto-configures the network.
+Do not use `localhost` from another container or put the database password in
+the repository `.env` file.
 
 ---
 

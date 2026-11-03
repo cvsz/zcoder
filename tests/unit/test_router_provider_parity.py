@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import urllib.parse
 
 import pytest
@@ -27,6 +28,15 @@ def test_provider_choices_and_defaults():
     for name in providers.PROVIDER_CHOICES:
         assert name in providers.PROVIDER_DEFAULTS
     assert providers.PROVIDER_DEFAULTS["ollama"]["base_url"] == "http://localhost:11434"
+
+
+def test_route_provider_env_is_scoped_to_route(monkeypatch):
+    monkeypatch.setenv("ZCODER_ROUTE_PROVIDER", "nvidia")
+    monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
+    from zcoder.main import _route_provider
+
+    assert _route_provider(type("Args", (), {"provider": None})()) == "nvidia"
+    assert providers.resolve_provider(None) == "openai_compatible"
 
 
 def test_resolve_provider_defaults_to_local_compatible_gateway(monkeypatch):
@@ -207,6 +217,67 @@ def test_openai_compatible_endpoint():
         providers.endpoint_for("openai_compatible", "http://localhost:1234/v1", "model")
         == "http://localhost:1234/v1/chat/completions"
     )
+
+
+def test_nvidia_uses_numbered_key_and_ignores_compose_loopback(monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.setenv("NVIDIA_API_KEY_1", "nvidia-key")
+    monkeypatch.delenv("NVIDIA_BASE_URL", raising=False)
+    monkeypatch.setenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")
+    assert providers.resolve_api_key("nvidia") == "nvidia-key"
+    assert providers.resolve_base_url("nvidia") == "https://integrate.api.nvidia.com/v1"
+
+
+def test_nvidia_opencode_model_prefix_normalization_and_free_form():
+    from zcoder.agent.orchestration.router import _nvidia_model_chain
+
+    assert _nvidia_model_chain("nvidia/nvidia/example-model") == ["nvidia/example-model"]
+    assert _nvidia_model_chain("vendor/custom-model") == ["vendor/custom-model"]
+
+
+def test_nvidia_router_falls_back_in_configured_order(monkeypatch):
+    from zcoder.core.exceptions import APIError
+
+    seen = []
+
+    def fake(req, timeout=60):
+        payload = json.loads(req.data.decode())
+        seen.append(payload["model"])
+        if len(seen) == 1:
+            raise APIError("not found", status_code=404)
+        return {"choices": [{"message": {"content": "fallback worked"}}]}
+
+    monkeypatch.setenv("ZCODER_NVIDIA_MODELS", "nvidia/nvidia/second-model,vendor/free-form")
+    monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", fake)
+    result = _call(
+        "key",
+        {"messages": [{"role": "user", "content": "hello"}], "max_tokens": 10},
+        provider="nvidia",
+        model="nvidia/nvidia/first-model",
+    )
+    assert seen == ["nvidia/first-model", "nvidia/second-model"]
+    assert result["content"][0]["text"] == "fallback worked"
+
+
+def test_nvidia_router_does_not_fallback_on_auth_error(monkeypatch):
+    from zcoder.core.exceptions import AuthenticationError
+
+    seen = []
+
+    def fake(req, timeout=60):
+        seen.append(req)
+        raise AuthenticationError("key rejected")
+
+    monkeypatch.setenv("ZCODER_NVIDIA_MODELS", "vendor/second")
+    monkeypatch.setattr("zcoder.agent.orchestration.router.urlopen_json", fake)
+    with pytest.raises(AuthenticationError):
+        _call(
+            "key",
+            {"messages": [{"role": "user", "content": "hello"}], "max_tokens": 10},
+            provider="nvidia",
+            model="vendor/first",
+        )
+    assert len(seen) == 1
 
 
 def test_headers_for_local_providers():

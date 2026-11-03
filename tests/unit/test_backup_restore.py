@@ -497,6 +497,40 @@ class TestWalArchiveConfig:
         # Must not let callers claim PITR just from setting archive_mode
         assert "not sufficient" in doc or "NOT sufficient" in doc
 
+    def test_s3_wal_config_uses_wal_g_without_exposing_credentials(self):
+        config = BackupManager.get_wal_archive_config(backend="s3")
+
+        assert config["archive_command"] == "wal-g wal-push '%p'"
+        assert config["restore_command"] == "wal-g wal-fetch '%f' '%p'"
+        assert config["archive_mode"] == "on"
+        assert config["wal_level"] == "replica"
+        assert "AWS_ACCESS_KEY_ID" not in repr(config)
+        assert "AWS_SECRET_ACCESS_KEY" not in repr(config)
+
+    def test_gcs_wal_config_uses_wal_g_archive_commands(self):
+        config = BackupManager.get_wal_archive_config(backend="gcs")
+
+        assert config["archive_command"] == "wal-g wal-push '%p'"
+        assert config["restore_command"] == "wal-g wal-fetch '%f' '%p'"
+        assert config["archive_mode"] == "on"
+        assert config["wal_level"] == "replica"
+
+    def test_s3_wal_config_quotes_custom_binary_path(self):
+        config = BackupManager.get_wal_archive_config(
+            backend="s3",
+            wal_g_path="/opt/postgres tools/wal-g",
+        )
+
+        assert config["archive_command"] == "'/opt/postgres tools/wal-g' wal-push '%p'"
+
+    def test_wal_config_rejects_unknown_backend(self):
+        with pytest.raises(ValueError, match="backend must be"):
+            BackupManager.get_wal_archive_config(backend="supabase")
+
+    def test_s3_wal_config_rejects_empty_binary_path(self):
+        with pytest.raises(ValueError, match="wal_g_path must not be empty"):
+            BackupManager.get_wal_archive_config(backend="s3", wal_g_path="  ")
+
 
 class TestFreshnessReport:
     def test_freshness_report_no_backups(self, backup_manager):

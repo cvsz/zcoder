@@ -167,7 +167,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     build.add_argument("--force", action="store_true", help="Allow replacing an existing executable")
     args = parser.parse_args(argv)
-    if sys.version_info < (3, 12):
+    # The standalone installer runs before package metadata can enforce Python support.
+    if sys.version_info < (3, 12):  # noqa: UP036
         parser.error("Python 3.12 or newer is required")
     try:
         if args.action == "setup":
