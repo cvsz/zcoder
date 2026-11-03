@@ -1,5 +1,38 @@
 # ZCoder Repository Audit and Engineering Report
 
+## Current Verification Checkpoint — 2026-11-04
+
+This checkpoint supersedes the mutable branch, PR, and release-gate status
+below. The historical audit record is retained for traceability.
+
+- Local branch: `audit/engineering-baseline-2026-11-03`; tracked `HEAD`:
+  `92ffeaaac100786dbd3492fde684770fbe94c85e`.
+- `origin` is `git@github.com:cvsz/zcoder.git`. The working tree is dirty:
+  `docker-compose.yml` has two uncommitted `container_name` additions, and
+  `docs/engineering/master-prompt-next.md` is untracked. Neither change is
+  present in the tracked HEAD or covered by the hosted checks below.
+- PR #160 is open and draft, targeting `main`, at the tracked HEAD SHA. GitHub
+  reports `REVIEW_REQUIRED`; all 16 release-required check names are successful
+  on that SHA. This does not qualify the uncommitted worktree.
+- `python scripts/release_gate.py --check` returned exit code 1 and
+  `NOT QUALIFIED`. `VERSION_INTEGRITY`, `TEST_ACCOUNTING`, `PITR`, `SECURITY`,
+  and `FINAL` are `UNKNOWN`; the other reported criteria are `PASS`.
+- Exact-SHA evidence import was not run: the checkout is dirty, and the
+  importer rejects dirty trees. No evidence was fabricated or imported.
+- `gh auth status` reports invalid credentials for the configured accounts.
+  A direct branch-protection query returned HTTP 404, so current branch-rule
+  details and authenticated account identity were not verified. No review,
+  approval, push, merge, publication, or deployment was performed.
+- The existing [DR rehearsal runbook](docs/operations/dr-rehearsal.md) already
+  contains physical PITR steps and an evidence template. Production WAL archive
+  ownership, retention/access policy, and an Operations-run isolated restore
+  remain unverified; the production PITR gate therefore remains `UNKNOWN`.
+
+To qualify a later candidate, first review and commit only the intended
+repository changes, restore valid authorized GitHub authentication, re-query
+rules and checks for the resulting exact SHA, import its hosted evidence, and
+obtain Operations evidence for production PITR. Then rerun the release gate.
+
 **Audit date:** 2026-11-03
 **Status:** `PARTIAL` — local WAL-G configuration and persistent ZCoder-to-`zPostgreSQL` container connectivity are implemented and locally verified. NVIDIA route fallback is also verified against a live trial endpoint. Production PITR evidence and hosted checks for the current working-tree changes are still missing, so release qualification remains blocked.
 

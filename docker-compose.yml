@@ -1,5 +1,6 @@
 services:
   llama-server:
+    container_name: zcoder-llm
     image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     command:
       - --model
@@ -34,6 +35,7 @@ services:
     # and reaches the loopback-only inference endpoint at 127.0.0.1:8080.
 
   zcoder:
+    container_name: zcoder
     build:
       context: .
       dockerfile: Dockerfile
