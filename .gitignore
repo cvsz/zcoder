@@ -52,6 +52,12 @@ dist/
 *.db-shm
 *.db-wal
 
+# Exact-SHA release qualification evidence is generated locally or in CI.
+# Keep it out of source commits because the records must not change the SHA
+# they validate.
+/docs/evidence/release-evidence-*.json
+/docs/evidence/pitr-qualification-*.json
+
 # Local app state
 .ai-coder/
 .ai-coder-config.json

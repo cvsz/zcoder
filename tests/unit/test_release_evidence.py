@@ -286,6 +286,20 @@ def test_default_evidence_dir_matches_importer_output():
     assert Path(release_gate_module.__file__).resolve().parents[3] == importer.REPO_ROOT
 
 
+def test_candidate_evidence_records_are_git_ignored():
+    importer = _gate_aware_importer()
+    for name in (
+        "release-evidence-candidate.json",
+        "pitr-qualification-candidate.json",
+    ):
+        result = subprocess.run(
+            ["git", "check-ignore", "--no-index", "-q", str(importer.EVIDENCE_DIR / name)],
+            cwd=importer.REPO_ROOT,
+            check=False,
+        )
+        assert result.returncode == 0, f"generated evidence path is not ignored: {name}"
+
+
 # ---------------------------------------------------------------------------
 # Await / exclusion semantics for tag-build qualification
 # ---------------------------------------------------------------------------

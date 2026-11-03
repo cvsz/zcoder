@@ -9,7 +9,7 @@ The audit started on `main` at base commit `ecead2df575ba2dc3d9aec84c0ce7ce26683
 
 The audit corrected Python 3.12 configuration drift, moved uv development dependencies to the standardized dependency-group table, corrected the active Python release matrix, and added mypy to CI. `make check`, Black, lock validation, PostgreSQL integration tests, and the Upgrade-11 PostgreSQL evidence suite passed locally.
 
-The repository is **not release-qualified**. Initial exact-head evidence import failed because the importer expected hardcoded version strings while runtime code correctly reads installed package metadata; this importer defect is fixed locally and requires new exact-head hosted checks. PITR remains dependent on production WAL archive and restore-drill evidence, which is not configured in the repository. GitHub reports 185 open Code Scanning alerts, including 3 high and 10 medium security-severity alerts. Source inspection of the high and medium alerts reviewed in this audit did not confirm an exploitable vulnerability, but alert disposition remains open.
+The repository is **not release-qualified**. Exact-head evidence import initially exposed two repository defects: the importer expected hardcoded version strings while runtime code reads installed package metadata, and imported evidence was not ignored so the gate rejected the resulting dirty worktree. Both fixes are implemented locally and require fresh exact-head hosted checks. PITR remains dependent on production WAL archive and restore-drill evidence, which is not configured in the repository. GitHub reports 185 open Code Scanning alerts, including 3 high and 10 medium security-severity alerts. Source inspection of the high and medium alerts reviewed in this audit did not confirm an exploitable vulnerability, but alert disposition remains open.
 
 ## 2. Repository Identity
 
@@ -43,6 +43,7 @@ The canonical Python package is `src/zcoder/`, with API, config, core, domain, e
 | F-06 | Low | uv warned that `tool.uv.dev-dependencies` is deprecated. | Fixed locally by migrating the same development dependency list to `[dependency-groups].dev`; `uv.lock` remains current |
 | F-07 | Medium | The prior `Final-Report.md` and active release matrix contained stale or unsupported status/version claims. | Fixed locally by updating the report and the Python matrix row |
 | F-08 | High | `scripts/import_release_evidence.py` searched for literal version assignments, but `main.VERSION` and `zcoder.__version__` use `importlib.metadata.version("zcoder")`. The importer therefore stopped before hosted evidence import with `version constants missing from canonical sources`. | Fixed locally using TOML metadata plus AST verification; exact-head hosted checks must rerun |
+| F-09 | High | Imported evidence under `docs/evidence/` was untracked and not ignored. After successful import, `_working_tree_dirty()` rejected the same evidence and left all promoted gates `UNKNOWN`. | Fixed locally by ignoring only generated, exact-SHA `release-evidence-*.json` and `pitr-qualification-*.json` records; regression test added |
 
 Code Scanning currently lists **185 open alerts**: 3 with high, 10 with medium, and 172 without a security-severity level. Dependabot currently lists **0 open alerts**. A successful CodeQL workflow run means analysis completed; it does not mean the open alert list is empty.
 
@@ -56,7 +57,8 @@ Code Scanning currently lists **185 open alerts**: 3 with high, 10 with medium, 
 - `exec-planning.md`: active release matrix now states Python 3.12/3.13.
 - `Final-Report.md`: replaced stale status with current audit evidence and limitations.
 - `scripts/import_release_evidence.py`: verify project version metadata against the runtime modules' distribution-metadata lookup instead of requiring obsolete literal constants.
-- `tests/unit/test_release_evidence.py`: cover the real dynamic version source and reject mismatched exports.
+- `.gitignore`: exclude only generated candidate-bound release/PITR evidence so importing evidence does not make the checkout dirty or alter the SHA being validated.
+- `tests/unit/test_release_evidence.py`: cover the real dynamic version source, reject mismatched exports, and ensure generated evidence paths are ignored.
 - `docs/engineering/en.md` and `docs/engineering/th.md`: add the English and Thai repository governance guides.
 
 No database schema, lockfile, API contract, credential, or production setting was changed. No files under the original untracked `docs/engineering/` directory were edited.
@@ -65,8 +67,8 @@ No database schema, lockfile, API contract, credential, or production setting wa
 
 | Command | Result |
 |---|---|
-| `make check` | Exit 0 on Python 3.12.15: Ruff passed; mypy passed with no issues in 190 source files; Bandit reported no medium/high issues at `-ll`; pytest reported 1,840 passed, 28 skipped, 74.58% coverage. |
-| `.venv/bin/python -m pytest -o addopts='' -q tests/unit/test_release_evidence.py tests/unit/test_release_gate_cli.py` | Exit 0: 28 passed, including regression coverage for runtime metadata version lookup. |
+| `make check` | Exit 0 on Python 3.12.15: Ruff passed; mypy passed with no issues in 190 source files; Bandit reported no medium/high issues at `-ll`; pytest reported 1,841 passed, 28 skipped, 74.58% coverage. |
+| `.venv/bin/python -m pytest -o addopts='' -q tests/unit/test_release_evidence.py tests/unit/test_release_gate_cli.py` | Exit 0: 29 passed, including regression coverage for runtime metadata version lookup and ignored generated evidence. |
 | `.venv/bin/python -c 'from scripts.import_release_evidence import verify_version_integrity; print(verify_version_integrity())'` | Exit 0: `pyproject`, `main`, and `init` all resolve to `1.60.0`. |
 | `.venv/bin/black --check .` | Exit 0: 487 files unchanged. |
 | `uv lock --check` | Exit 0: 64 packages resolved; no lock changes required and no deprecation warning after migration. |
@@ -90,7 +92,7 @@ The 28 skipped tests require a PostgreSQL test container/endpoint that the regul
 
 ## 9. CI, PR, Review, and Approval Status
 
-Draft PR #160 targets `main` from `audit/engineering-baseline-2026-11-03`. On pre-fix commit `f5cfd0875990a0f5aba3991b29bfea86383c6513`, every required hosted check passed, including Python 3.12/3.13 tests, Docker build, CodeQL, Bandit/pip-audit, Gitleaks, Dependency Review, Helm, SDK, actionlint, lock-check, and sync-locked. The importer then exposed F-08. The new importer fix changes the candidate SHA, so hosted checks must rerun before importing evidence. Main branch metadata reports `protected: true`; branch-protection details were not available through the direct settings endpoint.
+Draft PR #160 targets `main` from `audit/engineering-baseline-2026-11-03`. On commit `4ed90120fa0ed327a4aea77d43a3350d802d3284`, every required hosted check passed, including Python 3.12/3.13 tests, Docker build, CodeQL, Bandit/pip-audit, Gitleaks, Dependency Review, Helm, SDK, actionlint, lock-check, and sync-locked. Evidence import then exposed F-09. This report records the pre-commit state of the F-09 fix; hosted checks must rerun on the next exact SHA before evidence import. Main branch metadata reports `protected: true`; branch-protection details were not available through the direct settings endpoint.
 
 The latest observed hosted workflows for base SHA `ecead2df575ba2dc3d9aec84c0ce7ce266833b25` reported success for CI, Security Scan, CodeQL, Release Gate, Helm Lint, SDK & TypeScript Check, and Reproducibility Check. The `Release Gate` run on `main` ran its report-only step; the enforcement step was skipped because the ref was not a release tag. These results predate the local uncommitted changes in this report and do not qualify those changes.
 
@@ -102,10 +104,10 @@ No release tag, artifact publication, container publication, deployment, or prod
 
 ## 11. Residual Risks and Known Limitations
 
-- The importer fix has not yet been committed or checked by hosted workflows on its exact SHA; current release qualification remains pending.
+- The F-09 fix and updated report are not yet committed or checked by hosted workflows on their exact SHA; current release qualification remains pending.
 - PITR requires exact-candidate production WAL archive verification and a successful restore drill; no repository variable or operational record was available.
 - Open Code Scanning alerts have not been dismissed, fixed, or accepted by the designated reviewer. The current source review does not change their GitHub state.
-- Hosted checks passed on `f5cfd0875990a0f5aba3991b29bfea86383c6513`, but that SHA predates the importer fix.
+- Hosted checks passed on `4ed90120fa0ed327a4aea77d43a3350d802d3284`, but that SHA predates the evidence-ignore fix.
 - actionlint was unavailable locally; PyYAML confirmed the edited workflow parses.
 - 28 PostgreSQL-dependent cases were skipped in the regular full suite; only `tests/integration` and the Upgrade-11 evidence suite were run against the dedicated local database.
 - No production backup restore, PITR, rollback, DR, performance qualification, or real model inference was performed.
@@ -116,7 +118,7 @@ The changes contain no schema or runtime-state migration. Revert only the releva
 
 ## 13. Next Actions
 
-1. Commit and push the importer fix, then rerun all required hosted checks on the resulting exact PR head and import their evidence.
+1. Commit and push the evidence-ignore fix, then rerun all required hosted checks on the resulting exact PR head and import their evidence.
 2. Have an independent reviewer assess PR #160 and triage the open high/medium Code Scanning alerts; no author may approve their own work.
 3. Provide verified production WAL archive and restore-drill metadata bound to the eventual exact release-candidate SHA.
 4. Re-run `python scripts/release_gate.py --check` from a clean checkout after exact-head evidence is imported; complete production rollback, observability, and DR evidence before any production-readiness claim.
