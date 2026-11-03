@@ -224,10 +224,12 @@ def test_importer_version_integrity_detects_mismatch(tmp_path, monkeypatch):
     from scripts import import_release_evidence as importer
 
     fake_root = tmp_path
-    (fake_root / "pyproject.toml").write_text('version = "1.41.1"\n', encoding="utf-8")
+    (fake_root / "pyproject.toml").write_text('[project]\nversion = "1.41.1"\n', encoding="utf-8")
     src = fake_root / "src" / "zcoder"
     src.mkdir(parents=True)
-    (src / "main.py").write_text('VERSION = "1.41.0"\n', encoding="utf-8")
+    (src / "main.py").write_text(
+        'from importlib.metadata import version\nVERSION = version("zcoder")\n', encoding="utf-8"
+    )
     (src / "__init__.py").write_text('__version__ = "1.41.0"\n', encoding="utf-8")
 
     monkeypatch.setattr(importer, "REPO_ROOT", fake_root)
@@ -239,15 +241,31 @@ def test_importer_verify_version_integrity_passes(tmp_path, monkeypatch):
     from scripts import import_release_evidence as importer
 
     fake_root = tmp_path
-    (fake_root / "pyproject.toml").write_text('version = "1.41.0"\n', encoding="utf-8")
+    (fake_root / "pyproject.toml").write_text('[project]\nversion = "1.41.0"\n', encoding="utf-8")
     src = fake_root / "src" / "zcoder"
     src.mkdir(parents=True)
-    (src / "main.py").write_text('VERSION = "1.41.0"\n', encoding="utf-8")
-    (src / "__init__.py").write_text('__version__ = "1.41.0"\n', encoding="utf-8")
+    version_source = (
+        "from importlib.metadata import version\n"
+        "try:\n"
+        '    {name} = version("zcoder")\n'
+        "except Exception:\n"
+        '    {name} = "0+unknown"\n'
+    )
+    (src / "main.py").write_text(version_source.format(name="VERSION"), encoding="utf-8")
+    (src / "__init__.py").write_text(version_source.format(name="__version__"), encoding="utf-8")
 
     monkeypatch.setattr(importer, "REPO_ROOT", fake_root)
     values = importer.verify_version_integrity()
     assert values["version"] == "1.41.0"
+    assert len(set(values.values())) == 1
+
+
+def test_importer_version_integrity_accepts_runtime_metadata_lookup():
+    from scripts import import_release_evidence as importer
+
+    values = importer.verify_version_integrity()
+
+    assert values["version"] == "1.60.0"
     assert len(set(values.values())) == 1
 
 

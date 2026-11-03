@@ -24,12 +24,14 @@ Exit codes: 0 = evidence imported, 1 = evidence missing or not qualified.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -100,24 +102,74 @@ def resolve_candidate_sha(requested: str | None) -> str:
 
 
 def verify_version_integrity() -> dict[str, str]:
-    """Version must be identical across the three canonical sources."""
-    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    main = (REPO_ROOT / "src" / "zcoder" / "main.py").read_text(encoding="utf-8")
-    init = (REPO_ROOT / "src" / "zcoder" / "__init__.py").read_text(encoding="utf-8")
+    """Verify runtime version exports derive from the project distribution metadata."""
+    try:
+        project_data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        version_value = project_data["project"]["version"]
+        main_source = (REPO_ROOT / "src" / "zcoder" / "main.py").read_text(encoding="utf-8")
+        init_source = (REPO_ROOT / "src" / "zcoder" / "__init__.py").read_text(encoding="utf-8")
+    except (KeyError, OSError, tomllib.TOMLDecodeError) as exc:
+        raise EvidenceImportError(f"version mismatch: canonical project metadata is invalid ({exc})") from exc
 
-    py_match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
-    main_match = re.search(r'^VERSION\s*=\s*"([^"]+)"', main, re.MULTILINE)
-    init_match = re.search(r'^__version__\s*=\s*"([^"]+)"', init, re.MULTILINE)
-    if not (py_match and main_match and init_match):
-        raise EvidenceImportError("version constants missing from canonical sources")
-    versions = {
-        "pyproject": py_match.group(1),
-        "main": main_match.group(1),
-        "init": init_match.group(1),
+    if not isinstance(version_value, str) or not version_value.strip():
+        raise EvidenceImportError("version mismatch: project.version must be a non-empty string")
+
+    modules = {
+        "main.VERSION": (main_source, "VERSION"),
+        "zcoder.__version__": (init_source, "__version__"),
     }
-    if len(set(versions.values())) != 1:
-        raise EvidenceImportError(f"version mismatch across sources: {versions}")
-    return {**versions, "version": versions["pyproject"]}
+    invalid = [
+        export for export, (source, name) in modules.items() if not _uses_distribution_version(source, name)
+    ]
+    if invalid:
+        raise EvidenceImportError(
+            "version mismatch: "
+            f"{', '.join(invalid)} must derive from importlib.metadata.version(\"zcoder\")"
+        )
+
+    return {
+        "pyproject": version_value,
+        "main": version_value,
+        "init": version_value,
+        "version": version_value,
+    }
+
+
+def _uses_distribution_version(source: str, export_name: str) -> bool:
+    """Return whether an exported version is read from this distribution's metadata."""
+    try:
+        module = ast.parse(source)
+    except SyntaxError:
+        return False
+
+    version_names = {
+        alias.asname or alias.name
+        for node in ast.walk(module)
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib.metadata"
+        for alias in node.names
+        if alias.name == "version"
+    }
+    for node in ast.walk(module):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == export_name for target in targets):
+            continue
+        value = node.value
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in version_names
+            and len(value.args) == 1
+            and isinstance(value.args[0], ast.Constant)
+            and value.args[0].value == "zcoder"
+            and not value.keywords
+        ):
+            return True
+    return False
 
 
 def verify_release_tag(tag: str) -> str:
