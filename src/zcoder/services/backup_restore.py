@@ -506,6 +506,7 @@ class BackupManager:
                 try:
                     conn.rollback()
                 except Exception:
+                    # Rollback may fail during error handling; safe to ignore.
                     pass
         finally:
             conn.close()
@@ -665,8 +666,8 @@ class BackupManager:
                     manifest = json.load(f)
                 sha256 = manifest.get("sha256", "")
             except Exception:
+                # Manifest may be missing or corrupt; use empty hash.
                 pass
-
         return {
             "last_backup_at": last_mtime,
             "last_backup_age_hours": age_hours,

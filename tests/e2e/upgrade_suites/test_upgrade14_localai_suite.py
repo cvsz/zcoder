@@ -2,12 +2,15 @@
 
 Verifies:
   1. Hardware Profiler & Model Fit Estimator (CPU, RAM, GPU, safe fit calculation)
-  2. Local Model Gateway (OllamaAdapter, listing, mock/fallback execution)
+  2. Local Model Gateway (local_ai_stack.OllamaAdapter, listing, mock/fallback execution)
   3. Local Repository Indexer / RAG (secret redaction, term frequency indexing, search)
   4. Local MCP Tool Registry (MCP 2026-07-28 schema, call execution, error wrapping)
   5. Autonomous Local Coding Pipeline (Inspect -> Plan -> Edit with ZERO paid calls proof)
 """
 
+import pytest
+
+import zcoder.enterprise.local_ai_stack as local_ai_stack
 from zcoder.enterprise.local_ai_stack import (
     AutonomousLocalCodingPipeline,
     HardwareProfiler,
@@ -18,21 +21,20 @@ from zcoder.enterprise.local_ai_stack import (
     OllamaAdapter,
 )
 
-
 def test_hardware_profiler_and_fit_estimator():
-    profile = HardwareProfiler.profile()
+    profile = local_ai_stack.HardwareProfiler.profile()
     assert profile.cpu_cores >= 1
     assert profile.ram_total_gb > 0.0
     assert profile.gpu_vendor in ("NVIDIA", "AMD", "APPLE", "CPU_ONLY")
 
     # Fit estimation
     # 7B model @ 4-bit requires ~4.5 GB -> should fit in standard system RAM/VRAM
-    fit_7b = HardwareProfiler.estimate_fit(profile, parameter_size_b=7.0, quantization_bits=4)
-    assert fit_7b in (ModelFit.FITS, ModelFit.MAYBE)
+    fit_7b = local_ai_stack.HardwareProfiler.estimate_fit(profile, parameter_size_b=7.0, quantization_bits=4)
+    assert fit_7b in (local_ai_stack.ModelFit.FITS, local_ai_stack.ModelFit.MAYBE)
 
     # 400B model @ 16-bit requires ~800 GB -> does not fit on standard desktop
-    fit_huge = HardwareProfiler.estimate_fit(profile, parameter_size_b=400.0, quantization_bits=16)
-    assert fit_huge == ModelFit.DOES_NOT_FIT
+    fit_huge = local_ai_stack.HardwareProfiler.estimate_fit(profile, parameter_size_b=400.0, quantization_bits=16)
+    assert fit_huge == local_ai_stack.ModelFit.DOES_NOT_FIT
 
 
 def test_local_model_gateway_ollama_adapter(monkeypatch):
@@ -46,8 +48,6 @@ def test_local_model_gateway_ollama_adapter(monkeypatch):
     down for the offline branch.
     """
     import json
-
-    import zcoder.enterprise.local_ai_stack as local_ai_stack
 
     class _FakeResponse:
         def __init__(self, body: bytes):
@@ -77,7 +77,7 @@ def test_local_model_gateway_ollama_adapter(monkeypatch):
         raise AssertionError(f"unexpected URL in test: {url}")
 
     monkeypatch.setattr(local_ai_stack, "safe_urlopen", fake_safe_urlopen)
-    adapter = OllamaAdapter(base_url="http://127.0.0.1:11434")
+    adapter = local_ai_stack.OllamaAdapter(base_url="http://127.0.0.1:11434")
 
     # Live-adapter path: no simulated marker may ever leak into it.
     models = adapter.list_models()
@@ -98,7 +98,7 @@ def test_local_model_gateway_ollama_adapter(monkeypatch):
 
 
 def test_local_repository_indexer_and_secret_redaction():
-    indexer = LocalRepositoryIndexer()
+    indexer = local_ai_stack.LocalRepositoryIndexer()
 
     # 1. Normal code file indexing
     code_text = "def calculate_discount(price, rate):\n    return price * (1.0 - rate)"
@@ -117,12 +117,12 @@ def test_local_repository_indexer_and_secret_redaction():
 
 
 def test_local_mcp_conformance_and_tool_call():
-    server = LocalMCPServer(server_name="test-mcp", version="2026-07-28")
+    server = local_ai_stack.LocalMCPServer(server_name="test-mcp", version="2026-07-28")
 
     def dummy_linter(args):
         return {"errors": 0, "status": "clean"}
 
-    tool = MCPToolDefinition(
+    tool = local_ai_stack.MCPToolDefinition(
         name="run_linter",
         description="Executes project linting",
         input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
@@ -148,10 +148,10 @@ def test_autonomous_coding_pipeline_zero_paid_calls():
         def chat_complete(self, model_id, prompt, tools=None):
             return f"[LOCAL_AI:{model_id}] Simulated code completion for task: {prompt[:40]}"
 
-    pipeline = AutonomousLocalCodingPipeline(
+    pipeline = local_ai_stack.AutonomousLocalCodingPipeline(
         local_provider=_SimulatedLocalProvider(),
-        indexer=LocalRepositoryIndexer(),
-        mcp_server=LocalMCPServer(),
+        indexer=local_ai_stack.LocalRepositoryIndexer(),
+        mcp_server=local_ai_stack.LocalMCPServer(),
     )
     codebase = {
         "calculator.py": "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b",

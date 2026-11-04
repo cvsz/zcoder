@@ -153,6 +153,7 @@ class ProjectManager:
                         }
                     )
                 except Exception:
+                    # Project metadata may be incomplete; skip it.
                     pass
         return projects
 

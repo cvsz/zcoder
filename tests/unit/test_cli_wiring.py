@@ -67,16 +67,16 @@ def test_known_exceptions_still_point_at_real_functions():
 
 
 def test_legacy_and_canonical_main_share_version():
-    import main as legacy_main
-    from zcoder import main as canonical_main
+    from zcoder import main as legacy_main
+    from zcoder.main import VERSION as canonical_version
 
-    assert legacy_main.VERSION == canonical_main.VERSION
+    assert legacy_main.VERSION == canonical_version
 
 
 def test_parser_uses_zcoder_as_the_displayed_cli_name():
-    import main as main_mod
+    from zcoder.main import build_parser
 
-    parser = main_mod.build_parser()
+    parser = build_parser()
 
     assert parser.prog == "zcoder"
     assert "usage: zcoder" in parser.format_help()
@@ -85,9 +85,9 @@ def test_parser_uses_zcoder_as_the_displayed_cli_name():
 
 @pytest.fixture
 def parsed_args():
-    import main as main_mod
+    from zcoder.main import build_parser
 
-    parser = main_mod.build_parser()
+    parser = build_parser()
     return parser.parse_args
 
 

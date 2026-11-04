@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude Super Full-Stack & Architect Agent"
+  short_description: "Claude AI Full-Stack Developer & Systems Architect agentic skill for Anthropic Claude model integration, universal investigation, enterprise implementation, and multi-account release protocol"
+  default_prompt: "Use $claude to perform deep codebase investigation using Anthropic Claude models, enterprise-grade production fixes, validation tests, and multi-account GitHub audit/merge releases."

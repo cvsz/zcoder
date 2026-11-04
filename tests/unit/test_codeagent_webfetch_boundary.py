@@ -1,4 +1,4 @@
-"""Regression guards for SEC-005 CodeAgent WebFetch SSRF containment."""
+"""Regression guards for SEC-005 code_module.CodeAgent WebFetch SSRF containment."""
 
 from __future__ import annotations
 
@@ -7,17 +7,16 @@ import urllib.request
 from pathlib import Path
 
 import zcoder.agent.capabilities.code as code_module
-from zcoder.agent.capabilities.code import CodeAgent, CodeSession
 
 WEBFETCH_LIMIT = 1_048_576
 
 
-def _agent() -> CodeAgent:
-    return CodeAgent(api_key="test-key", model="test-model")
+def _agent() -> code_module.CodeAgent:
+    return code_module.CodeAgent(api_key="test-key", model="test-model")
 
 
-def _session(workspace: Path) -> CodeSession:
-    return CodeSession(cwd=str(workspace), model="test-model")
+def _session(workspace: Path) -> code_module.CodeSession:
+    return code_module.CodeSession(cwd=str(workspace), model="test-model")
 
 
 def _unexpected_network(*_args, **_kwargs):

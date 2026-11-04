@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kilo Super Full-Stack & Architect Agent"
+  short_description: "Kilo AI Full-Stack Developer & Systems Architect agentic skill for Kilo provider model integration, diverse model support, universal investigation, enterprise implementation, and multi-account release protocol"
+  default_prompt: "Use $kilo to perform deep codebase investigation using Kilo provider models, enterprise-grade production fixes, validation tests, and multi-account GitHub audit/merge releases across diverse AI models."

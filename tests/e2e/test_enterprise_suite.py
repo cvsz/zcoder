@@ -79,6 +79,7 @@ def test_tenants(ent_store):
                     cur.execute("DELETE FROM projects;")
                 conn.commit()
         except Exception:
+            # Teardown failures during test cleanup are expected; safe to ignore.
             pass
 
     with ent_store._raw_conn() as conn:

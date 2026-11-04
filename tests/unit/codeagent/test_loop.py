@@ -213,7 +213,7 @@ async def test_second_run_while_running_is_rejected(make_agent):
     second = await collect(agent, "two")
     assert any(isinstance(e, Notice) and "already working" in e.text for e in second)
     gate.set()
-    await first
+    _ = await first
 
 
 async def test_llm_error_ends_turn_with_notice(make_agent):

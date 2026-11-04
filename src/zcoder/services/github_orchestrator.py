@@ -82,12 +82,12 @@ class Worker:
 
 
 class GitHubProviderProtocol(Protocol):
-    def create_branch(self, repo: str, branch: str, base_sha: str) -> str: ...
-    def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest: ...
-    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None: ...
-    def list_checks(self, repo: str, ref: str) -> list[CheckRun]: ...
-    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]: ...
-    def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool: ...
+    def create_branch(self, repo: str, branch: str, base_sha: str) -> str: pass
+    def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest: pass
+    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None: pass
+    def list_checks(self, repo: str, ref: str) -> list[CheckRun]: pass
+    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]: pass
+    def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool: pass
 
 
 class GitHubProvider:
@@ -359,8 +359,8 @@ class GitHubOrchestrator:
 
         # Check Reviews
         reviews = self.gh.list_reviews(repo, pr_number)
-        approved = any(r.get("state") == ReviewState.APPROVED.value for r in reviews)
-        changes_req = any(r.get("state") == ReviewState.CHANGES_REQUESTED.value for r in reviews)
+        approved = any(r.get("state") == ReviewState.APPROVED for r in reviews)
+        changes_req = any(r.get("state") == ReviewState.CHANGES_REQUESTED for r in reviews)
 
         if changes_req:
             return False, "Changes requested by reviewer"

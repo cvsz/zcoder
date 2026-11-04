@@ -41,6 +41,7 @@ def _read_logs(hours: int = 24) -> list[dict]:
                 if r.get("ts", "") >= cutoff:
                     records.append(r)
             except Exception:
+                # Malformed log line; skip it.
                 pass
     return records
 

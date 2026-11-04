@@ -7,9 +7,15 @@ docs/36_upgrade_v1.24.0_audit_and_impl.md Finding 1.
 """
 
 import json
+import urllib.request
 
-import zcoder.agent.tools.registry as mod
-from zcoder.agent.tools.registry import RETIRED_TOOL_VERSIONS, SERVER_TOOLS, ToolCoder
+from zcoder.agent.tools.registry import (
+    RETIRED_TOOL_VERSIONS,
+    SERVER_TOOLS,
+    ToolCoder,
+    check_retired_tool_version,
+    computer_use_tool_for_model,
+)
 
 
 class _FakeResp:
@@ -33,7 +39,7 @@ def _install_fake_urlopen(monkeypatch, captured: dict, response_body: dict = Non
         captured["body"] = json.loads(req.data.decode())
         return _FakeResp(json.dumps(response_body).encode())
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
 
 def test_server_tools_defaults_bumped_to_v1_24_0_versions():
@@ -49,9 +55,9 @@ def test_retired_tool_versions_tracks_v1_24_0_supersessions():
 
 
 def test_check_retired_tool_version_flags_previous_defaults():
-    assert mod.check_retired_tool_version("code_execution_20260120") is not None
-    assert mod.check_retired_tool_version("web_search_20260209") is not None
-    assert mod.check_retired_tool_version("code_execution_20260521") is None  # current, not retired
+    assert check_retired_tool_version("code_execution_20260120") is not None
+    assert check_retired_tool_version("web_search_20260209") is not None
+    assert check_retired_tool_version("code_execution_20260521") is None  # current, not retired
 
 
 def test_generate_with_server_tools_response_inclusion_applied(monkeypatch):
@@ -104,24 +110,24 @@ def test_computer_use_tool_for_model_exists_and_is_callable():
     # Regression: this function's `def` line was previously missing, so it
     # didn't exist as a module attribute at all — its body had silently
     # become unreachable dead code appended to check_retired_tool_version().
-    assert callable(mod.computer_use_tool_for_model)
+    assert callable(computer_use_tool_for_model)
 
 
 def test_computer_use_tool_for_model_current_model_uses_2025_11_24():
-    tool, beta = mod.computer_use_tool_for_model("claude-sonnet-5")
+    tool, beta = computer_use_tool_for_model("claude-sonnet-5")
     assert tool["type"] == "computer_20251124"
     assert tool["name"] == "computer"
     assert beta == "computer-use-2025-11-24"
 
 
 def test_computer_use_tool_for_model_older_model_uses_2025_01_24():
-    tool, beta = mod.computer_use_tool_for_model("claude-sonnet-4-5")
+    tool, beta = computer_use_tool_for_model("claude-sonnet-4-5")
     assert tool["type"] == "computer_20250124"
     assert beta == "computer-use-2025-01-24"
 
 
 def test_computer_use_tool_for_model_respects_custom_dimensions():
-    tool, _ = mod.computer_use_tool_for_model("claude-sonnet-5", width=1280, height=800)
+    tool, _ = computer_use_tool_for_model("claude-sonnet-5", width=1280, height=800)
     assert tool["display_width_px"] == 1280
     assert tool["display_height_px"] == 800
 

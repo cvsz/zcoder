@@ -5,13 +5,6 @@ import json
 import pytest
 
 import zcoder.agent.models.registry as models_module
-from zcoder.agent.models.registry import (
-    COMPUTER_USE_BETA,
-    COMPUTER_USE_TOOLSET_GA,
-    DEFAULT_COMPUTER_USE_SHAPE,
-    ComputerUseCoder,
-    computer_use_toolset_for_model,
-)
 from zcoder.core.exceptions import ZCoderError
 
 
@@ -25,18 +18,18 @@ def install_json_response(monkeypatch, captured, response=None):
 
 
 def test_default_computer_use_shape_is_ga():
-    assert DEFAULT_COMPUTER_USE_SHAPE == "ga"
+    assert models_module.DEFAULT_COMPUTER_USE_SHAPE == "ga"
 
 
 def test_ga_request_uses_single_descriptor_without_beta_header(monkeypatch):
     captured = {}
     install_json_response(monkeypatch, captured)
 
-    ComputerUseCoder(api_key="sk-test", model="claude-opus-4-8").run_task("open a terminal")
+    models_module.ComputerUseCoder(api_key="sk-test", model="claude-opus-4-8").run_task("open a terminal")
 
     tools = captured["body"]["tools"]
     assert len(tools) == 1
-    assert tools[0]["type"] == COMPUTER_USE_TOOLSET_GA
+    assert tools[0]["type"] == models_module.COMPUTER_USE_TOOLSET_GA
     assert tools[0]["name"] == "computer"
     assert tools[0]["zoom"] is True
     assert tools[0]["batch_actions"] is True
@@ -50,7 +43,7 @@ def test_ga_request_respects_dimensions_and_custom_configs(monkeypatch):
     install_json_response(monkeypatch, captured)
     configs = {"bash": {"enabled": False}}
 
-    ComputerUseCoder(
+    models_module.ComputerUseCoder(
         api_key="sk-test",
         model="claude-fable-5",
         width=1280,
@@ -79,7 +72,7 @@ def test_ga_response_returns_all_tool_calls_in_order(monkeypatch):
         },
     )
 
-    result = ComputerUseCoder(api_key="sk-test", model="claude-mythos-5").run_task("do two things")
+    result = models_module.ComputerUseCoder(api_key="sk-test", model="claude-mythos-5").run_task("do two things")
 
     assert [call["id"] for call in result["tool_calls"]] == ["a1", "a2"]
     assert result["text"] == "clicking then typing"
@@ -94,7 +87,7 @@ def test_ga_supported_models_pass_client_side_gating():
         "claude-sonnet-5",
         "claude-opus-4-8",
     ):
-        assert computer_use_toolset_for_model(model)["type"] == COMPUTER_USE_TOOLSET_GA
+        assert models_module.computer_use_toolset_for_model(model)["type"] == models_module.COMPUTER_USE_TOOLSET_GA
 
 
 def test_unsupported_ga_model_fails_before_http(monkeypatch):
@@ -102,7 +95,7 @@ def test_unsupported_ga_model_fails_before_http(monkeypatch):
     install_json_response(monkeypatch, captured)
 
     with pytest.raises(ZCoderError) as exc:
-        ComputerUseCoder(api_key="sk-test", model="claude-haiku-4-5").run_task("x")
+        models_module.ComputerUseCoder(api_key="sk-test", model="claude-haiku-4-5").run_task("x")
 
     assert "claude-haiku-4-5" in str(exc.value)
     assert "body" not in captured
@@ -110,10 +103,10 @@ def test_unsupported_ga_model_fails_before_http(monkeypatch):
 
 def test_ga_gating_error_lists_supported_models():
     with pytest.raises(ZCoderError) as exc:
-        computer_use_toolset_for_model("claude-sonnet-4-5")
+        models_module.computer_use_toolset_for_model("claude-sonnet-4-5")
 
     message = str(exc.value)
-    assert COMPUTER_USE_TOOLSET_GA in message
+    assert models_module.COMPUTER_USE_TOOLSET_GA in message
     for model in ("claude-fable-5", "claude-mythos-5", "claude-opus-5", "claude-sonnet-5", "claude-opus-4-8"):
         assert model in message
 
@@ -122,16 +115,16 @@ def test_legacy_opt_in_keeps_dated_tools_and_beta_header(monkeypatch):
     captured = {}
     install_json_response(monkeypatch, captured)
 
-    ComputerUseCoder(api_key="sk-test", model="claude-sonnet-4-5", toolset="legacy").run_task("old shape")
+    models_module.ComputerUseCoder(api_key="sk-test", model="claude-sonnet-4-5", toolset="legacy").run_task("old shape")
 
     assert [tool["type"] for tool in captured["body"]["tools"]] == [
         "computer_20250124",
         "bash_20250124",
         "text_editor_20250124",
     ]
-    assert captured["headers"]["anthropic-beta"] == COMPUTER_USE_BETA
+    assert captured["headers"]["anthropic-beta"] == models_module.COMPUTER_USE_BETA
 
 
 def test_unknown_computer_use_toolset_is_rejected():
     with pytest.raises(ValueError):
-        ComputerUseCoder(api_key="sk-test", toolset="beta")
+        models_module.ComputerUseCoder(api_key="sk-test", toolset="beta")

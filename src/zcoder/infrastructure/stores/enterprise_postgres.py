@@ -353,6 +353,7 @@ class EnterprisePostgresStore:
                     cur.execute("RESET app.current_org;")
                 conn.commit()
             except Exception:
+                # Session variable reset may fail outside app context; safe to ignore.
                 pass
             self.pool.putconn(conn)
 

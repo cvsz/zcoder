@@ -15,6 +15,12 @@ def test_run_sqlite_store_pipeline_once_runs_and_closes_exactly_once(monkeypatch
         def close(self):
             calls.append(("close",))
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.close()
+
     def fake_build(repository_root, db_path, **kwargs):
         calls.append(("build", repository_root, db_path, kwargs))
         return FakePipeline()
@@ -53,6 +59,12 @@ def test_run_sqlite_store_pipeline_once_closes_after_failure(monkeypatch):
 
         def close(self):
             calls.append(("close",))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.close()
 
     monkeypatch.setattr(
         composition,

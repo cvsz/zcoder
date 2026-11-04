@@ -24,7 +24,7 @@ class TaskStatus(StringEnum):
 class EngineeringTask:
     id: str = field(default_factory=lambda: f"task_{uuid.uuid4().hex}")
     task_description: str = ""
-    status: TaskStatus = TaskStatus.CREATED
+    status: str = TaskStatus.CREATED
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     metadata: dict[str, Any] = field(default_factory=dict)

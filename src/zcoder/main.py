@@ -235,12 +235,14 @@ def _has_direct_provider_feature(args) -> bool:
     )
 
 
-def _read_file(path):
+def _read_file(path) -> str:
     try:
-        return open(path).read()
+        with open(path) as fh:
+            return fh.read()
     except Exception as e:
         print(f"[ERROR] Cannot read {path}: {e}", file=sys.stderr)
         sys.exit(1)
+    return ""
 
 
 def build_parser():
@@ -3753,7 +3755,7 @@ def main():
     if args.cache:
         from zcoder.agent.memory.cache import cmd_cache_generate
 
-        docs = [open(f).read() for f in (args.cache_docs or [])]
+        docs = [_read_file(f) for f in (args.cache_docs or [])]
         cmd_cache_generate(
             args.prompt or "",
             key,
@@ -4431,7 +4433,8 @@ def main():
         )
         print(result)
         if args.output:
-            open(args.output, "w").write(result)
+            with open(args.output, "w") as fh:
+                fh.write(result)
         return
 
     parser.print_help()

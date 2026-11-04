@@ -8,6 +8,7 @@ cmd_* function.
 """
 
 import json
+import urllib.request
 
 import pytest
 
@@ -120,8 +121,6 @@ def test_request_retries_429_then_succeeds(monkeypatch):
     """Drive retry logic through the real _request() by monkeypatching
     urllib.request.urlopen so we exercise the actual retry loop, not a
     reimplementation of it."""
-    import zcoder.agent.enterprise.compliance as mod
-
     calls = {"n": 0}
     sleeps = []
 
@@ -150,7 +149,7 @@ def test_request_retries_429_then_succeeds(monkeypatch):
             )
         return FakeResp(json.dumps({"data": [], "has_more": False}).encode())
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     client = ComplianceApiClient(api_key="k", sleep_fn=lambda s: sleeps.append(s))
 
     result = client.list_activities(limit=10)
@@ -161,24 +160,15 @@ def test_request_retries_429_then_succeeds(monkeypatch):
 
 
 def test_request_does_not_retry_403(monkeypatch):
-    import zcoder.agent.enterprise.compliance as mod
-
     calls = {"n": 0}
 
     def fake_urlopen(req, timeout=None):
         calls["n"] += 1
-        import urllib.error
 
         body = json.dumps(
             {"error": {"type": "permission_error", "message": "Missing required scopes."}}
         ).encode()
-        raise (
-            urllib.error.HTTPError(req.full_url, 403, "forbidden", {}, None).__class__(
-                req.full_url, 403, "forbidden", {}, None
-            )
-            if False
-            else _http_error(req.full_url, 403, body)
-        )
+        raise _http_error(req.full_url, 403, body)
 
     def _http_error(url, code, body):
         import io
@@ -187,7 +177,7 @@ def test_request_does_not_retry_403(monkeypatch):
         e = urllib.error.HTTPError(url, code, "forbidden", {}, io.BytesIO(body))
         return e
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     client = ComplianceApiClient(
         api_key="k", sleep_fn=lambda s: (_ for _ in ()).throw(AssertionError("must not sleep/retry on 403"))
     )
@@ -201,8 +191,6 @@ def test_request_does_not_retry_403(monkeypatch):
 
 
 def test_request_gives_up_after_max_retries(monkeypatch):
-    import zcoder.agent.enterprise.compliance as mod
-
     calls = {"n": 0}
 
     def fake_urlopen(req, timeout=None):
@@ -213,7 +201,7 @@ def test_request_gives_up_after_max_retries(monkeypatch):
         body = json.dumps({"error": {"type": "rate_limit_error", "message": "slow down"}}).encode()
         raise urllib.error.HTTPError(req.full_url, 429, "rate limited", {}, io.BytesIO(body))
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     client = ComplianceApiClient(api_key="k", max_retries=2, sleep_fn=lambda s: None)
 
     with pytest.raises(ComplianceApiError) as exc_info:

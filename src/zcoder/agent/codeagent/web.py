@@ -363,21 +363,26 @@ class Connection:
         if kind == "prompt":
             text = msg.get("text")
             if not isinstance(text, str) or not text.strip():
-                return await self.notice("Empty prompt.")
+                await self.notice("Empty prompt.")
+                return None
             if len(text) > self.cfg.max_prompt_chars:
-                return await self.notice(
+                await self.notice(
                     f"Prompt too long (limit {self.cfg.max_prompt_chars} characters).", "error"
                 )
+                return None
             if self.busy:
-                return await self.notice("The agent is working. Interrupt it first.")
+                await self.notice("The agent is working. Interrupt it first.")
+                return None
             if self.rate_limited():
-                return await self.notice("Rate limit reached; wait a moment.", "error")
+                await self.notice("Rate limit reached; wait a moment.", "error")
+                return None
             self.turn = asyncio.create_task(self.run_turn(text))
         elif kind == "permission":
             fut = self.pending.get(str(msg.get("id")))
             behavior, feedback = msg.get("behavior"), msg.get("feedback", "")
             if fut is None or fut.done() or behavior not in _DECISIONS or not isinstance(feedback, str):
-                return await self.notice("Unknown or expired approval request.")
+                await self.notice("Unknown or expired approval request.")
+                return None
             fut.set_result(Decision(behavior, feedback[:2000]))
         elif kind == "interrupt":
             self.agent.interrupt()
@@ -387,7 +392,8 @@ class Connection:
         elif kind in {"command", "resume", "new"}:
             line = {"resume": f"/resume {msg.get('id', '')}", "new": "/clear"}.get(kind) or msg.get("line")
             if not isinstance(line, str) or not line.startswith("/") or len(line) > 2000:
-                return await self.notice("Invalid command.")
+                await self.notice("Invalid command.")
+                return None
             await self.command(line.strip())
         elif kind == "ping":
             await self.send({"type": "pong"})
@@ -401,14 +407,16 @@ class Connection:
             try:
                 self.agent.policy.set_mode(Mode(str(mode)))
             except (ValueError, ToolError):
-                return await self.notice("That permission mode is not available in the browser.", "error")
+                await self.notice("That permission mode is not available in the browser.", "error")
+                return None
         await self.send({"type": "mode", "mode": self.agent.mode.value})
         await self.send(self.state())
 
     async def command(self, line: str) -> None:
         name = line.split(" ", 1)[0].lower()
         if self.busy and name not in CommandSafeWhileBusy:
-            return await self.notice("Interrupt the agent before running that command.")
+            await self.notice("Interrupt the agent before running that command.")
+            return None
         result = await dispatch(self.agent, line)
         await self.send(
             {
@@ -435,6 +443,7 @@ class Connection:
             try:
                 await self.turn
             except (asyncio.CancelledError, Exception):
+                # Turn cancellation may fail during shutdown; safe to ignore.
                 pass
 
 

@@ -42,8 +42,9 @@ try:
     from pptx import Presentation as _Presentation
 
     Presentation = _Presentation
-    from pptx.util import Inches, Pt
+    from pptx.util import Inches
 except ImportError:
+    # pptx is an optional dependency; slide features disabled without it.
     pass
 
 SYSTEM_PROMPT = """\

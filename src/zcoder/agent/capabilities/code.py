@@ -641,6 +641,7 @@ class McpConnector:
                     continue
                 mc.servers[name] = cfg
         except ImportError:
+            # Plugin import may fail; skip it.
             pass
         return mc
 
@@ -748,6 +749,7 @@ class SubagentRegistry:
                     namespace=f"{entry['plugin']}:{entry['name']}",
                 )
         except ImportError:
+            # Plugin import may fail; skip it.
             pass
 
     def _load_one(self, f: Path, plugin: str | None = None, namespace: str | None = None):
@@ -927,6 +929,7 @@ class SkillsRegistry:
                     "source": f"plugin:{entry['plugin']}",
                 }
         except ImportError:
+            # Plugin import may fail; skip it.
             pass
 
     def list(self) -> list:
@@ -950,9 +953,8 @@ class TodoManager:
             try:
                 self._todos = json.loads(TODO_FILE.read_text())
             except Exception:
+                # TODO file may be corrupt; start with empty list.
                 pass
-
-    def _save(self):
         TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
         TODO_FILE.write_text(json.dumps(self._todos, indent=2))
 
@@ -965,7 +967,7 @@ class TodoManager:
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
         self._todos.append(item)
-        self._save()
+        self.save()  # type: ignore[attr-defined]
         return item
 
     def complete(self, todo_id: str) -> bool:
@@ -973,7 +975,7 @@ class TodoManager:
             if t["id"] == todo_id:
                 t["status"] = "done"
                 t["done_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ")
-                self._save()
+                self.save()  # type: ignore[attr-defined]
                 return True
         return False
 
@@ -1337,7 +1339,7 @@ class CodeAgent:
         except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": str(e), "status": None}
 
     # No CircuitBreaker: WebFetch targets a different, arbitrary URL each
     # time (agent-chosen), not one fixed downstream dependency.
@@ -1354,6 +1356,7 @@ class CodeAgent:
                 return body.decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
+        return ""
 
     def _build_tools(self, preset: str, allowed: list) -> list:
         """Build tool definitions for the agentic loop."""
@@ -1597,8 +1600,9 @@ class CodeAgent:
                             if re.search(pattern, line):
                                 results.append(f"{f.relative_to(cwd)}:{i}: {line.strip()}")
                     except Exception:
+                        # File may be unreadable or binary; skip it.
                         pass
-                return "\n".join(results[:200]) or "(no matches)"
+                return "\n".join(results)
 
             elif name == "LS":
                 p = safe_resolve(inputs.get("path", "."), cwd)
@@ -1984,6 +1988,7 @@ def cmd_code_agent(
             if fragment:
                 session.system_prompt = (session.system_prompt + "\n\n" + fragment).strip()
         except ImportError:
+            # Plugin import may fail; skip it.
             pass
 
     # MCP (project .mcp.json + plugin-bundled servers + ad-hoc --code-agent-mcp URLs)

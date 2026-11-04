@@ -9,7 +9,9 @@ import pytest
 import zcoder.services.maintenance_campaign as maintenance_campaign
 from zcoder.services.maintenance_campaign import (
     MaintenanceCampaignService,
+    build_parser,
     load_signals_file,
+    main,
     maintenance_campaign_work,
 )
 from zcoder.services.upgrade_loop import LoopReport, LoopState, WorkKind
@@ -184,7 +186,7 @@ def test_postgres_campaign_cli_uses_environment_secret_without_output(tmp_path, 
 
     monkeypatch.setattr(maintenance_campaign, "build_postgres_store_pipeline", fake_builder)
 
-    result = maintenance_campaign.main(
+    result = main(
         [
             "--repository",
             str(tmp_path),
@@ -204,7 +206,7 @@ def test_postgres_campaign_cli_uses_environment_secret_without_output(tmp_path, 
 
 
 def test_campaign_cli_defaults_to_json_backend():
-    args = maintenance_campaign.build_parser().parse_args([])
+    args = build_parser().parse_args([])
 
     assert args.state_backend == "json"
     assert args.ledger_namespace == "zcoder-maintenance-campaign"

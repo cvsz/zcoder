@@ -54,8 +54,8 @@ class GateVerdict(StringEnum):
 @dataclasses.dataclass
 class GateResult:
     name: str
-    verdict: GateVerdict
-    evidence_level: EvidenceLevel
+    verdict: str
+    evidence_level: str
     command: str
     notes: str
     limitations: list[str] = dataclasses.field(default_factory=list)
@@ -448,8 +448,8 @@ class ProductionReleaseGate:
     def summary(self) -> dict[str, Any]:
         return {
             name: {
-                "verdict": g.verdict.value,
-                "evidence_level": g.evidence_level.value,
+                "verdict": g.verdict,
+                "evidence_level": g.evidence_level,
                 "command": g.command,
                 "notes": g.notes,
                 "limitations": g.limitations,

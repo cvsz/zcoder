@@ -116,9 +116,8 @@ COMPLIANCE_BASE = "https://api.anthropic.com/v1/compliance"
 # compliance-api#how-the-compliance-api-works.
 RATE_LIMIT_RPM = 600
 
-# Status codes the documented contract says to retry, vs. fix-and-resend.
+# Status codes the documented contract says to retry.
 _ALWAYS_RETRYABLE_STATUSES = {429, 502, 503, 504, 529}
-_NEVER_RETRYABLE_STATUSES = {400, 401, 403, 404, 409}
 
 
 class ComplianceApiError(Exception):
@@ -160,6 +159,7 @@ class ComplianceApiError(Exception):
             error_type = err.get("type", error_type)
             message = err.get("message", message)
         except (json.JSONDecodeError, UnicodeDecodeError):
+            # Error body may be malformed; use defaults.
             pass
         return cls(
             status=status,

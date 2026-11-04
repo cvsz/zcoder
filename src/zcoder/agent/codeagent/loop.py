@@ -289,6 +289,7 @@ class CodeAgent:
                         await self.compact()
                         yield Notice("Context was nearly full; earlier messages were summarized.", "warn")
                     except LLMError:
+                        # Compaction may fail; continue without it.
                         pass
                 visible, calls = "", []
                 filt = _TagFilter()

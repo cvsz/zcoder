@@ -565,8 +565,6 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 )
             except ValueError:
                 host_is_loopback = False
-                host_name = None
-                host_port = None
             if (
                 host_parts is None
                 or not host_is_loopback
@@ -2136,6 +2134,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                                         ):
                                             source["url"] = link
                                     except ValueError:
+                                        # Invalid link URL in citation; skip it.
                                         pass
                                 documents[document_id] = source
                 elif packet_type == "citation_info":
@@ -2207,6 +2206,7 @@ def run_dashboard(host: str = "127.0.0.1", port: int = 9000):
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        # Clean shutdown on Ctrl+C.
         pass
     finally:
         server.server_close()

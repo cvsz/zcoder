@@ -84,6 +84,7 @@ class HardwareProfiler:
                 ram_total_gb = round(mem_total_kb / (1024 * 1024), 2)
                 ram_avail_gb = round(mem_avail_kb / (1024 * 1024), 2)
             except Exception:
+                # Info may be unavailable; use defaults.
                 pass
 
         # Detect GPU
@@ -111,6 +112,7 @@ class HardwareProfiler:
                     gpu_device = parts[0].strip()
                     vram_gb = round(float(parts[1].strip()) / 1024.0, 2)
             except Exception:
+                # Info may be unavailable; use defaults.
                 pass
 
         return HardwareProfile(
@@ -127,7 +129,7 @@ class HardwareProfiler:
     @classmethod
     def estimate_fit(
         cls, profile: HardwareProfile, parameter_size_b: float, quantization_bits: int = 4
-    ) -> ModelFit:
+    ) -> str:
         # Approximate footprint: (params_in_billions * bits / 8) * 1.2 (runtime overhead)
         required_gb = (parameter_size_b * (quantization_bits / 8.0)) * 1.25
         available_mem = profile.vram_gb if profile.vram_gb > 0 else profile.ram_available_gb
@@ -183,7 +185,7 @@ class ModelSourceType(StringEnum):
 class LocalModelArtifact:
     id: str
     name: str
-    source_type: ModelSourceType
+    source_type: str
     repo_or_path: str
     revision: str
     filename: str
@@ -193,7 +195,7 @@ class LocalModelArtifact:
     license: str
     parameter_size_b: float
     quantization: str
-    state: ModelState = ModelState.CATALOG
+    state: str = ModelState.CATALOG
     is_gated: bool = False
     downloaded_at: float | None = None
     verified_at: float | None = None
@@ -268,7 +270,7 @@ class ModelRegistry:
             "model_id": artifact.id,
             "filename": artifact.filename,
             "size_gb": round(artifact.size_bytes / (1024**3), 2),
-            "source": artifact.source_type.value,
+            "source": artifact.source_type,
             "repo": artifact.repo_or_path,
             "revision": artifact.revision,
             "license": artifact.license,
@@ -714,10 +716,10 @@ class ModelResidency(StringEnum):
 class RuntimeInstance:
     instance_id: str
     runtime_type: str  # "llama.cpp" | "ollama" | "vllm"
-    owner: RuntimeOwner
+    owner: str
     endpoint: str
     pid: int | None
-    state: RuntimeState = RuntimeState.READY
+    state: str = RuntimeState.READY
     restart_count: int = 0
     max_restarts: int = 3
     loaded_models: list[str] = dataclasses.field(default_factory=list)
@@ -756,7 +758,7 @@ class ResidentModelEntry:
     digest: str
     runtime_type: str
     estimated_ram_gb: float
-    residency: ModelResidency = ModelResidency.WARM
+    residency: str = ModelResidency.WARM
     is_pinned: bool = False
     last_used: float = dataclasses.field(default_factory=time.time)
 
@@ -910,7 +912,7 @@ class QualityEngineeringService:
     def __init__(self):
         self.profiles: dict[str, QualityProfile] = {}
         self.fixtures: dict[str, QualityBenchmarkFixture] = {}
-        self.model_states: dict[str, ModelQualityState] = {}
+        self.model_states: dict[str, str] = {}
         self.baselines: dict[str, QualityOutcome] = {}  # project_id -> best outcome
 
     def register_profile(self, profile: QualityProfile) -> None:
@@ -956,7 +958,7 @@ class QualityEngineeringService:
 
         return outcome
 
-    def get_model_state(self, model_id: str) -> ModelQualityState:
+    def get_model_state(self, model_id: str) -> str:
         return self.model_states.get(model_id, ModelQualityState.CANDIDATE)
 
     def route_for_project(self, project_id: str, candidate_models: list[str]) -> tuple[str, str]:
@@ -1174,14 +1176,14 @@ class EngineeringTask:
     task_id: str
     project_id: str
     repository: str = ""
-    source: TaskSource = TaskSource.CLI
+    source: str = TaskSource.CLI
     source_reference: str = ""
     title: str = ""
     description: str = ""
     priority: int = 5
-    risk: TaskRisk = TaskRisk.LOW
+    risk: str = TaskRisk.LOW
     constraints: list[str] = dataclasses.field(default_factory=list)
-    status: TaskStatus = TaskStatus.CREATED
+    status: str = TaskStatus.CREATED
     created_at: float = dataclasses.field(default_factory=time.time)
     # Task source content is UNTRUSTED — cannot override security/cost policy (§6)
     source_content_trusted: bool = False
@@ -1225,7 +1227,7 @@ class EngineeringPlan:
     assumptions: list[str]
     steps: list[PlanStep]
     validators: list[str]
-    risk: TaskRisk
+    risk: str
     approval_required: bool
     completion_criteria: str
     created_at: float = dataclasses.field(default_factory=time.time)
@@ -1249,7 +1251,7 @@ class ValidationCommand:
     command: str
     source: str  # e.g. "pyproject.toml", "package.json"
     confidence: str  # LOW / MEDIUM / HIGH
-    state: ValidationState = ValidationState.DISCOVERED
+    state: str = ValidationState.DISCOVERED
     exit_code: int | None = None
     output_summary: str = ""
     duration_seconds: float = 0.0
@@ -1486,8 +1488,8 @@ class ReviewCategory(StringEnum):
 class StaticReviewFinding:
     """Structured review finding (§64)."""
 
-    severity: ReviewSeverity
-    category: ReviewCategory
+    severity: str
+    category: str
     file: str
     line: int | None
     message: str
@@ -1576,7 +1578,7 @@ class SecurityGateResult(StringEnum):
 
 @dataclasses.dataclass
 class SecurityGateReport:
-    result: SecurityGateResult
+    result: str
     findings: list[StaticReviewFinding]
     blocking: bool
 
@@ -1688,7 +1690,7 @@ class AutonomousEngineeringLoop:
         provider: LocalModelProvider | None = None,
         security_gate: SecurityGate | None = None,
         checkpoint_store: CheckpointStore | None = None,
-        push_policy: PushPolicy = PushPolicy.AUTO_LOCAL_ONLY,
+        push_policy: str = PushPolicy.AUTO_LOCAL_ONLY,
         max_repair_attempts: int = 3,
     ):
         self.worktree_mgr = worktree_mgr or WorktreeManager()
@@ -1712,8 +1714,8 @@ class AutonomousEngineeringLoop:
         task_id: str,
         project_id: str,
         description: str,
-        source: TaskSource = TaskSource.CLI,
-        risk: TaskRisk = TaskRisk.LOW,
+        source: str = TaskSource.CLI,
+        risk: str = TaskRisk.LOW,
         title: str = "",
     ) -> EngineeringTask:
         task = EngineeringTask(

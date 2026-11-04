@@ -18,7 +18,6 @@ from typing import Any
 try:
     from rich.markdown import Markdown as RichMarkdown
     from rich.text import Text
-    from textual import work  # noqa: F401  (kept for subclass use)
     from textual.app import App, ComposeResult
     from textual.binding import Binding
     from textual.containers import Horizontal, Vertical, VerticalScroll

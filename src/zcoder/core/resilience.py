@@ -97,6 +97,7 @@ def raise_for_http_error(exc: BaseException) -> NoReturn:
             try:
                 retry_after = float(exc.headers.get("Retry-After", "")) if exc.headers else None
             except (TypeError, ValueError):
+                # Retry-After header may be malformed; use None.
                 pass
             raise RateLimitError(
                 "Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}
@@ -127,11 +128,13 @@ def extract_response_metadata(headers) -> dict:
         try:
             meta["ratelimit_requests_remaining"] = int(headers.get("anthropic-ratelimit-requests-remaining"))
         except (ValueError, TypeError):
+            # Rate limit header may be malformed; skip it.
             pass
     if "anthropic-ratelimit-tokens-remaining" in headers:
         try:
             meta["ratelimit_tokens_remaining"] = int(headers.get("anthropic-ratelimit-tokens-remaining"))
         except (ValueError, TypeError):
+            # Rate limit header may be malformed; skip it.
             pass
     return meta
 

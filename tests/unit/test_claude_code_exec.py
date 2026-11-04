@@ -14,9 +14,14 @@ directly — this is what actually proves the anthropic-beta header is
 """
 
 import json
+import urllib.request
 
-import zcoder.agent.capabilities.code_exec as mod
-from zcoder.agent.capabilities.code_exec import CodeExecutionCoder
+from zcoder.agent.capabilities.code_exec import (
+    CODE_EXEC_TOOL,
+    DEFAULT_CODE_EXEC_VERSION,
+    CodeExecutionCoder,
+    cmd_code_exec,
+)
 
 
 class _FakeResp:
@@ -41,15 +46,15 @@ def _install_fake_urlopen(monkeypatch, captured_headers: dict, response_body: di
         captured_headers.update(dict(req.headers))
         return _FakeResp(json.dumps(response_body).encode())
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
 
 def test_default_version_is_20260120():
     # DEFAULT_CODE_EXEC_VERSION was bumped to code_execution_20260521 in
     # v1.24.0; this assertion went stale then. Fixed while noticed during
     # the v1.26.0 cycle.
-    assert mod.DEFAULT_CODE_EXEC_VERSION == "code_execution_20260521"
-    assert mod.CODE_EXEC_TOOL["type"] == "code_execution_20260521"
+    assert DEFAULT_CODE_EXEC_VERSION == "code_execution_20260521"
+    assert CODE_EXEC_TOOL["type"] == "code_execution_20260521"
 
 
 def test_coder_defaults_to_20260120():
@@ -87,7 +92,7 @@ def test_execute_uses_instance_version_in_tool_descriptor(monkeypatch):
         captured_payload["body"] = json.loads(req.data.decode())
         return _FakeResp(json.dumps({"content": [], "usage": {}}).encode())
 
-    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     coder = CodeExecutionCoder(api_key="sk-test", code_exec_version="code_execution_20250522")
 
     coder.execute("do something")
@@ -130,7 +135,7 @@ def test_cmd_code_exec_threads_code_exec_version(monkeypatch, capsys):
     captured = {}
     _install_fake_urlopen(monkeypatch, captured)
 
-    mod.cmd_code_exec(
+    cmd_code_exec(
         "do something",
         api_key="sk-test",
         model="claude-sonnet-5",

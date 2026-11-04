@@ -76,6 +76,7 @@ class HookManager:
             try:
                 self.hooks = [Hook.from_dict(d) for d in json.loads(HOOKS_FILE.read_text())]
             except Exception:
+                # Hooks file may be missing or corrupt; start empty.
                 pass
 
     def save(self):

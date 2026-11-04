@@ -421,9 +421,8 @@ class Worker:
             if hasattr(self._store, "close"):
                 self._store.close()
         except Exception:
+            # Store close may fail during shutdown; safe to ignore.
             pass
-
-        logger.info(f"Worker {self.worker_id} stopped cleanly")
 
     @property
     def state(self) -> str:
@@ -455,8 +454,8 @@ def main() -> None:
 
         bootstrap_from_env()
     except Exception:
+        # Observability bootstrap may fail in minimal environments; safe to ignore.
         pass
-
     parser = argparse.ArgumentParser(description="ZCoder Worker Process")
     parser.add_argument("--worker-id", default="", help="Worker identity (default: auto-generated)")
     parser.add_argument(

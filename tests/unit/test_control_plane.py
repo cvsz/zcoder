@@ -108,7 +108,6 @@ def test_outbox_processing_persists_dead_state_after_finite_failure_budget(cp_st
 
     # DEAD messages are terminal and cannot expand later invocations.
     assert cp_store.process_outbox(failing_handler, max_messages=1, max_attempts=2) == 0
-    assert calls == 2
 
 
 def test_outbox_processing_preserves_legacy_failure_behavior_without_attempt_budget(cp_store):

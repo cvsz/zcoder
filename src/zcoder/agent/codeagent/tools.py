@@ -476,6 +476,7 @@ def preview(ctx: ToolContext, tool: Tool, args: dict[str, Any]) -> tuple[str, st
         if tool.name == "ExitPlanMode":
             return "Approve plan and start making changes", str(args.get("plan", ""))
     except (ToolError, KeyError, TypeError, OSError):
+        # Tool invocation may fail; return unmodified.
         pass
     return f"{tool.name} {args}", None
 
