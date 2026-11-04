@@ -94,8 +94,8 @@ class TestTaskLifecycle:
         assert required.issubset(actual), f"Missing states: {required - actual}"
 
     def test_task_risk_enum(self):
-        assert local_ai_stack.local_ai_stack.TaskRisk.LOW.value == "LOW"
-        assert local_ai_stack.local_ai_stack.TaskRisk.CRITICAL.value == "CRITICAL"
+        assert local_ai_stack.TaskRisk.LOW.value == "LOW"
+        assert local_ai_stack.TaskRisk.CRITICAL.value == "CRITICAL"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ class TestEngineeringPlan:
             assumptions=["Tests capture required behaviour"],
             steps=[local_ai_stack.PlanStep("s1", "Patch auth handler", ["auth.py"])],
             validators=["pytest -q"],
-            risk=local_ai_stack.local_ai_stack.TaskRisk.LOW,
+            risk=local_ai_stack.TaskRisk.LOW,
             approval_required=False,
             completion_criteria="All validators EXECUTED_PASS",
         )
@@ -326,7 +326,7 @@ class TestEngineeringPlan:
     def test_high_risk_plan_requires_approval(self):
         loop = local_ai_stack.AutonomousEngineeringLoop()
         loop.create_task(
-            "t-highrisk", "proj", "delete everything", risk=local_ai_stack.local_ai_stack.TaskRisk.HIGH
+            "t-highrisk", "proj", "delete everything", risk=local_ai_stack.TaskRisk.HIGH
         )
         # HIGH-risk tasks require approval — preconditions won't be satisfied without it
         loop.run_engineering_loop("t-highrisk", "proj", "delete everything", {"a.py": "pass"})
