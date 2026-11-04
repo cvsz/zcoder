@@ -62,7 +62,7 @@ _ROLE_LEVEL: dict[str, int] = {
 
 def role_has_privilege(role: ZCoderRole | str, required: ZCoderRole | str) -> bool:
     """Return True if role meets or exceeds required privilege level."""
-    return _ROLE_LEVEL.get(str(role), 0) >= _ROLE_LEVEL.get(str(required), 0)
+    return _ROLE_LEVEL.get(role, 0) >= _ROLE_LEVEL.get(required, 0)
 
 
 # ─── Auth identity ────────────────────────────────────────────────────────────
