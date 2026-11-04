@@ -17,11 +17,9 @@ def test_real_release_check_rejects_unqualified_catalog():
         text=True,
         check=False,
     )
-    assert result.returncode == 0
-    assert "QUALIFIED" in result.stdout
-    assert "PITR" in result.stdout
-    assert "SECURITY" in result.stdout
-    assert "FINAL" in result.stdout
+    assert result.returncode == 1
+    assert "UNKNOWN" in result.stdout
+    assert "NOT QUALIFIED" in result.stdout
 
 
 @pytest.mark.parametrize(
