@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status clean
+.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt clean
 
 VENV_DIR ?= .venv
 PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin/python"; elif [ -f "$(VENV_DIR)/Scripts/python.exe" ]; then echo "$(VENV_DIR)/Scripts/python.exe"; elif [ -n "$$VIRTUAL_ENV" ]; then echo "$$VIRTUAL_ENV/bin/python"; else echo "python3"; fi)
@@ -19,6 +19,9 @@ PORT ?= 8420
 API_HOST ?= 127.0.0.1
 API_PORT ?= 8088
 WORKER_ARGS ?=
+OPENCODE_BIN ?= $(shell which opencode 2>/dev/null || echo "$$HOME/.opencode/bin/opencode")
+OPENCODE_MODEL ?= nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b
+PROMPT ?=
 
 help:
 	@echo "================================================================================"
@@ -88,6 +91,8 @@ help:
 	@echo "  make docker-down        Stop local inference and remove Compose resources"
 	@echo "  make postgres-setup     Initialize and migrate local PostgreSQL database"
 	@echo "  make postgres-status    Inspect local PostgreSQL container status"
+	@echo "  make opencode           Run OpenCode CLI (or pass PROMPT=\"...\" MODEL=\"...\")"
+	@echo "  make opencode-prompt    Execute prompt via OpenCode (PROMPT=\"...\" MODEL=\"...\")"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make update             Update editable installation"
@@ -307,6 +312,20 @@ postgres-setup:
 
 postgres-status:
 	$(PYTHON) scripts/local_postgres.py status
+
+opencode:
+	@if [ -n "$(PROMPT)" ]; then \
+		$(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT); \
+	else \
+		$(OPENCODE_BIN); \
+	fi
+
+opencode-prompt:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-prompt PROMPT=\"your prompt\" [MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi
+	$(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT)
 
 docker-build:
 	docker compose build zcoder
