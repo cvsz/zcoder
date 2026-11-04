@@ -71,6 +71,12 @@ logs/
 # Local installer / transfer artifacts
 supabase-installer.zip
 
+# Windows metadata files
+*Zone.Identifier
+
+# Supabase installer directory
+deploy/supabase/
+
 # Local review / transfer artifacts
 *.patch
 *:Zone.Identifier
