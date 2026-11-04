@@ -120,8 +120,21 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) สำหรับรายละเอ
 | SEC-008 | Secrets/environment inheritance | ✅ FIXED |
 | SEC-009 | Authorization/approval boundaries | ✅ FIXED |
 | SEC-010 | CI/dependency/supply-chain | ✅ FIXED |
+| SEC-011 | Point-in-Time Recovery / Disaster Recovery | ✅ FIXED (`zPITR` service) |
 
 See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอียด
+
+### 🛡️ zPITR — Point-in-Time Recovery
+
+ZCoder includes a containerized **zPITR** service (`deploy/docker/zpitr/`, `docker-compose.zpitr.yml`) for automated PostgreSQL Point-in-Time Recovery:
+
+- **Continuous WAL streaming** via `pg_receivewal` (RPO < 5 min)
+- **Periodic base backups** via `pg_basebackup` with SHA-256 manifests
+- **Automated restore drill** with isolated sandbox and Release Gate evidence emission (`docs/evidence/pitr-qualification-<SHA>.json`)
+
+Deploy with `docker compose -f docker-compose.zpitr.yml up -d`. See [`docs/zpitr-implementation.md`](docs/zpitr-implementation.md) and [`docs/operations/deployment.md`](docs/operations/deployment.md) § zPITR.
+
+---
 
 ---
 
