@@ -62,7 +62,14 @@ dist/
 .ai-coder/
 .ai-coder-config.json
 .web.pid
+.api.pid
+.worker.pid
+.opencode.pid
+.claude/
 logs/
+
+# Local installer / transfer artifacts
+supabase-installer.zip
 
 # Local review / transfer artifacts
 *.patch
