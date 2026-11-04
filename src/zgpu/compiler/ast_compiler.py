@@ -80,7 +80,7 @@ HALT"""
             # Build a synthetic AST
             fn_name = getattr(func, "__name__", "anonymous")
             params = list(inspect.signature(func).parameters.keys())
-            fn_def = ast.FunctionDef(
+            fn_def = ast.FunctionDef(  # type: ignore[call-overload]
                 name=fn_name,
                 args=ast.arguments(
                     posonlyargs=[],

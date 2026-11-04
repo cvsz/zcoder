@@ -26,7 +26,7 @@ def bm25_scores(
 
     tokenized = [tokenize(document) for document in documents]
     average_length = sum(map(len, tokenized)) / len(tokenized) or 1.0
-    document_frequency = Counter()
+    document_frequency: Counter[str] = Counter()
     for tokens in tokenized:
         document_frequency.update(set(tokens) & terms)
 

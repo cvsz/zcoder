@@ -105,6 +105,8 @@ class OpenAICompatibleProvider:
             upstream_id = self._models.get(alias) if isinstance(alias, str) else None
         if upstream_id is None:
             raise OpenAIProviderError("the selected model is no longer available")
+        if alias is None:
+            raise OpenAIProviderError("model alias is required")
 
         upstream_payload = dict(payload)
         upstream_payload["model"] = upstream_id
@@ -213,7 +215,7 @@ class OpenAICompatibleProvider:
 
     @staticmethod
     def _read_bounded(response, max_bytes: int, deadline: float) -> bytes:
-        chunks = []
+        chunks: list[bytes] = []
         size = 0
         while size <= max_bytes:
             if time.monotonic() >= deadline:

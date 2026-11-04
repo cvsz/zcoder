@@ -148,20 +148,23 @@ def _rank(record: dict, model: str) -> dict:
     feasible = usable_ram >= required or usable_vram >= required
     capacity = max(usable_ram, usable_vram)
     bench = record.get("benchmark")
-    verified_bench = (
-        isinstance(bench, dict)
-        and bench.get("verified") is True
-        and isinstance(bench.get("tokens_per_second"), (int, float))
-        and not isinstance(bench.get("tokens_per_second"), bool)
-        and 0 < bench["tokens_per_second"] < 100000
-        and isinstance(bench.get("evidence_sha256"), str)
-        and re.fullmatch(r"[0-9a-f]{64}", bench["evidence_sha256"])
-    )
+    if not isinstance(bench, dict):
+        verified_bench = False
+        tokens_per_second = 0.0
+    else:
+        verified_bench = bool(
+            bench.get("verified") is True
+            and isinstance(bench.get("tokens_per_second"), (int, float))
+            and not isinstance(bench.get("tokens_per_second"), bool)
+            and 0 < bench["tokens_per_second"] < 100000
+            and isinstance(bench.get("evidence_sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", bench["evidence_sha256"])
+        )
+        tokens_per_second = bench["tokens_per_second"]
     # Explicitly prioritize feasibility over heuristic score. Do not infer
     # acceleration from PCI presence or unverified claimed benchmarks.
     score = round(
-        min(capacity / required, 2) * 50
-        + (min(bench["tokens_per_second"], 100) / 2 if verified_bench else 0),
+        min(capacity / required, 2) * 50 + (min(tokens_per_second, 100) / 2 if verified_bench else 0),
         2,
     )
     return {

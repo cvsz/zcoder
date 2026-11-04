@@ -387,7 +387,7 @@ class BackupManager:
             # Fail-closed: pg_restore exit codes other than 0 are treated as
             # drill failures and state verification never runs, so a partial
             # or warning-bearing restore can never look like a verified DR drill.
-            if restore_result.returncode != 0:
+            if restore_result is not None and restore_result.returncode != 0:
                 result.error = (
                     f"pg_restore failed (rc={restore_result.returncode}): "
                     f"{_redact(restore_result.stderr, password)}"
