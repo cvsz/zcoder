@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 from zcoder.domain.services.outbox_policy import transition_after_failure
@@ -16,7 +17,7 @@ from zcoder.domain.services.outbox_policy import transition_after_failure
 
 def process_postgres_outbox_once(
     store: Any,
-    handler: Any,
+    handler: Callable[[str, dict[str, Any]], Any],
     *,
     max_messages: int,
     max_attempts: int,
@@ -51,6 +52,8 @@ def process_postgres_outbox_once(
         for message_id, action, payload_raw, attempts in rows:
             payload = payload_raw if isinstance(payload_raw, dict) else json.loads(payload_raw)
             try:
+                if not callable(handler):
+                    raise TypeError("handler must be callable")
                 handler(action, payload)
             except Exception as exc:
                 transition = transition_after_failure(attempts, max_attempts)

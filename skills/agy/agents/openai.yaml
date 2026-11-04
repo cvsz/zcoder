@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agy Super Full-Stack & Architect Agent"
+  short_description: "Agy AI Full-Stack Developer & Systems Architect agentic skill for universal codebase investigation, enterprise production-grade implementation, and multi-account GPG audit/merge release protocol"
+  default_prompt: "Use $agy to perform deep codebase investigation, enterprise-grade production fixes, validation tests, and multi-account GitHub audit/merge releases."

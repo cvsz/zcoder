@@ -166,7 +166,9 @@ class LocalKnowledgeStore:
         embedding = self._create_embedding(content) if self.embedding_provider is not None else None
         embedding_json = json.dumps(embedding, separators=(",", ":"), allow_nan=False) if embedding else None
         embedding_provider = self.embedding_provider
-        embedding_model = embedding_provider.model if embedding_provider is not None and embedding is not None else None
+        embedding_model = (
+            embedding_provider.model if embedding_provider is not None and embedding is not None else None
+        )
         try:
             with self._connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")

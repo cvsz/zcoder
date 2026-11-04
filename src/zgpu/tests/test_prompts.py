@@ -21,7 +21,8 @@ def test_prompt_library_crud_persistence_and_ordering(tmp_path):
     assert updated["title"] == "Security review"
     assert updated["content"].startswith("Check trust")
     assert library.delete(first["id"]) is True
-    assert library.delete(first["id"]) is False
+    deleted = library.delete(first["id"])
+    assert deleted is False
     if os.name == "posix":
         assert path.stat().st_mode & 0o077 == 0
 

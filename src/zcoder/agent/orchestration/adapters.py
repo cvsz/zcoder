@@ -89,9 +89,7 @@ class BaseProviderAdapter:
             raise ProviderAdapterError(
                 f"No endpoint configured for provider {self.provider!r} and model {model!r}"
             )
-        payload = build_payload(
-            self.provider, model, messages, system, max_tokens, sampling or {}
-        )
+        payload = build_payload(self.provider, model, messages, system, max_tokens, sampling or {})
         data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         req = urllib.request.Request(
             url,
@@ -100,26 +98,25 @@ class BaseProviderAdapter:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+            scheme = urllib.parse.urlsplit(url).scheme
+            if scheme not in ("http", "https"):
+                raise ProviderAdapterError(f"Unsupported URL scheme: {scheme}")
+            with urllib.request.urlopen(
+                req, timeout=self.timeout_seconds
+            ) as resp:  # nosec B310 -- scheme validated above
                 body = resp.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             try:
                 body = exc.read().decode("utf-8")[:500]
             except Exception:
                 body = ""
-            raise ProviderAdapterError(
-                f"{self.provider} returned HTTP {exc.code}: {body}"
-            ) from exc
+            raise ProviderAdapterError(f"{self.provider} returned HTTP {exc.code}: {body}") from exc
         except (urllib.error.URLError, OSError, TimeoutError) as exc:
-            raise ProviderAdapterError(
-                f"{self.provider} network error: {exc}"
-            ) from exc
+            raise ProviderAdapterError(f"{self.provider} network error: {exc}") from exc
         try:
             parsed = json.loads(body)
         except json.JSONDecodeError as exc:
-            raise ProviderAdapterError(
-                f"{self.provider} returned invalid JSON: {exc}"
-            ) from exc
+            raise ProviderAdapterError(f"{self.provider} returned invalid JSON: {exc}") from exc
         return parse_response(self.provider, parsed)
 
 
@@ -143,9 +140,7 @@ def get_adapter(
     if local_only_enabled() and provider != "ollama":
         # Local-only mode blocks all hosted provider calls; ollama is local-only
         # by default (base_url http://localhost:11434).
-        raise ProviderAdapterError(
-            f"Provider {provider!r} is blocked while ZCODER_LOCAL_MODE is enabled"
-        )
+        raise ProviderAdapterError(f"Provider {provider!r} is blocked while ZCODER_LOCAL_MODE is enabled")
 
     key = f"{provider}:{base_url or ''}"
     if key in _PROVIDER_ADAPTER_CACHE:
@@ -162,9 +157,7 @@ def get_adapter(
 
     resolved_base = resolve_base_url(provider, base_url)
     if not resolved_base:
-        raise ProviderAdapterError(
-            f"No base URL configured for provider {provider!r}"
-        )
+        raise ProviderAdapterError(f"No base URL configured for provider {provider!r}")
 
     adapter = BaseProviderAdapter(
         provider=provider,

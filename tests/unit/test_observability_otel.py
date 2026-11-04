@@ -197,6 +197,8 @@ class TestTraceSpan:
             with trace_model_call(provider="local", model="qwen"):
                 raise RuntimeError("model failed")
 
+        # pytest.raises exits normally after catching the expected exception,
+        # so the metrics assertions below are reachable.
         assert metrics.model_calls_total.get() == 2
         assert metrics.model_errors_total.get() == 1
         assert metrics.model_duration_seconds.count() == 2
