@@ -13,7 +13,7 @@ _SRC = Path(__file__).resolve().parent / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from zcoder.main import main  # noqa: E402
+from zcoder.main import main, VERSION  # noqa: E402
 
 if __name__ == "__main__":
     main()  # noqa: F405
