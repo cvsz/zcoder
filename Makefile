@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt clean
+.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt opencode-models opencode-free-models clean
 
 VENV_DIR ?= .venv
 PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin/python"; elif [ -f "$(VENV_DIR)/Scripts/python.exe" ]; then echo "$(VENV_DIR)/Scripts/python.exe"; elif [ -n "$$VIRTUAL_ENV" ]; then echo "$$VIRTUAL_ENV/bin/python"; else echo "python3"; fi)
@@ -93,6 +93,8 @@ help:
 	@echo "  make postgres-status    Inspect local PostgreSQL container status"
 	@echo "  make opencode           Run OpenCode CLI (or pass PROMPT=\"...\" MODEL=\"...\")"
 	@echo "  make opencode-prompt    Execute prompt via OpenCode (PROMPT=\"...\" MODEL=\"...\")"
+	@echo "  make opencode-models    List all available OpenCode models"
+	@echo "  make opencode-free-models List available free models in OpenCode"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make update             Update editable installation"
@@ -326,6 +328,15 @@ opencode-prompt:
 		exit 1; \
 	fi
 	$(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT)
+
+opencode-models:
+	$(OPENCODE_BIN) models
+
+opencode-free-models:
+	@echo "================================================================================"
+	@echo "                   OpenCode Available Free Models List                         "
+	@echo "================================================================================"
+	@$(OPENCODE_BIN) models | grep -E "(:free|-free)" || $(OPENCODE_BIN) models | grep -i "free"
 
 docker-build:
 	docker compose build zcoder
