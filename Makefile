@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status clean
+.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt opencode-free-prompt opencode-bg opencode-free-bg opencode-models opencode-free-models opencode-nvidia-models opencode-kilo-models clean
 
 VENV_DIR ?= .venv
 PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin/python"; elif [ -f "$(VENV_DIR)/Scripts/python.exe" ]; then echo "$(VENV_DIR)/Scripts/python.exe"; elif [ -n "$$VIRTUAL_ENV" ]; then echo "$$VIRTUAL_ENV/bin/python"; else echo "python3"; fi)
@@ -19,6 +19,10 @@ PORT ?= 8420
 API_HOST ?= 127.0.0.1
 API_PORT ?= 8088
 WORKER_ARGS ?=
+OPENCODE_BIN ?= $(shell which opencode 2>/dev/null || echo "$$HOME/.opencode/bin/opencode")
+OPENCODE_MODEL ?= nvidia/nvidia/nemotron-3.5-super-vl-120b-a12b
+OPENCODE_FREE_MODEL ?= opencode/nemotron-3.5-lightning-free
+PROMPT ?=
 
 help:
 	@echo "================================================================================"
@@ -88,6 +92,15 @@ help:
 	@echo "  make docker-down        Stop local inference and remove Compose resources"
 	@echo "  make postgres-setup     Initialize and migrate local PostgreSQL database"
 	@echo "  make postgres-status    Inspect local PostgreSQL container status"
+	@echo "  make opencode           Run OpenCode CLI (loads .env automatically)"
+	@echo "  make opencode-prompt    Execute prompt via OpenCode (PROMPT=\"...\" [OPENCODE_MODEL=\"...\"])"
+	@echo "  make opencode-free-prompt Execute prompt using 100% Free Model (PROMPT=\"...\")"
+	@echo "  make opencode-bg        Run OpenCode prompt in background (PROMPT=\"...\")"
+	@echo "  make opencode-free-bg   Run OpenCode free model in background (PROMPT=\"...\")"
+	@echo "  make opencode-models    List all available OpenCode models"
+	@echo "  make opencode-free-models List all available free models (NVIDIA, OpenCode, Kilo, etc.)"
+	@echo "  make opencode-nvidia-models List NVIDIA Nemotron & NIM models"
+	@echo "  make opencode-kilo-models List Kilo models & free routers"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make update             Update editable installation"
@@ -307,6 +320,71 @@ postgres-setup:
 
 postgres-status:
 	$(PYTHON) scripts/local_postgres.py status
+
+opencode:
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	if [ -n "$(PROMPT)" ]; then \
+		$(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT); \
+	else \
+		$(OPENCODE_BIN); \
+	fi
+
+opencode-prompt:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-prompt PROMPT=\"your prompt\" [OPENCODE_MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	$(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT)
+
+opencode-free-prompt:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-free-prompt PROMPT=\"your prompt\" [OPENCODE_FREE_MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	$(OPENCODE_BIN) run -m "$(OPENCODE_FREE_MODEL)" $(PROMPT)
+
+opencode-bg:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-bg PROMPT=\"your prompt\" [OPENCODE_MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi; \
+	mkdir -p logs; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	nohup $(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT) > logs/opencode.log 2>&1 & echo $$! > .opencode.pid; \
+	echo "Started OpenCode in background (PID: $$(cat .opencode.pid), logs: logs/opencode.log)"
+
+opencode-free-bg:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-free-bg PROMPT=\"your prompt\" [OPENCODE_FREE_MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi; \
+	mkdir -p logs; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	nohup $(OPENCODE_BIN) run -m "$(OPENCODE_FREE_MODEL)" $(PROMPT) > logs/opencode.log 2>&1 & echo $$! > .opencode.pid; \
+	echo "Started OpenCode Free Model in background (PID: $$(cat .opencode.pid), logs: logs/opencode.log)"
+
+opencode-models:
+	$(OPENCODE_BIN) models
+
+opencode-free-models:
+	@echo "================================================================================"
+	@echo "                OpenCode Available Free Models (All Providers)                  "
+	@echo "================================================================================"
+	@$(OPENCODE_BIN) models | grep -E "(:free|-free)" || $(OPENCODE_BIN) models | grep -i "free"
+
+opencode-nvidia-models:
+	@echo "================================================================================"
+	@echo "                      NVIDIA / Nemotron Models in OpenCode                     "
+	@echo "================================================================================"
+	@$(OPENCODE_BIN) models | grep -i "nvidia"
+
+opencode-kilo-models:
+	@echo "================================================================================"
+	@echo "                       Kilo Provider Models in OpenCode                        "
+	@echo "================================================================================"
+	@$(OPENCODE_BIN) models | grep -i "^kilo/"
 
 docker-build:
 	docker compose build zcoder
