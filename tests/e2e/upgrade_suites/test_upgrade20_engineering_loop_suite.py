@@ -325,9 +325,7 @@ class TestEngineeringPlan:
 
     def test_high_risk_plan_requires_approval(self):
         loop = local_ai_stack.AutonomousEngineeringLoop()
-        loop.create_task(
-            "t-highrisk", "proj", "delete everything", risk=local_ai_stack.TaskRisk.HIGH
-        )
+        loop.create_task("t-highrisk", "proj", "delete everything", risk=local_ai_stack.TaskRisk.HIGH)
         # HIGH-risk tasks require approval — preconditions won't be satisfied without it
         loop.run_engineering_loop("t-highrisk", "proj", "delete everything", {"a.py": "pass"})
         # Either FAILED (approval_required=True and not satisfied) or implementation handles it
