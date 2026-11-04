@@ -62,7 +62,21 @@ dist/
 .ai-coder/
 .ai-coder-config.json
 .web.pid
+.api.pid
+.worker.pid
+.opencode.pid
+.claude/
+config.json
 logs/
+
+# Local installer / transfer artifacts
+supabase-installer.zip
+
+# Windows metadata files
+*Zone.Identifier
+
+# Supabase installer directory
+deploy/supabase/
 
 # Local review / transfer artifacts
 *.patch

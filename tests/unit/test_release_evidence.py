@@ -351,9 +351,6 @@ def test_release_tag_must_be_semver_and_match_source(monkeypatch):
 
 
 def test_dependency_review_is_bound_to_the_merged_pull_request(monkeypatch):
-    import json
-    import subprocess
-
     importer = _gate_aware_importer()
     candidate_sha = "a" * 40
     source_sha = "b" * 40

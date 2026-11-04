@@ -89,6 +89,7 @@ def _load_registry() -> dict:
         try:
             return json.loads(REGISTRY_FILE.read_text())
         except Exception:
+            # Plugin directory may be inaccessible; skip it.
             pass
     return {"marketplaces": {}, "installed": {}}
 
@@ -331,6 +332,7 @@ def _discover_plugins_in_marketplace(mp_dir: Path) -> list:
                 if cand.exists():
                     found.append(cand)
         except Exception:
+            # Plugin directory may be inaccessible; skip it.
             pass
     if found:
         return found

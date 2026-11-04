@@ -232,6 +232,7 @@ class ArtifactManager:
                     }
                 )
             except Exception:
+                # Artifact metadata may be incomplete; skip it.
                 pass
         return results
 

@@ -20,7 +20,7 @@ class SignalType(StringEnum):
 class MaintenanceSignal:
     id: str = field(default_factory=lambda: f"sig_{uuid.uuid4().hex}")
     repository: str = ""
-    type: SignalType = SignalType.CI_FAILURE
+    type: str = SignalType.CI_FAILURE
     severity: str = "medium"
     source: str = ""
     evidence: dict[str, Any] = field(default_factory=dict)

@@ -10,7 +10,7 @@ from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineerin
 
 
 def _pg_available() -> bool:
-    dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+    dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
     try:
         conn = psycopg2.connect(dsn, connect_timeout=2)
         conn.close()
@@ -31,7 +31,7 @@ def worker(dsn, results):
 
 class TestMultiWorkerContention(unittest.TestCase):
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
         self.store = PostgresEngineeringStore(dsn=self.dsn)
         self.store.init_schema()
         # Clean tasks

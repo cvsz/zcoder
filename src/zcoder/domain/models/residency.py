@@ -46,7 +46,7 @@ class OrganizationResidencyPolicy:
 class RegionTopology:
     control_plane_region: str = "us-east-1"
     database_region: str = "us-east-1"
-    worker_regions: dict[str, RegionStatus] = dataclasses.field(
+    worker_regions: dict[str, str] = dataclasses.field(
         default_factory=lambda: {
             "us-east-1": RegionStatus.AVAILABLE,
             "eu-west-1": RegionStatus.AVAILABLE,

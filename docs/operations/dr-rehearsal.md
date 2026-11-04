@@ -23,7 +23,22 @@ Related documents:
 |---|---|
 | `docs/operations/DISASTER-RECOVERY.md` | Incident-response SOPs during a live outage (`DB-DOWN`, `WORKER-LOSS`, `API-DOWN`) |
 | `docs/operations/deployment.md` | Deployment, health checks, and container rollback |
+| `docs/zpitr-implementation.md` | **zPITR containerized Point-in-Time Recovery service** (continuous WAL streaming + automated restore drill + Release Gate evidence emission) |
+| `deploy/docker/zpitr/` | zPITR Docker service definition (Dockerfile, entrypoint, scripts, Compose) |
 | `exec-planning.md` §6 | Release gates this evidence feeds ("backup/restore, rollback, migration rehearsal, and disaster-recovery evidence") |
+
+---
+
+## zPITR — Containerized PITR Drill Service (New)
+
+ZCoder now ships a dedicated `zPITR` service (`deploy/docker/zpitr/`, orchestrated by `docker-compose.zpitr.yml`) that automates the physical PITR path described in this runbook:
+
+- **Continuous WAL streaming** via `pg_receivewal` daemon into `zpitr_wal_archive` volume (real-time, per-commit RPO).
+- **Periodic base backups** via `pg_basebackup -Ft -z -Xs` with SHA-256 manifest into `zpitr_base_backups` volume.
+- **On-demand restore drill** (`docker exec zPITR /app/scripts/run_restore_drill.sh`) that restores into an isolated temp directory, injects `recovery.signal` + `restore_command`, verifies WAL archive continuity, and emits Release Gate evidence JSON.
+- **Evidence emission** via `emit_evidence.py` writes `docs/evidence/pitr-qualification-<SHA>.json` (schema v1) bound to the exact release-candidate SHA for `scripts/release_gate.py --check`.
+
+Use `zPITR` when you need an automated, repeatable PITR drill tied to a specific RC SHA. Use the manual `BackupManager.run_restore_drill()` procedure above for logical `pg_dump`/`pg_restore` drills without WAL replay.
 
 ---
 

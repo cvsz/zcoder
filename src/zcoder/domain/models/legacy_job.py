@@ -264,7 +264,7 @@ class ToolPolicy(StringEnum):
 class PolicyEngine:
     DANGEROUS_COMMANDS = ["rm -rf", "git push -f", "git reset --hard", "drop table", "mkfs", "dd if="]
 
-    def evaluate_command(self, cmd: str) -> ToolPolicy:
+    def evaluate_command(self, cmd: str) -> str:
         for danger in self.DANGEROUS_COMMANDS:
             if danger in cmd:
                 return ToolPolicy.REQUIRE_APPROVAL
@@ -277,7 +277,7 @@ class FakeRuntime:
         self.cost = cost
 
     def execute_task(self, job: Job, store: JobStore, validator: Callable[[], bool] | None = None) -> bool:
-        job.status = JobStatus.RUNNING.value
+        job.status = JobStatus.RUNNING
         store.save_job(job)
         store.add_event(job.id, "job.started", {"runtime": "fake"})
 
@@ -286,24 +286,24 @@ class FakeRuntime:
 
         job.cost_usd += self.cost
         if job.budget_usd and job.cost_usd > job.budget_usd:
-            job.status = JobStatus.BUDGET_REACHED.value
+            job.status = JobStatus.BUDGET_REACHED
             store.save_job(job)
             store.add_event(job.id, "budget.reached", {"budget": job.budget_usd, "spent": job.cost_usd})
             return False
 
         if validator and not validator():
-            job.status = JobStatus.FAILED.value
+            job.status = JobStatus.FAILED
             store.save_job(job)
             store.add_event(job.id, "job.failed", {"reason": "validation_failed"})
             return False
 
         if self.should_succeed:
-            job.status = JobStatus.SUCCEEDED.value
+            job.status = JobStatus.SUCCEEDED
             store.save_job(job)
             store.add_event(job.id, "job.succeeded", {"cost_usd": job.cost_usd})
             return True
         else:
-            job.status = JobStatus.FAILED.value
+            job.status = JobStatus.FAILED
             store.save_job(job)
             store.add_event(job.id, "job.failed", {"reason": "runtime_error"})
             return False

@@ -14,13 +14,17 @@ from typing import Protocol
 class RunLease(Protocol):
     """Minimal exclusive-run contract consumed by ContinuousEngineeringPipeline."""
 
-    def acquire(self) -> None: ...
+    def acquire(self) -> None:
+        pass
 
-    def release(self) -> None: ...
+    def release(self) -> None:
+        pass
 
-    def __enter__(self) -> RunLease: ...
+    def __enter__(self) -> RunLease:
+        pass
 
-    def __exit__(self, exc_type, exc, tb) -> None: ...
+    def __exit__(self, exc_type, exc, tb) -> None:
+        pass
 
 
 class UpgradeRunLeaseError(RuntimeError):
@@ -72,6 +76,7 @@ class UpgradeRunLease:
                         try:
                             self.path.unlink()
                         except OSError:
+                            # Cleanup failure during error handling; safe to ignore.
                             pass
                         raise
                 finally:

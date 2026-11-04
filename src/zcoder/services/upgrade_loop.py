@@ -56,13 +56,13 @@ class UpgradeWorkItem:
     """One independently verifiable vertical slice."""
 
     title: str
-    kind: WorkKind
+    kind: str
     payload: dict[str, Any] = field(default_factory=dict)
     priority: int = 50
     risk: str = "medium"
     max_attempts: int = 2
     item_id: str = field(default_factory=lambda: f"work_{uuid.uuid4().hex}")
-    state: WorkState = WorkState.PENDING
+    state: str = WorkState.PENDING
     attempts: int = 0
     last_error: str = ""
 
@@ -78,7 +78,7 @@ class UpgradeWorkItem:
 
         encoded = json.dumps(
             {
-                "kind": self.kind.value,
+                "kind": self.kind,
                 "title": self.title.strip(),
                 "payload": self.payload,
             },
@@ -107,7 +107,7 @@ class LoopPolicy:
 @dataclass(frozen=True)
 class LoopCheckpoint:
     iteration: int
-    state: LoopState
+    state: str
     active_item_id: str | None
     completed_item_ids: Sequence[str]
     blocked_item_ids: Sequence[str]
@@ -120,7 +120,7 @@ class IterationRecord:
     iteration: int
     item_id: str
     title: str
-    kind: WorkKind
+    kind: str
     attempt: int
     outcome: str
     validation_summary: str = ""
@@ -129,7 +129,7 @@ class IterationRecord:
 
 @dataclass(frozen=True)
 class LoopReport:
-    state: LoopState
+    state: str
     iterations: int
     completed_item_ids: Sequence[str]
     blocked_item_ids: Sequence[str]
@@ -361,7 +361,7 @@ class ContinuousUpgradeLoop:
     def _emit_checkpoint(
         self,
         iteration: int,
-        state: LoopState,
+        state: str,
         active_item_id: str | None,
         completed: Sequence[str],
         blocked: Sequence[str],

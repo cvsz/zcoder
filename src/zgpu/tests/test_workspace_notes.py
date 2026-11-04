@@ -23,7 +23,8 @@ def test_workspace_notes_crud_search_and_private_database(tmp_path):
     assert store.update(
         created["id"], "Release checklist", "Review the exact PR head and required CI checks."
     )["title"] == ("Release checklist")
-    assert store.delete(created["id"])
+    deleted = store.delete(created["id"])
+    assert deleted
     assert store.list() == []
     if os.name == "posix":
         assert stat.S_IMODE(store.database_path.stat().st_mode) == 0o600

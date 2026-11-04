@@ -58,7 +58,7 @@ class SafetensorsLoader:
             raise ValueError("Invalid Safetensors file: header must be a JSON object")
 
         payload_size = len(raw_bytes) - header_size
-        ranges = []
+        ranges: list[Any] = []
         for name, info in header.items():
             if name == "__metadata__":
                 if not isinstance(info, dict) or any(

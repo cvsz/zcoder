@@ -50,12 +50,10 @@ except ImportError:
 
 if not _PSYCOPG2_AVAILABLE:
     try:
-        import psycopg
+        import psycopg  # noqa: F401 - availability flag
 
-        _PSYCOPG3_AVAILABLE = True
         _PG_AVAILABLE = True
     except ImportError:
-        _PSYCOPG3_AVAILABLE = False
         _PG_AVAILABLE = False
 
 

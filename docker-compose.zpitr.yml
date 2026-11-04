@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  zpitr:
+    container_name: zPITR
+    build:
+      context: ./deploy/docker/zpitr
+      dockerfile: Dockerfile
+    command: ["daemon"]
+    environment:
+      PGHOST: zPostgreSQL
+      PGPORT: "5432"
+      PGUSER: zcoder
+      PGDATABASE: zcoder_db
+      PGPASSWORD_FILE: /run/secrets/zcoder_postgres_password
+      CANDIDATE_SHA: ${CANDIDATE_SHA:-f7de74125291232d4dce137b22c3629f9fac108c}
+    secrets:
+      - zcoder_postgres_password
+    volumes:
+      - zpitr_wal_archive:/var/backups/wal_archive
+      - zpitr_base_backups:/var/backups/base_backups
+      - ./docs/evidence:/app/evidence
+    networks:
+      - zPostgreSQL_network
+    restart: unless-stopped
+
+volumes:
+  zpitr_wal_archive:
+    name: zpitr_wal_archive
+  zpitr_base_backups:
+    name: zpitr_base_backups
+
+networks:
+  zPostgreSQL_network:
+    external: true
+
+secrets:
+  zcoder_postgres_password:
+    file: ${ZCODER_POSTGRES_SECRET_SOURCE:-${HOME}/.config/zcoder/postgresql.password}

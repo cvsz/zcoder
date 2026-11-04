@@ -9,7 +9,6 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
-import zcoder.services.continuous_engineering as continuous_engineering_service
 from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
 from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 from zcoder.services.continuous_engineering import (
@@ -19,6 +18,7 @@ from zcoder.services.continuous_engineering import (
     _load_work_file,
     _report_dict,
     build_local_pipeline,
+    register_postgres_store_composer,
 )
 from zcoder.services.engineering_store_pipeline import build_engineering_store_pipeline
 from zcoder.services.upgrade_lease import UpgradeRunLease
@@ -72,10 +72,8 @@ def run_sqlite_store_pipeline_once(
     """Compose, execute, and close exactly one bounded SQLite pipeline run."""
 
     pipeline = build_sqlite_store_pipeline(repository_root, db_path, **pipeline_kwargs)
-    try:
+    with pipeline:
         return pipeline.run(seed_items)
-    finally:
-        pipeline.close()
 
 
 def build_postgres_store_pipeline(
@@ -132,7 +130,7 @@ def build_postgres_store_pipeline(
         raise
 
 
-continuous_engineering_service.register_postgres_store_composer(build_postgres_store_pipeline)
+register_postgres_store_composer(build_postgres_store_pipeline)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -173,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         bootstrap_from_env()
     except Exception:
+        # Observability bootstrap may fail; safe to ignore.
         pass
 
     args = build_parser().parse_args(argv)

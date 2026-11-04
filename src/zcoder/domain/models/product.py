@@ -67,7 +67,7 @@ class EntitlementBundle:
     priority_support: bool = False
 
 
-PLAN_ENTITLEMENTS: dict[PlanTier, EntitlementBundle] = {
+PLAN_ENTITLEMENTS: dict[str, EntitlementBundle] = {
     PlanTier.COMMUNITY_FREE: EntitlementBundle(
         version="2026.1",
         max_projects=1,
@@ -148,7 +148,7 @@ class CustomerAccount:
     organization_id: str
     name: str
     email: str
-    status: AccountStatus = AccountStatus.ACTIVE
+    status: str = AccountStatus.ACTIVE
     created_at: float = dataclasses.field(default_factory=time.time)
     metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -158,8 +158,8 @@ class Subscription:
     id: str
     account_id: str
     organization_id: str
-    plan_tier: PlanTier = PlanTier.DEVELOPER
-    status: SubscriptionStatus = SubscriptionStatus.ACTIVE
+    plan_tier: str = PlanTier.DEVELOPER
+    status: str = SubscriptionStatus.ACTIVE
     current_period_start: float = dataclasses.field(default_factory=time.time)
     current_period_end: float = dataclasses.field(default_factory=lambda: time.time() + 86400 * 30)
     provider_subscription_ref: str | None = None
@@ -502,7 +502,7 @@ class StripeBillingProvider(BillingProvider):
             "created": latest.get("created"),
         }
 
-    def verify_webhook_signature(self, payload: bytes, signature_header: str, secret: str = "") -> bool:
+    def verify_webhook_signature(self, payload: bytes, signature_header: str, secret: str) -> bool:
         signing_secret = secret or self.webhook_secret
         if not signing_secret or not isinstance(payload, bytes) or not isinstance(signature_header, str):
             return False
@@ -563,7 +563,7 @@ class WebhookDelivery:
     organization_id: str
     event_id: str
     event_type: str
-    status: WebhookDeliveryStatus = WebhookDeliveryStatus.PENDING
+    status: str = WebhookDeliveryStatus.PENDING
     http_status: int | None = None
     attempts: int = 0
     created_at: float = dataclasses.field(default_factory=time.time)

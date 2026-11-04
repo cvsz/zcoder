@@ -71,9 +71,9 @@ def test_sqlite_composition_builds_one_store_and_preserves_bounded_inputs(monkey
 def test_sqlite_composition_honors_explicit_lease_path(monkeypatch, tmp_path):
     captured = []
 
-    monkeypatch.setattr(composition, "SQLiteEngineeringStore", lambda *, db_path: object())
+    monkeypatch.setattr(composition, "SQLiteEngineeringStore", lambda *_, **__: object())
     monkeypatch.setattr(composition, "UpgradeRunLease", lambda path: captured.append(path) or object())
-    monkeypatch.setattr(composition, "build_engineering_store_pipeline", lambda *args, **kwargs: object())
+    monkeypatch.setattr(composition, "build_engineering_store_pipeline", lambda *_, **__: object())
 
     lease_path = tmp_path / "custom.lock"
     composition.build_sqlite_store_pipeline(

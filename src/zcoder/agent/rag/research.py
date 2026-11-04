@@ -85,6 +85,7 @@ class DeepResearchAgent:
                 return resp.read().decode("utf-8", errors="replace")[:4000]
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
+        return ""
 
     def plan(self, topic: str, depth: int = 4) -> list[SubQ]:
         raw = self._call(

@@ -6,7 +6,6 @@ structured-outputs-2025-11-13 beta header and the dead, unused
 StructuredCoder.BETA attribute — see docs/42_upgrade_v1.30.0.md.
 """
 
-import json
 from unittest.mock import patch
 
 import zcoder.agent.capabilities.structured as mod
@@ -33,10 +32,8 @@ def test_bare_class_has_no_dead_beta_attribute():
 
 def test_json_object_still_uses_ga_output_config_format():
     sc = mod.StructuredCoder(api_key="sk-test")
-    captured_req = {}
 
     def _fake_urlopen_json(req, timeout=120):
-        captured_req["body"] = json.loads(req.data)
         return {"content": [{"type": "text", "text": '{"ok": true}'}]}
 
     with patch(

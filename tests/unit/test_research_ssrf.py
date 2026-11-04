@@ -20,7 +20,7 @@ import socket
 import pytest
 
 from zcoder.agent.rag.research import DeepResearchAgent
-from zcoder.core.outbound_security import validate_external_http_url
+from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url
 
 
 class TestSEC001DeepResearchSSRF:
@@ -145,7 +145,7 @@ class TestSEC001DeepResearchSSRF:
         """Environment proxies are disabled; explicit empty ProxyHandler used."""
         import urllib.request
 
-        import zcoder.core.outbound_security as outbound_security
+        from zcoder.core import outbound_security
 
         captured_handlers: list = []
 
@@ -178,7 +178,7 @@ class TestSEC001DeepResearchSSRF:
         monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
 
         req = urllib.request.Request("https://public.example/data")
-        outbound_security.safe_external_urlopen(req, timeout=3)
+        safe_external_urlopen(req, timeout=3)
 
         proxy_handlers = [h for h in captured_handlers if isinstance(h, urllib.request.ProxyHandler)]
         assert len(proxy_handlers) == 1

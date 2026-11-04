@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Super Full-Stack & Architect Agent"
+  short_description: "Codex AI Full-Stack Developer & Systems Architect agentic skill for OpenAI Codex model integration, universal investigation, enterprise implementation, and multi-account release protocol"
+  default_prompt: "Use $codex to perform deep codebase investigation using OpenAI Codex models, enterprise-grade production fixes, validation tests, and multi-account GitHub audit/merge releases."

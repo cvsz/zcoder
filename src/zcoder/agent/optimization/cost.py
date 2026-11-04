@@ -166,6 +166,7 @@ def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_previe
         try:
             entries = json.loads(SPEND_LOG.read_text())
         except Exception:
+            # Spend log may be corrupt; start with empty entries.
             pass
     entries.append(
         {

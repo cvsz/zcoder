@@ -146,9 +146,12 @@ def test_files_and_session_endpoints(tmp_path):
     c = TestClient(app, base_url=BASE)
     assert c.get("/api/agent/files?q=mod", headers=auth()).json() == {"files": ["pkg/mod.py"]}
     assert c.get("/api/agent/files?q=mod").status_code == 401
-    assert c.delete("/api/agent/sessions/20240101-000000-abcdef").status_code == 401
-    assert c.delete("/api/agent/sessions/not-an-id", headers=auth()).status_code == 400
-    assert c.delete("/api/agent/sessions/20240101-000000-abcdef", headers=auth()).status_code == 204
+    response = c.delete("/api/agent/sessions/20240101-000000-abcdef")
+    assert response.status_code == 401
+    response = c.delete("/api/agent/sessions/not-an-id", headers=auth())
+    assert response.status_code == 400
+    response = c.delete("/api/agent/sessions/20240101-000000-abcdef", headers=auth())
+    assert response.status_code == 204
 
 
 # ------------------------------------------------------------------ websocket security
@@ -384,7 +387,7 @@ def test_config_validation_and_origins(tmp_path):
     cfg = web.WebConfig(
         root=tmp_path, token=TOKEN, host="127.0.0.1", port=9000, extra_origins=("https://dev.example",)
     )
-    assert "http://localhost:9000" in cfg.allowed_origins and "https://dev.example" in cfg.allowed_origins
+    assert {"http://localhost:9000", "https://dev.example"}.issubset(cfg.allowed_origins)
     assert "evil.com" not in cfg.allowed_hosts and "127.0.0.1" in cfg.allowed_hosts
 
 

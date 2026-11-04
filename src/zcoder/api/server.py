@@ -185,6 +185,12 @@ async def handle_v1_api(request: Request, path: str):
         request_id=request_id,
     )
 
+    # Defensive: ensure the response body is a plain dict so no exception
+    # internals can leak into the HTTP response. router.handle_request()
+    # already sanitizes all exceptions into {"error": {...}} envelopes.
+    if not isinstance(body, dict):
+        body = {"error": {"code": "INTERNAL_SERVER_ERROR", "message": "Unexpected response type"}}
+
     return JSONResponse(status_code=status_code, content=body)
 
 

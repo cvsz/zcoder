@@ -18,7 +18,7 @@ __________________ TestFleetE2E.test_campaign_fleet_execution __________________
 self = <e2e.test_fleet_e2e.TestFleetE2E testMethod=test_campaign_fleet_execution>
 
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
 >       self.eng_store = PostgresEngineeringStore(dsn=self.dsn)
                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -37,7 +37,7 @@ src/zcoder/infrastructure/stores/postgres.py:196: in _init_pool
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-dsn = 'user=postgres password=postgres dbname=postgres host=localhost connect_timeout=10'
+dsn = 'postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db'
 connection_factory = None, cursor_factory = None
 kwargs = {'connect_timeout': 10}
 
@@ -96,7 +96,7 @@ ______________ TestMultiWorkerContention.test_multi_worker_claim _______________
 self = <integration.test_postgres_multiprocess.TestMultiWorkerContention testMethod=test_multi_worker_claim>
 
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
 >       self.store = PostgresEngineeringStore(dsn=self.dsn)
                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -115,7 +115,7 @@ src/zcoder/infrastructure/stores/postgres.py:196: in _init_pool
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-dsn = 'user=postgres password=postgres dbname=postgres host=localhost connect_timeout=10'
+dsn = 'postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db'
 connection_factory = None, cursor_factory = None
 kwargs = {'connect_timeout': 10}
 
@@ -174,7 +174,7 @@ _______________ TestPostgresEngineeringStore.test_postgres_crud ________________
 self = <integration.test_postgres_store.TestPostgresEngineeringStore testMethod=test_postgres_crud>
 
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
 >       self.store = PostgresEngineeringStore(dsn=self.dsn)
                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -193,7 +193,7 @@ src/zcoder/infrastructure/stores/postgres.py:196: in _init_pool
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-dsn = 'user=postgres password=postgres dbname=postgres host=localhost connect_timeout=10'
+dsn = 'postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db'
 connection_factory = None, cursor_factory = None
 kwargs = {'connect_timeout': 10}
 

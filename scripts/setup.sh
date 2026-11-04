@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+ROOT_DIR="$(unset CDPATH; cd -- "$(dirname -- "$0")/.." && pwd)"
 command -v python3 >/dev/null 2>&1 || { echo "ERROR: Python 3.12+ is required" >&2; exit 1; }
 python3 - <<'PY'
 import sys

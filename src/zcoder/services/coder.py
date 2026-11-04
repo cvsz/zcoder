@@ -31,6 +31,15 @@ def _open_local(request, timeout):
     return opener.open(request, timeout=timeout)
 
 
+def _safe_log_value(value: object) -> str:
+    """Sanitize a value for safe inclusion in structured log ``extra`` data.
+
+    Strips CR/LF and other control characters that could be used for log
+    injection (forging log entries or hijacking log parsing).
+    """
+    return str(value).replace("\n", "\\n").replace("\r", "\\r").replace("\x00", "")
+
+
 class Coder:
     def __init__(
         self,
@@ -84,7 +93,9 @@ class Coder:
             self.base_url if parsed_url.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
         )
 
-        logger.info("generate_start", extra={"model": self.model, "prompt_chars": len(prompt or "")})
+        logger.info(
+            "generate_start", extra={"model": _safe_log_value(self.model), "prompt_chars": len(prompt or "")}
+        )
         messages = list(history or [])
 
         user_content = prompt
@@ -153,25 +164,27 @@ class Coder:
             with trace_model_call(provider=self.provider, model=self.model):
                 data = _call()
         except AuthenticationError as e:
-            logger.error("auth_failed", extra={"model": self.model})
+            logger.error("auth_failed", extra={"model": _safe_log_value(self.model)})
             return f"[API ERROR 401] {e.message}"
         except RateLimitError as e:
-            logger.error("rate_limited_after_retries", extra={"model": self.model})
+            logger.error("rate_limited_after_retries", extra={"model": _safe_log_value(self.model)})
             return f"[API ERROR 429] {e.message}"
         except APIError as e:
-            logger.error("api_error", extra={"model": self.model, "status_code": e.status_code})
+            logger.error(
+                "api_error", extra={"model": _safe_log_value(self.model), "status_code": e.status_code}
+            )
             return f"[API ERROR {e.status_code}] {e.message}"
         except TransientAPIError as e:
-            logger.error("transient_error_exhausted_retries", extra={"model": self.model})
+            logger.error("transient_error_exhausted_retries", extra={"model": _safe_log_value(self.model)})
             return f"[ERROR] {e.message}"
         except Exception as e:
-            logger.exception("unexpected_error", extra={"model": self.model})
+            logger.exception("unexpected_error", extra={"model": _safe_log_value(self.model)})
             return f"[ERROR] {e}"
 
         try:
             text = data["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError):
-            logger.error("invalid_local_model_response", extra={"model": self.model})
+            logger.error("invalid_local_model_response", extra={"model": _safe_log_value(self.model)})
             return "[ERROR] Local model returned an invalid chat completion response."
-        logger.info("generate_ok", extra={"model": self.model, "response_chars": len(text)})
+        logger.info("generate_ok", extra={"model": _safe_log_value(self.model), "response_chars": len(text)})
         return text

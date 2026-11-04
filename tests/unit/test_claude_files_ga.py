@@ -7,13 +7,12 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 import zcoder.agent.integrations.files as files_module
-from zcoder.agent.integrations.files import FilesAPI, parse_expires_at
 
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
-    monkeypatch.setattr(files_module, "LOCAL_REGISTRY", tmp_path / "files_registry.json")
-    return FilesAPI(api_key="sk-test", model="claude-sonnet-5")
+    monkeypatch.setattr("zcoder.agent.integrations.files.LOCAL_REGISTRY", tmp_path / "files_registry.json")
+    return files_module.FilesAPI(api_key="sk-test", model="claude-sonnet-5")
 
 
 def install_json_responses(monkeypatch, responses, captured=None):
@@ -29,12 +28,14 @@ def install_json_responses(monkeypatch, responses, captured=None):
 
 def test_parse_expires_at_prefers_absolute_timestamp():
     value = "2026-09-21T00:00:00Z"
-    assert parse_expires_at({"expires_at": value, "expires_in_seconds": 60}) == value
+    assert files_module.parse_expires_at({"expires_at": value, "expires_in_seconds": 60}) == value
 
 
 def test_parse_expires_at_derives_absolute_timestamp_from_relative_seconds():
     base = datetime(2026, 8, 29, tzinfo=UTC)
-    assert parse_expires_at({"expires_in_seconds": 3600}, now=base) == "2026-08-29T01:00:00+00:00"
+    assert (
+        files_module.parse_expires_at({"expires_in_seconds": 3600}, now=base) == "2026-08-29T01:00:00+00:00"
+    )
 
 
 @pytest.mark.parametrize(
@@ -42,9 +43,9 @@ def test_parse_expires_at_derives_absolute_timestamp_from_relative_seconds():
     [None, "not-a-number", -1, True],
 )
 def test_parse_expires_at_is_defensive(value):
-    assert parse_expires_at({"expires_in_seconds": value}) is None
-    assert parse_expires_at(None) is None
-    assert parse_expires_at("not-a-file") is None
+    assert files_module.parse_expires_at({"expires_in_seconds": value}) is None
+    assert files_module.parse_expires_at(None) is None
+    assert files_module.parse_expires_at("not-a-file") is None
 
 
 def test_files_headers_are_ga_without_beta_header(api):

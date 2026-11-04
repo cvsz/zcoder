@@ -74,6 +74,7 @@ class PostgresAdvisoryRunLease:
                 try:
                     scope.__exit__(type(exc), exc, exc.__traceback__)
                 except Exception:
+                    # Scope exit may fail during error handling; safe to ignore.
                     pass
             raise PostgresUpgradeRunLeaseError(
                 f"unable to acquire PostgreSQL upgrade run lease: {exc}"

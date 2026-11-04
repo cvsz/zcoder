@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gemini Super Full-Stack & Architect Agent"
+  short_description: "Gemini AI Full-Stack Developer & Systems Architect agentic skill for Google Gemini model integration, universal investigation, enterprise implementation, and multi-account release protocol"
+  default_prompt: "Use $gemini to perform deep codebase investigation using Google Gemini models, enterprise-grade production fixes, validation tests, and multi-account GitHub audit/merge releases."

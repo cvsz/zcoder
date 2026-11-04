@@ -53,14 +53,14 @@ class ZCoderRole(StringEnum):
 
 
 # Privilege levels: higher = more access
-_ROLE_LEVEL: dict[ZCoderRole, int] = {
+_ROLE_LEVEL: dict[str, int] = {
     ZCoderRole.VIEWER: 1,
     ZCoderRole.OPERATOR: 2,
     ZCoderRole.ADMIN: 3,
 }
 
 
-def role_has_privilege(role: ZCoderRole, required: ZCoderRole) -> bool:
+def role_has_privilege(role: ZCoderRole | str, required: ZCoderRole | str) -> bool:
     """Return True if role meets or exceeds required privilege level."""
     return _ROLE_LEVEL.get(role, 0) >= _ROLE_LEVEL.get(required, 0)
 
@@ -73,7 +73,7 @@ class AuthenticatedIdentity:
     sub: str  # OIDC subject identifier
     email: str = ""
     name: str = ""
-    role: ZCoderRole = ZCoderRole.VIEWER
+    role: str = ZCoderRole.VIEWER
     issuer: str = ""
     audience: str = ""
     issued_at: float = field(default_factory=time.time)
@@ -88,7 +88,7 @@ class AuthenticatedIdentity:
         """Raise PermissionDenied if this identity lacks required role."""
         if not role_has_privilege(self.role, required):
             raise PermissionDeniedError(
-                f"Action requires role {required.value}, but identity '{self.sub}' has role {self.role.value}"
+                f"Action requires role {required}, but identity '{self.sub}' has role {self.role}"
             )
 
 
@@ -177,7 +177,7 @@ class OidcValidator:
         audience: str,
         jwks_uri: str = "",
         role_claim: str = "zcoder_role",
-        default_role: ZCoderRole = ZCoderRole.VIEWER,
+        default_role: str = ZCoderRole.VIEWER,
     ) -> None:
         self.issuer = issuer
         self.audience = audience
@@ -238,7 +238,7 @@ class OidcValidator:
             raw_claims=claims,
         )
 
-        _audit_log("AUTH_SUCCESS", identity.sub, {"role": role.value, "iss": identity.issuer})
+        _audit_log("AUTH_SUCCESS", identity.sub, {"role": role, "iss": identity.issuer})
         return identity
 
     def _get_key(self, jwks: dict[str, Any], kid: str, alg: str) -> Any:
@@ -252,7 +252,7 @@ class OidcValidator:
                     continue
         raise TokenInvalidError(f"No matching JWKS key found for kid={kid!r}")
 
-    def _map_role(self, raw_role: str) -> ZCoderRole:
+    def _map_role(self, raw_role: str) -> str:
         """Map raw role claim value to ZCoderRole."""
         mapping = {
             "admin": ZCoderRole.ADMIN,
@@ -337,7 +337,7 @@ class RbacPolicy:
     """
 
     # Action → minimum required role
-    ACTION_ROLES: dict[str, ZCoderRole] = {
+    ACTION_ROLES: dict[str, str] = {
         # Viewer-level: read-only
         "job.list": ZCoderRole.VIEWER,
         "job.view": ZCoderRole.VIEWER,
@@ -373,7 +373,7 @@ class RbacPolicy:
     }
 
     # Provider → required role mapping for cross-provider parity
-    PROVIDER_ACTION_ROLES: dict[str, dict[str, ZCoderRole]] = {
+    PROVIDER_ACTION_ROLES: dict[str, dict[str, str]] = {
         "oidc": ACTION_ROLES,
         "api_key": ACTION_ROLES,
         "scim": {
@@ -398,19 +398,19 @@ class RbacPolicy:
                 identity.sub,
                 {
                     "action": action,
-                    "role": identity.role.value,
-                    "required": required.value,
+                    "role": identity.role,
+                    "required": required,
                     "provider": provider,
                 },
             )
             raise PermissionDeniedError(
-                f"Action '{action}' requires role {required.value}, "
-                f"but '{identity.sub}' has role {identity.role.value}"
+                f"Action '{action}' requires role {required}, "
+                f"but '{identity.sub}' has role {identity.role}"
             )
         _audit_log(
             "AUTH_ALLOWED",
             identity.sub,
-            {"action": action, "role": identity.role.value, "provider": provider},
+            {"action": action, "role": identity.role, "provider": provider},
         )
 
     @classmethod
@@ -457,14 +457,14 @@ class ApiKeyValidator:
     def __init__(self, master_secret: str) -> None:
         self._master = master_secret.encode()
 
-    def generate_key(self, service_name: str, role: ZCoderRole = ZCoderRole.OPERATOR) -> str:
+    def generate_key(self, service_name: str, role: str = ZCoderRole.OPERATOR) -> str:
         """Generate a new API key for a service."""
         token = secrets.token_hex(32)
         # We store the service_name|role|token tuple hashed
-        return f"zck_{service_name}_{role.value}_{token}"
+        return f"zck_{service_name}_{role}_{token}"
 
     def validate_key(
-        self, api_key: str, expected_role: ZCoderRole = ZCoderRole.VIEWER
+        self, api_key: str, expected_role: str = ZCoderRole.VIEWER
     ) -> AuthenticatedIdentity | None:
         """Validate an API key and return the identity."""
         try:

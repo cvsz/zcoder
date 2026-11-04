@@ -49,7 +49,7 @@ class ScimGroup:
     displayName: str
     members: list[dict[str, str]]
     organization_id: str = ""
-    mapped_role: EnterpriseRole = EnterpriseRole.DEVELOPER
+    mapped_role: str = EnterpriseRole.DEVELOPER
 
     def to_scim_json(self) -> dict[str, Any]:
         return {
