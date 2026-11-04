@@ -29,7 +29,8 @@ class LeaseClaimingEngineeringStore(Protocol):
         task_id: str | None = None,
         claimed_by: str = "default-worker",
         lease_seconds: float = 60.0,
-    ) -> EngineeringTask | None: pass
+    ) -> EngineeringTask | None:
+        pass
 
 
 def _default_handler(task: EngineeringTask) -> dict[str, Any]:

@@ -44,4 +44,5 @@ class MaintenanceCampaignEvent:
 class MaintenanceCampaignEventSink(Protocol):
     """Observability boundary for one finite campaign lifecycle event."""
 
-    def emit(self, event: MaintenanceCampaignEvent) -> None: pass
+    def emit(self, event: MaintenanceCampaignEvent) -> None:
+        pass

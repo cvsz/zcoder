@@ -366,9 +366,7 @@ class Connection:
                 await self.notice("Empty prompt.")
                 return None
             if len(text) > self.cfg.max_prompt_chars:
-                await self.notice(
-                    f"Prompt too long (limit {self.cfg.max_prompt_chars} characters).", "error"
-                )
+                await self.notice(f"Prompt too long (limit {self.cfg.max_prompt_chars} characters).", "error")
                 return None
             if self.busy:
                 await self.notice("The agent is working. Interrupt it first.")

@@ -33,7 +33,9 @@ def test_parse_expires_at_prefers_absolute_timestamp():
 
 def test_parse_expires_at_derives_absolute_timestamp_from_relative_seconds():
     base = datetime(2026, 8, 29, tzinfo=UTC)
-    assert files_module.parse_expires_at({"expires_in_seconds": 3600}, now=base) == "2026-08-29T01:00:00+00:00"
+    assert (
+        files_module.parse_expires_at({"expires_in_seconds": 3600}, now=base) == "2026-08-29T01:00:00+00:00"
+    )
 
 
 @pytest.mark.parametrize(

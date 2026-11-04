@@ -72,7 +72,9 @@ def test_ga_response_returns_all_tool_calls_in_order(monkeypatch):
         },
     )
 
-    result = models_module.ComputerUseCoder(api_key="sk-test", model="claude-mythos-5").run_task("do two things")
+    result = models_module.ComputerUseCoder(api_key="sk-test", model="claude-mythos-5").run_task(
+        "do two things"
+    )
 
     assert [call["id"] for call in result["tool_calls"]] == ["a1", "a2"]
     assert result["text"] == "clicking then typing"
@@ -87,7 +89,10 @@ def test_ga_supported_models_pass_client_side_gating():
         "claude-sonnet-5",
         "claude-opus-4-8",
     ):
-        assert models_module.computer_use_toolset_for_model(model)["type"] == models_module.COMPUTER_USE_TOOLSET_GA
+        assert (
+            models_module.computer_use_toolset_for_model(model)["type"]
+            == models_module.COMPUTER_USE_TOOLSET_GA
+        )
 
 
 def test_unsupported_ga_model_fails_before_http(monkeypatch):
@@ -115,7 +120,9 @@ def test_legacy_opt_in_keeps_dated_tools_and_beta_header(monkeypatch):
     captured = {}
     install_json_response(monkeypatch, captured)
 
-    models_module.ComputerUseCoder(api_key="sk-test", model="claude-sonnet-4-5", toolset="legacy").run_task("old shape")
+    models_module.ComputerUseCoder(api_key="sk-test", model="claude-sonnet-4-5", toolset="legacy").run_task(
+        "old shape"
+    )
 
     assert [tool["type"] for tool in captured["body"]["tools"]] == [
         "computer_20250124",

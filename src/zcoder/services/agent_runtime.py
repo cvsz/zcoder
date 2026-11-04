@@ -34,7 +34,8 @@ class AgentRuntimeProtocol(Protocol):
         task: EngineeringTask,
         store: EngineeringStore,
         validator: Callable[[], bool] | None = None,
-    ) -> bool: pass
+    ) -> bool:
+        pass
 
 
 __all__ = [

@@ -77,7 +77,8 @@ class LLMChunk:
 class LLM(Protocol):
     model: str
 
-    def stream(self, messages: list[dict], tools: list[dict]) -> AsyncGenerator[LLMChunk, None]: pass
+    def stream(self, messages: list[dict], tools: list[dict]) -> AsyncGenerator[LLMChunk, None]:
+        pass
 
 
 class LocalLLM(LLM):

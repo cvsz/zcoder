@@ -11,15 +11,7 @@ Verifies:
 import pytest
 
 import zcoder.enterprise.local_ai_stack as local_ai_stack
-from zcoder.enterprise.local_ai_stack import (
-    AutonomousLocalCodingPipeline,
-    HardwareProfiler,
-    LocalMCPServer,
-    LocalRepositoryIndexer,
-    MCPToolDefinition,
-    ModelFit,
-    OllamaAdapter,
-)
+
 
 def test_hardware_profiler_and_fit_estimator():
     profile = local_ai_stack.HardwareProfiler.profile()
@@ -33,7 +25,9 @@ def test_hardware_profiler_and_fit_estimator():
     assert fit_7b in (local_ai_stack.ModelFit.FITS, local_ai_stack.ModelFit.MAYBE)
 
     # 400B model @ 16-bit requires ~800 GB -> does not fit on standard desktop
-    fit_huge = local_ai_stack.HardwareProfiler.estimate_fit(profile, parameter_size_b=400.0, quantization_bits=16)
+    fit_huge = local_ai_stack.HardwareProfiler.estimate_fit(
+        profile, parameter_size_b=400.0, quantization_bits=16
+    )
     assert fit_huge == local_ai_stack.ModelFit.DOES_NOT_FIT
 
 
@@ -91,7 +85,6 @@ def test_local_model_gateway_ollama_adapter(monkeypatch):
 
     # Offline branch: unavailable inference must fail explicitly.
     monkeypatch.setattr(adapter, "is_available", lambda: False)
-    import pytest
 
     with pytest.raises(RuntimeError, match="Ollama inference server is unavailable"):
         adapter.chat_complete("qwen2.5-coder:7b", "def add(a, b):")

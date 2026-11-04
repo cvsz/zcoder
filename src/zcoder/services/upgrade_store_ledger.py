@@ -28,19 +28,23 @@ class UpgradeLedger(Protocol):
 
     def restore_or_register(
         self, item: UpgradeWorkItem, *, retry_blocked: bool = False
-    ) -> UpgradeWorkItem | None: pass
+    ) -> UpgradeWorkItem | None:
+        pass
 
-    def load_resumable(self, *, retry_blocked: bool = False) -> list[UpgradeWorkItem]: pass
+    def load_resumable(self, *, retry_blocked: bool = False) -> list[UpgradeWorkItem]:
+        pass
 
-    def record_checkpoint(
-        self, checkpoint: LoopCheckpoint, items_by_id: dict[str, UpgradeWorkItem]
-    ) -> None: pass
+    def record_checkpoint(self, checkpoint: LoopCheckpoint, items_by_id: dict[str, UpgradeWorkItem]) -> None:
+        pass
 
-    def state_for(self, fingerprint: str) -> str | None: pass
+    def state_for(self, fingerprint: str) -> str | None:
+        pass
 
-    def blocked_item_ids(self) -> tuple[str, ...]: pass
+    def blocked_item_ids(self) -> tuple[str, ...]:
+        pass
 
-    def terminal_counts(self) -> dict[str, int]: pass
+    def terminal_counts(self) -> dict[str, int]:
+        pass
 
 
 class EngineeringStoreUpgradeLedger:

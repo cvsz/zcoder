@@ -22,7 +22,8 @@ class MessagingCapability(Protocol):
         system: str | None = None,
         *,
         verbose: bool = True,
-    ) -> dict[str, Any]: pass
+    ) -> dict[str, Any]:
+        pass
 
 
 @dataclass(frozen=True)

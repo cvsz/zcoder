@@ -82,12 +82,23 @@ class Worker:
 
 
 class GitHubProviderProtocol(Protocol):
-    def create_branch(self, repo: str, branch: str, base_sha: str) -> str: pass
-    def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest: pass
-    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None: pass
-    def list_checks(self, repo: str, ref: str) -> list[CheckRun]: pass
-    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]: pass
-    def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool: pass
+    def create_branch(self, repo: str, branch: str, base_sha: str) -> str:
+        pass
+
+    def create_pr(self, repo: str, title: str, body: str, head: str, base: str) -> PullRequest:
+        pass
+
+    def get_pr(self, repo: str, pr_number: int) -> PullRequest | None:
+        pass
+
+    def list_checks(self, repo: str, ref: str) -> list[CheckRun]:
+        pass
+
+    def list_reviews(self, repo: str, pr_number: int) -> list[dict[str, Any]]:
+        pass
+
+    def merge_pr(self, repo: str, pr_number: int, strategy: str = "squash") -> bool:
+        pass
 
 
 class GitHubProvider:

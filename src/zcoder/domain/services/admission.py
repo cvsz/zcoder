@@ -53,9 +53,11 @@ class AdmissionDecision:
 class AdmissionGate(Protocol):
     """Seam between request handling and quota/backpressure enforcement."""
 
-    def check_and_reserve(self, tenant_id: str, plan: str, requested_units: float) -> AdmissionDecision: pass
+    def check_and_reserve(self, tenant_id: str, plan: str, requested_units: float) -> AdmissionDecision:
+        pass
 
-    def release(self, reservation: QuotaReservation) -> bool: pass
+    def release(self, reservation: QuotaReservation) -> bool:
+        pass
 
 
 class PlanQuotaGate:

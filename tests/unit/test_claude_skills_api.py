@@ -28,7 +28,9 @@ def test_skillref_custom_includes_version():
 
 
 def test_build_container_skills_accepts_mixed_refs_and_dicts():
-    out = skills_module.build_container_skills([skills_module.SkillRef.prebuilt("pptx"), {"type": "custom", "skill_id": "x"}])
+    out = skills_module.build_container_skills(
+        [skills_module.SkillRef.prebuilt("pptx"), {"type": "custom", "skill_id": "x"}]
+    )
     assert out == {"skills": [{"type": "anthropic", "skill_id": "pptx"}, {"type": "custom", "skill_id": "x"}]}
 
 

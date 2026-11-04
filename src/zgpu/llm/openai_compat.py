@@ -12,9 +12,11 @@ from typing import Any, Protocol
 
 
 class RegistryProtocol(Protocol):
-    def list_models(self) -> list[dict[str, Any]]: pass
+    def list_models(self) -> list[dict[str, Any]]:
+        pass
 
-    def tokenize(self, model_name: str, text: str) -> list[int]: pass
+    def tokenize(self, model_name: str, text: str) -> list[int]:
+        pass
 
     def generate(
         self,
@@ -22,7 +24,8 @@ class RegistryProtocol(Protocol):
         model_name: str | None = None,
         max_tokens: int = 16,
         token_callback: Callable[[str], None] | None = None,
-    ) -> dict[str, Any]: pass
+    ) -> dict[str, Any]:
+        pass
 
 
 class CompletionRequestError(ValueError):

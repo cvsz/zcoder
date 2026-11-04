@@ -27,7 +27,8 @@ class OutboxMessageLike(Protocol):
 class MaintenanceCampaignOutbox(Protocol):
     """Minimal existing control-plane outbox boundary used by the adapter."""
 
-    def enqueue_outbox(self, action: str, payload: dict[str, Any]) -> OutboxMessageLike: pass
+    def enqueue_outbox(self, action: str, payload: dict[str, Any]) -> OutboxMessageLike:
+        pass
 
 
 @dataclass(frozen=True)

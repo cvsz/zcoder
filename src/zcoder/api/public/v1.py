@@ -70,13 +70,17 @@ class TenantJobStore(Protocol):
         *,
         idempotency_key: str | None = None,
         request_fingerprint: str | None = None,
-    ) -> Job: pass
+    ) -> Job:
+        pass
 
-    def get_job(self, ctx: RequestContext, job_id: str) -> Job | None: pass
+    def get_job(self, ctx: RequestContext, job_id: str) -> Job | None:
+        pass
 
-    def list_jobs(self, ctx: RequestContext, limit: int, offset: int) -> tuple[list[Job], int]: pass
+    def list_jobs(self, ctx: RequestContext, limit: int, offset: int) -> tuple[list[Job], int]:
+        pass
 
-    def cancel_job(self, ctx: RequestContext, job_id: str) -> Job | None: pass
+    def cancel_job(self, ctx: RequestContext, job_id: str) -> Job | None:
+        pass
 
 
 class PublicAPIV1Router:

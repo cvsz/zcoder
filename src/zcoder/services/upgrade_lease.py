@@ -14,13 +14,17 @@ from typing import Protocol
 class RunLease(Protocol):
     """Minimal exclusive-run contract consumed by ContinuousEngineeringPipeline."""
 
-    def acquire(self) -> None: pass
+    def acquire(self) -> None:
+        pass
 
-    def release(self) -> None: pass
+    def release(self) -> None:
+        pass
 
-    def __enter__(self) -> RunLease: pass
+    def __enter__(self) -> RunLease:
+        pass
 
-    def __exit__(self, exc_type, exc, tb) -> None: pass
+    def __exit__(self, exc_type, exc, tb) -> None:
+        pass
 
 
 class UpgradeRunLeaseError(RuntimeError):
