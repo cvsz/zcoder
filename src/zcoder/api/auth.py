@@ -110,7 +110,7 @@ def authenticate_request(headers: Mapping[str, str]) -> RequestContext:
         ZCoderRole.OPERATOR: EnterpriseRole.OPERATOR,
         ZCoderRole.VIEWER: EnterpriseRole.VIEWER,
     }
-    role = role_mapping.get(identity.role)
+    role = role_mapping.get(ZCoderRole(identity.role))
     if role is None:
         raise RequestAuthenticationError("Verified identity has an unsupported role")
 

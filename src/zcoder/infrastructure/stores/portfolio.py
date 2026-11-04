@@ -39,12 +39,12 @@ class PortfolioStore(PortfolioStoreProtocol):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO managed_repositories VALUES (?, ?, ?, ?)",
-                (repo.id, repo.name, repo.local_path, repo.status.value),
+                (repo.id, repo.name, repo.local_path, repo.status),
             )
 
     def create_campaign(self, campaign: EngineeringCampaign) -> None:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO engineering_campaigns VALUES (?, ?, ?, ?)",
-                (campaign.id, campaign.name, campaign.status.value, json.dumps(campaign.repositories)),
+                (campaign.id, campaign.name, campaign.status, json.dumps(campaign.repositories)),
             )

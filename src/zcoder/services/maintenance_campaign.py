@@ -73,7 +73,7 @@ def maintenance_campaign_work(recommendation: Any) -> UpgradeWorkItem:
 
     base = work_from_maintenance_recommendation(recommendation)
     stable_content = {
-        "kind": base.kind.value,
+        "kind": base.kind,
         "title": base.title.strip(),
         "repository": str(base.payload.get("repository", "")),
         "recommendation_type": str(base.payload.get("recommendation_type", "")),
@@ -119,7 +119,7 @@ class MaintenanceCampaignService:
             self._observer_error_count += 1
             logging.getLogger(__name__).warning(
                 "maintenance campaign observer failed for %s: %s",
-                event.event_type.value,
+                event.event_type,
                 type(exc).__name__,
             )
 
@@ -155,7 +155,7 @@ class MaintenanceCampaignService:
         finished_at = time.time()
         campaign = MaintenanceCampaignReport(
             campaign_id=campaign_id,
-            state=report.state.value,
+            state=report.state,
             recommendations_discovered=len(recommendations),
             work_seeded=len(work_by_fingerprint),
             iterations=report.iterations,
@@ -213,7 +213,7 @@ def run_maintenance_campaign_once(
     report = MaintenanceCampaignService(pipeline, intelligence, event_sink=event_sink).run()
     return MaintenanceCampaignRunResult(
         report=report,
-        exit_code=0 if report.state == LoopState.COMPLETED.value else 2,
+        exit_code=0 if report.state == LoopState.COMPLETED else 2,
     )
 
 

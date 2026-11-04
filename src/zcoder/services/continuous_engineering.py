@@ -107,7 +107,7 @@ class Upgrade20EngineeringExecutor:
     def _prompt(item: UpgradeWorkItem) -> str:
         description = str(item.payload.get("description", "")).strip()
         parts = [
-            f"Work kind: {item.kind.value}",
+            f"Work kind: {item.kind}",
             f"Title: {item.title}",
             f"Risk: {item.risk}",
         ]
@@ -259,10 +259,10 @@ class ContinuousEngineeringPipeline:
 
 
 def _risk_mapper(task_risk: Any) -> Callable[[str], Any]:
-    values = {str(member.value).lower(): member for member in task_risk}
+    values = {member.value.lower(): member for member in task_risk}
 
     def map_risk(value: str) -> Any:
-        normalized = str(value).strip().lower()
+        normalized = value.strip().lower()
         try:
             return values[normalized]
         except KeyError as exc:
@@ -384,7 +384,7 @@ def _load_work_file(path: Path) -> list[UpgradeWorkItem]:
     for entry in payload:
         if not isinstance(entry, dict):
             raise ValueError("each work file entry must be an object")
-        kind = WorkKind(str(entry.get("kind", WorkKind.IMPLEMENT_FEATURE.value)).upper())
+        kind = WorkKind(str(entry.get("kind", WorkKind.IMPLEMENT_FEATURE)).upper())
         item_payload = dict(entry.get("payload", {}))
         if entry.get("description"):
             item_payload.setdefault("description", str(entry["description"]))
@@ -403,7 +403,7 @@ def _load_work_file(path: Path) -> list[UpgradeWorkItem]:
 
 def _report_dict(report: LoopReport, ledger: UpgradeLedger) -> dict[str, Any]:
     return {
-        "state": report.state.value,
+        "state": report.state,
         "iterations": report.iterations,
         "completed_item_ids": list(report.completed_item_ids),
         "blocked_item_ids": list(report.blocked_item_ids),
@@ -415,7 +415,7 @@ def _report_dict(report: LoopReport, ledger: UpgradeLedger) -> dict[str, Any]:
                 "iteration": record.iteration,
                 "item_id": record.item_id,
                 "title": record.title,
-                "kind": record.kind.value,
+                "kind": record.kind,
                 "attempt": record.attempt,
                 "outcome": record.outcome,
                 "validation_summary": record.validation_summary,

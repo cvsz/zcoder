@@ -154,7 +154,7 @@ class PostgresUpgradeFence:
                         (
                             task.id,
                             task.task_description,
-                            task.status.value,
+                            task.status,
                             task.created_at,
                             now,
                             json.dumps(metadata),

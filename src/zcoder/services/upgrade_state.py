@@ -120,19 +120,19 @@ class JsonUpgradeLedger:
                 self._write(data)
                 return item
 
-            state = str(record.get("state", WorkState.PENDING.value))
-            if state == WorkState.SUCCEEDED.value:
+            state = str(record.get("state", WorkState.PENDING))
+            if state == WorkState.SUCCEEDED:
                 return None
-            if state == WorkState.BLOCKED.value and not retry_blocked:
+            if state == WorkState.BLOCKED and not retry_blocked:
                 return None
 
             attempts = int(record.get("attempts", 0))
-            if state == WorkState.BLOCKED.value and retry_blocked:
+            if state == WorkState.BLOCKED and retry_blocked:
                 attempts = 0
 
             restored = UpgradeWorkItem(
                 title=str(record.get("title", item.title)),
-                kind=WorkKind(str(record.get("kind", item.kind.value))),
+                kind=WorkKind(str(record.get("kind", item.kind))),
                 payload=dict(record.get("payload", item.payload)),
                 priority=int(record.get("priority", item.priority)),
                 risk=str(record.get("risk", item.risk)),
@@ -152,15 +152,15 @@ class JsonUpgradeLedger:
             items: list[UpgradeWorkItem] = []
             changed = False
             for fingerprint, record in data["records"].items():
-                state = str(record.get("state", WorkState.PENDING.value))
-                if state == WorkState.SUCCEEDED.value:
+                state = str(record.get("state", WorkState.PENDING))
+                if state == WorkState.SUCCEEDED:
                     continue
-                if state == WorkState.BLOCKED.value and not retry_blocked:
+                if state == WorkState.BLOCKED and not retry_blocked:
                     continue
                 attempts = int(record.get("attempts", 0))
-                if state == WorkState.BLOCKED.value:
+                if state == WorkState.BLOCKED:
                     attempts = 0
-                    record["state"] = WorkState.PENDING.value
+                    record["state"] = WorkState.PENDING
                     record["attempts"] = 0
                     changed = True
                 item = UpgradeWorkItem(
@@ -204,7 +204,7 @@ class JsonUpgradeLedger:
             checkpoints.append(
                 {
                     "iteration": checkpoint.iteration,
-                    "state": checkpoint.state.value,
+                    "state": checkpoint.state,
                     "active_item_id": checkpoint.active_item_id,
                     "completed_item_ids": list(checkpoint.completed_item_ids),
                     "blocked_item_ids": list(checkpoint.blocked_item_ids),
@@ -225,11 +225,11 @@ class JsonUpgradeLedger:
             return tuple(
                 str(record.get("item_id", ""))
                 for record in self._read()["records"].values()
-                if record.get("state") == WorkState.BLOCKED.value and record.get("item_id")
+                if record.get("state") == WorkState.BLOCKED and record.get("item_id")
             )
 
     def terminal_counts(self) -> dict[str, int]:
-        counts = {WorkState.SUCCEEDED.value: 0, WorkState.BLOCKED.value: 0}
+        counts: dict[str, int] = {"SUCCEEDED": 0, "BLOCKED": 0}
         with self._lock:
             for record in self._read()["records"].values():
                 state = str(record.get("state", ""))
@@ -237,16 +237,16 @@ class JsonUpgradeLedger:
                     counts[state] += 1
         return counts
 
-    def _serialize_item(self, item: UpgradeWorkItem, *, state: WorkState | None = None) -> dict[str, Any]:
+    def _serialize_item(self, item: UpgradeWorkItem, *, state: str | None = None) -> dict[str, Any]:
         return {
             "item_id": item.item_id,
             "title": item.title,
-            "kind": item.kind.value,
+            "kind": item.kind,
             "payload": item.payload,
             "priority": item.priority,
             "risk": item.risk,
             "max_attempts": item.max_attempts,
-            "state": (state or item.state).value,
+            "state": (state or item.state),
             "attempts": item.attempts,
             "last_error": item.last_error,
             "updated_at": time.time(),

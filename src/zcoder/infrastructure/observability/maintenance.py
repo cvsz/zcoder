@@ -22,9 +22,9 @@ class OtelMaintenanceCampaignEventSink:
     def emit(self, event: MaintenanceCampaignEvent) -> None:
         metrics = self.metrics
         tracer = get_tracer("zcoder.maintenance")
-        with tracer.start_as_current_span(event.event_type.value) as span:
+        with tracer.start_as_current_span(event.event_type) as span:
             span.set_attribute("maintenance.campaign_id", event.campaign_id)
-            span.set_attribute("maintenance.event_type", event.event_type.value)
+            span.set_attribute("maintenance.event_type", event.event_type)
             if event.state:
                 span.set_attribute("maintenance.state", event.state)
             span.set_attribute("maintenance.recommendations_discovered", event.recommendations_discovered)
