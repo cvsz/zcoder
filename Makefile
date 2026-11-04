@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt opencode-free-prompt opencode-models opencode-free-models opencode-nvidia-models opencode-kilo-models clean
+.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt opencode-free-prompt opencode-bg opencode-free-bg opencode-models opencode-free-models opencode-nvidia-models opencode-kilo-models clean
 
 VENV_DIR ?= .venv
 PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin/python"; elif [ -f "$(VENV_DIR)/Scripts/python.exe" ]; then echo "$(VENV_DIR)/Scripts/python.exe"; elif [ -n "$$VIRTUAL_ENV" ]; then echo "$$VIRTUAL_ENV/bin/python"; else echo "python3"; fi)
@@ -95,6 +95,8 @@ help:
 	@echo "  make opencode           Run OpenCode CLI (loads .env automatically)"
 	@echo "  make opencode-prompt    Execute prompt via OpenCode (PROMPT=\"...\" [OPENCODE_MODEL=\"...\"])"
 	@echo "  make opencode-free-prompt Execute prompt using 100% Free Model (PROMPT=\"...\")"
+	@echo "  make opencode-bg        Run OpenCode prompt in background (PROMPT=\"...\")"
+	@echo "  make opencode-free-bg   Run OpenCode free model in background (PROMPT=\"...\")"
 	@echo "  make opencode-models    List all available OpenCode models"
 	@echo "  make opencode-free-models List all available free models (NVIDIA, OpenCode, Kilo, etc.)"
 	@echo "  make opencode-nvidia-models List NVIDIA Nemotron & NIM models"
@@ -342,6 +344,26 @@ opencode-free-prompt:
 	fi; \
 	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
 	$(OPENCODE_BIN) run -m "$(OPENCODE_FREE_MODEL)" $(PROMPT)
+
+opencode-bg:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-bg PROMPT=\"your prompt\" [OPENCODE_MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi; \
+	mkdir -p logs; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	nohup $(OPENCODE_BIN) run -m "$(OPENCODE_MODEL)" $(PROMPT) > logs/opencode.log 2>&1 & echo $$! > .opencode.pid; \
+	echo "Started OpenCode in background (PID: $$(cat .opencode.pid), logs: logs/opencode.log)"
+
+opencode-free-bg:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "Error: PROMPT is required. Usage: make opencode-free-bg PROMPT=\"your prompt\" [OPENCODE_FREE_MODEL=\"...\"]" >&2; \
+		exit 1; \
+	fi; \
+	mkdir -p logs; \
+	if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	nohup $(OPENCODE_BIN) run -m "$(OPENCODE_FREE_MODEL)" $(PROMPT) > logs/opencode.log 2>&1 & echo $$! > .opencode.pid; \
+	echo "Started OpenCode Free Model in background (PID: $$(cat .opencode.pid), logs: logs/opencode.log)"
 
 opencode-models:
 	$(OPENCODE_BIN) models
