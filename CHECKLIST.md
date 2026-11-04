@@ -17,8 +17,15 @@
 - [x] Updated the Black lock entry and pinned Docker build tool after
   reviewing upstream security advisories; locked dependency audit found no
   known vulnerabilities.
-- [ ] Full release qualification remains pending; see the current release
-  gate report and exact-candidate requirements.
+- [x] Static quality gates pass: Ruff, mypy (194 zcoder + 120 zgpu files),
+  Bandit (High: 0, Medium: 0), pip-audit (no known vulnerabilities),
+  shellcheck; unit tests 1,619 passed; integration tests 78 passed against
+  dedicated PostgreSQL zcoder_db.
+- [ ] Full release qualification remains pending; `PITR`, `VERSION_INTEGRITY`,
+  `TEST_ACCOUNTING`, `SECURITY`, and `FINAL` remain UNKNOWN pending exact-head
+  hosted evidence import and production PITR verification. Release protocol
+  (`gh auth switch -u policedbc` for review, `-u cvsz` for merge) requires
+  credentials not available in this environment.
 
 ## v1.42.0 — U61 local lineage reconciliation
 

@@ -107,8 +107,11 @@ class OpenAICompatibleAdapter:
         if self.external_provider is not None and target_model not in local_models:
             external_models = {entry["id"] for entry in self.external_provider.list_models()}
         if target_model in external_models:
+            external = self.external_provider
+            if external is None:
+                raise CompletionRequestError(f"external provider not configured for model '{target_model}'")
             self._validate_remote_images(payload)
-            return self.external_provider.create_completion(payload, event_callback=event_callback)
+            return external.create_completion(payload, event_callback=event_callback)
 
         messages = payload.get("messages")
         if not isinstance(messages, list) or not messages:

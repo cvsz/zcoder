@@ -13,10 +13,10 @@ from pathlib import Path
 from urllib.parse import quote
 
 CONTAINER = os.environ.get("ZCODER_POSTGRES_CONTAINER", "zPostgreSQL")
-CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zcoder_db", "zchat_postgres")
+CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zcoder_db",)
 ROLE = "zcoder"
 DATABASE = "zcoder_db"
-PREVIOUS_DATABASE = "zPostgreSQL"
+PREVIOUS_DATABASE = "zcoder_db"
 POSTGRES_NETWORK = "zPostgreSQL_network"
 PASSWORD_FILE = Path.home() / ".config" / "zcoder" / "postgresql.password"
 

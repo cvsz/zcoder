@@ -83,7 +83,10 @@ class NetworkCPUPool:
             raise ValueError("node_id must contain 1 to 128 characters")
         normalized_url = self._validate_worker_url(url)
         validate_worker_token(token)
-        address = ipaddress.ip_address(urlsplit(normalized_url).hostname)
+        hostname = urlsplit(normalized_url).hostname
+        if hostname is None:
+            raise ValueError(f"cannot resolve hostname from worker URL: {url}")
+        address = ipaddress.ip_address(hostname)
         if not address.is_loopback and (not isinstance(token, str) or len(token) < 32):
             raise ValueError("non-loopback workers require an authentication token of at least 32 characters")
         self.nodes[node_id] = NetworkNode(node_id=node_id, url=normalized_url, token=token)

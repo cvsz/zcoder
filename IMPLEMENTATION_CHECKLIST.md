@@ -13,6 +13,23 @@
   lock and audit locked dependencies.
 - [x] Block the known hosted model API domains in local-mode urllib requests
   and add redirect/API regression cases.
+- [x] Expanded model registry to full metadata contract (provider_id, family,
+  release_date, availability, lifecycle, modalities, reasoning, tool_calling,
+  streaming, structured_output, pricing_tiers, rate limits, regional
+  restrictions, data retention, hardware requirements, quantization,
+  deprecation_date, verification_timestamp) in
+  `src/zcoder/agent/model_registry.py` with `register_model()` and
+  `_init_claude_catalog()` populating 8 Claude models.
+- [x] Added normalized capability contract
+  `src/zcoder/agent/capability_contract.py` (21 capability types,
+  CapabilityStatus NATIVE/ADAPTER/EXPERIMENTAL/UNSUPPORTED/UNKNOWN,
+  CapabilityMetadata with evidence_level/confidence/last_verified,
+  CapabilityRegistry with register/get/has/all_capabilities/
+  providers_with_capability).
+- [x] Added fail-closed provider client adapters
+  `src/zcoder/agent/orchestration/adapters.py` for gemini, ollama, vllm,
+  nvidia, anthropic — bounded timeouts, header-only credentials, no silent
+  paid fallback, local-only mode enforcement via provider_policy.
 - [ ] Complete candidate-bound release evidence, hosted checks, and
   operational recovery qualification before release.
 

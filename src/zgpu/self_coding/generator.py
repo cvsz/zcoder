@@ -17,7 +17,7 @@ class GeneratedKernel:
     target: str  # "zisa" or "python"
     source_code: str
     bytecode: list[int] | None = None
-    parameters: list[str] = None
+    parameters: list[str] | None = None
     description: str = ""
 
 

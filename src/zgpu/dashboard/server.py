@@ -568,7 +568,8 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 host_name = None
                 host_port = None
             if (
-                not host_is_loopback
+                host_parts is None
+                or not host_is_loopback
                 or host_parts.path
                 or host_parts.query
                 or host_parts.fragment
@@ -2046,8 +2047,8 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
             if not headers_sent:
                 self._send_json({"error": {"message": str(exc), "type": "invalid_request_error"}}, status=400)
                 return
-            error_event = {"error": {"message": "Invalid zGPU chat request", "type": "invalid_request_error"}}
-            data = json.dumps(error_event, separators=(",", ":"))
+            evt = {"error": {"message": "Invalid zGPU chat request", "type": "invalid_request_error"}}
+            data = json.dumps(evt, separators=(",", ":"))
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
         except OpenAIProviderError as exc:
@@ -2055,8 +2056,8 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
             if not headers_sent:
                 self._send_json({"error": {"message": str(exc), "type": "service_unavailable"}}, status=502)
                 return
-            error_event = {"error": {"message": str(exc), "type": "service_unavailable"}}
-            data = json.dumps(error_event, separators=(",", ":"))
+            evt = {"error": {"message": str(exc), "type": "service_unavailable"}}
+            data = json.dumps(evt, separators=(",", ":"))
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
         except LlamaCppError as exc:
@@ -2064,8 +2065,8 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
             if not headers_sent:
                 self._send_json({"error": {"message": str(exc), "type": "service_unavailable"}}, status=502)
                 return
-            error_event = {"error": {"message": str(exc), "type": "service_unavailable"}}
-            data = json.dumps(error_event, separators=(",", ":"))
+            evt = {"error": {"message": str(exc), "type": "service_unavailable"}}
+            data = json.dumps(evt, separators=(",", ":"))
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
@@ -2077,8 +2078,8 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                     {"error": {"message": "The zGPU simulator could not complete the request"}}, status=500
                 )
                 return
-            error_event = {"error": {"message": "The zGPU simulator could not complete the request"}}
-            data = json.dumps(error_event, separators=(",", ":"))
+            evt = {"error": {"message": "The zGPU simulator could not complete the request"}}
+            data = json.dumps(evt, separators=(",", ":"))
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
 
@@ -2149,15 +2150,15 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                     ):
                         citation_ids[number] = document_id
                 elif packet_type == "message_delta" and isinstance(payload_obj.get("content"), str):
-                    event = {"choices": [{"delta": {"content": payload_obj["content"]}}]}
-                    data = json.dumps(event, separators=(",", ":"))
+                    message_event = {"choices": [{"delta": {"content": payload_obj["content"]}}]}
+                    data = json.dumps(message_event, separators=(",", ":"))
                     self.wfile.write(f"data: {data}\n\n".encode())
                     self.wfile.flush()
                 elif packet_type == "error":
-                    event = {
+                    evt: dict[str, object] = {
                         "error": {"message": "The zGPU knowledge service could not complete the request"}
                     }
-                    data = json.dumps(event, separators=(",", ":"))
+                    data = json.dumps(evt, separators=(",", ":"))
                     self.wfile.write(f"data: {data}\n\n".encode())
                     self.wfile.flush()
                     return
@@ -2167,8 +2168,8 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 if document_id in documents
             ][:32]
             if citations:
-                event = {"zgpu": {"citations": citations}}
-                data = json.dumps(event, separators=(",", ":"))
+                citations_event: dict[str, object] = {"zgpu": {"citations": citations}}
+                data = json.dumps(citations_event, separators=(",", ":"))
                 self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
@@ -2176,14 +2177,18 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
             log.info("Client disconnected during zGPU knowledge chat stream")
         except KnowledgeChatError:
             log.exception("zGPU knowledge integration request failed")
-            event = {"error": {"message": "The zGPU knowledge service could not complete the request"}}
-            data = json.dumps(event, separators=(",", ":"))
+            kb_evt: dict[str, object] = {
+                "error": {"message": "The zGPU knowledge service could not complete the request"}
+            }
+            data = json.dumps(kb_evt, separators=(",", ":"))
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
         except Exception:
             log.exception("zGPU knowledge stream failed")
-            event = {"error": {"message": "The zGPU knowledge service could not complete the request"}}
-            data = json.dumps(event, separators=(",", ":"))
+            stream_evt: dict[str, object] = {
+                "error": {"message": "The zGPU knowledge service could not complete the request"}
+            }
+            data = json.dumps(stream_evt, separators=(",", ":"))
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
 

@@ -152,7 +152,10 @@ def simulate_source(
     if isinstance(max_cycles, bool) or not isinstance(max_cycles, int) or not 1 <= max_cycles <= 20_000:
         raise ZISASimulationError("max_cycles must be between 1 and 20000")
     assembled = assemble_source(source)
-    words = [int(word, 16) for word in assembled["word_hex"]]
+    word_hex = assembled.get("word_hex")
+    if not isinstance(word_hex, list):
+        raise ZISASimulationError("assembler returned invalid word_hex")
+    words = [int(word, 16) for word in word_hex if isinstance(word, str)]
 
     if inputs is None:
         inputs = {}

@@ -103,7 +103,7 @@ def test_bash_tool_spawns_filtered_env(tmp_path, monkeypatch):
     monkeypatch.setattr("zcoder.agent.capabilities.code.subprocess.run", fake_run)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-secret")
     monkeypatch.setenv("GITHUB_TOKEN", "gh-secret")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://fixture:fixture@localhost/test")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
     monkeypatch.setenv("GIT_ASKPASS", "/tmp/fixture-credential-helper")
     monkeypatch.setenv("SSH_ASKPASS", "/tmp/fixture-ssh-helper")
     monkeypatch.setenv("PATH", "/usr/bin")
@@ -192,8 +192,8 @@ def test_split_dsn_password_noop_without_password():
 @pytest.mark.parametrize(
     "dsn",
     [
-        "postgresql://localhost/db?password=fixture-secret",
-        "host=localhost dbname=db password=fixture-secret",
+        "postgresql://zpostgresql/db?password=fixture-secret",
+        "host=zpostgresql dbname=db password=fixture-secret",
     ],
 )
 def test_split_dsn_password_handles_all_libpq_forms(dsn):
@@ -220,7 +220,7 @@ def test_pg_dump_keeps_password_off_argv(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-x")
     manager = BackupManager(
-        database_url="postgresql://admin:pgpw123@localhost/db",
+        database_url="postgresql://zcoder:pgpw123@zpostgresql:5432/zcoder_db",
         backup_destination=str(tmp_path),
     )
     record = manager.run_pg_dump_backup()
@@ -233,16 +233,16 @@ def test_pg_dump_keeps_password_off_argv(tmp_path, monkeypatch):
 
 def test_pg_dump_error_redacts_password(tmp_path, monkeypatch):
     def fake_run(argv, **kwargs):
-        return subprocess.CompletedProcess(argv, 2, stdout="", stderr="auth failed for pw-hunter")
+        return subprocess.CompletedProcess(argv, 2, stdout="", stderr="auth failed for zcoder")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     manager = BackupManager(
-        database_url="postgresql://admin:pw-hunter@localhost/db",
+        database_url="postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db",
         backup_destination=str(tmp_path),
     )
     record = manager.run_pg_dump_backup()
     assert record.success is False
-    assert "pw-hunter" not in (record.error or "")
+    assert "zcoder" not in (record.error or "")
     assert "[redacted]" in (record.error or "")
 
 
@@ -263,12 +263,12 @@ def test_pg_restore_keeps_password_off_argv(tmp_path, monkeypatch):
             return RestoredStateVerification()
 
     manager = M(
-        database_url="postgresql://u:v@localhost/source",
+        database_url="postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db",
         backup_destination=str(tmp_path),
     )
     result = manager.run_restore_drill(
         backup_id=dump_file.name.replace(".sql.gz", ""),
-        target_database_url="postgresql://u:restorepw@localhost/target",
+        target_database_url="postgresql://u:restorepw@zpostgresql:5432/zcoder_restore",
     )
     assert result.success is True
     assert "restorepw" not in json.dumps(captured["argv"])
@@ -281,11 +281,11 @@ def test_is_secret_env_name_passphrase_and_lowercase():
 
 
 def test_split_dsn_password_preserves_encoded_username():
-    url = "postgresql://us%2Fer:p%40ss@localhost/db"
+    url = "postgresql://us%2Fer:p%40ss@zpostgresql/db"
     safe_url, password = _split_dsn_password(url)
     assert password == "p@ss"  # decoded for PGPASSWORD
     assert "p%40ss" not in safe_url
-    assert safe_url == "postgresql://us%2Fer@localhost/db"  # username kept encoded
+    assert safe_url == "postgresql://us%2Fer@zpostgresql/db"  # username kept encoded
 
 
 def test_split_dsn_password_malformed_url_returns_unchanged():

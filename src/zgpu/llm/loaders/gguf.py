@@ -127,10 +127,10 @@ class GGUFLoader:
             if count > self.MAX_METADATA_ARRAY_ITEMS or count > self._metadata_array_items_remaining:
                 raise ValueError("GGUF metadata array exceeds supported limits")
             self._metadata_array_items_remaining -= count
-            values = [] if keep else None
+            values: list[Any] | None = [] if keep else None
             for _ in range(count):
                 item = self._read_value(stream, file_size, element_type, keep=keep, depth=depth + 1)
-                if keep:
+                if keep and values is not None:
                     values.append(item)
                 self._check_metadata_budget(stream)
             return values
@@ -139,12 +139,12 @@ class GGUFLoader:
             raise ValueError(f"Unsupported GGUF metadata value type: {value_type}")
         raw = self._read_exact(stream, struct.calcsize(fmt), file_size)
         self._check_metadata_budget(stream)
-        value = struct.unpack(fmt, raw)[0]
+        scalar_value: Any = struct.unpack(fmt, raw)[0]
         if value_type == 7:
-            if value not in (0, 1):
+            if scalar_value not in (0, 1):
                 raise ValueError("Invalid GGUF boolean metadata value")
-            value = bool(value)
-        return value if keep else None
+            scalar_value = bool(scalar_value)
+        return scalar_value if keep else None
 
     def _check_metadata_budget(self, stream) -> None:
         if stream.tell() - 24 > self.MAX_METADATA_TABLE_BYTES:
@@ -185,7 +185,7 @@ class GGUFLoader:
             raise ValueError("scale must be numeric")
         if len(block_data) % 18:
             raise ValueError("Q4_0 data length must be a multiple of 18 bytes")
-        values = []
+        values: list[float] = []
         for b_idx in range(0, len(block_data), 18):
             d = struct.unpack_from("<e", block_data, b_idx)[0] * scale
             quants = block_data[b_idx + 2 : b_idx + 18]
@@ -198,7 +198,7 @@ class GGUFLoader:
         """Dequantize Q4_1 block weights (scale + min + 32 nibbles)."""
         if len(block_data) % 20:
             raise ValueError("Q4_1 data length must be a multiple of 20 bytes")
-        values = []
+        values: list[float] = []
         for b_idx in range(0, len(block_data), 20):
             d, minimum = struct.unpack_from("<ee", block_data, b_idx)
             quants = block_data[b_idx + 4 : b_idx + 20]
@@ -211,7 +211,7 @@ class GGUFLoader:
         """Dequantize Q8_0 block weights (scale + 32 int8 values)."""
         if len(block_data) % 34:
             raise ValueError("Q8_0 data length must be a multiple of 34 bytes")
-        values = []
+        values: list[float] = []
         for b_idx in range(0, len(block_data), 34):
             scale = struct.unpack_from("<e", block_data, b_idx)[0]
             values.extend(value * scale for value in struct.unpack_from("<32b", block_data, b_idx + 2))

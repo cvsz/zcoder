@@ -12,7 +12,7 @@ from zcoder.services.portfolio_scheduler import PortfolioScheduler
 
 
 def _pg_available() -> bool:
-    dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+    dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
     try:
         conn = psycopg2.connect(dsn, connect_timeout=2)
         conn.close()
@@ -26,7 +26,7 @@ pytestmark = pytest.mark.skipif(not _pg_available(), reason="PostgreSQL instance
 
 class TestFleetE2E(unittest.TestCase):
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost/postgres")
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
         self.eng_store = PostgresEngineeringStore(dsn=self.dsn)
         self.eng_store.init_schema()
         # Clean tasks

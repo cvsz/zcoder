@@ -43,8 +43,8 @@ class GlobalMemory:
         """Simulate coalesced memory transaction logic for a 32-lane warp.
         Returns: (values, number_of_128B_cache_lines_requested)
         """
-        lines = set()
-        values = []
+        lines: set[int] = set()
+        values: list[int] = []
         for lane, addr in enumerate(addresses):
             if active_mask & (1 << lane):
                 if addr >= 0 and addr + 4 <= self.size:
@@ -63,7 +63,7 @@ class GlobalMemory:
         """Store active lanes and count each touched 128-byte cache line once."""
         if len(addresses) != 32 or len(values) != 32:
             raise ValueError("coalesced warp stores require exactly 32 addresses and values")
-        lines = set()
+        lines: set[int] = set()
         for lane, (addr, value) in enumerate(zip(addresses, values, strict=True)):
             if active_mask & (1 << lane) and addr >= 0 and addr + 4 <= self.size:
                 lines.update(range(addr >> 7, ((addr + 3) >> 7) + 1))
@@ -94,7 +94,7 @@ class SharedMemory:
         write_vals: list[int] | None = None,
     ) -> list[int]:
         """Access shared memory across 32 lanes, tracking bank conflicts."""
-        bank_usage: dict[int, list[int]] = {}
+        bank_usage: dict[int, list[tuple[int, int]]] = {}
         results = [0] * 32
 
         for lane, word_idx in enumerate(word_indices):
