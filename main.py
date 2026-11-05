@@ -11,4 +11,4 @@ if str(_SRC) not in sys.path:
 import zcoder.main as main  # noqa: E402
 
 if __name__ == "__main__":
-    main()  # noqa: F405
+    main.main()  # noqa: F405
