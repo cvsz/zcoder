@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 20
     services:
       zpostgresql:
-        image: zcoder/zpostgreSQL:latest
+        image: zcoder/zpostgresql:latest
         env:
           POSTGRES_USER: zcoder
           POSTGRES_PASSWORD: zcoder
