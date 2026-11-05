@@ -1,8 +1,8 @@
 # SUPER ULTRA AI ORC — Repository Engineering & Release Governance
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Language:** Thai (technical artifacts remain English)  
-**Purpose:** ตรวจสอบ พัฒนา harden และส่งมอบ Repository อย่างเป็นระบบ โดยยึดหลัก evidence-based engineering, least privilege และ release governance
+**Purpose:** กำหนดมาตรฐานกลางด้าน engineering, security, quality และ release governance สำหรับทุก Repository ที่ยังไม่ Archived ภายใต้ GitHub account `cvsz` โดยรักษา architecture, instructions และ ownership เฉพาะของแต่ละ Repository
 
 ---
 
@@ -267,3 +267,146 @@ Release, tag, publish, deploy, production migration หรือการเป�
 ทำงานต่อเนื่องได้โดยไม่ต้องขออนุมัติซ้ำสำหรับการอ่าน วิเคราะห์ แก้ไขไฟล์ใน scope และรัน checks ที่ไม่ก่อผลกระทบภายนอก แต่ต้องหยุดขออนุมัติก่อน destructive actions, production changes, credential/config changes ที่มีผลวงกว้าง, external publication, release/deployment หรือการกระทำที่เปลี่ยนสิทธิ์/สถานะ GitHub
 
 เมื่อถึง gate ที่ทำต่อไม่ได้ ให้ส่งมอบสิ่งที่ทำได้ พร้อม evidence, blocker และคำสั่ง/ขั้นตอนถัดไปที่ชัดเจน
+
+
+## 13. ขอบเขตระดับองค์กร — ทุก Repository ของ `cvsz`
+
+Policy นี้เป็น engineering baseline สำหรับ **ทุก Repository ที่เป็นของ GitHub account `cvsz` และยังไม่อยู่ในสถานะ Archived** โดยไม่จำกัด visibility, ภาษา, framework, platform, อายุของ Repository หรือประเภทของโครงการ
+
+ครอบคลุมตามความเกี่ยวข้อง เช่น:
+
+- Applications: Web, Mobile, Desktop, CLI, Embedded และ Cross-platform
+- Services: Frontend, Backend, APIs, Workers, Integrations และ Distributed Systems
+- Data และ AI: Databases, Data Pipelines, AI/ML, Agents, Model-serving และ Automation
+- Infrastructure: Cloud, Networking, DNS, Cloudflare, Containers, Kubernetes, Terraform, CI/CD และ Observability
+- Libraries, SDKs, Templates, Generators, Examples, Documentation และ Developer Tooling
+- Security, Identity, Payment, Wallet, Blockchain, Trading และระบบเฉพาะทางอื่น ๆ
+
+### 13.1 กฎการรวมและยกเว้น
+
+1. รวมทุก Repository ที่ไม่ Archived และเป็นของ `cvsz` ทั้ง Public และ Private ที่ผู้ปฏิบัติงานซึ่งได้รับอนุญาตเข้าถึงได้
+2. ยกเว้น Repository ที่ GitHub ระบุ `archived = true` ห้าม unarchive เพื่อทำ policy rollout
+3. ห้ามสรุปว่า Repository ไม่มีความสำคัญเพียงเพราะเป็น fork, template, sample, mirror, legacy application หรือไม่มี activity ล่าสุด ต้องตรวจสอบและจัดประเภท maintenance model ก่อน
+4. สำหรับ fork และ mirror ต้องรักษา upstream attribution และ synchronization behavior ห้าม rewrite upstream history หรือลบไฟล์ที่ upstream ต้องใช้
+5. หาก Repository เข้าถึงไม่ได้ ถูกจำกัด permission หรือไม่สามารถแก้ไขได้อย่างปลอดภัย ให้ระบุ `BLOCKED` หรือ `NOT VERIFIED` ห้ามนับว่า covered โดยไม่มีหลักฐาน
+6. Repository inventory เปลี่ยนแปลงได้ ต้องค้นหารายการใหม่ทุกครั้งที่ทำ organization-wide audit ห้ามใช้ hardcoded list เป็น source of truth
+
+### 13.2 Universal Policy และ Local Instructions
+
+Canonical policy:
+
+- Repository: `cvsz/zeaz`
+- File: `zeaz.md`
+- URL: https://github.com/cvsz/zeaz/blob/main/zeaz.md
+
+ทุก Repository ที่อยู่ใน scope ต้องมี root `AGENTS.md` ซึ่งแสดง **READ FIRST** และอ้างอิง Canonical Policy อย่างชัดเจน โดยต้องเพิ่ม reference โดยไม่ลบ เขียนทับ หรือลดข้อกำหนดเดิมของ Repository
+
+root `AGENTS.md` ต้อง:
+- ระบุ Canonical Policy URL และลำดับการอ่านที่จำเป็น
+- รักษา Repository-specific instructions เดิมทั้งหมด
+- ระบุว่า local rules สามารถเข้มงวดกว่าได้ แต่ห้ามลดระดับ mandatory security, safety, evidence, validation หรือ release requirements
+- กำหนดให้ Agent ตรวจ nested/path-specific instruction files ก่อนแก้ไข path ที่เกี่ยวข้อง
+
+หากมี `AGENTS.md` อยู่แล้ว ให้รักษาเนื้อหาเดิมทั้งหมดและเพิ่มเฉพาะส่วนที่จำเป็นด้วย diff ที่เล็กและตรวจสอบได้ หากไม่มี ให้สร้างไฟล์โดยใส่ canonical reference และข้อกำหนดเฉพาะ Repository ที่ตรวจสอบแล้วเท่านั้น ห้ามแต่ง architecture หรือ test commands จากการเดา
+
+### 13.3 ลำดับความสำคัญของ Instructions
+
+เมื่อต้องจัดการ instruction ที่ขัดแย้งกัน ให้ใช้ลำดับดังนี้:
+
+1. Platform/system safety และข้อกำหนดทางกฎหมาย
+2. Mandatory organization-wide security, safety, evidence และ release-governance requirements
+3. Repository-root และ nearest path-specific instructions ที่สามารถเพิ่มข้อกำหนดให้เข้มงวดขึ้นได้
+4. Canonical ZeaZDev engineering policy
+5. Task-specific requirements
+
+Instruction ระดับล่างห้ามปิดหรือ bypass ข้อกำหนดระดับสูงกว่า หากมีข้อกำหนดที่ไม่สามารถทำให้สอดคล้องกันได้อย่างปลอดภัย ให้หยุดเฉพาะ change ที่ได้รับผลกระทบ บันทึก conflict และขอการตัดสินใจ
+
+## 14. Organization-Wide Rollout และ Synchronization
+
+การกระจาย Policy ต้องเป็นกระบวนการ synchronization ที่ควบคุมได้ ไม่ใช่การ copy ไฟล์ทับทุก Repository แบบไม่ตรวจสอบ
+
+### 14.1 ลำดับการ Rollout ที่บังคับใช้
+
+สำหรับแต่ละ Repository ที่ไม่ Archived:
+
+1. ตรวจ repository identity, default branch, visibility, archive/fork status และ access
+2. ตรวจ repository metadata และ root/nested `AGENTS.md` ที่มีอยู่
+3. อ่าน README, project-specific instructions, governance files และ architecture/build/test documentation ที่เกี่ยวข้อง
+4. จัดประเภท Repository และระบุ local requirements ที่ต้องรักษา
+5. เปรียบเทียบ policy reference และ version marker กับ canonical policy
+6. เตรียม change ที่เล็กและปลอดภัยที่สุดบน dedicated branch
+7. รักษา instructions เดิมทั้งหมด เพิ่มหรือปรับเฉพาะ canonical reference และ policy metadata ที่จำเป็น
+8. รัน validation ที่เหมาะกับ Repository รวมถึง instruction-link และ Markdown checks เมื่อมี
+9. ตรวจ complete diff เพื่อหาการลบโดยไม่ตั้งใจ, unrelated changes, secrets และ policy conflicts
+10. เปิด focused pull request โดยระบุ Repository, policy version, รายการเปลี่ยนแปลง, validation evidence และ rollback instructions
+11. Merge หลัง required checks และ review gates ของ Repository ผ่านเท่านั้น
+12. Fetch default branch ใหม่ แล้วตรวจเนื้อหาไฟล์และ canonical URL หลัง merge
+
+### 14.2 กฎ Safe Synchronization
+
+- ห้าม commit ตรงเข้า protected default branch หาก policy ของ Repository กำหนดให้ใช้ pull request
+- ห้าม force-push, rewrite shared history, ปิด branch protection หรือ bypass required checks
+- ห้ามเขียนทับ `AGENTS.md` เดิมด้วย generic template
+- ห้ามลบ repository-specific instructions เพียงเพื่อทำให้ทุก Repository มีรูปแบบเหมือนกัน
+- ห้ามเปลี่ยน application code, dependencies, workflows, secrets, deployment configuration หรือ production resources เป็นผลข้างเคียงจาก policy synchronization
+- การเปลี่ยนแปลงต้อง idempotent: การ sync ซ้ำต้องไม่เพิ่ม policy block ซ้ำ
+- บันทึก policy version และ commit SHA ที่ใช้ในแต่ละ rollout
+- จัดทำ machine-readable rollout manifest ซึ่งบันทึก repository, default branch, archived status, policy version, PR URL/number, validation result, merge result และ last verification time
+- แก้ partial failures แยกเป็นราย Repository ห้ามรายงานว่าทั้ง batch สำเร็จหากยังมี eligible repository ที่ blocked หรือ unverified
+
+### 14.3 Drift Detection
+
+Organization-wide audit ต้องตรวจพบ:
+
+- ไม่มี root `AGENTS.md`
+- ไม่มีหรือใช้ canonical policy URL ไม่ถูกต้อง
+- policy version marker ล้าสมัย
+- policy block ซ้ำหรือขัดแย้งกัน
+- local instructions ที่ลดระดับ mandatory controls
+- broken links หรือไม่สามารถเข้าถึง canonical source
+- ไม่มี repository-specific validation instructions ที่จำเป็น
+- Repository ที่สร้างใหม่หลัง inventory รอบก่อน
+- Repository ที่เปลี่ยนเป็น Archived หรือไม่สามารถเข้าถึงได้
+
+Drift detection ต้องเป็น read-only โดย default การแก้ไขต้องใช้ rollout sequence ข้างต้น
+
+## 15. Organization-Wide Compliance และ Reporting
+
+จัดทำ coverage ledger โดยมีข้อมูลอย่างน้อยหนึ่งแถวต่อ Repository ที่ค้นพบ:
+
+- repository full name และ default branch
+- archived, fork, template และ visibility status เมื่อมีข้อมูล
+- access/discovery status
+- root `AGENTS.md` status และ canonical URL status
+- canonical policy version และ commit SHA
+- สถานะการรักษา repository-specific instructions
+- validation command(s), result และ limitations
+- PR URL/number, review status และ merge status
+- final verification timestamp และ residual risks
+
+ใช้ completion states ตาม Section 9 เท่านั้น รายงานจำนวนพร้อม denominator ชัดเจน เช่น `72/80 eligible repositories verified` ให้รายงาน Archived repositories แยกต่างหาก และห้ามนับเป็น compliant
+
+Organization-wide completion ต้องมี:
+- repository inventory ที่ค้นหาใหม่
+- การจัดประเภท Repository ที่เข้า scope ทุกแห่ง
+- ทุก eligible repository ที่เข้าถึงได้ต้อง synchronized หรือมี blocker ระบุชัดเจน
+- repository-specific instructions ได้รับการรักษา
+- required PR/CI/review gates ผ่าน
+- post-merge verification จาก default branch จริง
+- final coverage ledger พร้อม evidence และ residual risks
+
+การอัปเดต canonical repository สำเร็จเพียงแห่งเดียว **ไม่ได้หมายความว่า policy ถูก deploy ไปทุก Repository แล้ว**
+
+## 16. Organization-Wide Execution Instruction
+
+เมื่อผู้ใช้สั่งให้อัปเดต ecosystem ทั้งหมด:
+
+1. อัปเดตและ validate canonical policy ก่อน ผ่าน approved branch/PR workflow ของ Repository
+2. ค้นหา Repository ทั้งหมดที่เป็นของ `cvsz` และตัด Archived repositories ออกจาก rollout
+3. ประมวลผลเป็น batch ที่มีขนาดควบคุมได้ เพื่อหลีกเลี่ยง API throttling และทำให้ recover จาก failure ได้
+4. รักษา instructions และ project-specific governance ของแต่ละ Repository
+5. เปิด focused PR และห้าม merge โดยข้าม required checks หรือ independent review
+6. ดำเนินการต่อจนทุก eligible repository มีผลลัพธ์ที่ verified หรือมี blocker ที่บันทึกไว้ชัดเจน
+7. เผยแพร่ coverage ledger และสรุปแยก canonical-policy completion ออกจาก repository-rollout completion
+
+ห้ามกล่าวว่า “อัปเดตครบทุก Repository แล้ว” จนกว่า coverage ledger จะมีหลักฐานยืนยัน

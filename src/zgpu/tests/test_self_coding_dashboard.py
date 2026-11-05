@@ -278,9 +278,9 @@ def _post_handler(path, body: bytes, length: str | None = None):
     handler.headers["Content-Length"] = length if length is not None else str(len(body))
     handler.headers["X-zGPU-Request"] = "dashboard-ui"
     handler.rfile = io.BytesIO(body)
-    handler.send_response = MagicMock()
-    handler.send_header = MagicMock()
-    handler.end_headers = MagicMock()
+    handler.send_response = MagicMock()  # type: ignore[method-assign]
+    handler.send_header = MagicMock()  # type: ignore[method-assign]
+    handler.end_headers = MagicMock()  # type: ignore[method-assign]
     handler.wfile = MagicMock()
     return handler
 
@@ -288,10 +288,10 @@ def _post_handler(path, body: bytes, length: str | None = None):
 def _get_handler(path: str):
     handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.path = path
-    handler.send_response = MagicMock()
-    handler.send_header = MagicMock()
-    handler.end_headers = MagicMock()
-    handler.send_error = MagicMock()
+    handler.send_response = MagicMock()  # type: ignore[method-assign]
+    handler.send_header = MagicMock()  # type: ignore[method-assign]
+    handler.end_headers = MagicMock()  # type: ignore[method-assign]
+    handler.send_error = MagicMock()  # type: ignore[method-assign]
     handler.wfile = MagicMock()
     return handler
 

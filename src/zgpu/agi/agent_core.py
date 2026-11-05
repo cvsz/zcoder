@@ -75,6 +75,12 @@ class SuperAGIAgent:
             )
 
         best_thought = self.planner.select_best_path(candidates)
+        if best_thought is None:
+            best_thought = ThoughtCandidate(
+                thought_id="fallback",
+                action="noop",
+                feature_vector=[0.0] * self.planner.feature_dim,
+            )
         return best_thought
 
     def step(self, goal: str) -> AgentStepResult:

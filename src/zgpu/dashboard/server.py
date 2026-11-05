@@ -23,7 +23,7 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from socketserver import ThreadingMixIn
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, unquote, urlparse, urlsplit
 
 from zgpu.agi.agent_core import SuperAGIAgent
@@ -284,7 +284,7 @@ class DashboardBackend:
         registry = ZGPUToolRegistry()
 
         def telemetry_snapshot() -> dict[str, Any]:
-            telemetry = self.get_system_telemetry()
+            telemetry: dict[str, Any] = self.get_system_telemetry()
             return {
                 "device": "zGPU Software SIMT Simulator",
                 "sm_count": telemetry["sm_count"],
@@ -294,11 +294,11 @@ class DashboardBackend:
             }
 
         def assemble_for_chat(source: str) -> dict[str, Any]:
-            result = assemble_source(source)
+            result: dict[str, Any] = assemble_source(source)
             limit = 256
             result["word_hex"] = result["word_hex"][:limit]
             result["bytecode_le_hex"] = result["bytecode_le_hex"][:limit]
-            result["truncated"] = result["instruction_count"] > limit
+            result["truncated"] = cast(int, result["instruction_count"]) > limit
             return result
 
         registry.register(
