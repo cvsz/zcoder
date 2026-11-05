@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 20
     services:
       zpostgresql:
-        image: zcoder/zpostgresql:latest
+        image: postgres:15-alpine
         env:
           POSTGRES_USER: zcoder
           POSTGRES_PASSWORD: zcoder
