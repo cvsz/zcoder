@@ -70,6 +70,7 @@ services:
       start_period: 10s
     stdin_open: true
     tty: true
+    command: ["--interactive"]
 
 volumes:
   zcoder-home:

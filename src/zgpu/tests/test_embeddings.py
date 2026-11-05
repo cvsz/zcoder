@@ -38,7 +38,7 @@ def _provider(response: bytes, *, response_url="http://127.0.0.1:11434/v1/embedd
         "http://127.0.0.1:11434/v1", "embedding-test-model", "test-secret", timeout=2.0
     )
     opener = _Opener(_Response(response, response_url))
-    provider._opener = opener
+    provider._opener = opener  # type: ignore[assignment]
     return provider, opener
 
 
