@@ -34,7 +34,7 @@ class ManagedRepository:
     portfolio_id: str = ""
     name: str = ""
     local_path: str = ""
-    status: RepoStatus = RepoStatus.DISCOVERED
+    status: str = RepoStatus.DISCOVERED
     created_at: float = field(default_factory=time.time)
 
 
@@ -42,6 +42,6 @@ class ManagedRepository:
 class EngineeringCampaign:
     id: str = field(default_factory=lambda: f"camp_{uuid.uuid4().hex}")
     name: str = ""
-    status: CampaignStatus = CampaignStatus.DRAFT
+    status: str = CampaignStatus.DRAFT
     repositories: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)

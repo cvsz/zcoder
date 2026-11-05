@@ -379,6 +379,7 @@ class CoworkAgent:
             try:
                 file_content += f"\n\n--- {fp} ---\n{Path(fp).read_text()[:6000]}"
             except Exception:
+                # File may be unreadable; skip it.
                 pass
 
         first = initial_prompt

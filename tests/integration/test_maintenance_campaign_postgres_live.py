@@ -82,23 +82,19 @@ def test_live_campaign_deduplicates_equivalent_recommendation_across_runs(monkey
 
     first_executor = PassingExecutor()
     first = _pipeline(monkeypatch, tmp_path, namespace, first_executor)
-    try:
+    with first:
         first_report = MaintenanceCampaignService(first, Intelligence("volatile-rec-1")).run()
         assert first_report.state == LoopState.COMPLETED.value
         assert first_report.recommendations_discovered == 1
         assert first_report.work_seeded == 1
         assert len(first_executor.calls) == 1
-    finally:
-        first.close()
 
     second_executor = PassingExecutor()
     second = _pipeline(monkeypatch, tmp_path, namespace, second_executor)
-    try:
+    with second:
         second_report = MaintenanceCampaignService(second, Intelligence("volatile-rec-2")).run()
         assert second_report.state == LoopState.COMPLETED.value
         assert second_report.recommendations_discovered == 1
         assert second_report.work_seeded == 1
         assert second_executor.calls == []
         assert second.ledger.terminal_counts()["SUCCEEDED"] == 1
-    finally:
-        second.close()

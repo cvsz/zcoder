@@ -35,7 +35,7 @@ class WorkspaceNotes:
     def __init__(self, database_path: str | Path):
         self.database_path = Path(database_path).expanduser()
 
-    def list(self, *, limit: int = MAX_NOTES) -> list[dict[str, Any]]:
+    def list_items(self, *, limit: int = MAX_NOTES) -> list[dict[str, Any]]:
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= self.MAX_NOTES:
             raise WorkspaceNotesError(f"limit must be between 1 and {self.MAX_NOTES}")
         try:

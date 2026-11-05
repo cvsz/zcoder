@@ -16,6 +16,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         bootstrap_from_env()
     except Exception:
+        # Observability bootstrap may fail; safe to ignore.
         pass
 
     return run_maintenance_campaign_cli(

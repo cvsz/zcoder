@@ -125,3 +125,56 @@ production migration.
 | PostgreSQL connection fails | Check container `zPostgreSQL`, network membership, role, database, and secret-file permissions |
 | API readiness returns 503 | Check database health and API configuration before adding traffic |
 | Circuit breaker opens | Inspect the local service logs and dependency health; avoid repeated retries while the dependency is unavailable |
+
+## zPITR — Point-in-Time Recovery Service
+
+ZCoder includes a dedicated `zPITR` Docker service for automated Point-in-Time Recovery (RPO < 5 min, RTO < 30 min) and Release Gate PITR evidence generation.
+
+### Architecture
+
+`zPITR` runs as a sidecar container on `zPostgreSQL_network` with:
+- **`pg_receivewal` daemon** — continuous WAL streaming from `zPostgreSQL` into `zpitr_wal_archive` Docker volume.
+- **`pg_basebackup` scheduler** — periodic full physical snapshots into `zpitr_base_backups` Docker volume.
+- **Restore drill** — isolated recovery into `/tmp/pg_drill_data` with `recovery.signal` + `restore_command`, WAL archive continuity check, and Release Gate evidence emission.
+
+### Deployment
+
+```bash
+# Build and start zPITR (daemon mode streams WAL continuously)
+docker compose -f docker-compose.zpitr.yml up -d --build
+
+# Verify WAL streaming
+docker logs -f zPITR
+```
+
+### Credentials
+
+The PostgreSQL password travels as a Docker secret (`zcoder_postgres_password`) mounted read-only at `/run/secrets/zcoder_postgres_password`, per SEC-008. The host source is `${HOME}/.config/zcoder/postgresql.password` (mode `0600`) unless `ZCODER_POSTGRES_SECRET_SOURCE` overrides it. Never bake credentials into the image or `.env`.
+
+### Restore Drill (Release Gate Evidence)
+
+Run the drill against an isolated target to generate evidence bound to the release-candidate SHA:
+
+```bash
+# Run PITR drill (generates docs/evidence/pitr-qualification-<SHA>.json)
+docker exec -it -e CANDIDATE_SHA="$(git rev-parse HEAD)" zPITR /app/scripts/run_restore_drill.sh
+
+# Verify evidence file
+ls -la docs/evidence/pitr-qualification-*.json
+
+# Run Release Gate to confirm PASS
+python scripts/release_gate.py --check
+```
+
+The evidence JSON conforms to schema v1 (`wal_archive_verified`, `restore_drill_passed`, `tested_at` UTC Z, `evidence_sha256` 64-hex) required by `scripts/release_gate.py`.
+
+### Operational commands
+
+| Purpose | Command |
+|---|---|
+| Continuous WAL streaming | `docker compose -f docker-compose.zpitr.yml up -d` |
+| Manual base backup | `docker exec -it zPITR /app/scripts/run_basebackup.sh` |
+| Restore drill + evidence | `docker exec -it -e CANDIDATE_SHA=<SHA> zPITR /app/scripts/run_restore_drill.sh` |
+| View WAL archive | `docker run --rm -v zpitr_wal_archive:/archive alpine ls -la /archive` |
+
+**Note:** zPITR is a DR rehearsal and Release Gate tool. Production PITR qualification still requires an Operations-run recovery against the production archive on an isolated target — local synthetic drills do not by themselves satisfy the production PITR gate.

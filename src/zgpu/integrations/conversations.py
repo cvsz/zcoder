@@ -78,7 +78,7 @@ class ConversationStore:
             raise ConversationError("conversation storage is unavailable", status=503) from exc
         return self.get(conversation_id)
 
-    def list(
+    def list_conversations(
         self, *, limit: int = 200, search: str = "", project_id: str | None = None
     ) -> list[dict[str, Any]]:
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= self.MAX_CONVERSATIONS:
@@ -278,7 +278,11 @@ class ConversationStore:
             raise ConversationError("conversation storage is unavailable", status=503) from exc
 
     def append_messages(
-        self, conversation_id: str, messages: list[dict[str, Any]], *, model: str | None = None
+        self,
+        conversation_id: str,
+        messages: list[dict[str, Any]],
+        *,
+        model: str | None = None,
     ) -> dict[str, Any]:
         self._validate_id(conversation_id)
         if not isinstance(messages, list) or not 1 <= len(messages) <= 20:

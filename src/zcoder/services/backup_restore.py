@@ -387,7 +387,7 @@ class BackupManager:
             # Fail-closed: pg_restore exit codes other than 0 are treated as
             # drill failures and state verification never runs, so a partial
             # or warning-bearing restore can never look like a verified DR drill.
-            if restore_result.returncode != 0:
+            if restore_result is not None and restore_result.returncode != 0:
                 result.error = (
                     f"pg_restore failed (rc={restore_result.returncode}): "
                     f"{_redact(restore_result.stderr, password)}"
@@ -506,6 +506,7 @@ class BackupManager:
                 try:
                     conn.rollback()
                 except Exception:
+                    # Rollback may fail during error handling; safe to ignore.
                     pass
         finally:
             conn.close()
@@ -665,8 +666,8 @@ class BackupManager:
                     manifest = json.load(f)
                 sha256 = manifest.get("sha256", "")
             except Exception:
+                # Manifest may be missing or corrupt; use empty hash.
                 pass
-
         return {
             "last_backup_at": last_mtime,
             "last_backup_age_hours": age_hours,

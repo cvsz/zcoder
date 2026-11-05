@@ -118,6 +118,7 @@ def discover_custom_styles() -> dict:
                 style["plugin"] = entry["plugin"]
                 out[style["name"]] = style
     except ImportError:
+        # Style plugin may be unavailable; skip it.
         pass
     return out
 

@@ -21,7 +21,7 @@ class MaintenanceCampaignEventType(StringEnum):
 class MaintenanceCampaignEvent:
     """Bounded, secret-free event suitable for logs, traces, or scheduler adapters."""
 
-    event_type: MaintenanceCampaignEventType
+    event_type: str
     campaign_id: str
     timestamp: float
     state: str = ""
@@ -37,11 +37,12 @@ class MaintenanceCampaignEvent:
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
-        payload["event_type"] = self.event_type.value
+        payload["event_type"] = self.event_type
         return payload
 
 
 class MaintenanceCampaignEventSink(Protocol):
     """Observability boundary for one finite campaign lifecycle event."""
 
-    def emit(self, event: MaintenanceCampaignEvent) -> None: ...
+    def emit(self, event: MaintenanceCampaignEvent) -> None:
+        pass

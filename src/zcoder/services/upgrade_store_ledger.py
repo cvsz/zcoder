@@ -28,19 +28,23 @@ class UpgradeLedger(Protocol):
 
     def restore_or_register(
         self, item: UpgradeWorkItem, *, retry_blocked: bool = False
-    ) -> UpgradeWorkItem | None: ...
+    ) -> UpgradeWorkItem | None:
+        pass
 
-    def load_resumable(self, *, retry_blocked: bool = False) -> list[UpgradeWorkItem]: ...
+    def load_resumable(self, *, retry_blocked: bool = False) -> list[UpgradeWorkItem]:
+        pass
 
-    def record_checkpoint(
-        self, checkpoint: LoopCheckpoint, items_by_id: dict[str, UpgradeWorkItem]
-    ) -> None: ...
+    def record_checkpoint(self, checkpoint: LoopCheckpoint, items_by_id: dict[str, UpgradeWorkItem]) -> None:
+        pass
 
-    def state_for(self, fingerprint: str) -> str | None: ...
+    def state_for(self, fingerprint: str) -> str | None:
+        pass
 
-    def blocked_item_ids(self) -> tuple[str, ...]: ...
+    def blocked_item_ids(self) -> tuple[str, ...]:
+        pass
 
-    def terminal_counts(self) -> dict[str, int]: ...
+    def terminal_counts(self) -> dict[str, int]:
+        pass
 
 
 class EngineeringStoreUpgradeLedger:
@@ -82,14 +86,14 @@ class EngineeringStoreUpgradeLedger:
                 return item
 
             record = self._record_from_task(existing, expected_fingerprint=item.fingerprint)
-            state = str(record.get("state", WorkState.PENDING.value))
-            if state == WorkState.SUCCEEDED.value:
+            state = str(record.get("state", WorkState.PENDING))
+            if state == WorkState.SUCCEEDED:
                 return None
-            if state == WorkState.BLOCKED.value and not retry_blocked:
+            if state == WorkState.BLOCKED and not retry_blocked:
                 return None
 
             attempts = int(record.get("attempts", 0))
-            if state == WorkState.BLOCKED.value:
+            if state == WorkState.BLOCKED:
                 attempts = 0
 
             restored = self._deserialize_item(record, fallback=item, attempts=attempts)
@@ -101,13 +105,13 @@ class EngineeringStoreUpgradeLedger:
             items: list[UpgradeWorkItem] = []
             for task in self._record_tasks():
                 record = self._record_from_task(task)
-                state = str(record.get("state", WorkState.PENDING.value))
-                if state == WorkState.SUCCEEDED.value:
+                state = str(record.get("state", WorkState.PENDING))
+                if state == WorkState.SUCCEEDED:
                     continue
-                if state == WorkState.BLOCKED.value and not retry_blocked:
+                if state == WorkState.BLOCKED and not retry_blocked:
                     continue
                 attempts = int(record.get("attempts", 0))
-                if state == WorkState.BLOCKED.value:
+                if state == WorkState.BLOCKED:
                     attempts = 0
                 item = self._deserialize_item(record, attempts=attempts)
                 self._save_item(item)
@@ -144,7 +148,7 @@ class EngineeringStoreUpgradeLedger:
             checkpoints.append(
                 {
                     "iteration": checkpoint.iteration,
-                    "state": checkpoint.state.value,
+                    "state": checkpoint.state,
                     "active_item_id": checkpoint.active_item_id,
                     "completed_item_ids": list(checkpoint.completed_item_ids),
                     "blocked_item_ids": list(checkpoint.blocked_item_ids),
@@ -182,12 +186,12 @@ class EngineeringStoreUpgradeLedger:
             blocked: list[str] = []
             for task in self._record_tasks():
                 record = self._record_from_task(task)
-                if record.get("state") == WorkState.BLOCKED.value and record.get("item_id"):
+                if record.get("state") == WorkState.BLOCKED and record.get("item_id"):
                     blocked.append(str(record["item_id"]))
             return tuple(blocked)
 
     def terminal_counts(self) -> dict[str, int]:
-        counts = {WorkState.SUCCEEDED.value: 0, WorkState.BLOCKED.value: 0}
+        counts: dict[str, int] = {"SUCCEEDED": 0, "BLOCKED": 0}
         with self._lock:
             for task in self._record_tasks():
                 state = str(self._record_from_task(task).get("state", ""))
@@ -207,7 +211,7 @@ class EngineeringStoreUpgradeLedger:
             tasks.append(task)
         return tasks
 
-    def _save_item(self, item: UpgradeWorkItem, *, state: WorkState | None = None) -> None:
+    def _save_item(self, item: UpgradeWorkItem, *, state: str | None = None) -> None:
         effective_state = state or item.state
         record = self._serialize_item(item, state=effective_state)
         task_id = self._task_id(item.fingerprint)
@@ -268,16 +272,16 @@ class EngineeringStoreUpgradeLedger:
         return f"{self._task_prefix}{fingerprint}"
 
     @staticmethod
-    def _serialize_item(item: UpgradeWorkItem, *, state: WorkState | None = None) -> dict[str, Any]:
+    def _serialize_item(item: UpgradeWorkItem, *, state: str | None = None) -> dict[str, Any]:
         return {
             "item_id": item.item_id,
             "title": item.title,
-            "kind": item.kind.value,
+            "kind": item.kind,
             "payload": item.payload,
             "priority": item.priority,
             "risk": item.risk,
             "max_attempts": item.max_attempts,
-            "state": (state or item.state).value,
+            "state": (state or item.state),
             "attempts": item.attempts,
             "last_error": item.last_error,
             "updated_at": time.time(),
@@ -293,7 +297,7 @@ class EngineeringStoreUpgradeLedger:
         try:
             return UpgradeWorkItem(
                 title=str(record.get("title", fallback.title if fallback else "")),
-                kind=WorkKind(str(record.get("kind", fallback.kind.value if fallback else ""))),
+                kind=WorkKind(str(record.get("kind", fallback.kind if fallback else ""))),
                 payload=dict(record.get("payload", fallback.payload if fallback else {})),
                 priority=int(record.get("priority", fallback.priority if fallback else 50)),
                 risk=str(record.get("risk", fallback.risk if fallback else "medium")),

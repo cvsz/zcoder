@@ -181,6 +181,6 @@ def test_stripe_webhook_signature_checks_timestamp_and_all_v1_values():
     digest = hmac.new(secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256).hexdigest()
     provider = StripeBillingProvider(webhook_secret=secret)
 
-    assert provider.verify_webhook_signature(payload, f"t={timestamp},v1={'0' * 64},v1={digest}")
-    assert not provider.verify_webhook_signature(payload, f"t={timestamp - 600},v1={digest}")
-    assert not provider.verify_webhook_signature(payload, "t=invalid,v1=bad")
+    assert provider.verify_webhook_signature(payload, f"t={timestamp},v1={'0' * 64},v1={digest}", secret)
+    assert not provider.verify_webhook_signature(payload, f"t={timestamp - 600},v1={digest}", secret)
+    assert not provider.verify_webhook_signature(payload, "t=invalid,v1=bad", secret)

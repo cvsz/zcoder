@@ -50,7 +50,7 @@ class TestLoadConfig:
         assert cfg.profile == "development"
 
     def test_database_url_sets_postgres_mode(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost/testdb")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
         cfg = load_config()
         assert cfg.database.mode == "postgres"
         assert "postgresql://" in cfg.database.url
@@ -130,7 +130,7 @@ class TestValidateConfig:
     def test_production_without_auth_is_error(self):
         cfg = ProductionConfig(profile="production")
         cfg.database.mode = "postgres"
-        cfg.database.url = "postgresql://localhost/zcoder"
+        cfg.database.url = "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db"
         cfg.auth.enabled = False
         results = validate_config(cfg)
         errors = [r for r in results if "auth" in r.lower()]
@@ -140,7 +140,7 @@ class TestValidateConfig:
         cfg = ProductionConfig(profile="production")
         cfg.debug = True
         cfg.database.mode = "postgres"
-        cfg.database.url = "postgresql://localhost/zcoder"
+        cfg.database.url = "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db"
         cfg.auth.enabled = True
         cfg.auth.oidc_issuer = "https://issuer.example.com"
         cfg.auth.oidc_audience = "zcoder"
@@ -157,7 +157,7 @@ class TestShowEffectiveConfig:
         assert isinstance(parsed, dict)
 
     def test_secrets_are_redacted_in_output(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", "postgresql://user:supersecret@localhost/db")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
         cfg = load_config()
         output = show_effective_config(cfg)
         assert "supersecret" not in output

@@ -165,7 +165,10 @@ class LocalKnowledgeStore:
         digest = hashlib.sha256(content_bytes).hexdigest()
         embedding = self._create_embedding(content) if self.embedding_provider is not None else None
         embedding_json = json.dumps(embedding, separators=(",", ":"), allow_nan=False) if embedding else None
-        embedding_model = self.embedding_provider.model if embedding is not None else None
+        embedding_provider = self.embedding_provider
+        embedding_model = (
+            embedding_provider.model if embedding_provider is not None and embedding is not None else None
+        )
         try:
             with self._connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -178,7 +181,7 @@ class LocalKnowledgeStore:
                     )
                 if current_bytes + len(content_bytes) > self.MAX_TOTAL_CONTENT_BYTES:
                     raise LocalKnowledgeError("local library content quota would be exceeded", status=413)
-                if embedding is not None:
+                if embedding is not None and embedding_model is not None:
                     self._validate_embedding_dimensions(connection, embedding_model, embedding)
                 has_fts = self._has_fts(connection)
                 cursor = connection.execute(
@@ -288,6 +291,7 @@ class LocalKnowledgeStore:
                     ]
 
                 semantic_rows = []
+                embedding_provider_local: Any = self.embedding_provider
                 if query_embedding is not None:
                     semantic_candidates = connection.execute(
                         f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at,
@@ -298,7 +302,8 @@ class LocalKnowledgeStore:
                     semantic_scores = []
                     for candidate in semantic_candidates:
                         if (
-                            candidate["embedding_model"] != self.embedding_provider.model
+                            embedding_provider_local is not None
+                            and candidate["embedding_model"] != embedding_provider_local.model
                             or not candidate["embedding_json"]
                         ):
                             continue
@@ -356,7 +361,10 @@ class LocalKnowledgeStore:
 
     def _create_embedding(self, text: str) -> list[float]:
         try:
-            vector = self.embedding_provider.embed(text)
+            embedding_provider = self.embedding_provider
+            if embedding_provider is None:
+                raise LocalKnowledgeError("embedding provider is not configured", status=503)
+            vector = embedding_provider.embed(text)
         except Exception as exc:
             if isinstance(exc, LocalKnowledgeError):
                 raise

@@ -229,6 +229,7 @@ def cmd_eval_list():
                 f"{d['passed']}/{d['cases']}  avg={d['avg_score']:.2f}"
             )
         except Exception:
+            # Eval output file may be missing; start fresh.
             pass
 
 

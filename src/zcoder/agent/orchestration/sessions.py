@@ -150,6 +150,7 @@ def latest_session(mode: str | None = None) -> Session | None:
             if mode is None or s.mode == mode:
                 sessions.append(s)
         except Exception:
+            # File may be malformed; skip it.
             pass
     return max(sessions, key=lambda s: s.updated) if sessions else None
 
@@ -164,6 +165,7 @@ def list_sessions(mode: str | None = None) -> list[Session]:
             if mode is None or s.mode == mode:
                 out.append(s)
         except Exception:
+            # File may be malformed; skip it.
             pass
     return sorted(out, key=lambda s: s.updated, reverse=True)
 
@@ -197,6 +199,7 @@ def list_checkpoints(sid: str) -> list[Checkpoint]:
             if cp.sid == sid:
                 out.append(cp)
         except Exception:
+            # File may be malformed; skip it.
             pass
     return sorted(out, key=lambda c: c.ts)
 
@@ -221,6 +224,7 @@ def away_summary(cwd: str, since_iso: str) -> str:
         )
         commits = [l for l in r.stdout.splitlines() if l.strip()]
     except Exception:
+        # Git may not be available in all environments; safe to ignore.
         pass
 
     # files modified since
@@ -241,6 +245,7 @@ def away_summary(cwd: str, since_iso: str) -> str:
                     if len(modified) >= 50:
                         break
             except OSError:
+                # Checkpoint file may be malformed; skip it.
                 pass
 
     if not commits and not modified:

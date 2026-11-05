@@ -97,6 +97,7 @@ class Workspace:
         try:
             self.read_state[path] = path.stat().st_mtime_ns
         except OSError:
+            # File may not exist yet; default to unknown mtime.
             pass
 
     def ensure_fresh(self, path: Path) -> None:

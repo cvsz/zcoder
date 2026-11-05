@@ -34,7 +34,7 @@ class ComplianceControl:
     framework_mappings: list[str] = dataclasses.field(
         default_factory=list
     )  # e.g. ["SOC2:CC6.1", "ISO27001:A.9.1"]
-    status: ControlStatus = ControlStatus.NOT_TESTED
+    status: str = ControlStatus.NOT_TESTED
     last_evidence_at: float | None = None
     evidence_ttl_seconds: float = 86400.0 * 30.0  # 30 days default TTL
     evidence_summary: str = ""
@@ -108,7 +108,7 @@ class ComplianceCatalog:
         control.evidence_summary = summary
         control.status = ControlStatus.EFFECTIVE if is_effective else ControlStatus.INEFFECTIVE
 
-    def get_control_status(self, control_id: str) -> ControlStatus:
+    def get_control_status(self, control_id: str) -> str:
         control = self.controls.get(control_id)
         if not control:
             return ControlStatus.NOT_TESTED
@@ -124,7 +124,7 @@ class ComplianceCatalog:
             report[c_id] = {
                 "title": ctrl.title,
                 "family": ctrl.family,
-                "status": self.get_control_status(c_id).value,
+                "status": self.get_control_status(c_id),
                 "mappings": ctrl.framework_mappings,
                 "last_evidence_summary": ctrl.evidence_summary,
             }

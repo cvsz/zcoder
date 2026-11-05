@@ -154,7 +154,7 @@ class SQLiteEngineeringStore(EngineeringStore):
                 (
                     task.id,
                     task.task_description,
-                    task.status.value,
+                    task.status,
                     task.created_at,
                     task.updated_at,
                     json.dumps(task.metadata),

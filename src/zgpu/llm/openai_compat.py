@@ -12,9 +12,11 @@ from typing import Any, Protocol
 
 
 class RegistryProtocol(Protocol):
-    def list_models(self) -> list[dict[str, Any]]: ...
+    def list_models(self) -> list[dict[str, Any]]:
+        pass
 
-    def tokenize(self, model_name: str, text: str) -> list[int]: ...
+    def tokenize(self, model_name: str, text: str) -> list[int]:
+        pass
 
     def generate(
         self,
@@ -22,7 +24,8 @@ class RegistryProtocol(Protocol):
         model_name: str | None = None,
         max_tokens: int = 16,
         token_callback: Callable[[str], None] | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        pass
 
 
 class CompletionRequestError(ValueError):
@@ -107,8 +110,11 @@ class OpenAICompatibleAdapter:
         if self.external_provider is not None and target_model not in local_models:
             external_models = {entry["id"] for entry in self.external_provider.list_models()}
         if target_model in external_models:
+            external = self.external_provider
+            if external is None:
+                raise CompletionRequestError(f"external provider not configured for model '{target_model}'")
             self._validate_remote_images(payload)
-            return self.external_provider.create_completion(payload, event_callback=event_callback)
+            return external.create_completion(payload, event_callback=event_callback)
 
         messages = payload.get("messages")
         if not isinstance(messages, list) or not messages:

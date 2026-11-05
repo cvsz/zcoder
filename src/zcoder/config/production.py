@@ -254,6 +254,7 @@ def _resolve_from_env(cfg: ProductionConfig) -> ProductionConfig:
         try:
             cfg.worker.concurrency = int(os.environ["WORKER_CONCURRENCY"])
         except ValueError:
+            # Invalid concurrency value; use default.
             pass
 
     if os.environ.get("ZCODER_BACKUP_ENABLED", "").lower() in ("1", "true"):

@@ -174,6 +174,7 @@ class LlamaCppServer:
                 process.kill()
                 process.wait(timeout=5.0)
         except ProcessLookupError:
+            # Process may have already exited; safe to ignore.
             pass
         finally:
             self._remove_api_key_file()

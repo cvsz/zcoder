@@ -98,6 +98,7 @@ class FilesAPI:
                 return r.read()
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
+        return b""
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call_nobody(self, req: "urllib.request.Request", timeout: float) -> None:

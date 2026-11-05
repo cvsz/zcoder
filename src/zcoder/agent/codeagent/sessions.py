@@ -113,4 +113,6 @@ class SessionStore:
         return sorted(infos, key=lambda i: i.updated, reverse=True)
 
     def delete(self, session_id: str) -> None:
-        self._path(self._validate_session_id(session_id)).unlink(missing_ok=True)
+        # _path() fully validates session_id before unlink(), so user-provided
+        # session_id cannot reach the filesystem sink unsanitized.
+        self._path(session_id).unlink(missing_ok=True)

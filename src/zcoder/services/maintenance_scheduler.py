@@ -33,7 +33,8 @@ SleepFunc = Callable[[float], None]
 class StopEvent(Protocol):
     """Minimal ``threading.Event``-compatible graceful-stop flag."""
 
-    def is_set(self) -> bool: ...
+    def is_set(self) -> bool:
+        pass
 
 
 @dataclass(frozen=True)

@@ -60,7 +60,7 @@ class EnterpriseRole(StringEnum):
     SECURITY_AUDITOR = "SecurityAuditor"
 
 
-ROLE_PERMISSIONS: dict[EnterpriseRole, set[str]] = {
+ROLE_PERMISSIONS: dict[str, set[str]] = {
     EnterpriseRole.ORG_OWNER: {
         "org.read",
         "org.manage",
@@ -171,7 +171,7 @@ class RequestContext:
     principal_id: str
     organization_id: str
     project_id: str | None = None
-    role: EnterpriseRole = EnterpriseRole.VIEWER
+    role: str = EnterpriseRole.VIEWER
     permissions: set[str] = dataclasses.field(default_factory=set)
     authentication_method: str = "token"  # token | apikey | scim | break_glass
     is_global_admin: bool = False
@@ -228,7 +228,7 @@ class Organization:
     id: str
     name: str
     slug: str
-    status: OrgStatus = OrgStatus.ACTIVE
+    status: str = OrgStatus.ACTIVE
     created_at: float = dataclasses.field(default_factory=time.time)
     metadata: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -239,7 +239,7 @@ class Project:
     organization_id: str
     name: str
     slug: str
-    status: ProjectStatus = ProjectStatus.ACTIVE
+    status: str = ProjectStatus.ACTIVE
     created_at: float = dataclasses.field(default_factory=time.time)
 
 
@@ -248,8 +248,8 @@ class Membership:
     id: str
     principal_id: str
     organization_id: str
-    role: EnterpriseRole = EnterpriseRole.VIEWER
-    status: MembershipStatus = MembershipStatus.ACTIVE
+    role: str = EnterpriseRole.VIEWER
+    status: str = MembershipStatus.ACTIVE
     created_at: float = dataclasses.field(default_factory=time.time)
 
 
@@ -259,7 +259,7 @@ class ServiceAccount:
     organization_id: str
     project_id: str | None
     name: str
-    role: EnterpriseRole = EnterpriseRole.OPERATOR
+    role: str = EnterpriseRole.OPERATOR
     status: str = "ACTIVE"
     created_at: float = dataclasses.field(default_factory=time.time)
 

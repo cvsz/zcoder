@@ -52,12 +52,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
-      postgres:
-        image: postgres:16
+      zpostgresql:
+        image: postgres:15-alpine
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
+          POSTGRES_USER: zcoder
+          POSTGRES_PASSWORD: zcoder
+          POSTGRES_DB: zcoder_db
         ports:
           - 5432:5432
         options: >-
@@ -66,7 +66,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL: postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db
     strategy:
       fail-fast: false
       matrix:

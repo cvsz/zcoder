@@ -83,7 +83,8 @@ def diff_review(diff: str, api_key: str, model: str) -> str:
 def explain_blame(file: str, line_start: int, line_end: int, cwd: str, api_key: str, model: str) -> str:
     blame = _git(f"git log --oneline {file}", cwd)
     try:
-        code = "\n".join(open(f"{cwd}/{file}").readlines()[line_start - 1 : line_end])
+        with open(f"{cwd}/{file}") as fh:
+            code = "\n".join(fh.readlines()[line_start - 1 : line_end])
     except Exception:
         code = "(could not read file)"
     return _call(

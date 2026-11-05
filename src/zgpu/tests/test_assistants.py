@@ -27,7 +27,8 @@ def test_custom_profiles_persist_update_and_delete(tmp_path):
     updated = profiles.update(created["id"], "Reviewer", "Review safely", "Check invalid operands.")
     assert updated["system_prompt"] == "Check invalid operands."
     assert any(item["id"] == created["id"] for item in profiles.list())
-    assert profiles.delete(created["id"])
+    deleted = profiles.delete(created["id"])
+    assert deleted
     with pytest.raises(AssistantProfileError) as error:
         profiles.get(created["id"])
     assert error.value.status == 404

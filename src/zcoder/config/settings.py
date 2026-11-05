@@ -17,6 +17,7 @@ class Config:
                 with open(read_path) as f:
                     self._data = json.load(f)
             except Exception:
+                # Config file may be missing or unreadable; use defaults.
                 pass
 
     def get(self, key, default=None):
@@ -54,6 +55,7 @@ class Config:
             try:
                 os.unlink(temp_path)
             except OSError:
+                # Temp file cleanup may fail; safe to ignore.
                 pass
             raise
         try:
@@ -61,6 +63,7 @@ class Config:
             # with a permissive umask before this hardening existed.
             os.chmod(CONFIG_PATH, 0o600)
         except OSError:
+            # chmod may fail on some filesystems; safe to ignore.
             pass
         # Only publish the new state after the durable write succeeded.
         self._data = updated

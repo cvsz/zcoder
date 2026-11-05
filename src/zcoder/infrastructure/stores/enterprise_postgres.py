@@ -353,6 +353,7 @@ class EnterprisePostgresStore:
                     cur.execute("RESET app.current_org;")
                 conn.commit()
             except Exception:
+                # Session variable reset may fail outside app context; safe to ignore.
                 pass
             self.pool.putconn(conn)
 
@@ -466,7 +467,7 @@ class EnterprisePostgresStore:
                     VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status
                     """,
-                    (org.id, org.name, org.slug, org.status.value, org.created_at, json.dumps(org.metadata)),
+                    (org.id, org.name, org.slug, org.status, org.created_at, json.dumps(org.metadata)),
                 )
             conn.commit()
         return org
@@ -503,7 +504,7 @@ class EnterprisePostgresStore:
                         project.organization_id,
                         project.name,
                         project.slug,
-                        project.status.value,
+                        project.status,
                         project.created_at,
                     ),
                 )
@@ -581,7 +582,7 @@ class EnterprisePostgresStore:
 
         project_id = job.project_id or ctx.project_id
         ctx.validate_tenant_access(ctx.organization_id, project_id)
-        status = job.status.value if isinstance(job.status, JobStatus) else str(job.status)
+        status = job.status if isinstance(job.status, JobStatus) else str(job.status)
         with self.scoped_conn(ctx) as conn:
             with conn.cursor() as cur:
                 if idempotency_key:
@@ -843,7 +844,7 @@ class EnterprisePostgresStore:
                       AND claim_generation = %s AND status = 'RUNNING'
                     """,
                     (
-                        status.value,
+                        status,
                         cost_usd,
                         time.time(),
                         job_id,

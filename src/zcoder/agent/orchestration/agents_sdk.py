@@ -306,7 +306,7 @@ class McpTunnel:
     def close(self) -> dict:
         """Close a previously opened tunnel."""
         if not self.tunnel_id:
-            return {"error": "No open tunnel to close"}
+            return {"error": "No open tunnel to close", "status": None}
         req = urllib.request.Request(
             f"{TUNNELS_ENDPOINT}/{self.tunnel_id}",
             headers=self._headers(),
@@ -317,7 +317,7 @@ class McpTunnel:
         except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": str(e), "status": None}
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call_delete(self, req: "urllib.request.Request") -> dict:
@@ -326,11 +326,17 @@ class McpTunnel:
                 return {"status": r.status}
         except (urllib.error.HTTPError, TimeoutError, ConnectionError, OSError) as e:
             raise_for_http_error(e)
+        return {}
 
     def as_mcp_server(self, name: str, transport: str = "sse") -> McpServerConfig:
         """Build an McpServerConfig pointing at this tunnel's public URL,
         once open() has succeeded. transport is "sse" or "http" — whichever
         the local MCP server actually speaks."""
+        raise NotImplementedError("MCP server not yet implemented")
+        """Build an McpServerConfig pointing at this tunnel's public URL,
+        once open() has succeeded. transport is "sse" or "http" — whichever
+        the local MCP server actually speaks."""
+        raise NotImplementedError("MCP server not yet implemented")
         if not self.public_url:
             raise RuntimeError("Tunnel not open yet — call open() first")
         return McpServerConfig(transport, name, url=self.public_url)

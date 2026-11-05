@@ -64,24 +64,20 @@ def test_live_postgres_backend_persists_success_and_deduplicates_restart(monkeyp
 
     first_executor = PassingExecutor()
     first = _build(monkeypatch, tmp_path, namespace, first_executor)
-    try:
+    with first:
         first_report = first.run([item])
         assert first_report.state == LoopState.COMPLETED
         assert first_executor.calls == [item.fingerprint]
         assert first.ledger.terminal_counts()["SUCCEEDED"] == 1
-    finally:
-        first.close()
 
     second_executor = PassingExecutor()
     second = _build(monkeypatch, tmp_path, namespace, second_executor)
-    try:
+    with second:
         duplicate = feature_work("PostgreSQL backend feature", "Execute exactly once across restart")
         second_report = second.run([duplicate])
         assert second_report.state == LoopState.COMPLETED
         assert second_executor.calls == []
         assert second.ledger.terminal_counts()["SUCCEEDED"] == 1
-    finally:
-        second.close()
 
 
 def test_live_postgres_backend_excludes_concurrent_runner(monkeypatch, tmp_path):
@@ -90,10 +86,8 @@ def test_live_postgres_backend_excludes_concurrent_runner(monkeypatch, tmp_path)
     second = _build(monkeypatch, tmp_path, namespace, PassingExecutor())
 
     first.run_lease.acquire()
-    try:
+    with first.run_lease:
         with pytest.raises(PostgresUpgradeRunLeaseError, match="already held"):
             second.run([feature_work("Contending feature", "Must not execute concurrently")])
-    finally:
-        first.run_lease.release()
         first.close()
         second.close()

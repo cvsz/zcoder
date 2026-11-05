@@ -46,7 +46,7 @@ class CostPolicy(StringEnum):
 class ModelSpec:
     id: str
     name: str
-    cost_class: CostClass
+    cost_class: str
     context_window: int = 32768
     supports_tools: bool = True
     supports_vision: bool = False
@@ -100,10 +100,10 @@ class CostOptimizer:
     def recommend(
         self,
         task_description: str,
-        policy: CostPolicy = CostPolicy.ZERO_COST_ONLY,
+        policy: str = CostPolicy.ZERO_COST_ONLY,
         max_cost_usd: float = 0.0,
         requires_thinking: bool = False,
-    ) -> tuple[str, str, CostClass]:
+    ) -> tuple[str, str, str]:
         """Select best candidate model satisfying budget constraints."""
         # 1. Zero cost only filter
         if policy == CostPolicy.ZERO_COST_ONLY or max_cost_usd == 0.0:
@@ -111,7 +111,7 @@ class CostOptimizer:
                 if spec.cost_class in (CostClass.FREE_LOCAL, CostClass.FREE_REMOTE):
                     return (
                         m_id,
-                        f"Selected zero-cost model '{spec.name}' satisfying policy {policy.value}",
+                        f"Selected zero-cost model '{spec.name}' satisfying policy {policy}",
                         spec.cost_class,
                     )
             raise ValueError("No zero-cost model available in catalog satisfying zero-budget constraint")
@@ -193,7 +193,7 @@ class InAppNotification:
     principal_id: str
     title: str
     message: str
-    severity: NotificationSeverity = NotificationSeverity.INFO
+    severity: str = NotificationSeverity.INFO
     resource_id: str | None = None
     read_at: float | None = None
     created_at: float = dataclasses.field(default_factory=time.time)
@@ -212,7 +212,7 @@ class NotificationCenter:
         principal_id: str,
         title: str,
         message: str,
-        severity: NotificationSeverity = NotificationSeverity.INFO,
+        severity: str = NotificationSeverity.INFO,
         dedup_key: str | None = None,
     ) -> InAppNotification | None:
         if dedup_key:

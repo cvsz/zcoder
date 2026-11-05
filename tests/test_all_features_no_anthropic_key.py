@@ -76,7 +76,7 @@ class TestZCoderFeaturesWithoutKey(unittest.TestCase):
         )
         self.assertTrue(indexed)
         results = indexer.search("authenticate_user", top_k=2)
-        self.assertTrue(len(results) > 0)
+        self.assertGreater(len(results), 0)
         self.assertEqual(results[0][0], "src/auth_service.py")
 
     def test_05_security_gate(self):

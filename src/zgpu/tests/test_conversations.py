@@ -92,8 +92,10 @@ def test_conversation_store_private_mode_and_delete(tmp_path):
     store = ConversationStore(path)
     created = store.create()
     store.append_messages(created["id"], [{"role": "user", "content": "remember this"}])
-    assert store.delete(created["id"]) is True
-    assert store.delete(created["id"]) is False
+    deleted = store.delete(created["id"])
+    assert deleted is True
+    deleted = store.delete(created["id"])
+    assert deleted is False
     with pytest.raises(ConversationError) as error:
         store.get(created["id"])
     assert error.value.status == 404
