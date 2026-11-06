@@ -18,8 +18,9 @@ import argparse
 import sys
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from xml.etree import ElementTree as ET
+from defusedxml import ElementTree as ET
 
 # Feeds ที่ควรติดตามสำหรับ zeaz.dev
 FEEDS = {
@@ -67,12 +68,16 @@ RELEVANT_KEYWORDS = [
 
 def fetch_feed(url: str, timeout: int = 15) -> ET.Element | None:
     """ดึง RSS feed และคืนค่า root element หรือ None ถ้าไม่สำเร็จ"""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        print(f"  [WARN] ไม่อนุญาต URL {url}: อนุญาตเฉพาะสก์ที https เท่านั้น", file=sys.stderr)
+        return None
     try:
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 (zeaz.dev rss-monitor)"})
         with urlopen(req, timeout=timeout) as resp:
             data = resp.read()
-        # resolve_entities=False ป้องกัน XXE (XML External Entity) injection
-        return ET.fromstring(data, parser=ET.XMLParser(resolve_entities=False))
+        # defusedxml.ElementTree ป้องกัน XXE / XML External Entity injection ตามค่าเริ่มต้น
+        return ET.fromstring(data)
     except (URLError, HTTPError, ET.ParseError, OSError) as exc:
         print(f"  [WARN] ไม่สามารถดึง feed {url}: {exc}", file=sys.stderr)
         return None

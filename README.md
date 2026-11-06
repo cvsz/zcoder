@@ -91,7 +91,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
                     +----------------------+
 ```
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) สำหรับรายละเอียดเต็ม
+See [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) สำหรับรายละเอียดเต็ม
 
 ### 🏢 Enterprise Features
 
@@ -446,7 +446,7 @@ Use `ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf` and
 The model directory is mounted read-only. GGUF files are excluded from Git
 and from the Docker build context. The inference service publishes no host
 port; ZCoder shares its network namespace and uses the loopback endpoint.
-See [QUICKSTART.md](QUICKSTART.md) and
+See [QUICKSTART.md](docs/guides/QUICKSTART.md) and
 [Local Inference Configuration](docs/guides/LOCAL-INFERENCE.md).
 
 ### Build and run the application image directly
@@ -619,14 +619,14 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 
 | Document | Description |
 |---|---|
-| [`QUICKSTART.md`](QUICKSTART.md) | Basic setup and first commands |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System architecture and boundaries |
-| [`ROADMAP.md`](ROADMAP.md) | Engineering direction |
+| [`QUICKSTART.md`](docs/guides/QUICKSTART.md) | Basic setup and first commands |
+| [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | System architecture and boundaries |
+| [`ROADMAP.md`](docs/engineering/ROADMAP.md) | Engineering direction |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 | [`SECURITY.md`](SECURITY.md) | Security guidance |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution workflow |
 | [`IMPLEMENTATION_CHECKLIST.md`](IMPLEMENTATION_CHECKLIST.md) | Implementation tracking |
-| [`exec-planning.md`](exec-planning.md) | Production readiness execution plan |
+| [`exec-planning.md`](docs/engineering/exec-planning.md) | Production readiness execution plan |
 | [`docs/operations/`](docs/operations/) | Deployment, DR, observability runbooks |
 | [`docs/security/`](docs/security/) | Security audits and remediation |
 
@@ -656,7 +656,7 @@ ZCoder is released under the [MIT License](LICENSE).
 
 **Actively maintained.** The repository contains mature integration surfaces and active development on local-AI and control-plane subsystems. When evaluating production readiness, use CI results, release gates, real-runtime evidence, and documented subsystem limitations — not feature names alone.
 
-**Current Baseline:** `main@2d8b4a2` (exec-planning.md implementation sweep complete)
+**Current Baseline:** `main@2d8b4a2` ([docs/engineering/exec-planning.md](docs/engineering/exec-planning.md) implementation sweep complete)
 
 **Security:** SEC-001 through SEC-010 closed and verified.
 
