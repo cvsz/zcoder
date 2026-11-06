@@ -30,11 +30,21 @@ class ZRuntime:
 
     def memcpy_h2d(self, dst: DevicePointer, src_data: list[float]):
         """Copy host array to device memory (FP32)."""
+        if dst.addr < 0 or dst.addr + len(src_data) * 4 > self.device.global_mem.size:
+            raise ValueError("memcpy_h2d out of range")
+        if len(src_data) > dst.size // 4:
+            raise ValueError("memcpy_h2d exceeds allocated size")
         for i, val in enumerate(src_data):
             self.device.global_mem.write_f32(dst.addr + i * 4, float(val))
 
     def memcpy_d2h(self, src: DevicePointer, num_floats: int) -> list[float]:
         """Copy device memory back to host array (FP32)."""
+        if num_floats < 0:
+            raise ValueError("num_floats must be >= 0")
+        if src.addr < 0 or src.addr + num_floats * 4 > self.device.global_mem.size:
+            raise ValueError("memcpy_d2h out of range")
+        if num_floats > src.size // 4:
+            raise ValueError("memcpy_d2h exceeds allocated size")
         return [self.device.global_mem.read_f32(src.addr + i * 4) for i in range(num_floats)]
 
     def launch(self, kernel_source: str, grid_dim: int = 1, block_dim_warps: int = 1):

@@ -21,6 +21,7 @@ Design principles:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import urllib.error
@@ -143,10 +144,6 @@ def get_adapter(
         # by default (base_url http://localhost:11434).
         raise ProviderAdapterError(f"Provider {provider!r} is blocked while ZCODER_LOCAL_MODE is enabled")
 
-    key = f"{provider}:{base_url or ''}"
-    if key in _PROVIDER_ADAPTER_CACHE:
-        return _PROVIDER_ADAPTER_CACHE[key]
-
     if api_key is None:
         api_key = resolve_api_key(provider)
     spec = PROVIDER_DEFAULTS[provider]
@@ -159,6 +156,15 @@ def get_adapter(
     resolved_base = resolve_base_url(provider, base_url)
     if not resolved_base:
         raise ProviderAdapterError(f"No base URL configured for provider {provider!r}")
+
+    key = (
+        f"{provider}:{resolved_base}:"
+        f"{hashlib.sha256(api_key.encode()).hexdigest()[:12]}:"
+        f"{timeout_seconds}"
+    )
+
+    if key in _PROVIDER_ADAPTER_CACHE:
+        return _PROVIDER_ADAPTER_CACHE[key]
 
     adapter = BaseProviderAdapter(
         provider=provider,

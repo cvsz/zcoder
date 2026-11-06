@@ -27,7 +27,7 @@
 flowchart TD
     subgraph PrimaryNetwork ["zPostgreSQL_network (Docker Network)"]
         direction TB
-        subgraph PrimaryDB ["zPostgreSQL Container (PostgreSQL 16)"]
+        subgraph PrimaryDB ["zpostgresql Container (PostgreSQL 16)"]
             PGCore["PostgreSQL 16 Engine"]
             WALEngine["WAL Generator (wal_level=replica)"]
             PGCore --> WALEngine
@@ -336,7 +336,7 @@ def main():
         "evidence_ref": f"ZPITR-REHEARSAL/{args.drill_id}",
         "evidence_sha256": args.evidence_hash,
         "details": {
-            "wal_source": "zPostgreSQL",
+            "wal_source": "zpostgresql",
             "restore_target": "isolated-sandbox",
             "method": "pg_receivewal+basebackup",
         },
@@ -367,7 +367,7 @@ services:
       dockerfile: Dockerfile
     command: ["daemon"]
     environment:
-      PGHOST: zPostgreSQL
+      PGHOST: zpostgresql
       PGPORT: "5432"
       PGUSER: zcoder
       PGDATABASE: zcoder_db

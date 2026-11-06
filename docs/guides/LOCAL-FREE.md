@@ -54,7 +54,7 @@ confirm that the response comes from the loaded model.
 ## Local persistence
 
 - SQLite is the default for a single-user installation.
-- PostgreSQL-backed commands use the shared Docker container `zPostgreSQL`
+- PostgreSQL-backed commands use the shared Docker container `zpostgresql`
   and the isolated `zcoder_db` database.
 - Local artifacts and runtime state are stored under the configured ZCoder
   data directory.

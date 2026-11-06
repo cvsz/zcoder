@@ -79,8 +79,9 @@ class SelfCodingEngine:
             VADD R6, R2, R5
             VLOAD.G R7, R6, 0
 
-            # Vector Branch Divergence on negative values
-            BRA.DIV ZERO_CLAMP, R8
+            # Vector Branch Divergence on nonzero values in R7.
+            # R9 is architecturally zero-initialized, so it holds the clamp value 0.
+            BRA.DIV ZERO_CLAMP, R7
             BRA END_ACT
             ZERO_CLAMP:
             VSTORE.G R6, R9, 0  # clamp with 0 in R9
