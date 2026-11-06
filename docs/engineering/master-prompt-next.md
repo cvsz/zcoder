@@ -17,7 +17,7 @@ Act as the engineering owner for the ZCoder repository at `/home/cvsz/zcoder`. C
 ## Repository-specific operating constraints
 
 - Python package requirement: `>=3.12`; check `pyproject.toml` and CI before changing toolchain assumptions.
-- SQLite remains the single-user default. The shared Docker PostgreSQL service is `zPostgreSQL` on `zPostgreSQL_network`; ZCoder uses database `zcoder_db` and role `zcoder`.
+- SQLite remains the single-user default. The shared Docker PostgreSQL service is `zpostgresql` on `zPostgreSQL_network`; ZCoder uses database `zcoder_db` and role `zcoder`.
 - For local PostgreSQL tests, use `python scripts/local_postgres.py status`, then `python scripts/local_postgres.py run -- <command>`. Do not print the password or alter shared-service configuration.
 - Runtime PostgreSQL credentials must remain outside tracked files. Compose mounts the dedicated password file read-only and constructs the connection URL in process memory.
 - Remote `zwslcore` contains unrelated dirty/untracked work. Do not edit its repository, containers, credentials, environment files, or S3 configuration as part of this ZCoder task.

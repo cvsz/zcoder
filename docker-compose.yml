@@ -1,4 +1,23 @@
 services:
+  zpostgresql:
+    container_name: zpostgresql
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: zcoder
+      POSTGRES_PASSWORD: zcoder
+      POSTGRES_DB: zcoder_db
+    volumes:
+      - zpostgresql_data:/var/lib/postgresql/data
+    networks:
+      - zPostgreSQL_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zcoder -d zcoder_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   llama-server:
     container_name: zcoder-llm
     image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
@@ -47,7 +66,7 @@ services:
       ZCODER_NVIDIA_MODELS: ${ZCODER_NVIDIA_MODELS:-}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-${NVIDIA_API_KEY_1:-${NVIDIA_API_KEY_2:-}}}
       NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      ZCODER_POSTGRES_HOST: zPostgreSQL
+      ZCODER_POSTGRES_HOST: zpostgresql
       ZCODER_POSTGRES_PORT: "5432"
       ZCODER_POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
       ZCODER_LOG_FORMAT: json
@@ -62,6 +81,8 @@ services:
     depends_on:
       llama-server:
         condition: service_healthy
+      zpostgresql:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-m", "zcoder.main", "--health-check"]
       interval: 30s
@@ -74,10 +95,10 @@ services:
 
 volumes:
   zcoder-home:
+  zpostgresql_data:
 
 networks:
   zPostgreSQL_network:
-    external: true
 
 secrets:
   zcoder_postgres_password:
