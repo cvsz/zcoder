@@ -145,7 +145,12 @@ class NetworkCPUPool:
         req = urllib.request.Request(node.url, data=req_data, headers=self._request_headers(node))
         with self._http.open(req, timeout=10.0) as resp:
             data = self._read_json_response(resp, node.url)
-            return data["result"]["matrix"]
+            if not isinstance(data, dict) or not isinstance(data.get("result"), dict):
+                raise RuntimeError(f"Worker {node.url} returned malformed response")
+            matrix = data["result"].get("matrix")
+            if not isinstance(matrix, list):
+                raise RuntimeError(f"Worker {node.url} returned missing matrix")
+            return matrix
 
     def hybrid_gemm_powerup(
         self,

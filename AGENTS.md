@@ -1,5 +1,7 @@
 # คำแนะนำการทำงานใน Repository ZCoder
 
+> **READ FIRST:** Canonical Policy: https://github.com/cvsz/zeaz/blob/main/zeaz.md. Read the canonical policy together with this file and the nearest nested AGENTS.md before editing any subtree. Local rules may be stricter than the canonical policy, but must not lower mandatory security, safety, evidence, validation, or release-governance requirements.
+
 ## ขอบเขตและข้อมูลพื้นฐาน
 
 - ทำงานเฉพาะ repository นี้ เว้นแต่ผู้ใช้จะขยายขอบเขตอย่างชัดเจน

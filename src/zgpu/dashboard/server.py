@@ -829,7 +829,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 if set(query) - {"limit"} or any(len(values) != 1 for values in query.values()):
                     raise ValueError
                 limit = int(query.get("limit", [str(WorkspaceNotes.MAX_NOTES)])[0])
-                self._send_json({"data": backend.notes.list(limit=limit)})
+                self._send_json({"data": backend.notes.list_items(limit=limit)})
             except WorkspaceNotesError as exc:
                 self._send_json({"error": {"message": str(exc)}}, status=exc.status)
             except ValueError:
@@ -904,7 +904,7 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 search = query.get("search", [""])[0]
                 project_id = query.get("project_id", [None])[0]
                 self._send_json(
-                    {"data": backend.conversations.list(limit=limit, search=search, project_id=project_id)}
+                    {"data": backend.conversations.list_conversations(limit=limit, search=search, project_id=project_id)}
                 )
             except ValueError as exc:
                 if isinstance(exc, ConversationError):

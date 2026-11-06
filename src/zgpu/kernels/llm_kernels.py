@@ -89,7 +89,15 @@ class LLMKernels:
     @staticmethod
     def silu(x: list[float]) -> list[float]:
         """Swish / SiLU Activation: x * sigmoid(x)."""
-        return [v / (1.0 + math.exp(-v)) for v in x]
+        out: list[float] = []
+        for v in x:
+            if v < -50.0:
+                out.append(0.0)
+            elif v > 50.0:
+                out.append(v)
+            else:
+                out.append(v / (1.0 + math.exp(-v)))
+        return out
 
     @staticmethod
     def softmax(logits: list[float]) -> list[float]:

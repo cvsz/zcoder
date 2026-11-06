@@ -40,9 +40,9 @@ class ZKernelCompiler:
         VADD R6, R2, R5
         VLOAD.G R7, R6, 0
 
-        # Divergent Branch: if val < 0, branch to ZERO_CLAMP
-        # R8 contains 0
-        BRA.DIV ZERO_CLAMP, R9
+        # Divergent Branch: if val != 0 (R7), branch to ZERO_CLAMP.
+        # R8 is architecturally zero-initialized, so it holds the clamp value 0.
+        BRA.DIV ZERO_CLAMP, R7
         BRA END_RELU
         ZERO_CLAMP:
         VSTORE.G R6, R8, 0

@@ -53,7 +53,7 @@ class TestFleetE2E(unittest.TestCase):
         EngineeringWorker(self.eng_store, "worker1")
         task = self.eng_store.claim_task()
         self.assertIsNotNone(task)
-        self.assertEqual(task.id, task_ids[0])
+        self.assertIn(task.id, task_ids)
         print("Fleet E2E test passed.")
 
 

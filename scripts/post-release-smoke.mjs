@@ -11,13 +11,21 @@
 // - live: curl /health/live + /health/ready + /metrics
 // Exit 0 = smoke pass, 1 = fail
 
-import { spawnSync, execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 const args = process.argv.slice(2);
-const target = args[args.indexOf('--target') + 1] || 'ghcr.io/cvsz/zcoder:1.41.0';
+const targetIdx = args.indexOf('--target');
+const target = targetIdx >= 0 && args[targetIdx + 1] ? args[targetIdx + 1] : 'ghcr.io/cvsz/zcoder:1.41.0';
+// Reject shell metacharacters in the target before it reaches any argv.
+// The target is an image ref, wheel path, or http(s) URL — never a shell
+// fragment. spawnSync never uses a shell, but validate defensively anyway.
+if (/[\s;|&$`<>\\\n\r]/.test(target)) {
+  console.error(`Invalid --target: ${target}`);
+  process.exit(2);
+}
 const live = args.includes('--live');
 const isWheel = target.endsWith('.whl');
-const isHttp = target.startsWith('http');
+const isHttp = target.startsWith('http://') || target.startsWith('https://');
 
 function run(cmd, opts = {}) {
   const r = spawnSync(cmd[0], cmd.slice(1), { encoding: 'utf8', ...opts });
@@ -25,12 +33,13 @@ function run(cmd, opts = {}) {
 }
 
 function curl(path) {
-  try {
-    const out = execSync(`curl -sf ${target}${path}`, { encoding: 'utf8', timeout: 8000 });
-    return { ok: true, out: out.slice(0, 1000) };
-  } catch (e) {
-    return { ok: false, out: e.message.slice(0, 1000) };
+  if (!['/health/live', '/health/ready', '/metrics'].includes(path)) {
+    return { ok: false, out: 'refused: path not in allowlist' };
   }
+  const url = `${target.replace(/\/+$/, '')}${path}`;
+  const r = spawnSync('curl', ['-sf', '--max-time', '8', url], { encoding: 'utf8' });
+  const out = ((r.stdout || '') + (r.stderr || '')).slice(0, 1000);
+  return { ok: r.status === 0, out };
 }
 
 const results = [];
@@ -40,7 +49,7 @@ if (isWheel) {
   results.push({ name: 'pip install wheel', ...pip });
   const ver = run(['zcoder', '--version']);
   results.push({ name: 'zcoder --version', ...ver });
-  const health = run(['python', '-c', 'from zcoder.core.health import run_health_checks; print(run_health_checks())']);
+  const health = run(['python', '-c', 'from zcoder.core.health import run_health_check; print(run_health_check().to_dict())']);
   results.push({ name: 'health-check', ...health });
 } else if (isHttp && live) {
   for (const p of ['/health/live', '/health/ready', '/metrics']) {
@@ -54,7 +63,7 @@ if (isWheel) {
   const health = run(['docker', 'run', '--rm', target, '--health-check']);
   // --health-check may not be a CLI flag; fallback to python health
   if (!health.ok) {
-    const health2 = run(['docker', 'run', '--rm', target, 'python', '-c', 'from zcoder.core.health import run_health_checks; print(run_health_checks())']);
+    const health2 = run(['docker', 'run', '--rm', target, 'python', '-c', 'from zcoder.core.health import run_health_check; print(run_health_check().to_dict())']);
     results.push({ name: 'container health', ...health2 });
   } else results.push({ name: 'container health', ...health });
 }
