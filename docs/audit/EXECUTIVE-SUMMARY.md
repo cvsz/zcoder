@@ -6,7 +6,11 @@
 **Initial HEAD:** `e868ee44dea4df7ae2d7ef1cccc1151e273ee8db`  
 **Final HEAD:** `e868ee44dea4df7ae2d7ef1cccc1151e273ee8db` (no new implementation commits required — baseline clean)  
 **Feature branch:** `codex/zcoder-full-audit-remediation-20261108`  
-**Pull request:** created from feature branch to `main`  
+**Pull request:** #175, created from feature branch to `main`, MERGED  
+**PR head SHA:** `0a6e24bb66dd8006e50c297ea01201a29dafcb06`  
+**Merge commit SHA:** `e087f7ec7704a9c8266b8c0e923d975e19fc9beb` (main now at e087f7e)  
+**Independent reviewer identity:** policedbc (APPROVED)  
+**GPG signature status:** Good signature, key `515DB3BD9BF14AA6646AC6770C54E869DE49D872`  
 **Audit date:** 2026-11-08  
 **Auditor:** cvsz (implementation) / policedbc (independent review, per GitHub auth config)
 
