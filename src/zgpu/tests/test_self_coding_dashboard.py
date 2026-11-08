@@ -10,8 +10,6 @@ import pytest
 
 import zgpu.dashboard.server as dashboard_server
 
-DashboardBackend = dashboard_server.DashboardBackend
-DashboardHTTPHandler = dashboard_server.DashboardHTTPHandler
 from zgpu.integrations.assistants import AssistantProfiles
 from zgpu.integrations.conversations import ConversationStore
 from zgpu.integrations.local_knowledge import LocalKnowledgeStore
@@ -20,6 +18,9 @@ from zgpu.integrations.prompts import PromptLibrary
 from zgpu.isa.assembler import Assembler
 from zgpu.self_coding.evaluator import KernelEvaluator
 from zgpu.self_coding.generator import SelfCodingEngine
+
+DashboardBackend = dashboard_server.DashboardBackend
+DashboardHTTPHandler = dashboard_server.DashboardHTTPHandler
 
 
 def test_self_coding_engine():
