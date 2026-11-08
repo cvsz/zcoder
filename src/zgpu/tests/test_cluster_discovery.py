@@ -119,7 +119,7 @@ def test_network_pool_auto_discovery():
         assert "network_cpu_192.168.1.10_9200" in pool.nodes
         assert "zgpu_192.168.1.20_8880" in pool.nodes
 
- 
+
 def test_beacon_listener_binds_only_to_selected_local_interface(monkeypatch):
     class FakeSocket:
         def __init__(self):
