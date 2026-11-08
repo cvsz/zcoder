@@ -220,4 +220,3 @@ def test_assembler_rejects_oversized_input(source):
 
 def test_assembler_strips_comments_without_regex_and_preserves_instruction():
     assert len(Assembler.assemble("HALT # " + ("x" * 4000))) == 1
-

@@ -139,9 +139,7 @@ def test_beacon_listener_binds_only_to_selected_local_interface(monkeypatch):
             self.closed = True
 
     fake = FakeSocket()
-    monkeypatch.setattr(
-        "zgpu.cluster.discovery.scanner.socket.socket", lambda *_args: fake
-    )
+    monkeypatch.setattr("zgpu.cluster.discovery.scanner.socket.socket", lambda *_args: fake)
     scanner = NetworkComputeScanner()
     assert scanner.listen_beacons(duration_seconds=0, port=9998, bind_host="192.168.1.10") == []
     assert fake.bound == ("192.168.1.10", 9998)
@@ -153,4 +151,3 @@ def test_beacon_listener_rejects_wildcard_public_and_non_ipv4_bind(bind_host):
     scanner = NetworkComputeScanner()
     with pytest.raises(ValueError, match="bind_host"):
         scanner.listen_beacons(duration_seconds=0, bind_host=bind_host)
-

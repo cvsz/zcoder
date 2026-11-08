@@ -142,7 +142,6 @@ import urllib.request
 import uuid
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import urlsplit
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
@@ -330,25 +329,8 @@ class McpTunnel:
         return {}
 
     def as_mcp_server(self, name: str, transport: str = "sse") -> McpServerConfig:
-        """Build an MCP server config from a successfully opened HTTPS tunnel."""
-        if not isinstance(name, str) or not name.strip() or len(name) > 128:
-            raise ValueError("MCP server name must contain 1 to 128 characters")
-        if transport not in {"sse", "http"}:
-            raise ValueError("MCP tunnel transport must be 'sse' or 'http'")
-        if not self.public_url:
-            raise RuntimeError("Tunnel not open yet — call open() first")
-
-        parsed = urlsplit(self.public_url)
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.fragment
-        ):
-            raise RuntimeError("Tunnel returned an invalid public HTTPS URL")
-        factory = McpServerConfig.sse if transport == "sse" else McpServerConfig.http
-        return factory(name.strip(), self.public_url)
+        """Keep hosted MCP tunnel conversion disabled by local-only policy."""
+        raise NotImplementedError("MCP tunnel conversion is disabled by the repository's local-only policy")
 
 
 def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: str | None = None):

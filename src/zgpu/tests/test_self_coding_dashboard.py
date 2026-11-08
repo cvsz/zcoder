@@ -9,7 +9,6 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 
 import zgpu.dashboard.server as dashboard_server
-
 from zgpu.integrations.assistants import AssistantProfiles
 from zgpu.integrations.conversations import ConversationStore
 from zgpu.integrations.local_knowledge import LocalKnowledgeStore
@@ -1345,7 +1344,7 @@ def test_dashboard_rejects_spoofed_host_and_cross_site_posts(monkeypatch):
     assert missing_marker.send_response.call_args.args[0] == 403
     api.create_completion.assert_not_called()
 
- 
+
 def test_knowledge_library_documents_preserves_local_knowledge_error_status(monkeypatch):
     class BrokenKnowledge:
         def list_documents(self, *, project_id=None):
@@ -1358,4 +1357,3 @@ def test_knowledge_library_documents_preserves_local_knowledge_error_status(monk
     assert handler.send_response.call_args.args == (503,)
     payload = json.loads(b"".join(call.args[0] for call in handler.wfile.write.call_args_list))
     assert payload == {"error": {"message": "knowledge store unavailable"}}
-
