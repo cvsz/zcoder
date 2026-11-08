@@ -9,6 +9,9 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 
 import zgpu.dashboard.server as dashboard_server
+
+DashboardBackend = dashboard_server.DashboardBackend
+DashboardHTTPHandler = dashboard_server.DashboardHTTPHandler
 from zgpu.integrations.assistants import AssistantProfiles
 from zgpu.integrations.conversations import ConversationStore
 from zgpu.integrations.local_knowledge import LocalKnowledgeStore
@@ -43,7 +46,7 @@ def test_kernel_evaluator():
 
 
 def test_dashboard_backend_services():
-    backend = dashboard_server.DashboardBackend()
+    backend = DashboardBackend()
     telem = backend.get_system_telemetry()
     assert "performance_counters" in telem
     assert telem["warp_size"] == 32
@@ -85,7 +88,7 @@ def test_dashboard_backend_enables_embeddings_only_with_complete_settings(monkey
     monkeypatch.setenv("ZGPU_EMBEDDING_API_KEY", "local-test-key")
     monkeypatch.setenv("ZGPU_KNOWLEDGE_DB_PATH", str(tmp_path / "knowledge.sqlite3"))
 
-    backend = dashboard_server.DashboardBackend()
+    backend = DashboardBackend()
 
     assert backend.local_knowledge.embedding_provider.base_url == "http://127.0.0.1:11434/v1/embeddings"
     assert backend.local_knowledge.embedding_provider.model == "local-embed-model"
@@ -93,7 +96,7 @@ def test_dashboard_backend_enables_embeddings_only_with_complete_settings(monkey
 
     monkeypatch.delenv("ZGPU_EMBEDDING_MODEL")
     with pytest.raises(ValueError, match="must be configured together"):
-        dashboard_server.DashboardBackend()
+        DashboardBackend()
 
 
 def test_dashboard_zisa_studio_uses_canonical_assembler_words():
@@ -204,7 +207,7 @@ def test_dashboard_zisa_opcode_listing_comes_from_existing_assembler():
 
 
 def test_dashboard_http_handler_endpoints():
-    handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.send_response = MagicMock()
     handler.send_header = MagicMock()
     handler.end_headers = MagicMock()
@@ -221,7 +224,7 @@ def test_dashboard_http_handler_endpoints():
 
 
 def test_dashboard_serves_standalone_ui_with_security_headers():
-    handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.send_response = MagicMock()
     handler.send_header = MagicMock()
     handler.end_headers = MagicMock()
@@ -256,7 +259,7 @@ def test_dashboard_serves_frontend_assets():
         ("/dashboard.css", "text/css; charset=utf-8", ".chat-panel"),
         ("/dashboard.js", "text/javascript; charset=utf-8", "searchConversations"),
     ):
-        handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+        handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
         handler.send_response = MagicMock()
         handler.send_header = MagicMock()
         handler.end_headers = MagicMock()
@@ -271,7 +274,7 @@ def test_dashboard_serves_frontend_assets():
 
 
 def _post_handler(path, body: bytes, length: str | None = None):
-    handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.path = path
     handler.headers = Message()
     handler.headers["Content-Length"] = length if length is not None else str(len(body))
@@ -285,7 +288,7 @@ def _post_handler(path, body: bytes, length: str | None = None):
 
 
 def _get_handler(path: str):
-    handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.path = path
     handler.send_response = MagicMock()  # type: ignore[method-assign]
     handler.send_header = MagicMock()  # type: ignore[method-assign]
@@ -324,7 +327,9 @@ def test_engineering_jobs_route_is_optional_read_only_and_bounded(monkeypatch):
     monkeypatch.setattr(dashboard_server.backend, "engineering_jobs", client)
     handler = _get_handler("/api/engineering/jobs?limit=10&offset=5")
     handler.do_GET()
-    payload = json.loads(b"".join(call.args[0] for call in handler.wfile.write.call_args_list))
+    payload = json.loads(
+        b"".join(call.args[0] for call in handler.wfile.write.call_args_list)
+    )
     assert client.list_jobs.call_args.kwargs == {"limit": 10, "offset": 5}
     assert payload["data"][0]["task"] == "x" * 500
     assert "secret_field" not in payload["data"][0]
@@ -686,7 +691,7 @@ def test_dashboard_connected_knowledge_upload_is_explicit_and_bounded(monkeypatc
 def test_dashboard_connected_knowledge_job_cancellation_requires_marker(monkeypatch):
     connected = MagicMock()
     monkeypatch.setattr(dashboard_server.backend, "knowledge_base", connected)
-    handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.path = "/api/knowledge/base/jobs/job-1"
     handler.headers = Message()
     handler.headers["Content-Length"] = "0"
@@ -761,7 +766,7 @@ def test_chat_stream_disconnect_stops_generation_at_the_next_token(monkeypatch):
         "chat_api",
         SimpleNamespace(create_completion=create_completion),
     )
-    handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     handler.wfile = DisconnectAfterFirstEvent()
     handler.send_response = MagicMock()
     handler.send_header = MagicMock()
@@ -1133,7 +1138,7 @@ def test_dashboard_exposes_local_chat_models_and_completion(monkeypatch):
     fake_api.create_completion.return_value = {"choices": [{"message": {"content": "hello"}}]}
     monkeypatch.setattr(dashboard_server.backend, "chat_api", fake_api)
 
-    get_handler = dashboard_server.DashboardHTTPHandler.__new__(dashboard_server.DashboardHTTPHandler)
+    get_handler = DashboardHTTPHandler.__new__(DashboardHTTPHandler)
     get_handler.path = "/api/chat/models"
     get_handler.send_response = MagicMock()
     get_handler.send_header = MagicMock()
@@ -1279,7 +1284,7 @@ def test_knowledge_service_not_configured_is_not_advertised(monkeypatch):
 def test_knowledge_service_configuration_stays_server_side(monkeypatch):
     monkeypatch.setenv("ZGPU_KNOWLEDGE_API_URL", "https://knowledge.example")
     monkeypatch.setenv("ZGPU_KNOWLEDGE_API_TOKEN", "server-only-secret")
-    configured = dashboard_server.DashboardBackend()
+    configured = DashboardBackend()
     assert configured.knowledge_chat is not None
     models_json = json.dumps(configured.get_chat_models())
     assert "zgpu-knowledge" in models_json
@@ -1287,7 +1292,7 @@ def test_knowledge_service_configuration_stays_server_side(monkeypatch):
 
     monkeypatch.delenv("ZGPU_KNOWLEDGE_API_TOKEN")
     with pytest.raises(ValueError, match="Both ZGPU_KNOWLEDGE_API_URL"):
-        dashboard_server.DashboardBackend()
+        DashboardBackend()
 
 
 def test_dashboard_rejects_network_wide_bind():
@@ -1340,12 +1345,16 @@ def test_dashboard_rejects_spoofed_host_and_cross_site_posts(monkeypatch):
     missing_marker.do_POST()
     assert missing_marker.send_response.call_args.args[0] == 403
     api.create_completion.assert_not_called()
+
  
- 
-def test_knowledge_library_documents_preserves_local_knowledge_error_status(monkeypatch):
+def test_knowledge_library_documents_preserves_local_knowledge_error_status(
+    monkeypatch,
+):
     class BrokenKnowledge:
         def list_documents(self, *, project_id=None):
-            raise dashboard_server.LocalKnowledgeError("knowledge store unavailable", status=503)
+            raise dashboard_server.LocalKnowledgeError(
+                "knowledge store unavailable", status=503
+            )
 
     monkeypatch.setattr(dashboard_server.backend, "local_knowledge", BrokenKnowledge())
     handler = _get_handler("/api/knowledge/library/documents")
