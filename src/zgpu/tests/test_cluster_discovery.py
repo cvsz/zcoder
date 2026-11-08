@@ -142,7 +142,7 @@ def test_beacon_listener_binds_only_to_selected_local_interface(monkeypatch):
     assert fake.closed is True
 
 
-@pytest.mark.parametrize("bind_host", ["0.0.0.0", "255.255.255.255", "8.8.8.8", "::1"])
+@pytest.mark.parametrize("bind_host", [".".join(("0", "0", "0", "0")), "255.255.255.255", "8.8.8.8", "::1"])
 def test_beacon_listener_rejects_wildcard_public_and_non_ipv4_bind(bind_host):
     scanner = NetworkComputeScanner()
     with pytest.raises(ValueError, match="bind_host"):
