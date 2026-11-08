@@ -36,7 +36,7 @@ class HealthReport:
 
 def _check_model_config() -> CheckResult:
     base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip()
-    model = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m").strip()
+    model = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
     parsed = urllib.parse.urlsplit(base_url)
     valid_url = (
         parsed.scheme == "http"
@@ -73,7 +73,7 @@ def _check_python_version() -> CheckResult:
     )
 
 
-def _check_live_model(model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> CheckResult:
+def _check_live_model(model: str = "qwen-7b-q4km") -> CheckResult:
     """Deep check — make one minimal request to the configured local model."""
     try:
         from zcoder.services.coder import Coder
@@ -94,7 +94,7 @@ def run_health_check(deep: bool = False) -> HealthReport:
     report.checks.append(model_check)
 
     if deep and model_check.ok:
-        model = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+        model = os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
         report.checks.append(_check_live_model(model))
 
     return report

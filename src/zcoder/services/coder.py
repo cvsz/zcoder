@@ -54,10 +54,10 @@ class Coder:
         inference_geo=None,
         fast_mode=False,
     ):
-        self.model = model or os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+        self.model = model or os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.provider = (provider or "llama_cpp").strip().lower()
+        self.provider = (provider or "local").strip().lower()
         self.base_url = (base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")).rstrip("/")
         self.personality_style = personality_style
         # service_tier: "auto" (use Priority Tier if committed, else fall
@@ -78,7 +78,7 @@ class Coder:
     def generate(self, prompt, system=None, file_content=None, history=None):
         """Generate a response from the AI model."""
         if self.provider not in {"local", "llama_cpp", "openai_compatible"}:
-            return "[ERROR] The command-line coding client only supports the local model server."
+            return "[ERROR] The command-line coding client only supports local inference."
         parsed_url = urllib.parse.urlsplit(self.base_url)
         if (
             parsed_url.scheme != "http"
@@ -88,7 +88,7 @@ class Coder:
             or parsed_url.query
             or parsed_url.fragment
         ):
-            return "[ERROR] ZCODER_BASE_URL must point to a local llama-server endpoint."
+            return "[ERROR] ZCODER_BASE_URL must point to a loopback local OpenAI-compatible endpoint."
         endpoint_base = (
             self.base_url if parsed_url.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
         )
