@@ -43,7 +43,7 @@ def test_conversation_store_persists_messages_and_updates_title(tmp_path):
     assert saved["messages"][1]["citations"][0]["url"] == "https://docs.example/kernel"
     assert saved["messages"][1]["citations"][0]["source"] == "connected"
     assert saved["messages"][1]["citations"][1] == {"number": 2, "title": "Local zGPU notes", "url": None}
-    assert ConversationStore(path).list()[0]["message_count"] == 2
+    assert ConversationStore(path).list_conversations()[0]["message_count"] == 2
     if os.name == "posix":
         assert path.stat().st_mode & 0o077 == 0
 
@@ -73,7 +73,7 @@ def test_conversation_store_validates_limits_ids_and_citation_urls(tmp_path):
             ],
         )
     with pytest.raises(ConversationError):
-        store.list(limit=201)
+        store.list_conversations(limit=201)
     with pytest.raises(ConversationError):
         store.append_messages(
             created["id"],
@@ -103,7 +103,7 @@ def test_conversation_store_private_mode_and_delete(tmp_path):
     insecure.touch(mode=0o644)
     insecure.chmod(0o644)
     with pytest.raises(ConversationError, match="private regular file"):
-        ConversationStore(insecure).list()
+        ConversationStore(insecure).list_conversations()
 
 
 def test_conversation_store_renames_without_changing_messages(tmp_path):
@@ -129,14 +129,14 @@ def test_conversation_store_searches_titles_and_messages_with_bounded_literal_qu
     store.append_messages(titled["id"], [{"role": "user", "content": "Review dynamic warp scheduling"}])
     other = store.create("Hardware notes")
 
-    assert [item["id"] for item in store.list(search="SIMULATOR")] == [titled["id"]]
-    assert [item["id"] for item in store.list(search="dynamic warp")] == [titled["id"]]
-    assert [item["id"] for item in store.list(search="Hardware")] == [other["id"]]
-    assert store.list(search="%_") == []
+    assert [item["id"] for item in store.list_conversations(search="SIMULATOR")] == [titled["id"]]
+    assert [item["id"] for item in store.list_conversations(search="dynamic warp")] == [titled["id"]]
+    assert [item["id"] for item in store.list_conversations(search="Hardware")] == [other["id"]]
+    assert store.list_conversations(search="%_") == []
     with pytest.raises(ConversationError):
-        store.list(search="x" * 257)
+        store.list_conversations(search="x" * 257)
     with pytest.raises(ConversationError):
-        store.list(search=None)
+        store.list_conversations(search=None)
 
 
 def test_workspace_projects_organize_conversations_and_detach_on_delete(tmp_path):
@@ -146,7 +146,7 @@ def test_workspace_projects_organize_conversations_and_detach_on_delete(tmp_path
     store.append_messages(conversation["id"], [{"role": "user", "content": "Check bounds"}])
 
     assert store.get(conversation["id"])["project_id"] == project["id"]
-    assert store.list(project_id=project["id"])[0]["id"] == conversation["id"]
+    assert store.list_conversations(project_id=project["id"])[0]["id"] == conversation["id"]
     assert store.list_projects()[0]["conversation_count"] == 1
     with pytest.raises(ConversationError) as duplicate:
         store.create_project("gpu KERNELS")
@@ -157,7 +157,7 @@ def test_workspace_projects_organize_conversations_and_detach_on_delete(tmp_path
     assert store.delete_project(project["id"]) is True
     assert store.delete_project(project["id"]) is False
     assert store.get(conversation["id"])["project_id"] is None
-    assert store.list(project_id=None)[0]["id"] == conversation["id"]
+    assert store.list_conversations(project_id=None)[0]["id"] == conversation["id"]
 
 
 def test_conversation_database_migrates_existing_records_to_project_schema(tmp_path):

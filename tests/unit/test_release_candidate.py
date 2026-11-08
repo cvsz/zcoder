@@ -177,6 +177,8 @@ def test_version_sync_rejects_runtime_version_drift(candidate):
         [
             "git",
             "-c",
+            "commit.gpgsign=false",
+            "-c",
             "user.name=Release Test",
             "-c",
             "user.email=test@example.invalid",

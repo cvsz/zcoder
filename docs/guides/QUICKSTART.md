@@ -61,7 +61,7 @@ Stop the inference service and remove the Compose network when finished:
 docker compose down
 ```
 
-## Shared PostgreSQL (zPostgreSQL) for Integration Tests
+## Shared PostgreSQL (zpostgresql) for Integration Tests
 
 ```bash
 # Start shared PostgreSQL container

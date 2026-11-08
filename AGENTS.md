@@ -1,12 +1,14 @@
 # คำแนะนำการทำงานใน Repository ZCoder
 
+> **READ FIRST:** Canonical Policy: https://github.com/cvsz/zeaz/blob/main/zeaz.md. Read the canonical policy together with this file and the nearest nested AGENTS.md before editing any subtree. Local rules may be stricter than the canonical policy, but must not lower mandatory security, safety, evidence, validation, or release-governance requirements.
+
 ## ขอบเขตและข้อมูลพื้นฐาน
 
 - ทำงานเฉพาะ repository นี้ เว้นแต่ผู้ใช้จะขยายขอบเขตอย่างชัดเจน
 - ก่อนแก้ subtree ให้ตรวจ `README.md`, ไฟล์นี้ และ `AGENTS.md` ที่อยู่ใกล้ subtree ที่สุด รวมถึงตรวจ `git status` เพื่อรักษางานที่มีอยู่
 - โครงสร้าง Python หลักอยู่ใน `src/zcoder/` ให้คง module boundary และ public interface เดิม เว้นแต่โจทย์ต้องเปลี่ยน
 - ปัจจุบัน package ระบุ Python `>=3.12`; Ruff, Black และ mypy ตั้งเป้า Python 3.12 ให้ตรวจ `pyproject.toml` และ CI workflows ก่อนเปลี่ยน toolchain
-- SQLite เป็นค่าเริ่มต้นสำหรับการใช้งานคนเดียว PostgreSQL ใช้ Docker service `zPostgreSQL` บน `zPostgreSQL_network`; ฐานข้อมูลเฉพาะของ ZCoder คือ `zcoder_db` และ role คือ `zcoder` service นี้มี lifecycle แยกจาก repository
+- SQLite เป็นค่าเริ่มต้นสำหรับการใช้งานคนเดียว PostgreSQL ใช้ Docker service `zpostgresql` บน `zPostgreSQL_network`; ฐานข้อมูลเฉพาะของ ZCoder คือ `zcoder_db` และ role คือ `zcoder` service นี้มี lifecycle แยกจาก repository
 
 ## ภาษาในการสื่อสารและเอกสาร
 

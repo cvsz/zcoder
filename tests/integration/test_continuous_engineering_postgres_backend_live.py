@@ -85,9 +85,11 @@ def test_live_postgres_backend_excludes_concurrent_runner(monkeypatch, tmp_path)
     first = _build(monkeypatch, tmp_path, namespace, PassingExecutor())
     second = _build(monkeypatch, tmp_path, namespace, PassingExecutor())
 
-    first.run_lease.acquire()
     with first.run_lease:
         with pytest.raises(PostgresUpgradeRunLeaseError, match="already held"):
             second.run([feature_work("Contending feature", "Must not execute concurrently")])
-        first.close()
-        second.close()
+    # Release the fenced lease (and its PostgreSQL connection) before closing
+    # the store, otherwise close() tears down the connection the lease needs
+    # to unlock.
+    first.close()
+    second.close()

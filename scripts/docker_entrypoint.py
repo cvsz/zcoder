@@ -26,7 +26,7 @@ def configure_database_url(environ: dict[str, str] | None = None) -> str | None:
     if re.fullmatch(r"[0-9a-f]{64}", password) is None:
         raise RuntimeError("ZCoder PostgreSQL secret file has an invalid format")
 
-    host = env.get("ZCODER_POSTGRES_HOST", "zPostgreSQL").strip()
+    host = env.get("ZCODER_POSTGRES_HOST", "zpostgresql").strip()
     port = env.get("ZCODER_POSTGRES_PORT", "5432").strip()
     if re.fullmatch(r"[A-Za-z0-9.-]+", host) is None or ".." in host:
         raise RuntimeError("ZCODER_POSTGRES_HOST must be a DNS name or IPv4 address")

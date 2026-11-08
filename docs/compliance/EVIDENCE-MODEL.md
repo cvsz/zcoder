@@ -29,7 +29,7 @@ Evidence files are written to `docs/evidence/pitr-qualification-<SHA>.json` (sch
 | `tested_at` | string | UTC ISO-8601 timestamp ending in `Z` when the drill executed. |
 | `evidence_ref` | string | Reference in form `ZPITR-REHEARSAL/<drill-id>`. |
 | `evidence_sha256` | string | 64-hex SHA-256 digest of the backup/drill proof artifact. |
-| `details.wal_source` | string | Source of WAL stream (e.g. `zPostgreSQL`). |
+| `details.wal_source` | string | Source of WAL stream (e.g. `zpostgresql`). |
 | `details.restore_target` | string | Recovery target environment (e.g. `isolated-sandbox`). |
 | `details.method` | string | Recovery method (e.g. `pg_receivewal+basebackup`). |
 
@@ -45,7 +45,7 @@ Example:
   "evidence_ref": "ZPITR-REHEARSAL/DRILL-20261104-165000",
   "evidence_sha256": "aaaa...aaaa",
   "details": {
-    "wal_source": "zPostgreSQL",
+    "wal_source": "zpostgresql",
     "restore_target": "isolated-sandbox",
     "method": "pg_receivewal+basebackup"
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Source-checkout compatibility launcher.
-"""
+"""Source-checkout compatibility launcher."""
+
 import sys
 from pathlib import Path
 

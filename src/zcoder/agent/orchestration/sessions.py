@@ -6,6 +6,8 @@ ZCoder CLI v1.10.0
 """
 
 import json
+import os
+import re
 import subprocess
 import uuid
 from dataclasses import dataclass, field
@@ -15,6 +17,27 @@ from pathlib import Path
 SESSIONS_DIR = Path.home() / ".zcoder" / "sessions"
 CHECKPOINTS_DIR = Path.home() / ".zcoder" / "checkpoints"
 SKIP_DIRS = {".git", "node_modules", "__pycache__", "venv", ".venv", "dist", "build"}
+
+# Session/checkpoint ids are the last line of defense against path traversal
+# (SEC-002/SEC-004). They are always server-generated; any id reaching the
+# filesystem must match this allowlist or the path helpers fail closed.
+_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _validate_id(value: str, kind: str) -> str:
+    if not isinstance(value, str) or not _SAFE_ID.match(value):
+        raise ValueError(f"Invalid {kind} id: must match [A-Za-z0-9_-] and be 1-64 chars")
+    return value
+
+
+def _safe_child_path(base_dir: Path, filename: str) -> Path:
+    name = _validate_id(filename, "file")
+    base_dir.mkdir(parents=True, exist_ok=True)
+    base = Path(os.path.realpath(base_dir))
+    candidate = Path(os.path.realpath(base / f"{name}.json"))
+    if candidate.parent != base:
+        raise ValueError("Resolved path escapes the allowed directory")
+    return candidate
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -36,7 +59,7 @@ class Turn:
 
 @dataclass
 class Session:
-    sid: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
+    sid: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     mode: str = "interactive"
     title: str | None = None
     model: str = "claude-sonnet-5"
@@ -87,7 +110,7 @@ class Session:
 
 @dataclass
 class Checkpoint:
-    cpid: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    cpid: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     sid: str = ""
     label: str = ""
     n_turns: int = 0
@@ -120,13 +143,11 @@ class Checkpoint:
 
 
 def _sess_path(sid: str) -> Path:
-    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-    return SESSIONS_DIR / f"{sid}.json"
+    return _safe_child_path(SESSIONS_DIR, _validate_id(sid, "session"))
 
 
 def _cp_path(cpid: str) -> Path:
-    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
-    return CHECKPOINTS_DIR / f"{cpid}.json"
+    return _safe_child_path(CHECKPOINTS_DIR, _validate_id(cpid, "checkpoint"))
 
 
 def save_session(s: Session):

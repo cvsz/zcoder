@@ -596,23 +596,4 @@ def _init_claude_catalog() -> None:
     )
 
 
-__all__ = [
-    "ModelRecord",
-    "ModelModality",
-    "PricingTier",
-    "LifecycleState",
-    "MODEL_CATALOG",
-    "register_model",
-    "get_model",
-    "list_models",
-    "get_capability",
-    "has_capability",
-    "model_available",
-    "model_retired",
-    "model_deprecated",
-    "CapabilityStatus",
-    "CapabilityType",
-    "CapabilityMetadata",
-    "CapabilityRegistry",
-]
 _init_claude_catalog()

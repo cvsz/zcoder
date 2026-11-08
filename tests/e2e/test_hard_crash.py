@@ -46,20 +46,29 @@ for i in range(1000):
         )
         proc = subprocess.Popen([sys.executable, "-c", script], env=env)
 
-        # Give it some time to start writing
-        time.sleep(2.0)
+        # Wait until the child has persisted at least one task (bounded),
+        # instead of guessing with a fixed sleep.
+        deadline = time.time() + 30.0
+        while time.time() < deadline:
+            try:
+                if len(self.store.list_tasks()) > 0:
+                    break
+            except Exception:
+                pass
+            if proc.poll() is not None:
+                break
+            time.sleep(0.1)
 
         # SIGKILL it
-        proc.kill()
-        proc.wait()
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        proc.wait(timeout=10)
 
         # Verify DB is not corrupted and some tasks are saved
         # SQLite WAL mode should make it crash-consistent
-        retrieved_count = 0
-        with self.store._get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT count(*) FROM tasks")
-            retrieved_count = cur.fetchone()[0]
+        retrieved_count = len(self.store.list_tasks())
 
         self.assertGreater(retrieved_count, 0, "No tasks were persisted")
         print(f"Tasks persisted after crash: {retrieved_count}")

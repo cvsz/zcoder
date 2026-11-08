@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from benchmarks.metrics import benchmark_environment, generation_metrics, write_benchmark_evidence
+from zgpu.benchmarks.metrics import benchmark_environment, generation_metrics, write_benchmark_evidence
 from zgpu.kernels.llm_kernels import LLMKernels
 from zgpu.llm.transformer import ZGPULLM, LLMConfig
 from zgpu.runtime.runtime import ZRuntime
