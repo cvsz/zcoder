@@ -240,18 +240,44 @@ class NetworkComputeScanner:
         return discovered
 
     def listen_beacons(
-        self, duration_seconds: float = 2.0, port: int = DEFAULT_BEACON_PORT
+        self,
+        duration_seconds: float = 2.0,
+        port: int = DEFAULT_BEACON_PORT,
+        *,
+        bind_host: str = "127.0.0.1",
     ) -> list[DiscoveredNode]:
-        """Listens for UDP broadcast beacons sent by local compute workers."""
+        """Listen for UDP beacons on one explicitly selected local interface.
+
+        The default is loopback. To receive LAN broadcasts, pass the host's
+        specific private interface address; wildcard/all-interface binding
+        is deliberately rejected.
+        """
+        if (
+            isinstance(duration_seconds, bool)
+            or not isinstance(duration_seconds, (int, float))
+            or not 0 <= duration_seconds <= 60
+        ):
+            raise ValueError("duration_seconds must be between 0 and 60 seconds")
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise ValueError("port must be a valid TCP/UDP port")
+        try:
+            bind_address = ipaddress.ip_address(bind_host)
+        except ValueError as exc:
+            raise ValueError("bind_host must be a local IPv4 address") from exc
+        if (
+            not isinstance(bind_address, ipaddress.IPv4Address)
+            or bind_address.is_unspecified
+            or not (bind_address.is_private or bind_address.is_loopback or bind_address.is_link_local)
+        ):
+            raise ValueError("bind_host must be a specific private, loopback, or link-local IPv4 address")
+
         discovered = []
         seen = set()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            sock.bind(
-                ("", port)
-            )  # nosec B104 - UDP beacon listener must bind to all interfaces for network discovery
+            sock.bind((str(bind_address), port))
         except Exception as e:
             log.debug("Could not bind UDP beacon listener: %s", e)
             return []
