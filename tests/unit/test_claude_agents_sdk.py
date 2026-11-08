@@ -1605,6 +1605,7 @@ def test_build_multiagent_config_still_enforces_delegate_limit(agents_sdk):
     with pytest.raises(ValueError):
         agents_sdk.build_multiagent_config(roster)
 
+
 def test_mcp_tunnel_server_conversion_remains_disabled_by_local_only_policy(agents_sdk):
     tunnel = agents_sdk.McpTunnel(api_key="sk-test")
     tunnel.public_url = "https://tunnel.example.test/mcp"
