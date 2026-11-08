@@ -330,9 +330,7 @@ class McpTunnel:
 
     def as_mcp_server(self, name: str, transport: str = "sse") -> McpServerConfig:
         """Keep hosted MCP tunnel conversion disabled by local-only policy."""
-        raise NotImplementedError(
-            "MCP tunnel conversion is disabled by the repository's local-only policy"
-        )
+        raise NotImplementedError("MCP tunnel conversion is disabled by the repository's local-only policy")
 
 
 def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: str | None = None):
