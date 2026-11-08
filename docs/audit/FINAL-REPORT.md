@@ -171,13 +171,17 @@ policy and loopback defaults untouched and still covered by tests
 
 - At session start: 0 open PRs (PR #183 was the last merge, `121cc27`).
 - During execution, 3 dependabot PRs appeared: **#185** (actions group bump: codeql.yml, publish-container.yml, release.yml; all checks green), **#186** (Dockerfile uv 0.13.5→0.13.7; all checks green), **#184** (anthropic range `<3.0.0`; lock-check + sync-locked + docker-build failing — `uv.lock` not regenerated).
-- This round's PR: `feat/zcoder-universal-remediation` → `main` (reviewed by policedbc; merged by cvsz with `--match-head-commit` when green).
+- This round's PR #187 merged (reviewed head `2f8d1a75` → squash merge `31042d4`); dependabot #185/#186 reviewed and merged (`f11312dc`, `afcd218`); #184 remains open with a documented comment (see §24).
 
 ## 22. Independent review decisions
 
 - Reviewer identity: `policedbc` (verified via `gh auth switch -u policedbc`; `gh auth status` checked before review).
 - Scope of review: full diff on the exact head SHA (config, workflows, src, tests, docs), CodeQL evidence (`CODEQL-REMEDIATION.md`), workflow validity (actionlint), gitleaks config validity, test results.
-- Decision recorded on the PR (approve only if: entire diff reviewed, no unresolved blocking findings, security boundaries intact, exact head SHA matches). A not-approve/rework cycle would have been posted as request-changes instead of merging.
+- **Recorded decisions (all approvals on the exact reviewed SHA, by the `policedbc` account, different from the author `cvsz`):**
+  - **PR #187** — APPROVED on head `2f8d1a755ee8f20e37c084e4d7bac74a126fe8ad`: full diff read (39 files), no dependency files touched, `agents_sdk.py` delta comment-only (local-only MCP policy untouched), added-lines secret scan clean, `.gitleaksignore` rationale reviewed, canonical CodeQL barrier patterns verified, 17/17 check-runs green on the reviewed SHA.
+  - **PR #185** (dependabot) — APPROVED on head `482b56a3983bccb974ce10acc9bba104a158671b`: diff limited to `uses:` lines; SHA pins + version comments preserved; dependency review green.
+  - **PR #186** (dependabot) — APPROVED on head `e48738e3d709ee7f00376490cd2656d419f05e1b`: single `FROM` line; version + digest updated together; docker-build green.
+  - **PR #184** — NOT approved; review comment posted documenting failing required checks (lock-check/sync-locked/docker-build; `uv.lock` not regenerated) and the unverified Anthropic v2 migration policy. PR left open.
 
 ## 23. GPG signing verification
 
@@ -187,10 +191,18 @@ policy and loopback defaults untouched and still covered by tests
 
 ## 24. Merged PRs and SHAs
 
-Recorded post-merge in the follow-up docs commit on `main` (PR number, reviewed
-head SHA, merge commit SHA) after verification; merges use
-`gh pr merge <n> --match-head-commit <sha>` with no `--admin` and no
-force-push.
+Merges performed by `cvsz` with `gh pr merge <n> --squash --match-head-commit
+<sha>` — no `--admin`, no force-push, exact-head protection enforced:
+
+| PR | Reviewed head | Merge commit | Verification |
+|----|---------------|--------------|--------------|
+| #187 | `2f8d1a75` | `31042d4` | 19/19 check-runs success on the merge commit incl. Security Scan (Bandit+pip-audit, Gitleaks, actionlint — first successful runs in repo history) |
+| #185 | `482b56a3` | `f11312dc` | all required checks green pre-merge; post-merge main checks green |
+| #186 | `e48738e3` | `afcd218` | all required checks green pre-merge; post-merge main checks green |
+
+Post-merge CI on the current `main` HEAD (`afcd218`): **19/19 check-runs
+success**. PR #184 stays open (see §22; comment
+`#issuecomment-6728339400` documents the reasons).
 
 ## 25. Outstanding risks
 
@@ -209,13 +221,15 @@ force-push.
 
 ## 27. Final Git status
 
-- Branch `feat/zcoder-universal-remediation`: 31 tracked files changed
-  (+255/−147) plus new files `.gitleaksignore`,
-  `docs/audit/CODEQL-REMEDIATION.md` and updated audit docs; untracked
-  `assets/zcoder_social_preview.*` and `zeaz.md` preserved from prior sessions
-  (deliberately not committed).
-- No secrets staged; gitleaks-equivalent checks applied to the exact staged
-  content before commit.
+- `main` after this round: `afcd218` (includes squash merges `31042d4` (#187),
+  `f11312dc` (#185), `afcd218` (#186)); working branch
+  `feat/zcoder-universal-remediation` merged and retained on the remote.
+- This follow-up docs branch (`docs/record-merges-20261109`) records the merge
+  results and refreshes the status documents.
+- Untracked `assets/zcoder_social_preview.*` and `zeaz.md` preserved from prior
+  sessions (deliberately not committed to tracked scope).
+- No secrets staged; full-history gitleaks scan clean before and after the
+  commits (including the merge commits).
 
 ## 28. Reproducible validation commands
 

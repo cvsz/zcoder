@@ -5,7 +5,7 @@
 **Default branch:** `main`  
 **Initial HEAD:** `121cc27` (main after PRs #179–#183)  
 **Working branch:** `feat/zcoder-universal-remediation` (from `121cc27`; preserved prior work at `ea7529c` on `codex/zcoder-audit-remediation-20261108-v2`)  
-**Pull request:** [#187](https://github.com/cvsz/zcoder/pull/187) (independent review by `policedbc`, merge by `cvsz` with `--match-head-commit`)  
+**Pull request:** [#187](https://github.com/cvsz/zcoder/pull/187) — MERGED (reviewed head `2f8d1a75`, squash merge `31042d4`); dependabot #185/#186 also reviewed and merged; #184 stays open (documented)  
 **Audit date:** 2026-11-09  
 **Independent reviewer identity:** policedbc (verified via `gh auth switch -u policedbc`); review performed on the exact PR head before merge  
 **GPG signature status:** local commits GPG-signed with key `515DB3BD9BF14AA6646AC6770C54E869DE49D872` ("cvsz (zcoder signing)"); `commit.gpgsign=true`; verified `%G?=G` locally. GitHub-side squash-merge commits are signed by GitHub web-flow (expected)
@@ -76,9 +76,13 @@ non-functional gitleaks configuration are **all remediated and re-verified**:
 
 | PR | Scope | Checks | Disposition |
 |----|-------|--------|-------------|
-| #185 | actions minor/patch group (codeql.yml, publish-container.yml, release.yml) | all green | eligible — independent review + merge with `--match-head-commit` |
-| #186 | Dockerfile uv 0.13.5 → 0.13.7 | all green | eligible — independent review + merge with `--match-head-commit` |
-| #184 | anthropic requirement `<3.0.0` | **3 failing** (lock-check, sync-locked, docker-build) | NOT merged — `uv.lock` not regenerated; anthropic v2 migration explicitly not verified |
+| #185 | actions minor/patch group (codeql.yml, publish-container.yml, release.yml) | all green | MERGED — approved on `482b56a3`; squash merge `f11312dc` |
+| #186 | Dockerfile uv 0.13.5 → 0.13.7 | all green | MERGED — approved on `e48738e3`; squash merge `afcd218` |
+| #184 | anthropic requirement `<3.0.0` | **3 failing** (lock-check, sync-locked, docker-build) | NOT merged — stays open; `uv.lock` not regenerated; anthropic v2 migration explicitly not verified (comment posted) |
+
+Post-merge verification: 19/19 check-runs success on the current `main` HEAD
+`afcd218`, including the Security Scan jobs that had never executed
+successfully before this round.
 
 ## Residual risks (disclosed)
 
