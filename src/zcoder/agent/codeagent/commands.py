@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess  # nosec B404 - fixed read-only git invocations
+import subprocess  # nosec B404  # fixed read-only git invocations
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -70,7 +70,7 @@ def _git(agent: CodeAgent, *args: str) -> str:
     try:
         r = subprocess.run(
             ["git", *args], cwd=agent.ws.root, capture_output=True, text=True, timeout=10, check=False
-        )  # nosec B603 B607
+        )  # nosec B603 B607  # fixed read-only git argv, no shell
     except (OSError, subprocess.SubprocessError) as exc:
         return f"git failed: {exc}"
     return (r.stdout or r.stderr).strip()

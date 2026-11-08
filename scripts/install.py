@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import subprocess  # nosec B404
+import subprocess  # nosec B404  # fixed local installer argv, no shell
 import sys
 from pathlib import Path
 
@@ -32,7 +32,9 @@ def _command_in_venv(directory: Path, command: str) -> Path:
 
 def _run(*args: str | Path) -> None:
     # Invoke an explicit argument vector without shell expansion.
-    subprocess.run([str(arg) for arg in args], cwd=PROJECT_ROOT, check=True)  # nosec B603
+    subprocess.run(  # nosec B603  # explicit argv, no shell expansion
+        [str(arg) for arg in args], cwd=PROJECT_ROOT, check=True
+    )
 
 
 def _ensure_venv(directory: Path) -> Path:

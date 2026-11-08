@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.worker.process import Worker, WorkerState
 
 
@@ -33,10 +34,9 @@ def sqlite_worker(tmp_path):
 
 def _insert_job(store, job_id: str, task: str = "test task", runtime: str = "fake"):
     """Helper to insert a test job."""
-    import sqlite3
     import time
 
-    with sqlite3.connect(store.db_path) as conn:
+    with sqlite_connection(store.db_path) as conn:
         conn.execute(
             """INSERT INTO jobs (id, task, runtime, status, workspace, created_at, updated_at, 
                model, budget_usd, cost_usd, claim_generation, lease_expires_at, metadata)
@@ -141,9 +141,7 @@ class TestWorkerJobClaim:
 
         worker._execute_job(job, fencing_token)
 
-        import sqlite3
-
-        with sqlite3.connect(store.db_path) as conn:
+        with sqlite_connection(store.db_path) as conn:
             status = conn.execute("SELECT status FROM jobs WHERE id = ?", (job.id,)).fetchone()[0]
         assert status == "FAILED"
 
@@ -197,9 +195,7 @@ class TestWorkerJobClaim:
         worker._execute_job(job, fencing_token)
 
         # Verify job is now SUCCEEDED
-        import sqlite3
-
-        with sqlite3.connect(store.db_path) as conn:
+        with sqlite_connection(store.db_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT status FROM jobs WHERE id = 'job_exec_test'")
             row = cur.fetchone()

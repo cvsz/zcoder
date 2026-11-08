@@ -84,7 +84,8 @@ class AuditLog:
             self.dropped += 1
 
     def _rotate_if_needed(self) -> None:
-        assert self.path is not None
+        if self.path is None:
+            return
         try:
             if self.path.stat().st_size < MAX_BYTES:
                 return

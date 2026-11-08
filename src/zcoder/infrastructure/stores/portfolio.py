@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.interfaces.portfolio_store import PortfolioStore as PortfolioStoreProtocol
 from zcoder.domain.models.portfolio import EngineeringCampaign, ManagedRepository
 
@@ -17,7 +17,7 @@ class PortfolioStore(PortfolioStoreProtocol):
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS managed_repositories (
                     id TEXT PRIMARY KEY,
@@ -36,14 +36,14 @@ class PortfolioStore(PortfolioStoreProtocol):
             """)
 
     def add_repository(self, repo: ManagedRepository) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO managed_repositories VALUES (?, ?, ?, ?)",
                 (repo.id, repo.name, repo.local_path, repo.status),
             )
 
     def create_campaign(self, campaign: EngineeringCampaign) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO engineering_campaigns VALUES (?, ?, ?, ?)",
                 (campaign.id, campaign.name, campaign.status, json.dumps(campaign.repositories)),

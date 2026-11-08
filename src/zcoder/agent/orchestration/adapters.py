@@ -105,7 +105,7 @@ class BaseProviderAdapter:
                 raise ProviderAdapterError(f"Unsupported URL scheme: {scheme}")
             with urllib.request.urlopen(
                 req, timeout=self.timeout_seconds
-            ) as resp:  # nosec B310 -- scheme validated above
+            ) as resp:  # nosec B310  # scheme validated above
                 body = resp.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             try:

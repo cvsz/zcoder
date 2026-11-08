@@ -78,7 +78,7 @@ def fetch_feed(url: str, timeout: int = 15) -> ET.Element | None:
         # B310 mitigation: urlopen follows HTTP redirects; request URL pre-validated to
         # https (line 73) and final response URL re-validated via resp.geturl() below
         # before reading, blocking file:///ftp:// redirect escapes.
-        with urlopen(req, timeout=timeout) as resp:  # nosec B310
+        with urlopen(req, timeout=timeout) as resp:  # nosec B310  # https enforced before and after redirects
             final_url = urlparse(resp.geturl())
             if final_url.scheme != "https":
                 print(f"  [WARN] Feed redirect left https {url} -> {resp.geturl()}", file=sys.stderr)

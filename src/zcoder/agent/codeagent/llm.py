@@ -54,7 +54,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 def _open_local(request: urllib.request.Request, *, timeout: float):
     return urllib.request.build_opener(_NoRedirect()).open(
         request, timeout=timeout
-    )  # nosec B310 - loopback-validated
+    )  # nosec B310  # loopback-validated
 
 
 @dataclass

@@ -72,7 +72,9 @@ def policy_to_hcl(policy: dict, indent: int = 4) -> str:
     return "\n".join(lines)
 
 
-def generate_tf(data: dict, token_name: str = "zeaz-dev-api-token") -> str:
+def generate_tf(
+    data: dict, token_name: str = "zeaz-dev-api-token"
+) -> str:  # nosec B107  # dev-script default token NAME, not a secret value
     """สร้าง HCL ไฟล์สำหรับ cloudflare_api_token"""
     policies = data.get("policies", [])
     lines = []

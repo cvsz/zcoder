@@ -66,7 +66,9 @@ from typing import Any
 from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, safe_urlopen, urlopen_json
 
-OAUTH_TOKEN_ENDPOINT = "https://api.anthropic.com/v1/oauth/token"
+OAUTH_TOKEN_ENDPOINT = (
+    "https://api.anthropic.com/v1/oauth/token"  # nosec B105  # public OAuth endpoint URL, not a secret
+)
 ADMIN_BASE = "https://api.anthropic.com/v1/organizations"
 JWT_BEARER_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 

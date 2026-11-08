@@ -1390,7 +1390,7 @@ class ManagedAgentsClient:
 
     VALID_INJECTION_LOCATIONS = ("headers", "body", "both")
 
-    def add_credential(
+    def add_credential(  # nosec B107  # credential parameters are passed in by the caller, not hardcoded
         self,
         vault_id: str,
         credential_type: str,
@@ -2097,7 +2097,7 @@ def cmd_agent_vault_create(display_name: str, api_key: str, external_user_id: st
     return vault
 
 
-def cmd_agent_vault_add_credential(
+def cmd_agent_vault_add_credential(  # nosec B107  # credential parameters are passed in by the caller, not hardcoded
     vault_id: str,
     credential_type: str,
     api_key: str,

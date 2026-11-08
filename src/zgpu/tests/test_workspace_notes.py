@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import stat
+from contextlib import closing
 
 import pytest
 
@@ -77,7 +78,7 @@ def test_project_scoped_search_includes_general_notes_and_detaches_on_deletion(t
 def test_workspace_notes_migrates_legacy_table_without_losing_notes(tmp_path):
     path = tmp_path / "legacy.sqlite3"
     note_id = "b" * 32
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute("""CREATE TABLE workspace_notes (
                 id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL

@@ -26,11 +26,22 @@ from zcoder.core.provider_policy import enforce_outbound_url_policy, local_only_
 logger = logging.getLogger(__name__)
 
 # ─── JWKS / JWT import guard ──────────────────────────────────────────────────
+# The PyPI distribution named "jwt" (python-jwt) is a different, incompatible
+# library from PyJWT (which provides jwt.decode / get_unverified_header and the
+# asymmetric algorithms used for JWKS verification). Both import as ``jwt``, so
+# importing alone is not enough to prove PyJWT is present. Require the
+# submodule and the exact PyJWT public API surface used below; any other
+# distribution fails closed with a clear error instead of an AttributeError.
+# ``import jwt.algorithms`` also guarantees ``jwt.algorithms.RSAAlgorithm`` is
+# bound (PyJWT does not re-export the submodule attribute on every version).
 
 try:
     import jwt
     import jwt.algorithms
 
+    _PYJWT_API = ("decode", "get_unverified_header", "ExpiredSignatureError", "InvalidTokenError")
+    if not all(hasattr(jwt, _name) for _name in _PYJWT_API) or not hasattr(jwt.algorithms, "RSAAlgorithm"):
+        raise ImportError("the installed 'jwt' module is not PyJWT")
     _JWT_AVAILABLE = True
 except ImportError:
     _JWT_AVAILABLE = False
@@ -159,6 +170,11 @@ def _fetch_jwks(jwks_uri: str) -> dict[str, Any]:
 
 # ─── OIDC Validator ───────────────────────────────────────────────────────────
 
+# Strict algorithm allowlist. Prevents algorithm-confusion attacks and the
+# acceptance of unsigned ("alg: none") tokens. Only RS256 (asymmetric, JWKS
+# backed) is permitted; symmetric and none algorithms are always rejected.
+ALLOWED_ALGORITHMS: frozenset[str] = frozenset({"RS256"})
+
 
 class OidcValidator:
     """Validate OIDC JWTs with full claim verification.
@@ -196,6 +212,12 @@ class OidcValidator:
             kid = header.get("kid", "")
             alg = header.get("alg", "RS256")
 
+            # Reject algorithm confusion and unsigned tokens before any key
+            # lookup or signature verification. Only the allowed algorithms are
+            # accepted; "none" and symmetric algorithms are denied outright.
+            if alg not in ALLOWED_ALGORITHMS:
+                raise TokenInvalidError(f"Unsupported JWT algorithm: {alg!r}")
+
             # Fetch signing keys
             jwks = _fetch_jwks(self.jwks_uri)
             public_key = self._get_key(jwks, kid, alg)
@@ -217,6 +239,9 @@ class OidcValidator:
 
         except jwt.ExpiredSignatureError:
             raise TokenExpiredError("JWT token has expired") from None
+        except TokenInvalidError:
+            # Explicit validation failures (e.g. unsupported algorithm) propagate unchanged.
+            raise
         except jwt.InvalidTokenError as e:
             raise TokenInvalidError(f"JWT validation failed: {e}") from e
         except Exception as e:

@@ -43,7 +43,9 @@ def main() -> None:
     command = sys.argv[1:]
     if not command:
         raise SystemExit("container entrypoint requires a command")
-    os.execvpe(command[0], command, os.environ)
+    os.execvpe(
+        command[0], command, os.environ
+    )  # nosec B606  # intentional shell-less exec to avoid injection
 
 
 if __name__ == "__main__":

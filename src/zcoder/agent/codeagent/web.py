@@ -247,7 +247,8 @@ class Connection:
         self.turn: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._stamps: deque[float] = deque()
-        assert cfg.agent_factory is not None
+        if cfg.agent_factory is None:
+            raise ValueError("WebConfig.agent_factory is required to serve agent connections")
         self.agent: CodeAgent = cfg.agent_factory(self.ask)
         self.agent.ask = self.ask  # factories that ignore the argument still get the web prompt
         try:
@@ -453,7 +454,8 @@ def build_router(cfg: WebConfig) -> APIRouter:
 
     def probe() -> CodeAgent:
         if state["probe"] is None:
-            assert cfg.agent_factory is not None
+            if cfg.agent_factory is None:
+                raise ValueError("WebConfig.agent_factory is required to build the agent router")
             state["probe"] = cfg.agent_factory(None)
         return state["probe"]
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
 import uuid
 from collections.abc import Callable
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from zcoder.core.enums import StringEnum
+from zcoder.core.sqlite import sqlite_connection
 
 
 class JobStatus(StringEnum):
@@ -72,7 +72,7 @@ class JobStore:
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY,
@@ -112,7 +112,7 @@ class JobStore:
 
     def save_job(self, job: Job):
         job.updated_at = time.time()
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO jobs 
@@ -135,7 +135,7 @@ class JobStore:
             )
 
     def get_job(self, job_id: str) -> Job | None:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata FROM jobs WHERE id = ?",
@@ -159,7 +159,7 @@ class JobStore:
             )
 
     def list_jobs(self) -> list[Job]:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, metadata FROM jobs ORDER BY created_at DESC"
@@ -182,7 +182,7 @@ class JobStore:
             ]
 
     def add_event(self, job_id: str, event_type: str, payload: dict[str, Any]) -> JobEvent:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT COALESCE(MAX(sequence), 0) + 1 FROM events WHERE job_id = ?", (job_id,))
             seq = cur.fetchone()[0]
@@ -204,7 +204,7 @@ class JobStore:
             return evt
 
     def list_events(self, job_id: str) -> list[JobEvent]:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
                 "SELECT id, job_id, sequence, event_type, timestamp, payload FROM events WHERE job_id = ? ORDER BY sequence ASC",
@@ -232,7 +232,7 @@ class JobStore:
             action_description=action,
             risk_level=risk,
         )
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO approvals (id, job_id, tool_name, action_description, risk_level, status, created_at)
@@ -251,7 +251,7 @@ class JobStore:
         return req
 
     def update_approval(self, approval_id: str, status: str):
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite_connection(self.db_path) as conn:
             conn.execute("UPDATE approvals SET status = ? WHERE id = ?", (status, approval_id))
 
 

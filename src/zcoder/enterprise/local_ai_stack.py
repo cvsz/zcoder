@@ -28,7 +28,8 @@ import json
 import os
 import platform
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed local tooling probes, never a shell
 import tempfile
 import time
 import urllib.request
@@ -100,8 +101,12 @@ class HardwareProfiler:
         else:
             # Check nvidia-smi
             try:
-                res = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+                res = subprocess.run(  # nosec B603  # fixed nvidia-smi argv, no shell
+                    [
+                        shutil.which("nvidia-smi") or "nvidia-smi",
+                        "--query-gpu=name,memory.total",
+                        "--format=csv,noheader,nounits",
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=2,
@@ -1240,7 +1245,7 @@ class ValidationState(StringEnum):
     """Semantically correct: DISCOVERED ≠ EXECUTED_PASS (§2 of Upgrade-20 fixes)."""
 
     DISCOVERED = "DISCOVERED"
-    EXECUTED_PASS = "EXECUTED_PASS"
+    EXECUTED_PASS = "EXECUTED_PASS"  # nosec B105  # session state enum value, not a password
     EXECUTED_FAIL = "EXECUTED_FAIL"
     EXECUTED_ERROR = "EXECUTED_ERROR"
     EXECUTED_TIMEOUT = "EXECUTED_TIMEOUT"
@@ -1474,7 +1479,7 @@ class ReviewSeverity(StringEnum):
 
 
 class ReviewCategory(StringEnum):
-    SECRET = "SECRET"
+    SECRET = "SECRET"  # nosec B105  # review category enum value, not a secret
     SECURITY_WEAKENING = "SECURITY_WEAKENING"
     TEST_DELETION = "TEST_DELETION"
     OUT_OF_SCOPE = "OUT_OF_SCOPE"
@@ -1570,7 +1575,7 @@ class StaticReviewer:
 
 class SecurityGateResult(StringEnum):
     PASSED = "PASSED"
-    FAILED_SECRET = "FAILED_SECRET"
+    FAILED_SECRET = "FAILED_SECRET"  # nosec B105  # gate result enum value, not a secret
     FAILED_TEST_WEAKENING = "FAILED_TEST_WEAKENING"
     FAILED_POLICY = "FAILED_POLICY"
     FAILED_UNSAFE_PATH = "FAILED_UNSAFE_PATH"
