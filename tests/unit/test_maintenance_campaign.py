@@ -7,7 +7,6 @@ from types import SimpleNamespace
 import pytest
 
 import zcoder.services.maintenance_campaign as maintenance_campaign
-
 from zcoder.services.upgrade_loop import LoopReport, LoopState, WorkKind
 
 
