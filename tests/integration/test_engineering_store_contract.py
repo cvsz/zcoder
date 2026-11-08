@@ -52,11 +52,8 @@ def _postgres_store() -> Iterator[tuple[Any, list[str]]]:
     admin: Any = None
     try:
         admin = postgres_driver.connect(dsn, connect_timeout=3)
-        admin.autocommit = True
-        with admin.cursor() as cur:
-            cur.execute(f'CREATE SCHEMA "{schema}"')
     except Exception as exc:  # pragma: no cover - environment dependent
-        pytest.skip(f"PostgreSQL connection or schema creation failed: {exc}")
+        pytest.skip(f"PostgreSQL instance not reachable: {exc}")
         return
 
     if admin is None:
