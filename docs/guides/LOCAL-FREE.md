@@ -30,7 +30,7 @@ path to `qwen-1.5b-q4km.gguf`.
 cd ~/zcoder
 make setup
 export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-export ZCODER_MODEL=zqwen2.5-coder-7b-instruct-q4_k_m
+export ZCODER_MODEL=qwen-7b-q4km
 zcoder -p "Review this source file" --file src/example.py
 ```
 
