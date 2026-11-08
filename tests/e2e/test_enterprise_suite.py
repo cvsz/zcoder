@@ -13,6 +13,7 @@ Covers:
 """
 
 import os
+import uuid
 
 import psycopg2
 import pytest
@@ -32,19 +33,39 @@ from zcoder.infrastructure.auth.scim import ScimProvisioningService
 from zcoder.infrastructure.stores.enterprise_postgres import EnterprisePostgresStore
 from zcoder.services.agent_runtime import Job, JobStatus
 
-PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
+# The local PostgreSQL helper resolves the selected Docker container (including
+# ZCODER_POSTGRES_CONTAINER=zPostgreSQL) and injects TEST_DATABASE_URL. CI may
+# provide DATABASE_URL directly. Never fall back to a hard-coded container name.
+PG_URL = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+RUN_ID = uuid.uuid4().hex[:12]
+
+ORG_A_ID = f"org_alpha_{RUN_ID}"
+ORG_B_ID = f"org_beta_{RUN_ID}"
+PROJECT_A_ID = f"proj_alpha_{RUN_ID}"
+PROJECT_B_ID = f"proj_beta_{RUN_ID}"
+JOB_B_ID = f"job_beta_secret_{RUN_ID}"
+USAGE_ID = f"usg_{RUN_ID}"
+USAGE_DEDUP_KEY = f"dedup_token_event_{RUN_ID}"
+AUDIT_EVENT_ID = f"evt_audit_{RUN_ID}"
 
 
 def pg_is_available():
+    if not PG_URL:
+        return False
     try:
-        conn = psycopg2.connect(PG_URL, connect_timeout=2)
-        conn.close()
-        return True
-    except Exception:
+        with psycopg2.connect(PG_URL, connect_timeout=2):
+            return True
+    except psycopg2.Error:
         return False
 
 
-pytestmark = pytest.mark.skipif(not pg_is_available(), reason="PostgreSQL test container not reachable")
+pytestmark = pytest.mark.skipif(
+    not pg_is_available(),
+    reason=(
+        "PostgreSQL test DSN unavailable; set TEST_DATABASE_URL/DATABASE_URL "
+        "or run through scripts/local_postgres.py"
+    ),
+)
 
 
 @pytest.fixture(scope="module")
@@ -54,114 +75,117 @@ def ent_store():
     store.close()
 
 
+def _cleanup_test_tenants(ent_store):
+    """Delete only this test run's tenant rows; never truncate shared ZCoder data."""
+    for org_id in (ORG_A_ID, ORG_B_ID):
+        ctx = RequestContext(principal_id="e2e_cleanup", organization_id=org_id)
+        with ent_store.scoped_conn(ctx) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM tenant_job_idempotency WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM tenant_jobs WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM usage_ledger WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM tenant_quotas WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM enterprise_audit WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM api_keys WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM memberships WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM service_accounts WHERE organization_id = %s;", (org_id,))
+                cur.execute("DELETE FROM projects WHERE organization_id = %s;", (org_id,))
+
+    with ent_store._raw_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM organizations WHERE id = ANY(%s);", ([ORG_A_ID, ORG_B_ID],))
+        conn.commit()
+
+
 @pytest.fixture(scope="module")
 def test_tenants(ent_store):
     ctx_admin = RequestContext(principal_id="global_root", organization_id="system", is_global_admin=True)
-
-    with ent_store._raw_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id FROM organizations;")
-            orgs = [row[0] for row in cur.fetchall()]
-        conn.commit()
-
-    for org_id in orgs:
-        ctx_cleanup = RequestContext(principal_id="cleanup", organization_id=org_id)
-        try:
-            with ent_store.scoped_conn(ctx_cleanup) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM tenant_jobs;")
-                    cur.execute("DELETE FROM usage_ledger;")
-                    cur.execute("DELETE FROM tenant_quotas;")
-                    cur.execute("DELETE FROM enterprise_audit;")
-                    cur.execute("DELETE FROM api_keys;")
-                    cur.execute("DELETE FROM memberships;")
-                    cur.execute("DELETE FROM service_accounts;")
-                    cur.execute("DELETE FROM projects;")
-                conn.commit()
-        except Exception:
-            # Teardown failures during test cleanup are expected; safe to ignore.
-            pass
-
-    with ent_store._raw_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM organizations;")
-        conn.commit()
-
-    org_a = Organization(id="org_alpha", name="Alpha Corp", slug="alpha-corp")
-    org_b = Organization(id="org_beta", name="Beta Inc", slug="beta-inc")
-
-    ent_store.create_organization(ctx_admin, org_a)
-    ent_store.create_organization(ctx_admin, org_b)
-
-    proj_a = Project(id="proj_alpha_1", organization_id="org_alpha", name="Alpha Core", slug="alpha-core")
-    proj_b = Project(id="proj_beta_1", organization_id="org_beta", name="Beta Web", slug="beta-web")
-
-    ctx_a_owner = RequestContext(
-        principal_id="user_a_owner", organization_id="org_alpha", role=EnterpriseRole.ORG_OWNER
+    org_a = Organization(id=ORG_A_ID, name="Alpha Corp", slug=f"alpha-corp-{RUN_ID}")
+    org_b = Organization(id=ORG_B_ID, name="Beta Inc", slug=f"beta-inc-{RUN_ID}")
+    proj_a = Project(
+        id=PROJECT_A_ID,
+        organization_id=ORG_A_ID,
+        name="Alpha Core",
+        slug=f"alpha-core-{RUN_ID}",
     )
-    ctx_b_owner = RequestContext(
-        principal_id="user_b_owner", organization_id="org_beta", role=EnterpriseRole.ORG_OWNER
+    proj_b = Project(
+        id=PROJECT_B_ID,
+        organization_id=ORG_B_ID,
+        name="Beta Web",
+        slug=f"beta-web-{RUN_ID}",
     )
 
-    ent_store.create_project(ctx_a_owner, proj_a)
-    ent_store.create_project(ctx_b_owner, proj_b)
+    try:
+        ent_store.create_organization(ctx_admin, org_a)
+        ent_store.create_organization(ctx_admin, org_b)
 
-    return org_a, org_b, proj_a, proj_b
+        ctx_a_owner = RequestContext(
+            principal_id="user_a_owner", organization_id=ORG_A_ID, role=EnterpriseRole.ORG_OWNER
+        )
+        ctx_b_owner = RequestContext(
+            principal_id="user_b_owner", organization_id=ORG_B_ID, role=EnterpriseRole.ORG_OWNER
+        )
+        ent_store.create_project(ctx_a_owner, proj_a)
+        ent_store.create_project(ctx_b_owner, proj_b)
+
+        yield org_a, org_b, proj_a, proj_b
+    finally:
+        _cleanup_test_tenants(ent_store)
 
 
 class TestEnterpriseMultiTenancy:
     def test_request_context_zero_trust_tenant_validation(self):
         ctx_a = RequestContext(
-            principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.DEVELOPER
+            principal_id="alice", organization_id=ORG_A_ID, role=EnterpriseRole.DEVELOPER
         )
         # Accessing own tenant passes
-        ctx_a.validate_tenant_access("org_alpha")
+        ctx_a.validate_tenant_access(ORG_A_ID)
 
         # Accessing another tenant raises CrossTenantViolationError
         with pytest.raises(CrossTenantViolationError):
-            ctx_a.validate_tenant_access("org_beta")
+            ctx_a.validate_tenant_access(ORG_B_ID)
 
     def test_connection_pool_tenant_isolation_and_no_leakage(self, ent_store, test_tenants):
         """Prove that reusing the same pooled connection across requests does not leak tenant context."""
-        ctx_a = RequestContext(principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.VIEWER)
-        ctx_b = RequestContext(principal_id="bob", organization_id="org_beta", role=EnterpriseRole.VIEWER)
+        ctx_a = RequestContext(principal_id="alice", organization_id=ORG_A_ID, role=EnterpriseRole.VIEWER)
+        ctx_b = RequestContext(principal_id="bob", organization_id=ORG_B_ID, role=EnterpriseRole.VIEWER)
 
         # Request A uses a connection
         with ent_store.scoped_conn(ctx_a) as conn:
             with conn.cursor() as cur:
                 cur.execute("SHOW app.current_org;")
                 val = cur.fetchone()[0]
-                assert val == "org_alpha"
+                assert val == ORG_A_ID
 
         # Request B immediately borrows a connection from pool
         with ent_store.scoped_conn(ctx_b) as conn:
             with conn.cursor() as cur:
                 cur.execute("SHOW app.current_org;")
                 val = cur.fetchone()[0]
-                assert val == "org_beta", "Tenant context leaked from previous request!"
+                assert val == ORG_B_ID, "Tenant context leaked from previous request!"
 
     def test_cross_tenant_negative_matrix_job_isolation(self, ent_store, test_tenants):
         """Prove Org A cannot read, claim, or mutate Org B's jobs."""
         ctx_a = RequestContext(
-            principal_id="alice", organization_id="org_alpha", role=EnterpriseRole.OPERATOR
+            principal_id="alice", organization_id=ORG_A_ID, role=EnterpriseRole.OPERATOR
         )
-        ctx_b = RequestContext(principal_id="bob", organization_id="org_beta", role=EnterpriseRole.OPERATOR)
+        ctx_b = RequestContext(principal_id="bob", organization_id=ORG_B_ID, role=EnterpriseRole.OPERATOR)
 
-        job_b = Job(id="job_beta_secret", task="Secret Task Beta", status=JobStatus.READY)
+        job_b = Job(id=JOB_B_ID, task="Secret Task Beta", status=JobStatus.READY)
         ent_store.enqueue_job(ctx_b, job_b)
 
         # Org A tries to claim -> must NOT receive Org B's job
         claim_res_a = ent_store.claim_job_scoped(ctx_a, worker_id="worker_a")
-        assert claim_res_a is None or claim_res_a[0].id != "job_beta_secret"
+        assert claim_res_a is None or claim_res_a[0].id != JOB_B_ID
 
         # Org A tries to mutate Org B's job directly -> must fail
         mutated = ent_store.mutate_job_scoped(
-            ctx_a, "job_beta_secret", "worker_a", 1, JobStatus.SUCCEEDED, 0.0
+            ctx_a, JOB_B_ID, "worker_a", 1, JobStatus.SUCCEEDED, 0.0
         )
         assert mutated is False, "Cross-tenant job mutation succeeded!"
 
     def test_policy_as_code_engine_with_obligations(self):
-        engine = EnterprisePolicyEngine(organization_id="org_alpha")
+        engine = EnterprisePolicyEngine(organization_id=ORG_A_ID)
         rule = PolicyRule(
             id="rule_prod_approval",
             action_pattern="job.create",
@@ -172,7 +196,7 @@ class TestEnterpriseMultiTenancy:
         engine.add_rule(rule)
 
         ctx_dev = RequestContext(
-            principal_id="dan", organization_id="org_alpha", role=EnterpriseRole.DEVELOPER
+            principal_id="dan", organization_id=ORG_A_ID, role=EnterpriseRole.DEVELOPER
         )
         decision = engine.evaluate(ctx_dev, "job.create", {"risk_level": "low"})
         assert decision.allow is True
@@ -186,10 +210,10 @@ class TestEnterpriseMultiTenancy:
 
     def test_scoped_api_keys_lifecycle(self, ent_store, test_tenants):
         ctx_admin = RequestContext(
-            principal_id="alice_admin", organization_id="org_alpha", role=EnterpriseRole.ORG_ADMIN
+            principal_id="alice_admin", organization_id=ORG_A_ID, role=EnterpriseRole.ORG_ADMIN
         )
         key_obj, raw_secret = ApiKey.generate(
-            organization_id="org_alpha", principal_id="ci_bot", scopes=["job:create"]
+            organization_id=ORG_A_ID, principal_id="ci_bot", scopes=["job:create"]
         )
 
         ent_store.save_api_key(ctx_admin, key_obj)
@@ -199,13 +223,13 @@ class TestEnterpriseMultiTenancy:
         # Authenticate via API Key
         auth_ctx = ent_store.authenticate_api_key(raw_secret)
         assert auth_ctx is not None
-        assert auth_ctx.organization_id == "org_alpha"
+        assert auth_ctx.organization_id == ORG_A_ID
         assert auth_ctx.principal_id == "ci_bot"
 
     def test_scim_provisioning_and_non_destructive_deactivation(self):
-        scim = ScimProvisioningService(organization_id="org_alpha")
+        scim = ScimProvisioningService(organization_id=ORG_A_ID)
         ctx = RequestContext(
-            principal_id="scim_client", organization_id="org_alpha", role=EnterpriseRole.ORG_ADMIN
+            principal_id="scim_client", organization_id=ORG_A_ID, role=EnterpriseRole.ORG_ADMIN
         )
 
         user_res = scim.create_user(ctx, {"userName": "john.doe@alpha.com", "active": True})
@@ -223,18 +247,18 @@ class TestEnterpriseMultiTenancy:
 
     def test_usage_metering_deduplication(self, ent_store, test_tenants):
         ctx = RequestContext(
-            principal_id="agent_1", organization_id="org_alpha", role=EnterpriseRole.OPERATOR
+            principal_id="agent_1", organization_id=ORG_A_ID, role=EnterpriseRole.OPERATOR
         )
         event = UsageEvent(
-            id="usg_1001",
-            organization_id="org_alpha",
-            project_id="proj_alpha_1",
+            id=USAGE_ID,
+            organization_id=ORG_A_ID,
+            project_id=PROJECT_A_ID,
             job_id="job_alpha_1",
             metric="tokens_in",
             quantity=1500,
             unit="tokens",
             cost_usd=0.003,
-            dedup_key="dedup_token_event_unique_1001",
+            dedup_key=USAGE_DEDUP_KEY,
         )
 
         rec1 = ent_store.record_usage_event(ctx, event)
@@ -246,7 +270,7 @@ class TestEnterpriseMultiTenancy:
 
     def test_quota_atomic_reservation_race_prevention(self, ent_store, test_tenants):
         ctx = RequestContext(
-            principal_id="worker_pool", organization_id="org_alpha", role=EnterpriseRole.OPERATOR
+            principal_id="worker_pool", organization_id=ORG_A_ID, role=EnterpriseRole.OPERATOR
         )
         # Limit is 100.0
         assert (
@@ -271,11 +295,11 @@ class TestEnterpriseMultiTenancy:
 
     def test_enterprise_audit_log_and_export(self, ent_store, test_tenants):
         ctx_auditor = RequestContext(
-            principal_id="auditor_bob", organization_id="org_alpha", role=EnterpriseRole.SECURITY_AUDITOR
+            principal_id="auditor_bob", organization_id=ORG_A_ID, role=EnterpriseRole.SECURITY_AUDITOR
         )
         event = EnterpriseAuditEvent(
-            event_id="evt_audit_001",
-            organization_id="org_alpha",
+            event_id=AUDIT_EVENT_ID,
+            organization_id=ORG_A_ID,
             actor="alice",
             actor_type="user",
             action="policy.update",
@@ -287,7 +311,7 @@ class TestEnterpriseMultiTenancy:
 
         exported = ent_store.export_audit_log(ctx_auditor)
         assert len(exported) >= 1
-        assert any(e["event_id"] == "evt_audit_001" for e in exported)
+        assert any(e["event_id"] == AUDIT_EVENT_ID for e in exported)
         # Verify no raw secret fields
         for e in exported:
             assert "secret" not in e and "token" not in e
