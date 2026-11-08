@@ -14,7 +14,7 @@ def test_workspace_notes_crud_search_and_private_database(tmp_path):
     )
 
     assert created["title"] == "zISA release checks"
-    assert store.list()[0]["id"] == created["id"]
+    assert store.list_items()[0]["id"] == created["id"]
     assert store.get(created["id"])["content"].startswith("Always verify")
     matches = store.search("zISA encoding")
     assert len(matches) == 1
@@ -25,7 +25,7 @@ def test_workspace_notes_crud_search_and_private_database(tmp_path):
     )["title"] == ("Release checklist")
     deleted = store.delete(created["id"])
     assert deleted
-    assert store.list() == []
+    assert store.list_items() == []
     if os.name == "posix":
         assert stat.S_IMODE(store.database_path.stat().st_mode) == 0o600
 
@@ -58,7 +58,7 @@ def test_workspace_notes_rejects_invalid_ids_searches_and_private_modes(tmp_path
     if os.name == "posix":
         path.chmod(0o644)
         with pytest.raises(WorkspaceNotesError, match="private"):
-            store.list()
+            store.list_items()
 
 
 def test_project_scoped_search_includes_general_notes_and_detaches_on_deletion(tmp_path):

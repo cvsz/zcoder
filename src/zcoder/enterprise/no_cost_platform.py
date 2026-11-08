@@ -139,22 +139,31 @@ class CostOptimizer:
 class LocalObjectStorage:
     """Filesystem-based object store with strict path traversal defense and tenant isolation."""
 
+    MAX_OBJECT_BYTES = 64 * 1024 * 1024  # 64 MiB
+
     def __init__(self, base_dir: str = str(pathlib.Path(tempfile.gettempdir()) / "zcoder_local_storage")):
         self.base_path = pathlib.Path(base_dir).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
 
     def _resolve_safe_path(self, organization_id: str, key: str) -> pathlib.Path:
         safe_org = "".join(c for c in organization_id if c.isalnum() or c in ("-", "_"))
+        if not safe_org:
+            raise ValueError("Invalid organization_id")
         org_dir = (self.base_path / safe_org).resolve()
+        if org_dir.parent != self.base_path:
+            raise ValueError("Organization directory escapes storage root")
         org_dir.mkdir(parents=True, exist_ok=True)
 
         target = (org_dir / key).resolve()
-        # Path traversal check
-        if not str(target).startswith(str(org_dir)):
+        # Sibling-prefix defense: str.startswith would let org_evil escape
+        # when org_dir is .../org. Require actual containment.
+        if target != org_dir and org_dir not in target.parents:
             raise ValueError(f"Path traversal blocked for key '{key}'")
         return target
 
     def put_object(self, organization_id: str, key: str, data: bytes) -> str:
+        if len(data) > self.MAX_OBJECT_BYTES:
+            raise ValueError(f"Object exceeds {self.MAX_OBJECT_BYTES} byte limit")
         path = self._resolve_safe_path(organization_id, key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
