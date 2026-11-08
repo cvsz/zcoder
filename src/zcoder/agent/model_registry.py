@@ -336,11 +336,6 @@ __all__ = [
 
 def _init_claude_catalog() -> None:
     """Initialize the Claude model catalog with full ModelRecord metadata."""
-    from zcoder.agent.model_registry import (
-        LifecycleState,
-        ModelModality,
-        PricingTier,
-    )
 
     def _tier(price_in: float, price_out: float, max_input: int | None = None) -> PricingTier:
         return PricingTier(

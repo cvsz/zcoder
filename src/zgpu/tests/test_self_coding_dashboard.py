@@ -9,7 +9,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 
 import zgpu.dashboard.server as dashboard_server
-from zgpu.dashboard.server import DashboardBackend, DashboardHTTPHandler
+
 from zgpu.integrations.assistants import AssistantProfiles
 from zgpu.integrations.conversations import ConversationStore
 from zgpu.integrations.local_knowledge import LocalKnowledgeStore
@@ -18,6 +18,9 @@ from zgpu.integrations.prompts import PromptLibrary
 from zgpu.isa.assembler import Assembler
 from zgpu.self_coding.evaluator import KernelEvaluator
 from zgpu.self_coding.generator import SelfCodingEngine
+
+DashboardBackend = dashboard_server.DashboardBackend
+DashboardHTTPHandler = dashboard_server.DashboardHTTPHandler
 
 
 def test_self_coding_engine():
@@ -1341,3 +1344,18 @@ def test_dashboard_rejects_spoofed_host_and_cross_site_posts(monkeypatch):
     missing_marker.do_POST()
     assert missing_marker.send_response.call_args.args[0] == 403
     api.create_completion.assert_not_called()
+
+ 
+def test_knowledge_library_documents_preserves_local_knowledge_error_status(monkeypatch):
+    class BrokenKnowledge:
+        def list_documents(self, *, project_id=None):
+            raise dashboard_server.LocalKnowledgeError("knowledge store unavailable", status=503)
+
+    monkeypatch.setattr(dashboard_server.backend, "local_knowledge", BrokenKnowledge())
+    handler = _get_handler("/api/knowledge/library/documents")
+    handler.do_GET()
+
+    assert handler.send_response.call_args.args == (503,)
+    payload = json.loads(b"".join(call.args[0] for call in handler.wfile.write.call_args_list))
+    assert payload == {"error": {"message": "knowledge store unavailable"}}
+

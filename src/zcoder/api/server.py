@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import uuid
@@ -79,6 +80,7 @@ app.add_middleware(
 )
 
 router = PublicAPIV1Router(job_store=_LazyEnterpriseJobStore())
+logger = logging.getLogger(__name__)
 
 
 @app.get("/health")
@@ -133,7 +135,13 @@ def readiness():
 async def handle_v1_api(request: Request, path: str):
     method = request.method
     full_path = f"/api/v1/{path}"
-    request_id = request.headers.get("X-Request-Id") or f"req_{uuid.uuid4().hex[:12]}"
+    supplied_request_id = request.headers.get("X-Request-Id", "")
+    request_id = (
+        supplied_request_id
+        if 0 < len(supplied_request_id) <= 128
+        and all(character.isprintable() for character in supplied_request_id)
+        else f"req_{uuid.uuid4().hex[:12]}"
+    )
 
     try:
         ctx = authenticate_request(request.headers)
@@ -175,21 +183,53 @@ async def handle_v1_api(request: Request, path: str):
     # the verified bearer-token claims in `ctx`.
     idempotency_key = request.headers.get("Idempotency-Key")
 
-    status_code, body = router.handle_request(
-        method=method,
-        path=full_path,
-        ctx=ctx,
-        payload=payload,
-        query_params=query_params,
-        idempotency_key=idempotency_key,
-        request_id=request_id,
-    )
+    try:
+        status_code, body = router.handle_request(
+            method=method,
+            path=full_path,
+            ctx=ctx,
+            payload=payload,
+            query_params=query_params,
+            idempotency_key=idempotency_key,
+            request_id=request_id,
+        )
+    except Exception:
+        logger.exception("Unhandled public API dispatcher failure request_id=%s", request_id)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "INTERNAL_SERVER_ERROR",
+                    "message": "An unexpected server error occurred",
+                    "request_id": request_id,
+                }
+            },
+        )
 
     # Defensive: ensure the response body is a plain dict so no exception
     # internals can leak into the HTTP response. router.handle_request()
     # already sanitizes all exceptions into {"error": {...}} envelopes.
+    if not isinstance(status_code, int) or isinstance(status_code, bool) or not 100 <= status_code <= 599:
+        status_code = 500
     if not isinstance(body, dict):
-        body = {"error": {"code": "INTERNAL_SERVER_ERROR", "message": "Unexpected response type"}}
+        body = {"error": {"code": "INTERNAL_SERVER_ERROR", "message": "An unexpected server error occurred"}}
+
+    # Do not forward exception details or arbitrary nested fields in 5xx responses.
+    if status_code >= 500:
+        error = body.get("error")
+        error = error if isinstance(error, dict) else {}
+        code = error.get("code")
+        safe_messages = {
+            "JOB_QUEUE_UNAVAILABLE": "The tenant-scoped durable queue is unavailable",
+            "JOB_RUNTIME_UNAVAILABLE": (
+                "Job submission is unavailable until a local execution adapter is configured"
+            ),
+            "WEBHOOK_REGISTRY_UNAVAILABLE": "Webhook registration is unavailable",
+        }
+        if not isinstance(code, str) or code not in safe_messages:
+            code = "INTERNAL_SERVER_ERROR"
+        message = safe_messages.get(code, "An unexpected server error occurred")
+        body = {"error": {"code": code, "message": message, "request_id": request_id}}
 
     return JSONResponse(status_code=status_code, content=body)
 

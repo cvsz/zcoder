@@ -90,3 +90,16 @@ def test_mention_candidates_skip_ignored_dirs(tmp_path):
     (tmp_path / "node_modules" / "app.js").write_text("")
     assert mention_candidates(ws, "app") == ["src/app.py"]
     assert mention_candidates(ws, "") != []
+
+
+def test_session_path_rejects_symlink_target(tmp_path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"messages":[]}')
+    session_id = "20240101-000000-abcdef"
+    (sessions / f"{session_id}.json").symlink_to(outside)
+
+    with pytest.raises(ValueError, match="symlink"):
+        SessionStore(sessions)._path(session_id)
+

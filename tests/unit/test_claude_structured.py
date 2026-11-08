@@ -11,13 +11,6 @@ from unittest.mock import patch
 import zcoder.agent.capabilities.structured as mod
 
 
-def _fake_urlopen_json(payload_text):
-    def _fake(req, timeout=120):
-        return {"content": [{"type": "text", "text": payload_text}]}
-
-    return _fake
-
-
 def test_structured_request_uses_local_coder_without_api_headers():
     sc = mod.StructuredCoder(api_key="sk-test")
 
@@ -33,9 +26,6 @@ def test_bare_class_has_no_dead_beta_attribute():
 def test_json_object_still_uses_ga_output_config_format():
     sc = mod.StructuredCoder(api_key="sk-test")
 
-    def _fake_urlopen_json(req, timeout=120):
-        return {"content": [{"type": "text", "text": '{"ok": true}'}]}
-
     with patch(
         "zcoder.agent.capabilities.structured.Coder.generate", return_value='{"ok": true}'
     ) as generate:
@@ -49,9 +39,6 @@ def test_json_schema_mode_validates_required_fields():
     sc = mod.StructuredCoder(api_key="sk-test")
     schema = {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
 
-    def _fake_urlopen_json(req, timeout=120):
-        return {"content": [{"type": "text", "text": '{"name": "ok"}'}]}
-
     with patch("zcoder.agent.capabilities.structured.Coder.generate", return_value='{"name": "ok"}'):
         result = sc.json_schema("extract the name", schema)
 
@@ -61,9 +48,6 @@ def test_json_schema_mode_validates_required_fields():
 def test_json_schema_mode_raises_on_missing_required_field():
     sc = mod.StructuredCoder(api_key="sk-test")
     schema = {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
-
-    def _fake_urlopen_json(req, timeout=120):
-        return {"content": [{"type": "text", "text": "{}"}]}
 
     with patch("zcoder.agent.capabilities.structured.Coder.generate", return_value="{}"):
         try:

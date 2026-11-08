@@ -211,7 +211,6 @@ class TestWorkerJobClaim:
         # Claim with worker A
         result = store.claim_job_with_fencing("worker-A", lease_duration=60.0)
         assert result is not None
-        _job, _gen = result
 
         # Stale worker B tries to mutate with old generation (0)
         rejected = store.mutate_with_fencing("job_fencing_test", "worker-B", 0, JobStatus.SUCCEEDED, 0.0)

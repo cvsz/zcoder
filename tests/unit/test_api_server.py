@@ -78,3 +78,25 @@ def test_readiness_503_fail_closed_on_import_or_construction_error(client, monke
     resp = client.get("/health/ready")
     assert resp.status_code == 503
     assert resp.json() == {"status": "unavailable"}
+
+
+def test_api_dispatcher_exception_does_not_leak_details(client, monkeypatch):
+    monkeypatch.setattr(server, "authenticate_request", lambda _headers: object())
+
+    def fail_dispatch(**_kwargs):
+        raise RuntimeError("private database host and credential")
+
+    monkeypatch.setattr(server.router, "handle_request", fail_dispatch)
+    response = client.get("/api/v1/entitlements", headers={"X-Request-Id": "request-test"})
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "error": {
+            "code": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected server error occurred",
+            "request_id": "request-test",
+        }
+    }
+    assert "private database host" not in response.text
+    assert "credential" not in response.text
+

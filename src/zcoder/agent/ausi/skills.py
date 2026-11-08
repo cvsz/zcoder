@@ -138,12 +138,18 @@ class BaseSkill(abc.ABC):
             metadata = {k: v for k, v in raw_result.items() if k not in ("text", "model", "task_id")}
             if not result_text:
                 result_text = str(raw_result)
+        elif hasattr(raw_result, "success"):
+            success = bool(raw_result.success)
+            result_text = str(getattr(raw_result, "text", "") or "")
+            model_used = str(getattr(raw_result, "model", "") or "")
+            task_id = str(getattr(raw_result, "task_id", "") or "")
+            metadata_value = getattr(raw_result, "metadata", {})
+            metadata = metadata_value if isinstance(metadata_value, dict) else {}
+            error_value = getattr(raw_result, "error", "")
+            error = str(error_value or "") if not success else ""
         else:
             result_text = str(raw_result)
             model_used = ""
-
-        if not success:
-            error = raw_result.error if hasattr(raw_result, "error") else ""
 
         return SkillOutput(
             success=success,

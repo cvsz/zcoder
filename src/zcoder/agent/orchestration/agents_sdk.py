@@ -142,6 +142,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, raise_for_http_error, retry, safe_urlopen, urlopen_json
@@ -329,17 +330,25 @@ class McpTunnel:
         return {}
 
     def as_mcp_server(self, name: str, transport: str = "sse") -> McpServerConfig:
-        """Build an McpServerConfig pointing at this tunnel's public URL,
-        once open() has succeeded. transport is "sse" or "http" — whichever
-        the local MCP server actually speaks."""
-        raise NotImplementedError("MCP server not yet implemented")
-        """Build an McpServerConfig pointing at this tunnel's public URL,
-        once open() has succeeded. transport is "sse" or "http" — whichever
-        the local MCP server actually speaks."""
-        raise NotImplementedError("MCP server not yet implemented")
+        """Build an MCP server config from a successfully opened HTTPS tunnel."""
+        if not isinstance(name, str) or not name.strip() or len(name) > 128:
+            raise ValueError("MCP server name must contain 1 to 128 characters")
+        if transport not in {"sse", "http"}:
+            raise ValueError("MCP tunnel transport must be 'sse' or 'http'")
         if not self.public_url:
             raise RuntimeError("Tunnel not open yet — call open() first")
-        return McpServerConfig(transport, name, url=self.public_url)
+
+        parsed = urlsplit(self.public_url)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+        ):
+            raise RuntimeError("Tunnel returned an invalid public HTTPS URL")
+        factory = McpServerConfig.sse if transport == "sse" else McpServerConfig.http
+        return factory(name.strip(), self.public_url)
 
 
 def cmd_mcp_tunnel_open(api_key: str, local_port: int, name: str | None = None):

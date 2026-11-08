@@ -50,10 +50,10 @@ except ImportError:
 
 if not _PSYCOPG2_AVAILABLE:
     try:
-        import psycopg  # noqa: F401 - availability flag
+        from importlib.util import find_spec
 
-        _PG_AVAILABLE = True
-    except ImportError:
+        _PG_AVAILABLE = find_spec("psycopg") is not None
+    except (ImportError, ValueError):
         _PG_AVAILABLE = False
 
 
