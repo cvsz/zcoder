@@ -7,7 +7,7 @@
 **Implementer:** cvsz | **Independent reviewer:** policedbc (identity verified via `gh auth switch -u policedbc` before review)  
 **Base HEAD:** `121cc27` (main after PRs #179, #180, #181, #183)  
 **Working branch:** `feat/zcoder-universal-remediation`  
-**Pull request:** opened from `feat/zcoder-universal-remediation` → `main` (number and exact head SHA recorded in the PR itself and in the follow-up docs commit; merged with `--match-head-commit` only)  
+**Pull request:** [#187](https://github.com/cvsz/zcoder/pull/187) — `feat/zcoder-universal-remediation` → `main` (merged with `--match-head-commit` only; merge results recorded in the follow-up docs commit)  
 **Merge protocol:** `gh auth switch -u cvsz` (develop, GPG-signed commits, push, PR) → `gh auth switch -u policedbc` (independent review + approve on exact head) → `gh auth switch -u cvsz` (merge with `--match-head-commit`, no `--admin`) → post-merge verification
 
 ## 1. Repository and branch

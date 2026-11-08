@@ -106,7 +106,9 @@ All merged changes verified present on `main` (HEAD `e868ee4` includes them).
 - 2026-11-09 refresh: 3 open Dependabot PRs — #185 and #186 are eligible for
   review/merge once independently reviewed; #184 requires either a regenerated
   `uv.lock` or closure, and remains open with the reason documented above.
-  This round's own PR is tracked in `FINAL-REPORT.md`.
+  This round's own PR is [#187](https://github.com/cvsz/zcoder/pull/187)
+  (`feat/zcoder-universal-remediation` → `main`), tracked in
+  `FINAL-REPORT.md`.
 
 ## Follow-up
 

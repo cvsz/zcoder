@@ -5,7 +5,7 @@
 **Default branch:** `main`  
 **Initial HEAD:** `121cc27` (main after PRs #179–#183)  
 **Working branch:** `feat/zcoder-universal-remediation` (from `121cc27`; preserved prior work at `ea7529c` on `codex/zcoder-audit-remediation-20261108-v2`)  
-**Pull request:** see `FINAL-REPORT.md` (independent review by `policedbc`, merge by `cvsz` with `--match-head-commit`)  
+**Pull request:** [#187](https://github.com/cvsz/zcoder/pull/187) (independent review by `policedbc`, merge by `cvsz` with `--match-head-commit`)  
 **Audit date:** 2026-11-09  
 **Independent reviewer identity:** policedbc (verified via `gh auth switch -u policedbc`); review performed on the exact PR head before merge  
 **GPG signature status:** local commits GPG-signed with key `515DB3BD9BF14AA6646AC6770C54E869DE49D872` ("cvsz (zcoder signing)"); `commit.gpgsign=true`; verified `%G?=G` locally. GitHub-side squash-merge commits are signed by GitHub web-flow (expected)
