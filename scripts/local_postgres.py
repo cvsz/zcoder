@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-CONTAINER = os.environ.get("ZCODER_POSTGRES_CONTAINER", "zPostgreSQL")
-CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zcoder_db",)
+CONTAINER = os.environ.get("ZCODER_POSTGRES_CONTAINER", "zpostgresql")
+CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zpostgresql",)
 ROLE = "zcoder"
 DATABASE = "zcoder_db"
 PREVIOUS_DATABASE = "zcoder_db"
@@ -59,7 +59,7 @@ def _ensure_global_network(name: str) -> None:
         ]
     )
     if inspect.stdout.strip() != "connected":
-        _run(["docker", "network", "connect", "--alias", "zPostgreSQL", POSTGRES_NETWORK, name])
+        _run(["docker", "network", "connect", "--alias", "zpostgresql", POSTGRES_NETWORK, name])
 
 
 def _container_ip() -> str:
@@ -79,6 +79,7 @@ def _container_ip() -> str:
         raise RuntimeError(
             f"Docker container {CONTAINER!r} is not attached to shared network {POSTGRES_NETWORK!r}"
         )
+
     return address
 
 

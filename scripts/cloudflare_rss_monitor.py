@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+
 from defusedxml import ElementTree as ET
 
 # Feeds ที่ควรติดตามสำหรับ zeaz.dev
