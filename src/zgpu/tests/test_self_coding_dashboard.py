@@ -328,9 +328,7 @@ def test_engineering_jobs_route_is_optional_read_only_and_bounded(monkeypatch):
     monkeypatch.setattr(dashboard_server.backend, "engineering_jobs", client)
     handler = _get_handler("/api/engineering/jobs?limit=10&offset=5")
     handler.do_GET()
-    payload = json.loads(
-        b"".join(call.args[0] for call in handler.wfile.write.call_args_list)
-    )
+    payload = json.loads(b"".join(call.args[0] for call in handler.wfile.write.call_args_list))
     assert client.list_jobs.call_args.kwargs == {"limit": 10, "offset": 5}
     assert payload["data"][0]["task"] == "x" * 500
     assert "secret_field" not in payload["data"][0]
@@ -1348,14 +1346,10 @@ def test_dashboard_rejects_spoofed_host_and_cross_site_posts(monkeypatch):
     api.create_completion.assert_not_called()
 
  
-def test_knowledge_library_documents_preserves_local_knowledge_error_status(
-    monkeypatch,
-):
+def test_knowledge_library_documents_preserves_local_knowledge_error_status(monkeypatch):
     class BrokenKnowledge:
         def list_documents(self, *, project_id=None):
-            raise dashboard_server.LocalKnowledgeError(
-                "knowledge store unavailable", status=503
-            )
+            raise dashboard_server.LocalKnowledgeError("knowledge store unavailable", status=503)
 
     monkeypatch.setattr(dashboard_server.backend, "local_knowledge", BrokenKnowledge())
     handler = _get_handler("/api/knowledge/library/documents")
