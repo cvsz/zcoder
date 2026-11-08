@@ -22,9 +22,9 @@ Design principles:
 from __future__ import annotations
 
 import hmac
-import secrets
 import json
 import os
+import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
