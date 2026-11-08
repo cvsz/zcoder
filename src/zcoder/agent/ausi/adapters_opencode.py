@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404  # required to run the local OpenCode CLI without a shell
 import time
 from typing import Any
 
@@ -88,10 +89,10 @@ class OpenCodeAdapter(BaseProviderAdapter):
         ]:
             if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
                 return candidate
-        # Fallback to PATH discovery
-        result = subprocess.run(["which", "opencode"], capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
+        # Fallback to PATH discovery without spawning a helper process.
+        discovered = shutil.which("opencode")
+        if discovered:
+            return discovered
         raise RuntimeError("OpenCode binary not found")
 
     def _get_default_model(self) -> str:
@@ -115,7 +116,7 @@ class OpenCodeAdapter(BaseProviderAdapter):
         safe_prompt = self._strip_credentials(prompt)
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603  # resolved local opencode binary, argv list, no shell
                 [opencode_bin, "run", "-m", model, safe_prompt],
                 capture_output=True,
                 text=True,
@@ -187,7 +188,7 @@ class OpenCodeAdapter(BaseProviderAdapter):
         """
         try:
             opencode_bin = self._get_opencode_bin()
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603  # resolved local opencode binary, argv list, no shell
                 [opencode_bin, "models"],
                 capture_output=True,
                 text=True,
@@ -330,7 +331,7 @@ class OpenCodeAdapter(BaseProviderAdapter):
         """Check OpenCode CLI health by running a simple command."""
         try:
             opencode_bin = self._get_opencode_bin()
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603  # resolved local opencode binary, argv list, no shell
                 [opencode_bin, "models"],
                 capture_output=True,
                 text=True,
@@ -415,7 +416,7 @@ class OpenCodeAdapter(BaseProviderAdapter):
             # Use nohup to background the process
             env = os.environ.copy()
             # Ensure OpenCode can run
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # nosec B603  # resolved local opencode binary, argv list, no shell
                 [
                     opencode_bin,
                     "run",

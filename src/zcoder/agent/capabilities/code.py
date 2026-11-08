@@ -69,7 +69,7 @@ from __future__ import annotations
 import builtins
 import json
 import os
-import subprocess
+import subprocess  # nosec B404  # legacy local tooling path; all calls use argv without a shell
 import time
 import uuid
 from collections.abc import Callable
@@ -532,13 +532,15 @@ class HooksEngine:
             if not cmd:
                 continue
             try:
-                result = subprocess.run(
-                    shell_command_argv(cmd),
-                    input=stdin_data,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    env=env,
+                result = (
+                    subprocess.run(  # nosec B603  # shell_command_argv returns an argv list, no shell=True
+                        shell_command_argv(cmd),
+                        input=stdin_data,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        env=env,
+                    )
                 )
                 if result.returncode == 2:
                     msg = result.stdout.strip() or result.stderr.strip()
@@ -1561,7 +1563,7 @@ class CodeAgent:
                         return f"[SANDBOX BLOCKED] {e}"
                     except ImportError:
                         pass
-                r = subprocess.run(
+                r = subprocess.run(  # nosec B603  # shell_command_argv returns an argv list, no shell=True
                     shell_command_argv(cmd),
                     cwd=cwd,
                     capture_output=True,

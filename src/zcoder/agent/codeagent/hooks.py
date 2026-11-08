@@ -11,7 +11,7 @@ import asyncio
 import json
 import os
 import re
-import subprocess  # nosec B404 - user/org-configured hook commands
+import subprocess  # nosec B404  # user/org-configured hook commands
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -53,7 +53,7 @@ class Hooks:
         env = {k: os.environ[k] for k in _SAFE_ENV if k in os.environ}
         env["ZCODER_PROJECT_DIR"] = str(self.cwd)
         try:
-            r = subprocess.run(  # noqa: S602  # nosec B602 - hook commands are configured by the user/org, not the model
+            r = subprocess.run(  # noqa: S602  # nosec B602  # hook commands are configured by the user/org, not the model
                 hook["command"],
                 shell=True,
                 input=json.dumps(payload),

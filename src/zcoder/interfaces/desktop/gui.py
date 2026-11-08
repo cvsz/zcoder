@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess  # nosec B404 - nvidia-smi is a trusted local GPU monitoring command
+import subprocess  # nosec B404  # nvidia-smi is a trusted local GPU monitoring command
 import threading
 import time
 import tkinter as tk
@@ -650,7 +650,7 @@ class ZCoderDesktopGUI:
                                     full_response += delta
                                     tokens_count += 1
                                     self.root.after(0, self._append_raw, delta, "assistant_body")
-                            except Exception:  # nosec B112 - skip malformed SSE chunks in stream parsing
+                            except Exception:  # nosec B112  # skip malformed SSE chunks in stream parsing
                                 continue
                         self.root.after(0, self._append_raw, "\n\n", "assistant_body")
                     else:
@@ -752,7 +752,7 @@ class ZCoderDesktopGUI:
                     "end",
                     values=(s.get("name", ""), s.get("category", "General"), s.get("description", "")),
                 )
-        except Exception:  # nosec B110 - skill registry load is non-critical UI enrichment
+        except Exception:  # nosec B110  # skill registry load is non-critical UI enrichment
             pass
 
     # ── View 3: System Health & Live Telemetry ───────────────────────────
@@ -1120,7 +1120,7 @@ class ZCoderDesktopGUI:
                             "key": (acc.get("key", "")[:8] + "...") if acc.get("key") else "",
                         }
                     )
-        except Exception:  # nosec B110 - disk provider config read is non-critical
+        except Exception:  # nosec B110  # disk provider config read is non-critical
             pass
 
         for provider, info in providers.items():
@@ -1363,7 +1363,7 @@ class ZCoderDesktopGUI:
     def _get_gpu_memory(self) -> dict:
         """Get GPU memory usage from nvidia-smi."""
         try:
-            out = subprocess.run(  # nosec B603 B607 - nvidia-smi is a trusted local GPU monitoring command
+            out = subprocess.run(  # nosec B603 B607  # nvidia-smi is a trusted local GPU monitoring command
                 ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
                 capture_output=True,
                 text=True,
@@ -1372,7 +1372,7 @@ class ZCoderDesktopGUI:
             if out.returncode == 0 and out.stdout.strip():
                 used, total = map(int, out.stdout.strip().split(", "))
                 return {"used_mib": used, "total_mib": total, "free_mib": total - used}
-        except Exception:  # nosec B110 - GPU monitoring is non-critical telemetry
+        except Exception:  # nosec B110  # GPU monitoring is non-critical telemetry
             pass
         return {}
 
@@ -1431,7 +1431,7 @@ def run_desktop_gui() -> None:
         try:
             img = tk.PhotoImage(file=icon_path)
             root.iconphoto(False, img)
-        except Exception:  # nosec B110 - window icon is non-critical UI polish
+        except Exception:  # nosec B110  # window icon is non-critical UI polish
             pass
     _app = ZCoderDesktopGUI(root)
     root.mainloop()

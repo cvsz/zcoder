@@ -153,7 +153,7 @@ def safe_urlopen(req, timeout: float):
     if local_only_enabled():
         opener = urllib.request.build_opener(_LocalOnlyRedirectHandler())
         return opener.open(req, timeout=timeout)
-    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 -- scheme checked above
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310  # scheme checked above
 
 
 class _LocalOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -257,7 +257,7 @@ class CircuitBreaker:
 def _backoff_delay(attempt: int, base_delay: float, max_delay: float) -> float:
     """Full-jitter exponential backoff: uniform(0, min(cap, base * 2**attempt))."""
     cap = min(max_delay, base_delay * (2**attempt))
-    return random.uniform(0, cap)
+    return random.uniform(0, cap)  # nosec B311  # non-security backoff jitter, not cryptographic
 
 
 def retry(
@@ -309,7 +309,7 @@ def retry(
             # Unreachable in practice (loop always returns or raises), but
             # keeps type checkers happy and guards against a future edit
             # accidentally falling through.
-            assert last_exc is not None
+            assert last_exc is not None  # nosec B101  # guard against a fall-through typing cannot exclude
             raise last_exc
 
         return wrapper

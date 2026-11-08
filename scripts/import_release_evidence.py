@@ -28,7 +28,8 @@ import ast
 import json
 import os
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed git/gh invocations, never a shell
 import sys
 import time
 import tomllib
@@ -36,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GIT_BIN = shutil.which("git") or "git"
 EVIDENCE_DIR = REPO_ROOT / "docs" / "evidence"
 EVIDENCE_SCHEMA_VERSION = 1
 
@@ -68,8 +70,8 @@ class EvidenceImportError(Exception):
 
 
 def _run_git(*args: str) -> str:
-    result = subprocess.run(
-        ["git", *args],
+    result = subprocess.run(  # nosec B603  # resolved git argv, no shell
+        [GIT_BIN, *args],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -89,8 +91,8 @@ def resolve_candidate_sha(requested: str | None) -> str:
     head = _run_git("rev-parse", "HEAD")
     if requested is None and sha != head:
         raise EvidenceImportError("candidate SHA does not match HEAD")
-    dirty = subprocess.run(
-        ["git", "status", "--porcelain"],
+    dirty = subprocess.run(  # nosec B603  # resolved git argv, no shell
+        [GIT_BIN, "status", "--porcelain"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -191,7 +193,7 @@ def verify_release_tag(tag: str) -> str:
 def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
     """Fetch completed GitHub check runs bound to the candidate SHA."""
     repo = os.environ.get("GITHUB_REPOSITORY") or _repo_slug()
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603 B607  # fixed argv, gh resolved from PATH, no shell
         [
             "gh",
             "api",
@@ -224,7 +226,7 @@ def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
 
 def _dependency_review_for_merge(repo: str, sha: str) -> dict[str, Any]:
     """Bind the PR-only dependency review to the exact squash merge commit."""
-    pulls = subprocess.run(
+    pulls = subprocess.run(  # nosec B603 B607  # fixed argv, gh resolved from PATH, no shell
         ["gh", "api", f"repos/{repo}/commits/{sha}/pulls", "--paginate", "--slurp"],
         capture_output=True,
         text=True,
@@ -248,7 +250,7 @@ def _dependency_review_for_merge(repo: str, sha: str) -> dict[str, Any]:
     except (json.JSONDecodeError, AttributeError, KeyError, TypeError, ValueError) as exc:
         raise EvidenceImportError(f"invalid merged pull-request evidence: {exc}") from exc
 
-    checks = subprocess.run(
+    checks = subprocess.run(  # nosec B603 B607  # fixed argv, gh resolved from PATH, no shell
         [
             "gh",
             "api",

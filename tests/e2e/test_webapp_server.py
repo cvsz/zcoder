@@ -81,7 +81,10 @@ def test_chat_happy_path(client, monkeypatch):
     data = resp.json()
     assert data["response"] == "mock reply"
     assert "session_id" in data
-    assert received["api_key"] is None
+    # The webapp never forwards client-supplied credentials to local inference;
+    # Coder normalizes an unset key to the empty string (falsy = no key).
+    assert not received["api_key"]
+    assert received["api_key"] != "sk-ant-test"
 
 
 def test_chat_rate_limit_returns_429(client, monkeypatch):

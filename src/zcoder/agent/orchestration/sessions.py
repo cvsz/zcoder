@@ -8,12 +8,14 @@ ZCoder CLI v1.10.0
 import json
 import os
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed read-only git log invocation
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+GIT_BIN = shutil.which("git") or "git"
 SESSIONS_DIR = Path.home() / ".zcoder" / "sessions"
 CHECKPOINTS_DIR = Path.home() / ".zcoder" / "checkpoints"
 SKIP_DIRS = {".git", "node_modules", "__pycache__", "venv", ".venv", "dist", "build"}
@@ -236,8 +238,8 @@ def away_summary(cwd: str, since_iso: str) -> str:
     # git commits since
     commits: list[str] = []
     try:
-        r = subprocess.run(
-            ["git", "log", f"--since={since_iso}", "--oneline"],
+        r = subprocess.run(  # nosec B603  # fixed argv git log, no shell
+            [GIT_BIN, "log", f"--since={since_iso}", "--oneline"],
             cwd=cwd,
             capture_output=True,
             text=True,

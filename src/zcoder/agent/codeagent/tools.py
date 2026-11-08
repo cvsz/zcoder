@@ -7,7 +7,7 @@ import fnmatch
 import os
 import re
 import signal
-import subprocess  # nosec B404 - Bash tool is permission-gated by PermissionPolicy
+import subprocess  # nosec B404  # Bash tool is permission-gated by PermissionPolicy
 import threading
 import time
 from collections.abc import Callable
@@ -270,7 +270,7 @@ def _bash(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     timeout = _int(args, "timeout", 120, 1, 600)
     env = {**bash_environment(ctx), "GIT_PAGER": "cat", "PAGER": "cat", "TERM": "dumb", "NO_COLOR": "1"}
     shell = "/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh"
-    proc = subprocess.Popen(  # nosec B603 - gated by PermissionPolicy; user approves non-read-only commands
+    proc = subprocess.Popen(  # nosec B603  # gated by PermissionPolicy; user approves non-read-only commands
         [shell, "-c", command],
         cwd=ctx.workspace.root,
         env=env,
@@ -279,39 +279,51 @@ def _bash(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+    # The stdout pipe is owned by this call and must be closed deterministically
+    # (even on cancellation/timeout/error) to avoid leaking file descriptors.
+    pipe = proc.stdout
+    if pipe is None:  # pragma: no cover - Popen was created with stdout=PIPE
+        proc.kill()
+        raise ToolError("failed to capture command stdout")
     chunks: list[bytes] = []
 
     def pump() -> None:
-        assert proc.stdout is not None
-        for block in iter(lambda: proc.stdout.read(4096), b""):  # type: ignore[union-attr]
+        for block in iter(lambda: pipe.read(4096), b""):
             chunks.append(block)
 
     reader = threading.Thread(target=pump, daemon=True)
     reader.start()
     deadline = time.monotonic() + timeout
     status = ""
-    while proc.poll() is None:
-        if ctx.cancel.is_set():
-            status = "interrupted by user"
-        elif time.monotonic() > deadline:
-            status = f"timed out after {timeout}s"
+    try:
+        while proc.poll() is None:
+            if ctx.cancel.is_set():
+                status = "interrupted by user"
+            elif time.monotonic() > deadline:
+                status = f"timed out after {timeout}s"
+            if status:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    proc.kill()
+                break
+            time.sleep(0.05)
+        proc.wait()
+        reader.join(timeout=2)
+        text = b"".join(chunks).decode("utf-8", errors="replace")
+        text = truncate(text)
         if status:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                proc.kill()
-            break
-        time.sleep(0.05)
-    proc.wait()
-    reader.join(timeout=2)
-    text = b"".join(chunks).decode("utf-8", errors="replace")
-    text = truncate(text)
-    if status:
-        text += f"\n[command {status}]"
-        raise ToolError(text)
-    if proc.returncode != 0:
-        raise ToolError(f"{text}\n[exit code {proc.returncode}]".strip())
-    return ToolOutput(text or "(no output)")
+            text += f"\n[command {status}]"
+            raise ToolError(text)
+        if proc.returncode != 0:
+            raise ToolError(f"{text}\n[exit code {proc.returncode}]".strip())
+        return ToolOutput(text or "(no output)")
+    finally:
+        try:
+            pipe.close()
+        except Exception:
+            # Closing a pipe must never mask the command result.
+            pass
 
 
 _TODO_STATES = {"pending", "in_progress", "completed"}

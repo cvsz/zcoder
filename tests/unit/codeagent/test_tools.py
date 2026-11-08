@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import gc
 import os
 import threading
 import time
+import warnings
 
 import pytest
 
@@ -113,6 +115,28 @@ def test_bash_output_exit_code_timeout_cancel(ctx):
     threading.Timer(0.3, ctx.cancel.set).start()
     with pytest.raises(ToolError, match="interrupted"):
         run(ctx, "Bash", command="sleep 5")
+
+
+def test_bash_tool_closes_stdout_pipe_no_resource_warning(ctx):
+    """Regression test: the Bash tool must close its stdout pipe deterministically.
+
+    An unclosed pipe surfaces as ``ResourceWarning: unclosed file`` when the pipe
+    object is garbage collected. This test forces garbage collection and asserts
+    no such warning is emitted, guarding against regressions that reintroduce the
+    leaked file descriptor (see _bash in zcoder/agent/codeagent/tools.py).
+    """
+    out = run(ctx, "Bash", command="printf 'pipe-close-check\\n'").text
+    assert out.strip() == "pipe-close-check"
+
+    with warnings.catch_warnings(record=True) as raised:
+        warnings.simplefilter("always", ResourceWarning)
+        gc.collect()
+    unclosed = [
+        str(w.message)
+        for w in raised
+        if issubclass(w.category, ResourceWarning) and "unclosed file" in str(w.message).lower()
+    ]
+    assert not unclosed, f"unclosed file handles leaked by Bash tool: {unclosed}"
 
 
 def test_todos_validation(ctx):
