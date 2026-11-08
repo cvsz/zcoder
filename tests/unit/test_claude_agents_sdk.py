@@ -1629,9 +1629,7 @@ def test_mcp_tunnel_converts_open_https_url_to_server_config(agents_sdk):
         ("https://tunnel.example.test/mcp", "stdio"),
     ],
 )
-def test_mcp_tunnel_rejects_invalid_server_configuration(
-    agents_sdk, public_url, transport,
-):
+def test_mcp_tunnel_rejects_invalid_server_configuration(agents_sdk, public_url, transport):
     tunnel = agents_sdk.McpTunnel(api_key="sk-test")
     tunnel.public_url = public_url
     with pytest.raises((RuntimeError, ValueError)):
