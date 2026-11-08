@@ -1604,7 +1604,7 @@ def test_build_multiagent_config_still_enforces_delegate_limit(agents_sdk):
     roster = [f"agent_{i}" for i in range(21)]
     with pytest.raises(ValueError):
         agents_sdk.build_multiagent_config(roster)
- 
+
  
 def test_mcp_tunnel_converts_open_https_url_to_server_config(agents_sdk):
     tunnel = agents_sdk.McpTunnel(api_key="sk-test")
@@ -1629,7 +1629,9 @@ def test_mcp_tunnel_converts_open_https_url_to_server_config(agents_sdk):
         ("https://tunnel.example.test/mcp", "stdio"),
     ],
 )
-def test_mcp_tunnel_rejects_invalid_server_configuration(agents_sdk, public_url, transport):
+def test_mcp_tunnel_rejects_invalid_server_configuration(
+    agents_sdk, public_url, transport
+):
     tunnel = agents_sdk.McpTunnel(api_key="sk-test")
     tunnel.public_url = public_url
     with pytest.raises((RuntimeError, ValueError)):
