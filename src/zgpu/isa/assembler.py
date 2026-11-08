@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 
 from zgpu.isa.instructions import Instruction, Opcode
 
@@ -43,14 +42,23 @@ def parse_reg(token: str) -> int:
 class Assembler:
     @staticmethod
     def assemble(source: str) -> list[int]:
+        if not isinstance(source, str):
+            raise TypeError("assembly source must be a string")
+        if len(source) > 1_000_000:
+            raise ValueError("assembly source exceeds 1 MiB")
+
         labels: dict[str, int] = {}
-        lines = source.strip().splitlines()
+        lines = source.splitlines()
+        if len(lines) > 10_000:
+            raise ValueError("assembly source exceeds 10000 lines")
         clean_lines = []
 
         # Pass 1: Collect labels and strip comments
         pc = 0
-        for line in lines:
-            line = re.sub(r"#.*$", "", line).strip()
+        for line_number, raw_line in enumerate(lines, start=1):
+            if len(raw_line) > 4096:
+                raise ValueError(f"assembly line {line_number} exceeds 4096 characters")
+            line = raw_line.partition("#")[0].strip()
             if not line:
                 continue
             if line.endswith(":"):
