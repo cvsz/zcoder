@@ -51,7 +51,14 @@ class SessionStore:
         return safe_id
 
     def _path(self, session_id: str) -> Path:
-        safe_id = self._validate_session_id(session_id)
+        # Keep the allowlist check at the filesystem sink so static analysis
+        # and runtime enforcement share the same trust boundary.
+        if not isinstance(session_id, str):
+            raise ValueError("invalid session id")
+        match = _ID.fullmatch(session_id)
+        if match is None:
+            raise ValueError("invalid session id")
+        safe_id = match.group(0)
         root = self.dir.resolve()
         expected = root / f"{safe_id}.json"
         resolved = expected.resolve(strict=False)
