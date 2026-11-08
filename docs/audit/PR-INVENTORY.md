@@ -50,9 +50,13 @@ policy before merge; verified present on `main` @ `121cc27`):
 
 | PR | Scope | Checks | Disposition |
 |----|-------|--------|-------------|
-| #185 | bump actions minor/patch group (5 updates; codeql.yml, publish-container.yml, release.yml) | all required checks pass | Independent review + merge with `--match-head-commit` when verified (recorded in `FINAL-REPORT.md`) |
-| #186 | Dockerfile: astral-sh/uv 0.13.5 → 0.13.7 | all required checks pass | Independent review + merge with `--match-head-commit` when verified (recorded in `FINAL-REPORT.md`) |
-| #184 | anthropic requirement `<2.0.0` → `<3.0.0` | **failing:** lock-check, sync-locked, docker-build (`uv.lock` not regenerated) | NOT merged: failing required checks; Anthropic v2 migration explicitly not verified in this repository (documented policy) |
+| #185 | bump actions minor/patch group (5 updates; codeql.yml, publish-container.yml, release.yml) | all required checks pass | **MERGED** — approved on `482b56a3` by policedbc; squash merge `f11312dc` |
+| #186 | Dockerfile: astral-sh/uv 0.13.5 → 0.13.7 | all required checks pass | **MERGED** — approved on `e48738e3` by policedbc; squash merge `afcd218` |
+| #184 | anthropic requirement `<2.0.0` → `<3.0.0` | **failing:** lock-check, sync-locked, docker-build (`uv.lock` not regenerated) | OPEN (not merged): failing required checks; Anthropic v2 migration explicitly not verified in this repository (documented policy); review comment `#issuecomment-6728339400` posted |
+
+PR #187 (`feat/zcoder-universal-remediation`) — reviewed head `2f8d1a75`,
+approved by policedbc, squash-merged as `31042d4`; post-merge main checks
+19/19 success.
 
 ## Closed without merge (7 — all drafts)
 

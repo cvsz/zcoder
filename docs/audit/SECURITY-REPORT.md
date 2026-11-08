@@ -68,7 +68,7 @@ actionlint run reproduces the CI behavior and passes.
 
 - `uv.lock` pinned and reproducible (`uv lock --check` exit 0, 93 packages).
 - `pip-audit` over `requirements.txt` + `requirements-dev.txt`: no known vulnerabilities.
-- Dependabot PRs #185 (actions minor/patch group) and #186 (uv image 0.13.5 → 0.13.7) verified green and independently reviewed in this round (see `PULL-REQUEST-AUDIT.md` in `FINAL-REPORT.md`). PR #184 (anthropic range `<3.0.0`) is **not mergeable as-is**: its required lock-check/sync-locked/docker-build checks fail because `uv.lock` was not regenerated; the Anthropic v2 migration is also explicitly not verified in this repository, so the range widening is not accepted yet.
+- Dependabot PRs #185 (actions minor/patch group) and #186 (uv image 0.13.5 → 0.13.7) verified green, independently reviewed by `policedbc` and merged (`f11312dc`, `afcd218`) — see `FINAL-REPORT.md` §22/§24. PR #184 (anthropic range `<3.0.0`) is **not mergeable as-is**: its required lock-check/sync-locked/docker-build checks fail because `uv.lock` was not regenerated; the Anthropic v2 migration is also explicitly not verified in this repository, so the range widening is not accepted yet (PR left open with a documented comment).
 
 ## Secrets
 
