@@ -30,6 +30,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: ruff check .gemini/skills/gemini-omni-flash-api/scripts/upload_file.py .gemini/skills/gemini-omni-flash-api/scripts/video/generate_video.py .gemini/skills/gemini-omni-flash-api/scripts/video/inspect_video.py .gemini/skills/gemini-omni-flash-api/scripts/video/prep_video.py
+      - run: black --diff . || true
       - run: black --check .
       - run: mypy src/zcoder webapp --ignore-missing-imports
 
