@@ -11,7 +11,7 @@
 [![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
 
-![ZCoder Social Preview](social-preview.svg)
+![ZCoder Social Preview](https://repository-images.githubusercontent.com/1298675090/168568c9-a175-4d82-9733-955d6d7bf7b4)
 
 **เวอร์ชันปัจจุบัน:** `1.60.0`
 
