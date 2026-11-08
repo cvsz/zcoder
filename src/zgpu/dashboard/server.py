@@ -593,8 +593,6 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 )
             except ValueError:
                 origin_is_loopback = False
-                origin_name = None
-                origin_port = None
             expected_port = server_port if server_port is not None else host_port if host_header else None
             if (
                 not origin_is_loopback
@@ -938,13 +936,10 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 project_id = None if raw_project_id == "" else raw_project_id
                 backend.validate_knowledge_project(project_id, allow_all=True)
                 self._send_json({"data": backend.local_knowledge.list_documents(project_id=project_id)})
-            except ValueError as exc:
-                if isinstance(exc, LocalKnowledgeError):
-                    self._send_json({"error": {"message": str(exc)}}, status=exc.status)
-                else:
-                    self._send_json({"error": {"message": "invalid knowledge scope"}}, status=400)
             except LocalKnowledgeError as exc:
                 self._send_json({"error": {"message": str(exc)}}, status=exc.status)
+            except ValueError:
+                self._send_json({"error": {"message": "invalid knowledge scope"}}, status=400)
 
         elif url.path == "/api/engineering/status":
             if url.query:
