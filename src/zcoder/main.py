@@ -37,7 +37,7 @@ def _api_key(args):
 
 
 def _model(args):
-    return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+    return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
 
 
 def _route_provider(args):
