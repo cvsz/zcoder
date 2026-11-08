@@ -90,7 +90,7 @@ def test_mention_candidates_skip_ignored_dirs(tmp_path):
     (tmp_path / "node_modules" / "app.js").write_text("")
     assert mention_candidates(ws, "app") == ["src/app.py"]
     assert mention_candidates(ws, "") != []
- 
+
  
 def test_session_path_rejects_symlink_target(tmp_path):
     sessions = tmp_path / "sessions"
