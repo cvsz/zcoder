@@ -102,4 +102,3 @@ def test_session_path_rejects_symlink_target(tmp_path):
 
     with pytest.raises(ValueError, match="session path"):
         SessionStore(sessions)._path(session_id)
-
