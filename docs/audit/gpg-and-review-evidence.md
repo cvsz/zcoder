@@ -43,7 +43,7 @@ Commit verification:
 git verify-commit HEAD
 ```
 
-**Status:** No commits have been signed yet in this audit session. The two test-fix commits (ZC-001, ZC-002) and the ShellCheck fix (ZC-003) are uncommitted in the working tree. They need to be committed with GPG signing before PR creation.
+**Status:** All audit commits GPG-signed and merged. Commits on `feat/zcoder-enterprise-hardening` (PR #171) are GPG-signed by cvsz (key 515DB3BD9BF14AA6646AC6770C54E869DE49D872) and merged into main as squash commit `3a2f820`.
 
 ## Independent Review (policedbc)
 
