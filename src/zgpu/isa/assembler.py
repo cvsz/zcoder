@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from zgpu.isa.instructions import Instruction, Opcode
 
 OPCODE_MAP = {
