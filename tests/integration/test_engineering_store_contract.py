@@ -38,10 +38,9 @@ def _postgres_store() -> Iterator[tuple[Any, list[str]]]:
     postgres_store_type: Any = None
     try:
         postgres_driver = importlib.import_module("psycopg2")
-        postgres_store_type = getattr(
-            importlib.import_module("zcoder.infrastructure.stores.postgres_engineering"),
-            "PostgresEngineeringStore",
-        )
+        postgres_store_type = importlib.import_module(
+            "zcoder.infrastructure.stores.postgres_engineering"
+        ).PostgresEngineeringStore
     except ImportError as exc:  # pragma: no cover - optional dependency
         pytest.skip(f"PostgreSQL driver unavailable: {exc}")
         return
