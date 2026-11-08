@@ -99,4 +99,3 @@ def test_api_dispatcher_exception_does_not_leak_details(client, monkeypatch):
     }
     assert "private database host" not in response.text
     assert "credential" not in response.text
-
