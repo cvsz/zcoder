@@ -7,12 +7,13 @@ from types import SimpleNamespace
 import pytest
 
 import zcoder.services.maintenance_campaign as maintenance_campaign
+from zcoder.services.upgrade_loop import LoopReport, LoopState, WorkKind
+
 MaintenanceCampaignService = maintenance_campaign.MaintenanceCampaignService
 build_parser = maintenance_campaign.build_parser
 load_signals_file = maintenance_campaign.load_signals_file
 main = maintenance_campaign.main
 maintenance_campaign_work = maintenance_campaign.maintenance_campaign_work
-from zcoder.services.upgrade_loop import LoopReport, LoopState, WorkKind
 
 
 @dataclass
