@@ -75,4 +75,4 @@ jobs:
           persist-credentials: false
 
       - name: Run actionlint
-        uses: rhysd/actionlint@v1.6.2
+        uses: rhysd/actionlint:latest
