@@ -6,13 +6,13 @@
 **Initial HEAD:** `e868ee44dea4df7ae2d7ef1cccc1151e273ee8db`  
 **Final HEAD:** `e868ee44dea4df7ae2d7ef1cccc1151e273ee8db` (baseline clean; no new implementation commits required)  
 **Feature branch:** `codex/zcoder-full-audit-remediation-20261108`  
-**Pull request:** opened from feature branch to `main`  
-**PR head SHA:** (set at PR creation)  
+**Pull request:** #175, opened from feature branch to `main`, MERGED  
+**PR head SHA:** `0a6e24bb66dd8006e50c297ea01201a29dafcb06`  
 **Independent reviewer identity:** policedbc  
-**Independent review status:** pending (Stage B)  
-**GPG signature status:** available (key `0C54E869DE49D872`, "zcoder signing"); `commit.gpgsign=true`  
-**Merge status:** pending (Stage C, after independent approval)  
-**Merge commit SHA:** (set at merge)  
+**Independent review status:** APPROVED (Stage B complete)  
+**GPG signature status:** Good signature from cvsz (zcoder signing) key `515DB3BD9BF14AA6646AC6770C54E869DE49D872`; `commit.gpgsign=true`  
+**Merge status:** MERGED via squash (Stage C complete)  
+**Merge commit SHA:** `e087f7ec7704a9c8266b8c0e923d975e19fc9beb` (main now at e087f7e)  
 **Audit date:** 2026-11-08  
 **Auditor:** cvsz
 
@@ -61,15 +61,23 @@ See `docs/audit/SECURITY-REPORT.md`. No open findings.
 
 See `docs/audit/PR-INVENTORY.md` and `docs/audit/PR-REVIEW-MATRIX.md`. All 171 PRs dispositioned; 0 open.
 
-## Remaining blockers
+## Post-merge verification
 
-None internal to the repository. The following are process / scope disclosures, not code blockers:
+- PR #175 merged via squash; merge commit `e087f7ec7704a9c8266b8c0e923d975e19fc9beb`.
+- `origin/main` now at `e087f7ec7704a9c8266b8c0e923d975e19fc9beb`; merge commit confirmed ancestor of origin/main.
+- Main branch CI (lint, test 3.12/3.13, CodeQL, docker-build, release gate, helm, SDK check, reproducibility): all SUCCESS.
+- No regression introduced (docs-only change).
+
+## Post-merge observation (not a regression, not a required gate)
+
+- The `.github/workflows/security-scan.yml` workflow run on the main push failed at the workflow level (0 jobs; "workflow file issue"). YAML validates cleanly. Required status checks are not enabled on main (HTTP 404 from branch-protection API), so this is not a required gate. The scan's `pip-audit` step requires network access and `actionlint:latest` uses a mutable action ref — both pre-existing, unrelated to the docs-only change. Documented here for visibility; no code change made in this audit cycle.
+
+## Remaining blockers (process / scope disclosures, not code blockers)
 
 - External provider live calls (Anthropic, Gemini, Ollama, xAI, NVIDIA NIM): NOT VERIFIED / BLOCKED — no authorized budget; mocked only.
 - GPU hardware / llama.cpp local inference: not exercised beyond mocked tests; no GPU available in this environment.
 - Production PostgreSQL / multi-tenant operation: not tested against production data.
 - Windows-only installers (`install.cmd`, `setup.bat`, `build.bat`): not runnable on Linux.
-- Independent review (policedbc): pending Stage B; merge blocked until approval applies to exact PR head SHA.
 - Required manual release approval: production deploy/image publish/package publish requires explicit authorized human release gate (not performed by this audit).
 
 ## Conclusion
