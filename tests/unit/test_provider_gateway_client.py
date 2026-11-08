@@ -83,10 +83,7 @@ def test_generate_rejects_non_loopback_or_ambiguous_endpoints(
 
     result = coder.generate("must not leave this machine")
 
-    assert result == (
-        "[ERROR] ZCODER_BASE_URL must point to a loopback local "
-        "OpenAI-compatible endpoint."
-    )
+    assert result == "[ERROR] ZCODER_BASE_URL must point to a loopback local OpenAI-compatible endpoint."
 
 
 @pytest.mark.parametrize("provider", ["anthropic", "nvidia", "hosted"])
