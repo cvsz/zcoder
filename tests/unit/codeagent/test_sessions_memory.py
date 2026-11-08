@@ -100,6 +100,6 @@ def test_session_path_rejects_symlink_target(tmp_path):
     session_id = "20240101-000000-abcdef"
     (sessions / f"{session_id}.json").symlink_to(outside)
 
-    with pytest.raises(ValueError, match="symlink"):
+    with pytest.raises(ValueError, match="session path"):
         SessionStore(sessions)._path(session_id)
 
