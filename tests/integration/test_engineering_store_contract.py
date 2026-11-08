@@ -31,39 +31,47 @@ def _postgres_store() -> Iterator[tuple[Any, list[str]]]:
     dsn = os.environ.get("DATABASE_URL", "")
     if not dsn:
         pytest.skip("DATABASE_URL PostgreSQL instance not configured")
+        return
+
     try:
         import psycopg2
-
         from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
     except ImportError as exc:  # pragma: no cover - optional dependency
         pytest.skip(f"PostgreSQL driver unavailable: {exc}")
+        return
 
     schema = f"zcoder_contract_{uuid.uuid4().hex}"
     try:
         admin = psycopg2.connect(dsn, connect_timeout=3)
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"PostgreSQL instance not reachable: {exc}")
+        return
+
     try:
         admin.autocommit = True
         with admin.cursor() as cur:
             cur.execute(f'CREATE SCHEMA "{schema}"')
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"PostgreSQL schema creation not permitted: {exc}")
+        return
     finally:
         admin.close()
 
+    store: PostgresEngineeringStore | None = None
     try:
-        store = PostgresEngineeringStore(
+        postgres_store = PostgresEngineeringStore(
             dsn=_dsn_with_search_path(dsn, schema),
             min_conn=1,
             max_conn=2,
             connect_timeout=3,
         )
-        store.init_schema()
-        yield store, []
+        store = postgres_store
+        postgres_store.init_schema()
+        yield postgres_store, []
     finally:
         try:
-            store.close()  # type: ignore[possibly-undefined]
+            if store is not None:
+                store.close()
         finally:
             cleanup = psycopg2.connect(dsn, connect_timeout=3)
             try:
