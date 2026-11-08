@@ -98,7 +98,19 @@ async def test_sessions_and_resume(make_agent):
 async def test_diff_reports_changes(make_agent, tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(
-        ["git", "-c", "user.email=a@b", "-c", "user.name=t", "commit", "--allow-empty", "-qm", "i"],
+        [
+            "git",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "user.email=a@b",
+            "-c",
+            "user.name=t",
+            "commit",
+            "--allow-empty",
+            "-qm",
+            "i",
+        ],
         cwd=tmp_path,
         check=True,
     )
