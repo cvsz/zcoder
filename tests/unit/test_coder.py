@@ -29,7 +29,7 @@ def _fake_response(text: str):
 
 
 def test_generate_uses_local_chat_completions_without_api_key():
-    coder = Coder(model="zqwen2.5-coder-7b-instruct-q4_k_m")
+    coder = Coder(model="qwen-7b-q4km")
     captured = {}
 
     def fake_urlopen(request, timeout=None):
@@ -43,11 +43,18 @@ def test_generate_uses_local_chat_completions_without_api_key():
     assert result == "local response"
     assert captured["request"].full_url == "http://127.0.0.1:8080/v1/chat/completions"
     assert captured["request"].get_header("Authorization") is None
-    assert captured["payload"]["model"] == "zqwen2.5-coder-7b-instruct-q4_k_m"
+    assert captured["payload"]["model"] == "qwen-7b-q4km"
     assert captured["payload"]["messages"] == [
         {"role": "system", "content": "Be concise"},
         {"role": "user", "content": "hello"},
     ]
+
+
+def test_default_client_uses_qwen_gguf_alias_and_local_provider(monkeypatch):
+    monkeypatch.delenv("ZCODER_MODEL", raising=False)
+    coder = Coder()
+    assert coder.model == "qwen-7b-q4km"
+    assert coder.provider == "local"
 
 
 def test_generate_records_provider_neutral_model_metrics(monkeypatch):
@@ -94,7 +101,7 @@ def test_generate_rejects_non_local_or_ambiguous_base_url(url):
     coder = Coder(base_url=url)
     with patch("zcoder.services.coder._open_local") as request:
         result = coder.generate("hello")
-    assert "local llama-server" in result
+    assert "loopback local OpenAI-compatible endpoint" in result
     request.assert_not_called()
 
 
@@ -110,7 +117,7 @@ def test_non_local_provider_fails_closed_without_network_call():
     coder = Coder(provider="anthropic")
     with patch("zcoder.services.coder._open_local") as request:
         result = coder.generate("hello")
-    assert "only supports the local model server" in result
+    assert "only supports local inference" in result
     request.assert_not_called()
 
 
