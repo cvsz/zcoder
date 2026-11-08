@@ -107,6 +107,7 @@ def prep_video(
         if size_bytes_str and int(size_bytes_str) > 25 * 1024 * 1024:
             is_large = True
     except (ValueError, TypeError):
+        # Non-numeric size metadata; treat the source as not-large.
         pass
 
     # Target resolution parsing
@@ -118,6 +119,7 @@ def prep_video(
             orig_width = int(source_info["video"].get("width"))
             orig_height = int(source_info["video"].get("height"))
         except (ValueError, TypeError):
+            # Missing/invalid dimensions; keep the None defaults.
             pass
 
     if resolution:

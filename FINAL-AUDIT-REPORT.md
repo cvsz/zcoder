@@ -1,5 +1,14 @@
 # ZCoder Enterprise Audit — Final Report
 
+> **Latest checkpoint — 2026-11-09 (universal remediation round):** all
+> remaining CodeQL findings remediated and locally re-verified at 0 (39 → 0,
+> suite `python-security-and-quality`); the `Security Scan` CI workflow was
+> repaired (previously failed at 0s on every run — invalid `uses:` step);
+> gitleaks configuration rebuilt and full-history scan clean; full test suite
+> passes with local PostgreSQL. Current authoritative reports:
+> `docs/audit/FINAL-REPORT.md`, `docs/audit/SECURITY-REPORT.md`,
+> `docs/audit/CODEQL-REMEDIATION.md`.
+
 **Repository:** https://github.com/cvsz/zcoder (local: /home/cvsz/zcoder)
 **Remote:** git@github.com:cvsz/zcoder.git (verified `cvsz/zcoder`)
 **Report date:** Sun Nov 08 2026

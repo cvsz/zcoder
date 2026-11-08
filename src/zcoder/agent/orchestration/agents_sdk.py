@@ -2487,6 +2487,7 @@ def cmd_agent_list_sessions():
             turns = len(d.get("history", [])) // 2
             print(f"{d['id']:<16}{d.get('name', '')[:24]:<25}{turns:<8}{d.get('updated_at', '')[:10]}")
         except Exception:
+            # Skip unreadable/corrupt session files while listing.
             pass
 
 

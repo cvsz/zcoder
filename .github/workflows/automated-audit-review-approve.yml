@@ -31,8 +31,8 @@ jobs:
       - name: Check required secrets
         id: check
         run: |
-          [ -z "${{ secrets.POLIEDBC_PAT }}" ] && { echo "::error::POLIEDBC_PAT secret is not set."; echo "all-present=false" >> $GITHUB_OUTPUT; exit 1; }
-          echo "all-present=true" >> $GITHUB_OUTPUT
+          [ -z "${{ secrets.POLIEDBC_PAT }}" ] && { echo "::error::POLIEDBC_PAT secret is not set."; echo "all-present=false" >> "$GITHUB_OUTPUT"; exit 1; }
+          echo "all-present=true" >> "$GITHUB_OUTPUT"
 
   audit-and-review:
     name: Audit, Review & Report (policedbc)
@@ -59,26 +59,26 @@ jobs:
         run: |
           echo "=== Running validate_repo.py ==="
           if ! python3 scripts/validate_repo.py; then
-            echo "AUDIT_RESULT=FAILED" >> $GITHUB_ENV
+            echo "AUDIT_RESULT=FAILED" >> "$GITHUB_ENV"
             echo "::error::Repository validation failed."
             exit 1
           fi
 
           echo "=== Checking for tracked secret-bearing files ==="
           if git ls-files | grep -E '(^|/)(\\.env$|id_rsa|id_ed25519|.*\\.pem|.*\\.key)$' | grep -v '^\\.env\\.example$'; then
-            echo "AUDIT_RESULT=FAILED" >> $GITHUB_ENV
+            echo "AUDIT_RESULT=FAILED" >> "$GITHUB_ENV"
             echo "::error::Potential secret-bearing file is tracked."
             exit 1
           fi
 
           echo "=== Validating GitHub workflow YAML ==="
           if ! ruby -e 'require "yaml"; Dir.glob(".github/**/*.{yml,yaml}").each { |f| YAML.load_file(f); puts "ok #{f}" }'; then
-            echo "AUDIT_RESULT=FAILED" >> $GITHUB_ENV
+            echo "AUDIT_RESULT=FAILED" >> "$GITHUB_ENV"
             echo "::error::Invalid GitHub Actions YAML detected."
             exit 1
           fi
 
-          echo "AUDIT_RESULT=PASSED" >> $GITHUB_ENV
+          echo "AUDIT_RESULT=PASSED" >> "$GITHUB_ENV"
           echo "=== Audit complete: PASSED ==="
 
       - name: Post audit review comment (policedbc)

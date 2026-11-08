@@ -162,7 +162,7 @@ def cmd_embed(text: str, model: str = DEFAULT_MODEL, input_type: str = "document
         [vec] = embed([text], model=model, input_type=input_type)
     except RuntimeError as e:
         print(f"[ERROR] {e}")
-        return
+        return None
     print(f"  dimensions: {len(vec)}")
     print(f"  first 8:    {[round(v, 5) for v in vec[:8]]}")
     return vec
@@ -176,7 +176,7 @@ def cmd_embed_file(path: str, model: str = DEFAULT_MODEL, input_type: str = "doc
         vecs = embed(lines, model=model, input_type=input_type)
     except RuntimeError as e:
         print(f"[ERROR] {e}")
-        return
+        return None
     for line, vec in zip(lines, vecs, strict=False):
         print(f"  [{len(vec)}d] {line[:60]}{'...' if len(line) > 60 else ''}")
     return vecs
@@ -188,7 +188,7 @@ def cmd_embed_similarity(text_a: str, text_b: str, model: str = DEFAULT_MODEL):
         vec_a, vec_b = embed([text_a, text_b], model=model, input_type="document")
     except RuntimeError as e:
         print(f"[ERROR] {e}")
-        return
+        return None
     sim = cosine_similarity(vec_a, vec_b)
     print(f'  "{text_a[:50]}"')
     print(f'  "{text_b[:50]}"')

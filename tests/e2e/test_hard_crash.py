@@ -54,6 +54,7 @@ for i in range(1000):
                 if len(self.store.list_tasks()) > 0:
                     break
             except Exception:
+                # Store may be locked during the crash window; keep polling until deadline.
                 pass
             if proc.poll() is not None:
                 break
@@ -63,6 +64,7 @@ for i in range(1000):
         try:
             proc.kill()
         except ProcessLookupError:
+            # The process may already have exited; SIGKILL is best-effort.
             pass
         proc.wait(timeout=10)
 

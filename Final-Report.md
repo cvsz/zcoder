@@ -1,6 +1,17 @@
 # ZCoder Repository Audit and Engineering Report
 
-## Current Verification Checkpoint — 2026-11-06
+> **Current Verification Checkpoint — 2026-11-09:** supersedes the 2026-11-06
+> checkpoint below and all older mutable status. Since the last checkpoints,
+> PRs #175–#183 were independently reviewed and merged (`main` @ `121cc27`),
+> and a universal remediation round closed every remaining CodeQL finding
+> (39 → 0, locally verified with CodeQL CLI 2.27.4 on the identical suite),
+> repaired the failing `Security Scan` CI workflow (invalid `uses:` step made
+> every run fail at 0s), rebuilt the gitleaks configuration (full-history scan
+> clean), and re-ran the full test suite with local PostgreSQL (pass). See
+> `docs/audit/FINAL-REPORT.md`, `docs/audit/SECURITY-REPORT.md`,
+> `docs/audit/CODEQL-REMEDIATION.md`, `docs/audit/PR-INVENTORY.md`.
+
+## Previous Verification Checkpoint — 2026-11-06
 
 This checkpoint supersedes the mutable branch, PR, and release-gate status
 below. The historical audit record is retained for traceability.

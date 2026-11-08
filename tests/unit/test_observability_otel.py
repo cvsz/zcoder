@@ -193,13 +193,12 @@ class TestTraceSpan:
         with trace_model_call(provider="local", model="qwen", operation="stream") as span:
             span.set_attribute("test.key", "test_value")
 
-        try:
+        def _failing_call() -> None:
             with trace_model_call(provider="local", model="qwen"):
                 raise RuntimeError("model failed")
-        except RuntimeError as exc:
-            assert str(exc) == "model failed"
-        else:
-            raise AssertionError("expected model failure")
+
+        with pytest.raises(RuntimeError, match="model failed"):
+            _failing_call()
 
         assert metrics.model_calls_total.get() == 2
         assert metrics.model_errors_total.get() == 1

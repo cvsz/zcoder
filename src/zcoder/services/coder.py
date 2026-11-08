@@ -145,6 +145,7 @@ class Coder:
                     try:
                         retry_after = float(e.headers.get("Retry-After", "")) if e.headers else None
                     except (TypeError, ValueError):
+                        # Retry-After may be non-numeric (or absent); retry_after stays None.
                         pass
                     raise RateLimitError(
                         "Rate limited (429)", retry_after=retry_after, details={"body": body[:300]}

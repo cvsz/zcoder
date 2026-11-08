@@ -22,10 +22,6 @@ logger = logging.getLogger(__name__)
 # ─── Runtime import guard ────────────────────────────────────────────────────
 
 try:
-    from opentelemetry import (
-        metrics,  # noqa: F401 - optional telemetry dependency
-        trace,  # noqa: F401 - optional telemetry dependency
-    )
     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.metrics import MeterProvider

@@ -1,12 +1,18 @@
+# Gitleaks configuration.
+#
+# Keep the default rule set and allow only verified false positives.
+# Note: `paths` values are compiled as regular expressions by gitleaks
+# (glob syntax such as `tests/**/*.py` is NOT valid here and aborts the scan).
+
 [extend]
 useDefault = true
 
-[[allow]]
-description = "Test files with fake tokens"
+[allowlist]
+description = "Test files containing intentionally fake tokens"
 paths = [
-    "tests/**/*.py",
-    "tests/**/*.md",
-    "tests/**/*.txt",
+    'tests/.*\.py$',
+    'tests/.*\.md$',
+    'tests/.*\.txt$',
 ]
 regexes = [
     "dummy",
@@ -15,8 +21,7 @@ regexes = [
     "test-token-123",
     "hunter2",
     "s3cr3t",
-    "test-token",
     "abcdef123456xyz",
-    "Authorization: Bearer",
+    'Authorization: Bearer',
     "curl -H 'Authorization:",
 ]
