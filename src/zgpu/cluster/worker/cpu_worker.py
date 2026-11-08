@@ -223,6 +223,7 @@ def run_cpu_worker(host: str = "127.0.0.1", port: int = 9200, token: str | None 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        # Ctrl-C is the expected way to stop the worker; close cleanly below.
         pass
     finally:
         server.server_close()

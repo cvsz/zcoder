@@ -576,6 +576,7 @@ def build_router(cfg: WebConfig) -> APIRouter:
                 if isinstance(msg, dict):
                     await conn.handle(msg)
         except WebSocketDisconnect:
+            # Normal client disconnect; there is nothing to clean up here.
             pass
         except Exception:
             log.exception("websocket handler failed")

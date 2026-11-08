@@ -21,7 +21,6 @@ Design principles:
 
 from __future__ import annotations
 
-import hmac
 import json
 import os
 import secrets
@@ -46,7 +45,21 @@ from zcoder.core.provider_policy import (
 )
 
 _PROVIDER_ADAPTER_CACHE: dict[str, BaseProviderAdapter] = {}
-_CACHE_FINGERPRINT_KEY = secrets.token_bytes(32)
+_CREDENTIAL_CACHE_IDS: dict[str, str] = {}
+
+
+def _credential_cache_id(api_key: str) -> str:
+    """Return an opaque per-process identifier for a provider credential.
+
+    Adapter cache keys must not embed the credential itself. The identifier
+    only needs to be stable inside this process, so a random surrogate is
+    used instead of deriving anything from the credential value.
+    """
+    cache_id = _CREDENTIAL_CACHE_IDS.get(api_key)
+    if cache_id is None:
+        cache_id = secrets.token_hex(8)
+        _CREDENTIAL_CACHE_IDS[api_key] = cache_id
+    return cache_id
 
 
 class ProviderAdapterError(RuntimeError):
@@ -159,12 +172,8 @@ def get_adapter(
     if not resolved_base:
         raise ProviderAdapterError(f"No base URL configured for provider {provider!r}")
 
-    credential_fingerprint = hmac.new(
-        _CACHE_FINGERPRINT_KEY,
-        api_key.encode("utf-8"),
-        "sha256",
-    ).hexdigest()[:24]
-    key = f"{provider}:{resolved_base}:{credential_fingerprint}:{timeout_seconds}"
+    credential_id = _credential_cache_id(api_key)
+    key = f"{provider}:{resolved_base}:{credential_id}:{timeout_seconds}"
 
     if key in _PROVIDER_ADAPTER_CACHE:
         return _PROVIDER_ADAPTER_CACHE[key]

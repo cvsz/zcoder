@@ -1,0 +1,19 @@
+# Exact-fingerprint allow list for historical false positives that were
+# individually reviewed and confirmed to contain no secrets.
+#
+# - docs/audit/TASK-LEDGER.md: a GPG public-key fingerprint (public data),
+#   removed from the document in later revisions.
+# - docs/DEVELOPER-PORTAL.md: an example Idempotency-Key UUID.
+# - pyproject.toml: packaging keyword strings, not a credential.
+# - tests/*: placeholder test tokens (TEST_TOKEN, abcdef123, zc_live_test_*,
+#   sk_secret_*); the paths above are historical revisions of test fixtures.
+#
+# Format: <commit>:<file>:<rule-id>:<line>
+dcdf1dfdc92cfae687770babe4e482b674dfe85f:docs/audit/TASK-LEDGER.md:generic-api-key:39
+1718b97d275081089a3b7d600f33a558314d6780:tests/unit/codeagent/test_enterprise.py:curl-auth-header:22
+144efa7cf6c0cc15db823cb72c9bd16daf73de3b:tests/unit/codeagent/test_enterprise.py:curl-auth-header:22
+712ddb3fc7251076234e7dbeaa690c97f980fbc0:tests/unit/codeagent/test_enterprise.py:curl-auth-header:22
+a3c773d768a763204f01c55a79edd39bf447b60f:docs/DEVELOPER-PORTAL.md:generic-api-key:42
+a773576df4e6dd6a3156ff8f2919a5d58e0ae263:pyproject.toml:generic-api-key:66
+19e93c9b181a8f2ca47ec7ec0db7819ad31f4b4e:tests/test_upgrade12_product_suite.py:generic-api-key:122
+19e93c9b181a8f2ca47ec7ec0db7819ad31f4b4e:tests/test_upgrade14_localai_suite.py:generic-api-key:62

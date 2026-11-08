@@ -1562,7 +1562,9 @@ class CodeAgent:
                     except SandboxViolation as e:
                         return f"[SANDBOX BLOCKED] {e}"
                     except ImportError:
-                        pass
+                        # The sandbox module ships with the package; if it is
+                        # missing, fail closed instead of running unsandboxed.
+                        return "[SANDBOX BLOCKED] sandbox enforcement is unavailable in this installation"
                 r = subprocess.run(  # nosec B603  # shell_command_argv returns an argv list, no shell=True
                     shell_command_argv(cmd),
                     cwd=cwd,
@@ -2022,6 +2024,7 @@ def cmd_code_agent(
         if extra_bins:
             os.environ["PATH"] = os.pathsep.join(extra_bins) + os.pathsep + os.environ.get("PATH", "")
     except ImportError:
+        # Plugin bin dirs are optional; continue with the base PATH.
         pass
 
     # Skills / Agents (now plugin-aware via their own .load())
@@ -2359,6 +2362,7 @@ def cmd_code_slash(
                 )
                 return
     except ImportError:
+        # No plugin-provided slash command matched; show the built-in error.
         pass
 
     print(f"\033[91m✗ Unknown slash command: {full_cmd}\033[0m")
@@ -2383,6 +2387,7 @@ def cmd_code_cost(api_key: str):
             total_cost += c
             print(f"{d['id'][:16]:<18}{t:<8}{i:,<12}{o:,<12}${c:.4f}")
         except Exception:
+            # Skip unreadable session files while aggregating usage.
             pass
     print("─" * 60)
     print(f"{'TOTAL':<18}{'':8}{total_in:,<12}{total_out:,<12}${total_cost:.4f}")
@@ -2401,6 +2406,7 @@ def cmd_code_list_sessions():
             t = len(d.get("turns", [])) // 2
             print(f"{d['id'][:16]:<18}{t:<8}{d.get('model', '')[:24]:<25}{d.get('updated_at', '')[:10]}")
         except Exception:
+            # Skip unreadable session files while listing.
             pass
 
 
@@ -2452,6 +2458,7 @@ def _run_doctor():
         checks.append(("Plugins installed", len(plugin_list()) > 0))
         checks.append(("Marketplaces registered", len(marketplace_list()) > 0))
     except ImportError:
+        # Plugin introspection is optional for the doctor report.
         pass
     all_ok = True
     for name, ok in checks:

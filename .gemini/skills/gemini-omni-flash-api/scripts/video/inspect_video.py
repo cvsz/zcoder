@@ -33,6 +33,7 @@ def parse_fps(fps_str):
                     return f"{int(val)} fps"
                 return f"{val:.2f} fps"
         except (ValueError, ZeroDivisionError):
+            # Unparseable frame-rate ratio; fall through to the plain-float parse.
             pass
     try:
         val = float(fps_str)

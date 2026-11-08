@@ -35,10 +35,10 @@ jobs:
           [ -z "${{ secrets.POLIEDBC_PAT }}" ] && MISSING="$MISSING POLIEDBC_PAT"
           if [ -n "$MISSING" ]; then
             echo "::error::Required secrets not set:$MISSING"
-            echo "all-present=false" >> $GITHUB_OUTPUT
+            echo "all-present=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          echo "all-present=true" >> $GITHUB_OUTPUT
+          echo "all-present=true" >> "$GITHUB_OUTPUT"
 
   auto-fix-prs:
     name: Auto-fix open PRs
@@ -85,15 +85,17 @@ jobs:
             FIX_COUNT=$((FIX_COUNT + 1))
           fi
 
-          echo "FIX_COUNT=$FIX_COUNT" >> $GITHUB_ENV
+          echo "FIX_COUNT=$FIX_COUNT" >> "$GITHUB_ENV"
           echo "Issues found: $FIX_COUNT"
 
       - name: Report results
         run: |
           echo "Auto-fix completed. Issues found: ${FIX_COUNT:-0}"
           if [ "${FIX_COUNT:-0}" -gt 0 ]; then
-            echo "## Auto-fix Results" >> $GITHUB_STEP_SUMMARY
-            echo "- Issues found: ${FIX_COUNT}" >> $GITHUB_STEP_SUMMARY
-            echo "- Repo: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
-            echo "PR-triggered signing and push are disabled. Use workflow_dispatch to apply fixes." >> $GITHUB_STEP_SUMMARY
+            {
+              echo "## Auto-fix Results"
+              echo "- Issues found: ${FIX_COUNT}"
+              echo "- Repo: ${{ github.repository }}"
+              echo "PR-triggered signing and push are disabled. Use workflow_dispatch to apply fixes."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -11,18 +11,48 @@
 
 | Category | Count |
 |----------|-------|
-| Total PRs discovered | 171 |
+| Total PRs discovered | 171 (as of 2026-11-08 audit) |
 | Open | 0 |
 | Draft (closed) | 7 |
 | Merged | 164 (all closed state; merged set) |
 | Closed without merge | 7 (all drafts) |
 | Pagination coverage | Complete (all pages returned; no further pages) |
 
-> Note: This independent enumeration returned 171 PRs, whereas the prior audit (2026-11-08) recorded 169. The 2-PR difference is attributable to timing (PRs closed between the two enumerations). All 171 are in `closed` state; there are **no open PRs**.
+> Note: This independent enumeration returned 171 PRs, whereas the prior audit (2026-11-08) recorded 169. The 2-PR difference is attributable to timing (PRs closed between the two enumerations). All 171 are in `closed` state; there were **no open PRs** at that time.
 
-## Open PRs
+## Refresh — 2026-11-09 (universal remediation round)
 
-None. No open, draft, or `READY_FOR_MERGE` PRs require action.
+Re-enumerated at execution time via `gh api "repos/cvsz/zcoder/pulls?state=all&per_page=100" --paginate`:
+
+| Category | Count |
+|----------|-------|
+| Total PRs discovered | 183 |
+| Merged | 159 |
+| Closed without merge | 21 |
+| Open | 3 (all Dependabot) |
+| Pagination coverage | Complete (pages 1–2; page 3 empty) |
+
+Merges since the previous audit (all independently reviewed per repository
+policy before merge; verified present on `main` @ `121cc27`):
+
+| PR | Merge commit | Title |
+|----|--------------|-------|
+| #175 | e087f7ec | docs(audit): add independent engineering audit evidence |
+| #176 | 6ebbca53 | docs(audit): record PR #175 merge results |
+| #177 | 708061b3 | fix: prevent feed URL redirect scheme escape in cloudflare RSS monitor (B310) |
+| #178 | 0f4e3634 | fix(local): align ZCoder defaults with Qwen 7B GGUF |
+| #179 | 55efab78 | fix(security): complete ZCoder audit remediation |
+| #180 | 3a7a2b56 | Update README.md |
+| #181 | 45801d2d | fix(security): remediate CodeQL findings |
+| #183 | 121cc274 | fix(policy): keep hosted MCP tunnel conversion fail-closed |
+
+## Open PRs (2026-11-09) — Dependabot
+
+| PR | Scope | Checks | Disposition |
+|----|-------|--------|-------------|
+| #185 | bump actions minor/patch group (5 updates; codeql.yml, publish-container.yml, release.yml) | all required checks pass | Independent review + merge with `--match-head-commit` when verified (recorded in `FINAL-REPORT.md`) |
+| #186 | Dockerfile: astral-sh/uv 0.13.5 → 0.13.7 | all required checks pass | Independent review + merge with `--match-head-commit` when verified (recorded in `FINAL-REPORT.md`) |
+| #184 | anthropic requirement `<2.0.0` → `<3.0.0` | **failing:** lock-check, sync-locked, docker-build (`uv.lock` not regenerated) | NOT merged: failing required checks; Anthropic v2 migration explicitly not verified in this repository (documented policy) |
 
 ## Closed without merge (7 — all drafts)
 
@@ -72,7 +102,11 @@ All merged changes verified present on `main` (HEAD `e868ee4` includes them).
 
 ## Open action required
 
-None. All 171 discovered PRs have a documented disposition (100% coverage). No PR requires rebase, fix, test, or independent review at this time.
+- 2026-11-08 baseline: none (all 171 PRs had a documented disposition).
+- 2026-11-09 refresh: 3 open Dependabot PRs — #185 and #186 are eligible for
+  review/merge once independently reviewed; #184 requires either a regenerated
+  `uv.lock` or closure, and remains open with the reason documented above.
+  This round's own PR is tracked in `FINAL-REPORT.md`.
 
 ## Follow-up
 

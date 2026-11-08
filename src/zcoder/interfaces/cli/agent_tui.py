@@ -362,6 +362,7 @@ class AgentTUI(App):
             self._history_path.write_text("\n".join(history[-HISTORY_LIMIT:]) + "\n", encoding="utf-8")
             self._history_path.chmod(0o600)
         except OSError:
+            # History persistence is best-effort; a failed write must not break the TUI.
             pass
 
     # ----- rendering helpers

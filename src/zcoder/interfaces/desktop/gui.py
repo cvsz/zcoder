@@ -23,11 +23,13 @@ import subprocess  # nosec B404  # nvidia-smi is a trusted local GPU monitoring 
 import threading
 import time
 import tkinter as tk
+import tkinter.filedialog as filedialog
+import tkinter.messagebox as messagebox
+import tkinter.ttk as ttk
 import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
 from typing import Any, TypedDict
 
 from zcoder import __version__ as VERSION
@@ -94,6 +96,7 @@ class ZCoderDesktopGUI:
         try:
             style.theme_use("clam")
         except tk.TclError:
+            # "clam" is unavailable on this platform; keep the default theme.
             pass
 
         style.configure("TFrame", background=self.c["bg_dark"])
@@ -1048,53 +1051,55 @@ class ZCoderDesktopGUI:
             models: list[str]
 
         providers: dict[str, _ProviderInfo] = {
-            "groq": {
-                "free": True,
-                "models": [
+            "groq": _ProviderInfo(
+                free=True,
+                models=[
                     "llama-3.1-70b-versatile",
                     "llama-3.1-8b-instant",
                     "mixtral-8x7b-32768",
                     "gemma2-9b-it",
                 ],
-            },
-            "cerebras": {"free": True, "models": ["llama3.1-8b", "llama3.1-70b"]},
-            "together": {
-                "free": True,
-                "models": ["meta-llama/Meta-Llama-3.1-70B-Instruct", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
-            },
-            "groqcloud": {"free": True, "models": ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"]},
-            "ollama": {
-                "free": True,
-                "models": ["llama3.1", "llama3.1:8b", "llama3.1:70b", "qwen2.5", "qwen2.5:7b", "codellama"],
-            },
-            "gemini": {"free": True, "models": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]},
-            "openrouter": {
-                "free": True,
-                "models": ["openrouter/auto", "google/gemini-flash-1.5", "meta-llama/llama-3.1-70b"],
-            },
-            "nvidia": {
-                "free": False,
-                "models": [
+            ),
+            "cerebras": _ProviderInfo(free=True, models=["llama3.1-8b", "llama3.1-70b"]),
+            "together": _ProviderInfo(
+                free=True,
+                models=["meta-llama/Meta-Llama-3.1-70B-Instruct", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
+            ),
+            "groqcloud": _ProviderInfo(free=True, models=["llama-3.1-70b-versatile", "llama-3.1-8b-instant"]),
+            "ollama": _ProviderInfo(
+                free=True,
+                models=["llama3.1", "llama3.1:8b", "llama3.1:70b", "qwen2.5", "qwen2.5:7b", "codellama"],
+            ),
+            "gemini": _ProviderInfo(
+                free=True, models=["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-8b"]
+            ),
+            "openrouter": _ProviderInfo(
+                free=True,
+                models=["openrouter/auto", "google/gemini-flash-1.5", "meta-llama/llama-3.1-70b"],
+            ),
+            "nvidia": _ProviderInfo(
+                free=False,
+                models=[
                     "nvidia/nemotron-3-ultra",
                     "nvidia/llama-3.1-nemotron-70b",
                     "nvidia/llama-3.1-nemotron-ultra-253b",
                 ],
-            },
-            "cloudflare": {
-                "free": True,
-                "models": [
+            ),
+            "cloudflare": _ProviderInfo(
+                free=True,
+                models=[
                     "@cf/meta/llama-3.1-8b-instruct",
                     "@cf/meta/llama-3.1-70b-instruct",
                     "@cf/mistral/mistral-7b-instruct-v0.2",
                     "@hf/thebloke/zephyr-7b-beta-awq",
                 ],
-            },
-            "xai": {"free": False, "models": ["grok-beta", "grok-2"]},
-            "openai": {"free": False, "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]},
-            "anthropic": {
-                "free": False,
-                "models": ["claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus"],
-            },
+            ),
+            "xai": _ProviderInfo(free=False, models=["grok-beta", "grok-2"]),
+            "openai": _ProviderInfo(free=False, models=["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]),
+            "anthropic": _ProviderInfo(
+                free=False,
+                models=["claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus"],
+            ),
         }
 
         # Read saved accounts from env (ZCODER_PROVIDER_<PROVIDER>_<N>_KEY) and disk config
@@ -1423,6 +1428,11 @@ class ZCoderDesktopGUI:
         self._start_gpu_memory_monitor()
 
 
+# Strong references to live GUI controllers: keeps each controller alive for
+# the whole Tk main loop instead of relying on garbage-collection timing.
+_ACTIVE_GUI_INSTANCES: list[ZCoderDesktopGUI] = []
+
+
 def run_desktop_gui() -> None:
     """Launch the ZCoder Studio Ultra-Luxury Desktop GUI."""
     root = tk.Tk()
@@ -1433,7 +1443,7 @@ def run_desktop_gui() -> None:
             root.iconphoto(False, img)
         except Exception:  # nosec B110  # window icon is non-critical UI polish
             pass
-    _app = ZCoderDesktopGUI(root)
+    _ACTIVE_GUI_INSTANCES.append(ZCoderDesktopGUI(root))
     root.mainloop()
 
 

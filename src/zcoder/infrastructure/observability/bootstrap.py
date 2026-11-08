@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 _OTEL_ENDPOINT_ENV = "ZCODER_OTEL_ENDPOINT"
 
-_bootstrapped = False
+# Mutable module state so bootstrapping runs at most once per process.
+_BOOTSTRAP_STATE = {"active": False}
 
 
 def _reset_for_tests() -> None:
-    global _bootstrapped
-    _bootstrapped = False
+    _BOOTSTRAP_STATE["active"] = False
 
 
 def _load_init_telemetry() -> Any:
@@ -35,8 +35,6 @@ def bootstrap_from_env(env: dict[str, str] | None = None) -> Any:
     Returns whatever ``init_telemetry`` returns when the endpoint flag is set,
     otherwise ``None``. Never raises.
     """
-    global _bootstrapped
-
     source = env if env is not None else os.environ
     endpoint = source.get(_OTEL_ENDPOINT_ENV)
 
@@ -44,7 +42,7 @@ def bootstrap_from_env(env: dict[str, str] | None = None) -> Any:
         logger.debug("%s not set; telemetry stays disabled", _OTEL_ENDPOINT_ENV)
         return None
 
-    if _bootstrapped:
+    if _BOOTSTRAP_STATE["active"]:
         return None
 
     try:
@@ -53,7 +51,7 @@ def bootstrap_from_env(env: dict[str, str] | None = None) -> Any:
             otel_endpoint=endpoint,
             enabled=True,
         )
-        _bootstrapped = True
+        _BOOTSTRAP_STATE["active"] = True
         logger.info("OpenTelemetry bootstrapped from %s", _OTEL_ENDPOINT_ENV)
         return result
     except Exception as exc:

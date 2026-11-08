@@ -5,16 +5,7 @@ disable-default-queries: false
 queries:
   - uses: security-and-quality
 
-suppressions:
-  - description: "SessionStore._path() validates session_id (basename + strict _ID pattern + no separators + resolve containment + symlink check) before resolve(), so user-provided session_id cannot reach the filesystem sink unsanitized."
-    justified: true
-    kind: py/path-injection
-    locations:
-      - file: src/zcoder/agent/codeagent/sessions.py
-        line: 50
-  - description: "SessionStore.delete() calls _path() which fully validates session_id before unlink(), so user-provided session_id cannot reach the filesystem sink unsanitized."
-    justified: true
-    kind: py/path-injection
-    locations:
-      - file: src/zcoder/agent/codeagent/sessions.py
-        line: 112
+# No alert suppressions are defined here on purpose: every code-scanning
+# finding from this query set is remediated in code and verified by a local
+# CodeQL run (docs/audit/CODEQL-REMEDIATION.md). Adding suppressions requires
+# documented justification and an independent reviewer sign-off.

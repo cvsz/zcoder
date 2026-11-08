@@ -153,7 +153,7 @@ def cmd_cite(question: str, doc_files: list[str], api_key: str, model: str):
 
     if not documents:
         print("[ERROR] No readable source files found.")
-        return
+        return None
 
     print(f"\033[94mℹ Answering with local citations from {len(documents)} document(s)\033[0m\n")
     client = CitationsCoder(api_key=api_key, model=model)

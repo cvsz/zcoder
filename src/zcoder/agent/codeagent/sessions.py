@@ -51,24 +51,19 @@ class SessionStore:
         return safe_id
 
     def _path(self, session_id: str) -> Path:
-        # Keep the allowlist check at the filesystem sink so static analysis
-        # and runtime enforcement share the same trust boundary.
-        if not isinstance(session_id, str):
-            raise ValueError("invalid session id")
-        match = _ID.fullmatch(session_id)
-        if match is None:
-            raise ValueError("invalid session id")
-        safe_id = match.group(0)
+        # Validate the ID first (basename + strict pattern allowlist).
+        safe_id = self._validate_session_id(session_id)
         root = self.dir.resolve()
         expected = root / f"{safe_id}.json"
-        resolved = expected.resolve(strict=False)
-        try:
-            resolved.relative_to(root)
-        except ValueError as exc:
-            raise ValueError("session path escapes storage directory") from exc
-        if resolved != expected:
+        # Normalize the path with os.path.realpath, then prove containment
+        # with a prefix check against the storage root before any filesystem
+        # access. This blocks both traversal sequences and symlink escapes.
+        resolved_path = os.path.realpath(expected)
+        if not resolved_path.startswith(str(root) + os.sep):
+            raise ValueError("session path escapes storage directory")
+        if resolved_path != str(expected):
             raise ValueError("session path must not resolve through a symlink")
-        return resolved
+        return Path(resolved_path)
 
     def save(
         self, session_id: str, cwd: str, messages: list[dict[str, Any]], usage: dict[str, int] | None = None

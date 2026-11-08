@@ -325,6 +325,7 @@ class CodeAgent:
                             )
                             continue
                         except LLMError:
+                            # Summarization itself failed; fall through to the error path.
                             pass
                     self.audit.record("llm_error", message=str(exc)[:300])
                     yield Notice(str(exc), "error")

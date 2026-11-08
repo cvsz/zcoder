@@ -407,9 +407,8 @@ pytest --cov --cov-report=term-missing
 
 | Python Version | Status |
 |---|---|
-| 3.10 | ✅ Supported |
-| 3.11 | ✅ Supported |
-| 3.12 | ✅ Supported |
+| 3.12 | ✅ Supported (minimum) |
+| 3.13 | ✅ Supported |
 
 ### Additional CI Checks
 

@@ -60,6 +60,11 @@ class JobQueueUnavailable(RuntimeError):
     """Raised when the configured durable job queue cannot be reached."""
 
 
+# Constant, non-exception-derived message; authorization failures must not
+# echo internal exception text to API clients.
+_FORBIDDEN_MESSAGE = "Access denied by tenant authorization policy"
+
+
 class TenantJobStore(Protocol):
     """Minimal tenant-scoped persistence contract required by the public API."""
 
@@ -158,7 +163,16 @@ class PublicAPIV1Router:
         elif p.startswith("/api/v1/jobs/") and "/" not in p.removeprefix("/api/v1/jobs/"):
             permission = {"GET": "job.read", "DELETE": "job.cancel"}.get(method)
         if permission:
-            ctx.require_permission(permission)
+            try:
+                ctx.require_permission(permission)
+            except (PermissionDeniedError, CrossTenantViolationError):
+                # Message is built from the route's required scope constant only;
+                # authorization exception text must never reach API clients.
+                raise APIError(
+                    "FORBIDDEN",
+                    f"Missing required permission '{permission}'",
+                    status_code=403,
+                ) from None
 
     @staticmethod
     def _new_job(ctx: RequestContext, payload: dict[str, Any]) -> Job:
@@ -280,8 +294,8 @@ class PublicAPIV1Router:
 
             return status_code, response_body
 
-        except (PermissionDeniedError, CrossTenantViolationError) as exc:
-            return 403, APIError("FORBIDDEN", str(exc), status_code=403).to_dict(req_id)
+        except (PermissionDeniedError, CrossTenantViolationError):
+            return 403, APIError("FORBIDDEN", _FORBIDDEN_MESSAGE, status_code=403).to_dict(req_id)
         except APIError as e:
             return e.status_code, e.to_dict(req_id)
         except Exception:
@@ -342,11 +356,11 @@ class PublicAPIV1Router:
                 except IdempotencyConflictError as exc:
                     raise APIError(
                         "IDEMPOTENCY_CONFLICT",
-                        str(exc),
+                        "Idempotency key reused with different request payload",
                         status_code=409,
                     ) from exc
                 except (PermissionDeniedError, CrossTenantViolationError) as exc:
-                    raise APIError("FORBIDDEN", str(exc), status_code=403) from exc
+                    raise APIError("FORBIDDEN", _FORBIDDEN_MESSAGE, status_code=403) from exc
                 except JobQueueUnavailable:
                     raise APIError(
                         "JOB_QUEUE_UNAVAILABLE",
@@ -384,7 +398,7 @@ class PublicAPIV1Router:
                 try:
                     jobs, total = store.list_jobs(ctx, limit, offset)
                 except (PermissionDeniedError, CrossTenantViolationError) as exc:
-                    raise APIError("FORBIDDEN", str(exc), status_code=403) from exc
+                    raise APIError("FORBIDDEN", _FORBIDDEN_MESSAGE, status_code=403) from exc
                 except JobQueueUnavailable:
                     raise APIError(
                         "JOB_QUEUE_UNAVAILABLE",
@@ -425,7 +439,7 @@ class PublicAPIV1Router:
                         raise APIError("NOT_FOUND", f"Job {job_id} not found", status_code=404)
                     return 200, self._job_response(cancelled_job, ctx, req_id)
             except (PermissionDeniedError, CrossTenantViolationError) as exc:
-                raise APIError("FORBIDDEN", str(exc), status_code=403) from exc
+                raise APIError("FORBIDDEN", _FORBIDDEN_MESSAGE, status_code=403) from exc
             except JobQueueUnavailable:
                 raise APIError(
                     "JOB_QUEUE_UNAVAILABLE",

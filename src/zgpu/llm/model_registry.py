@@ -21,7 +21,11 @@ log = logging.getLogger("zGPU-ModelRegistry")
 
 def _safe_log_value(value: str) -> str:
     """Bound and neutralize control characters in untrusted log fields."""
-    return "".join(character if character.isprintable() else "?" for character in str(value))[:128]
+    text = str(value)
+    # Replace every line-break form explicitly before the printable-character
+    # filter so embedded CR/LF can never forge additional log entries.
+    text = text.replace("\r\n", "?").replace("\r", "?").replace("\n", "?")
+    return "".join(character if character.isprintable() else "?" for character in text)[:128]
 
 
 @dataclass
