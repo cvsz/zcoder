@@ -55,6 +55,7 @@ def test_generate_uses_loopback_endpoint_without_forwarding_credentials(
     assert isinstance(request, urllib.request.Request)
     assert request.full_url == "http://127.0.0.1:8080/v1/chat/completions"
     assert request.get_header("Authorization") is None
+    assert request.data is not None
     assert json.loads(request.data.decode("utf-8"))["model"] == "qwen-local"
     assert captured["timeout"] == 120
 
