@@ -6,18 +6,18 @@ def test_adapter_cache_uses_process_keyed_credential_fingerprint(monkeypatch):
     monkeypatch.setattr(adapters, "_CACHE_FINGERPRINT_KEY", b"x" * 32)
 
     first = adapters.get_adapter(
-        "vllm",
-        base_url="http://127.0.0.1:8000",
+        "ollama",
+        base_url="http://127.0.0.1:11434",
         api_key="credential-one",
     )
     same = adapters.get_adapter(
-        "vllm",
-        base_url="http://127.0.0.1:8000",
+        "ollama",
+        base_url="http://127.0.0.1:11434",
         api_key="credential-one",
     )
     other = adapters.get_adapter(
-        "vllm",
-        base_url="http://127.0.0.1:8000",
+        "ollama",
+        base_url="http://127.0.0.1:11434",
         api_key="credential-two",
     )
 
