@@ -904,7 +904,11 @@ class DashboardHTTPHandler(BaseHTTPRequestHandler):
                 search = query.get("search", [""])[0]
                 project_id = query.get("project_id", [None])[0]
                 self._send_json(
-                    {"data": backend.conversations.list_conversations(limit=limit, search=search, project_id=project_id)}
+                    {
+                        "data": backend.conversations.list_conversations(
+                            limit=limit, search=search, project_id=project_id
+                        )
+                    }
                 )
             except ValueError as exc:
                 if isinstance(exc, ConversationError):
