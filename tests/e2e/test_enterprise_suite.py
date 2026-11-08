@@ -53,10 +53,11 @@ def pg_is_available():
     if not PG_URL:
         return False
     try:
-        with psycopg2.connect(PG_URL, connect_timeout=2):
-            return True
+        connection = psycopg2.connect(PG_URL, connect_timeout=2)
     except psycopg2.Error:
         return False
+    connection.close()
+    return True
 
 
 pytestmark = pytest.mark.skipif(
@@ -70,6 +71,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def ent_store():
+    assert PG_URL is not None
     store = EnterprisePostgresStore(dsn=PG_URL)
     yield store
     store.close()
