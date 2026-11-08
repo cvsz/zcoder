@@ -19,6 +19,11 @@ from zgpu.runtime.runtime import ZRuntime
 log = logging.getLogger("zGPU-ModelRegistry")
 
 
+def _safe_log_value(value: str) -> str:
+    """Bound and neutralize control characters in untrusted log fields."""
+    return "".join(character if character.isprintable() else "?" for character in str(value))[:128]
+
+
 @dataclass
 class ModelProfile:
     name: str
@@ -111,7 +116,7 @@ class ModelRegistry:
             config=config,
             tags=tags or ["custom"],
         )
-        log.info("Registered model profile: %s", name)
+        log.info("Registered model profile: %s", _safe_log_value(name))
 
     def get_or_load(self, name: str) -> ZGPULLM:
         """Fetch an already loaded model, or instantiate it on zGPU device memory."""
@@ -122,7 +127,7 @@ class ModelRegistry:
             profile = self.profiles[name]
             log.info(
                 "Loading model '%s' (d_model=%d, layers=%d) onto zGPU...",
-                name,
+                _safe_log_value(name),
                 profile.config.d_model,
                 profile.config.num_layers,
             )
