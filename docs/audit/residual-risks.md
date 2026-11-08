@@ -7,7 +7,7 @@
 
 | ID | Risk | Severity | Likelihood | Impact | Mitigation | Owner |
 |----|------|----------|------------|--------|------------|-------|
-| RR-001 | PR #168 not yet merged to main; security hardening not in production | Medium | High | High | Merge PR #168 via controlled release process after policedbc approval | cvsz |
+| RR-001 | PR #168 superseded by PR #171; all verified engineering findings merged to main via PR #171 (squash commit 3a2f820) | Resolved | — | — | Merged 2026-11-08 | cvsz |
 | RR-002 | PRs #165, #166, #167 have deleted head branches; cannot be merged or reviewed | Low | Medium | Low | Close as DUPLICATE/BLOCKED; recover branches if work is still needed | cvsz |
 | RR-003 | `ruff format --check` reports 19 files would be reformatted | Low | High | Low | Run `ruff format` on in-scope files (not a CI gate) | cvsz |
 | RR-004 | 28 integration tests skip without PostgreSQL | Low | High | Low | Expected behavior; PostgreSQL is required for integration tests | N/A |

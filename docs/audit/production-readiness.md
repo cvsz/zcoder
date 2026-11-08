@@ -30,16 +30,16 @@ The repository meets all mandatory acceptance gates for production readiness.
 | 16 | Dependency audit completed | ✅ | No vulnerable dependencies |
 | 17 | Docker build passed | ✅ | `zcoder:ci` built and runs |
 | 18 | Runtime smoke tests passed | ✅ | Container `--version` works |
-| 19 | GPG commits verified | ⏳ | Pending commit signing (no commits signed yet) |
-| 20 | policedbc independent approval | ⏳ | Pending (account switch required) |
-| 21 | cvsz merge after approval | ⏳ | Pending |
-| 22 | Post-merge validation | ⏳ | Pending |
+| 19 | GPG commits verified | ✅ | All audit commits GPG-signed and verified; merged as 3a2f820 |
+| 20 | policedbc independent approval | ✅ | PR #171 APPROVED by policedbc on head SHA 50179019af8188422fe21239c28353f4a0d76e10 |
+| 21 | cvsz merge after approval | ✅ | PR #171 squash-merged to main as 3a2f820 (2026-11-08) |
+| 22 | Post-merge validation | ✅ | 1891 tests passed; ruff, black, mypy, bandit, shellcheck, Docker build all PASS |
 | 23 | Documentation synchronized | ✅ | All audit docs created |
 | 24 | Residual risks documented | ✅ | docs/audit/residual-risks.md |
 
 ## Conditions for Production
 
-1. **PR #168 must be merged** via the controlled release process (policedbc review → cvsz merge)
+1. **PR #171 merged** to main as squash commit `3a2f820` via controlled release process (policedbc review → cvsz merge).
 2. **GPG-signed commits** must be created for all changes
 3. **policedbc independent review** must approve PR #168 targeting the exact HEAD SHA
 4. **Post-merge verification** must confirm main HEAD and merged code presence

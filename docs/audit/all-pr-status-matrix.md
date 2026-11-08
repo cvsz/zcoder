@@ -8,16 +8,18 @@
 
 | Required Status | Count | PRs |
 |-----------------|-------|-----|
-| MERGED_VERIFIED | 162 | #1-#164 (excluding #158), #169, #170 |
-| OPEN_ACTION_REQUIRED | 1 | #168 |
+| MERGED_VERIFIED | 163 | #1-#164 (excluding #158), #169, #170, #171 |
+| OPEN_ACTION_REQUIRED | 0 | — |
 | DRAFT_INCOMPLETE | 0 | — |
 | CLOSED_SUPERSEDED | 1 | #158 |
 | DUPLICATE | 2 | #165, #166 |
 | BLOCKED | 1 | #167 |
 | REVIEW_REQUIRED | 0 | — |
-| READY_FOR_MERGE | 1 | #168 |
+| READY_FOR_MERGE | 0 | — |
 
 **Coverage:** 167/167 (100%) — every PR has a documented disposition.
+
+#168 was superseded by #171 (merged). PR #171 merged PR #168's changes (plus the fixes from this audit) into main as squash commit `3a2f820`.
 
 ## Detailed Status Matrix
 
