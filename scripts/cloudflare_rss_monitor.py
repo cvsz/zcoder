@@ -75,7 +75,14 @@ def fetch_feed(url: str, timeout: int = 15) -> ET.Element | None:
         return None
     try:
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 (zeaz.dev rss-monitor)"})
-        with urlopen(req, timeout=timeout) as resp:
+        # B310 mitigation: urlopen follows HTTP redirects; request URL pre-validated to
+        # https (line 73) and final response URL re-validated via resp.geturl() below
+        # before reading, blocking file:///ftp:// redirect escapes.
+        with urlopen(req, timeout=timeout) as resp:  # nosec B310
+            final_url = urlparse(resp.geturl())
+            if final_url.scheme != "https":
+                print(f"  [WARN] Feed redirect left https {url} -> {resp.geturl()}", file=sys.stderr)
+                return None
             data = resp.read()
         # defusedxml.ElementTree ป้องกัน XXE / XML External Entity injection ตามค่าเริ่มต้น
         return ET.fromstring(data)
