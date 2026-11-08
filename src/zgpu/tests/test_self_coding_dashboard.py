@@ -9,7 +9,6 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 
 import zgpu.dashboard.server as dashboard_server
-
 from zgpu.integrations.assistants import AssistantProfiles
 from zgpu.integrations.conversations import ConversationStore
 from zgpu.integrations.local_knowledge import LocalKnowledgeStore
