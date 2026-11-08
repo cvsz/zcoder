@@ -21,7 +21,8 @@ Design principles:
 
 from __future__ import annotations
 
-import hashlib
+import hmac
+import secrets
 import json
 import os
 import urllib.error
@@ -45,6 +46,7 @@ from zcoder.core.provider_policy import (
 )
 
 _PROVIDER_ADAPTER_CACHE: dict[str, BaseProviderAdapter] = {}
+_CACHE_FINGERPRINT_KEY = secrets.token_bytes(32)
 
 
 class ProviderAdapterError(RuntimeError):
@@ -157,11 +159,12 @@ def get_adapter(
     if not resolved_base:
         raise ProviderAdapterError(f"No base URL configured for provider {provider!r}")
 
-    key = (
-        f"{provider}:{resolved_base}:"
-        f"{hashlib.sha256(api_key.encode()).hexdigest()[:12]}:"
-        f"{timeout_seconds}"
-    )
+    credential_fingerprint = hmac.new(
+        _CACHE_FINGERPRINT_KEY,
+        api_key.encode("utf-8"),
+        "sha256",
+    ).hexdigest()[:24]
+    key = f"{provider}:{resolved_base}:{credential_fingerprint}:{timeout_seconds}"
 
     if key in _PROVIDER_ADAPTER_CACHE:
         return _PROVIDER_ADAPTER_CACHE[key]
