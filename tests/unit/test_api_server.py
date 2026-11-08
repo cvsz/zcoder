@@ -87,9 +87,7 @@ def test_api_dispatcher_exception_does_not_leak_details(client, monkeypatch):
         raise RuntimeError("private database host and credential")
 
     monkeypatch.setattr(server.router, "handle_request", fail_dispatch)
-    response = client.get(
-        "/api/v1/entitlements", headers={"X-Request-Id": "request-test"}
-    )
+    response = client.get("/api/v1/entitlements", headers={"X-Request-Id": "request-test"})
 
     assert response.status_code == 500
     assert response.json() == {
