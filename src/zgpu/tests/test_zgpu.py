@@ -210,3 +210,14 @@ def test_global_memory_coalesced_load_accounts_for_cache_line_crossing():
     assert values == addresses
     assert transactions == 2
     assert memory.read_transactions == 2
+ 
+ 
+ @pytest.mark.parametrize("source", ["x" * 4097, "HALT\n" * 10001])
+ def test_assembler_rejects_oversized_input(source):
+     with pytest.raises(ValueError, match="exceeds"):
+         Assembler.assemble(source)
+ 
+ 
+ def test_assembler_strips_comments_without_regex_and_preserves_instruction():
+     assert len(Assembler.assemble("HALT # " + ("x" * 4000))) == 1
+ 
