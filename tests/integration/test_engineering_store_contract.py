@@ -59,9 +59,19 @@ def _postgres_store() -> Iterator[tuple[Any, list[str]]]:
     except Exception as exc:  # pragma: no cover - environment dependent
         pytest.skip(f"PostgreSQL connection or schema creation failed: {exc}")
         return
+
+    if admin is None:
+        raise RuntimeError("PostgreSQL admin connection was not initialized")
+
+    try:
+        admin.autocommit = True
+        with admin.cursor() as cur:
+            cur.execute(f'CREATE SCHEMA "{schema}"')
+    except Exception as exc:  # pragma: no cover - environment dependent
+        pytest.skip(f"PostgreSQL schema creation not permitted: {exc}")
+        return
     finally:
-        if admin is not None:
-            admin.close()
+        admin.close()
 
     store: Any = None
     try:
