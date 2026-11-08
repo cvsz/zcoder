@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 
-import zcoder.services.maintenance_campaign as maintenance_campaign
 from zcoder.services.maintenance_campaign import (
     MaintenanceCampaignService,
     build_parser,
