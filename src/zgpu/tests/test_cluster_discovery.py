@@ -118,31 +118,42 @@ def test_network_pool_auto_discovery():
         assert len(pool.nodes) == 2
         assert "network_cpu_192.168.1.10_9200" in pool.nodes
         assert "zgpu_192.168.1.20_8880" in pool.nodes
- 
+
  
 def test_beacon_listener_binds_only_to_selected_local_interface(monkeypatch):
     class FakeSocket:
         def __init__(self):
             self.bound = None
             self.closed = False
+
         def setsockopt(self, *_args):
             return None
+
         def settimeout(self, *_args):
             return None
+
         def bind(self, address):
             self.bound = address
+
         def close(self):
             self.closed = True
 
     fake = FakeSocket()
-    monkeypatch.setattr("zgpu.cluster.discovery.scanner.socket.socket", lambda *_args: fake)
+    monkeypatch.setattr(
+        "zgpu.cluster.discovery.scanner.socket.socket", lambda *_args: fake
+    )
     scanner = NetworkComputeScanner()
-    assert scanner.listen_beacons(duration_seconds=0, port=9998, bind_host="192.168.1.10") == []
+    assert (
+        scanner.listen_beacons(duration_seconds=0, port=9998, bind_host="192.168.1.10")
+        == []
+    )
     assert fake.bound == ("192.168.1.10", 9998)
     assert fake.closed is True
 
 
-@pytest.mark.parametrize("bind_host", [".".join(("0", "0", "0", "0")), "255.255.255.255", "8.8.8.8", "::1"])
+@pytest.mark.parametrize(
+    "bind_host", [".".join(("0", "0", "0", "0")), "255.255.255.255", "8.8.8.8", "::1"]
+)
 def test_beacon_listener_rejects_wildcard_public_and_non_ipv4_bind(bind_host):
     scanner = NetworkComputeScanner()
     with pytest.raises(ValueError, match="bind_host"):
