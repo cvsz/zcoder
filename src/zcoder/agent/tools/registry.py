@@ -937,10 +937,10 @@ def build_code_tools_registry(cwd: str | None = None) -> ToolRegistry:
     base = os.path.realpath(os.path.expanduser(cwd or os.getcwd()))
 
     def run_python(code: str) -> str:
-        import subprocess
+        import subprocess  # nosec B404  # fixed sys.executable argv, no shell
         import sys
 
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603  # sys.executable with argv list, no shell
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,

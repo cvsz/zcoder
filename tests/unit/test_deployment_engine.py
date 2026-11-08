@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.services.control_plane import ControlPlaneStore, GitHubInstallation
 from zcoder.domain.services.deployment import (
     ArtifactManifest,
@@ -57,9 +58,7 @@ def test_logical_backup_and_restoration_drill(deploy_setup):
 
     # Verify target has restored records
     with tempfile.NamedTemporaryFile(suffix=".db") as _:
-        import sqlite3
-
-        with sqlite3.connect(target_path) as conn:
+        with sqlite_connection(target_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT account_login FROM installations WHERE installation_id = 99001")
             row = cur.fetchone()
@@ -74,9 +73,7 @@ def test_worker_crash_lease_expiry_drill(deploy_setup):
     store, engine = deploy_setup
 
     # Seed running job claimed by Worker A
-    import sqlite3
-
-    with sqlite3.connect(store.db_path) as conn:
+    with sqlite_connection(store.db_path) as conn:
         conn.execute("""
             INSERT INTO jobs (id, task, runtime, status, workspace, created_at, updated_at, model, budget_usd, cost_usd, claimed_by, claim_generation, lease_expires_at, metadata)
             VALUES ('job_crash_1', 'Crash recovery task', 'direct', 'RUNNING', '.', 100.0, 100.0, 'claude-sonnet-5', 5.0, 0.0, 'worker_A', 1, 9999999999.0, '{}')

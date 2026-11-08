@@ -11,7 +11,7 @@ ZCoder CLI v1.10.0
 
 import fnmatch
 import json
-import subprocess
+import subprocess  # nosec B404  # legacy local tooling path; all calls use argv without a shell
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -106,7 +106,7 @@ class HookManager:
             if h.tool_match and tool_name and h.tool_match not in tool_name:
                 continue
             try:
-                p = subprocess.run(
+                p = subprocess.run(  # nosec B603  # user/org-configured hook argv, no shell=True
                     shell_command_argv(h.command), capture_output=True, text=True, timeout=30, env=env
                 )
                 blocked = event == HookEvent.PRE_TOOL_USE and p.returncode != 0

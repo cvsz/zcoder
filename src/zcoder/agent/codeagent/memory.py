@@ -6,7 +6,7 @@ import datetime as _dt
 import os
 import platform
 import re
-import subprocess  # nosec B404 - fixed read-only git invocations
+import subprocess  # nosec B404  # fixed read-only git invocations
 from pathlib import Path
 
 from zcoder.agent.codeagent.workspace import ToolError, Workspace
@@ -43,7 +43,7 @@ def load_project_memory(cwd: Path) -> list[tuple[str, str]]:
 
 def _git(cwd: Path, *args: str) -> str:
     try:
-        r = subprocess.run(  # nosec B603 B607 - fixed args, no shell
+        r = subprocess.run(  # nosec B603 B607  # fixed args, no shell
             ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=3, check=False
         )
         return r.stdout.strip() if r.returncode == 0 else ""

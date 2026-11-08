@@ -4,6 +4,7 @@ import os
 import sqlite3
 import stat
 import uuid
+from contextlib import closing
 
 import pytest
 
@@ -167,7 +168,7 @@ def test_local_knowledge_scopes_search_and_listing_to_project_with_global_source
 def test_local_knowledge_migrates_existing_documents_without_changing_them(tmp_path):
     database = tmp_path / "existing.sqlite3"
     document_id = uuid.uuid4().hex
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection, connection:
         connection.execute("""CREATE TABLE documents (
                 id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL,
                 sha256 TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL

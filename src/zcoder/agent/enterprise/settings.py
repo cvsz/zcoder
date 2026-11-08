@@ -27,7 +27,7 @@ CLI flags:
 
 import json
 import os
-import subprocess
+import subprocess  # nosec B404  # legacy local tooling path; all calls use argv without a shell
 from pathlib import Path
 from typing import Any
 
@@ -130,7 +130,7 @@ def render_status_line(session_state: dict) -> str:
 
     if isinstance(sl, dict) and sl.get("command"):
         try:
-            r = subprocess.run(
+            r = subprocess.run(  # nosec B603  # user-configured hook argv, no shell=True
                 shell_command_argv(sl["command"]),
                 input=json.dumps(session_state),
                 capture_output=True,

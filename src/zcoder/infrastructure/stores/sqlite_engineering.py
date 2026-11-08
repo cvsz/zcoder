@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.interfaces.engineering_store import EngineeringStore
 from zcoder.domain.models.engineering import Attempt, Checkpoint, EngineeringTask, TaskStatus
 
@@ -19,14 +21,18 @@ class SQLiteEngineeringStore(EngineeringStore):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        # Enable WAL mode for better concurrency and crash-safety
-        conn.execute("PRAGMA journal_mode=WAL")
-        return conn
+    @contextmanager
+    def _connection(self):
+        """Short-lived connection with WAL enabled; always closed on exit."""
+        with sqlite_connection(
+            self.db_path,
+            timeout=30.0,
+            pragmas=("PRAGMA journal_mode=WAL",),
+        ) as conn:
+            yield conn
 
     def _init_db(self):
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY,
@@ -90,7 +96,7 @@ class SQLiteEngineeringStore(EngineeringStore):
         generation acts as a fencing token; stale claimers are rejected.
         """
         now = time.time()
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
                 query = """
@@ -145,7 +151,7 @@ class SQLiteEngineeringStore(EngineeringStore):
 
     def save_task(self, task: EngineeringTask) -> None:
         task.updated_at = time.time()
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO tasks (id, task_description, status, created_at, updated_at, metadata)
@@ -162,7 +168,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def get_task(self, task_id: str) -> EngineeringTask | None:
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             cur = conn.cursor()
             cur.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
             row = cur.fetchone()
@@ -178,7 +184,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def create_attempt(self, attempt: Attempt) -> None:
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO attempts (id, task_id, generation, status, started_at, completed_at)
@@ -195,7 +201,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def save_checkpoint(self, checkpoint: Checkpoint) -> None:
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO checkpoints (id, task_id, attempt_id, sequence, phase, state_snapshot, timestamp)
@@ -213,7 +219,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def get_latest_checkpoint(self, attempt_id: str) -> Checkpoint | None:
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             cur = conn.cursor()
             cur.execute(
                 """
@@ -237,7 +243,7 @@ class SQLiteEngineeringStore(EngineeringStore):
             )
 
     def list_tasks(self, status: str | None = None) -> list[EngineeringTask]:
-        with self._get_connection() as conn:
+        with self._connection() as conn:
             cur = conn.cursor()
             if status:
                 cur.execute("SELECT * FROM tasks WHERE status = ? ORDER BY created_at DESC", (status,))

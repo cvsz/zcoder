@@ -10,6 +10,15 @@
 python-dotenv>=1.2.2
 Pillow>=13.0.0; python_version >= "3.11"
 
+# OIDC token validation. PyJWT (not the unrelated "jwt"/python-jwt
+# distribution) provides jwt.decode, jwt.get_unverified_header and the
+# asymmetric algorithms used for JWKS verification; [crypto] installs
+# cryptography for RS256.
+PyJWT[crypto]>=2.0.0
+
+# JWKS fetching for OIDC validation (used by zcoder.infrastructure.auth.oidc).
+httpx>=0.27.0
+
 # Vision / multimodal — no extra deps (base64 + urllib)
 # Batch API — no extra deps
 # Streaming — no extra deps

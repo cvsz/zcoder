@@ -163,10 +163,11 @@ def test_workspace_projects_organize_conversations_and_detach_on_delete(tmp_path
 def test_conversation_database_migrates_existing_records_to_project_schema(tmp_path):
     import sqlite3
     import uuid
+    from contextlib import closing
 
     path = tmp_path / "existing.sqlite3"
     conversation_id = uuid.uuid4().hex
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript("""CREATE TABLE conversations (
                 id TEXT PRIMARY KEY, title TEXT NOT NULL, model TEXT NOT NULL,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL

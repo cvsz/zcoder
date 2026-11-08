@@ -12,11 +12,11 @@ Provides:
 from __future__ import annotations
 
 import hashlib
-import sqlite3
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.services.control_plane import ControlPlaneStore
 
 
@@ -71,7 +71,7 @@ class DeploymentEngine:
     def evaluate_health(self) -> ServiceHealth:
         db_ok = True
         try:
-            with sqlite3.connect(self.store.db_path) as conn:
+            with sqlite_connection(self.store.db_path) as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) FROM jobs WHERE status = 'READY'")
                 queue_depth = cur.fetchone()[0]
@@ -94,10 +94,10 @@ class DeploymentEngine:
 
     def create_logical_backup(self) -> BackupArchive:
         records = {}
-        with sqlite3.connect(self.store.db_path) as conn:
+        with sqlite_connection(self.store.db_path) as conn:
             cur = conn.cursor()
             for table in ["jobs", "outbox", "webhook_inbox", "installations", "repositories"]:
-                cur.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608 -- table is hard-coded above
+                cur.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608  # table is hard-coded above
                 records[table] = cur.fetchone()[0]
 
             # Dump SQL lines
@@ -115,14 +115,14 @@ class DeploymentEngine:
         # Remove target db if exists to allow fresh schema execution from dump
         if target_store.db_path.exists():
             target_store.db_path.unlink()
-        with sqlite3.connect(target_store.db_path) as conn:
+        with sqlite_connection(target_store.db_path) as conn:
             conn.executescript(archive.data_dump)
         return True
 
     def simulate_worker_crash_and_reclaim(self, worker_id: str, job_id: str) -> tuple[bool, str | None]:
         """Simulate worker death -> lease expiry -> reclaim by another worker."""
         # 1. Manually expire lease in store
-        with sqlite3.connect(self.store.db_path) as conn:
+        with sqlite_connection(self.store.db_path) as conn:
             conn.execute("UPDATE jobs SET lease_expires_at = ? WHERE id = ?", (time.time() - 10, job_id))
 
         # 2. Worker B attempts claim
@@ -134,7 +134,7 @@ class DeploymentEngine:
 
     def record_deployment(self, record: DeploymentRecord) -> None:
         """Record a deployment event for rollback and audit purposes."""
-        with sqlite3.connect(self.store.db_path) as conn:
+        with sqlite_connection(self.store.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS deployment_history (
                     deployment_id TEXT PRIMARY KEY,
@@ -167,7 +167,7 @@ class DeploymentEngine:
 
     def get_deployment_history(self, limit: int = 20) -> list[DeploymentRecord]:
         """Retrieve recent deployment history for rollback decisions."""
-        with sqlite3.connect(self.store.db_path) as conn:
+        with sqlite_connection(self.store.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS deployment_history (
                     deployment_id TEXT PRIMARY KEY,
@@ -239,7 +239,7 @@ class DeploymentEngine:
         """
         manifest.revoked = True
         manifest.revocation_reason = reason
-        with sqlite3.connect(self.store.db_path) as conn:
+        with sqlite_connection(self.store.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS artifact_manifest (
                     artifact_id TEXT PRIMARY KEY,
@@ -274,7 +274,7 @@ class DeploymentEngine:
 
     def get_artifact_manifest(self, artifact_id: str) -> ArtifactManifest | None:
         """Retrieve artifact manifest for verification."""
-        with sqlite3.connect(self.store.db_path) as conn:
+        with sqlite_connection(self.store.db_path) as conn:
             cur = conn.cursor()
             cur.execute(
                 """

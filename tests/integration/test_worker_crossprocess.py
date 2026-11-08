@@ -18,13 +18,13 @@ from __future__ import annotations
 import json
 import os
 import signal
-import sqlite3
 import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.services.control_plane import ControlPlaneStore
 from zcoder.services.agent_runtime import JobStatus
 
@@ -159,7 +159,7 @@ def _seed_jobs(db_path: Path, count: int) -> list[str]:
     ControlPlaneStore(db_path=db_path)  # ensure schema exists
     now = time.time()
     job_ids = [f"job_{uuid.uuid4().hex[:8]}" for _ in range(count)]
-    with sqlite3.connect(db_path) as conn:
+    with sqlite_connection(db_path) as conn:
         for i, job_id in enumerate(job_ids):
             conn.execute(
                 """
@@ -176,7 +176,7 @@ def _seed_jobs(db_path: Path, count: int) -> list[str]:
 
 
 def _job_row(db_path: Path, job_id: str) -> dict:
-    with sqlite3.connect(db_path) as conn:
+    with sqlite_connection(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, claimed_by, claim_generation FROM jobs WHERE id = ?",
             (job_id,),

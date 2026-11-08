@@ -313,7 +313,7 @@ class StripeBillingProvider(BillingProvider):
 
     def __init__(
         self,
-        api_key: str = "",
+        api_key: str = "",  # nosec B107  # empty default placeholder, caller supplies the real key
         webhook_secret: str = "",
         *,
         price_ids: Mapping[PlanTier, str] | None = None,

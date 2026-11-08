@@ -12,7 +12,8 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed git invocations, never a shell
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -24,6 +25,8 @@ from ._release_gate_legacy import (  # re-export stable public types
 from ._release_gate_legacy import (
     ProductionReleaseGate as _LegacyProductionReleaseGate,
 )
+
+GIT_BIN = shutil.which("git") or "git"
 
 _PATH_REWRITES = {
     "pytest tests/test_source_of_truth_conformance.py": "pytest tests/integration/test_source_of_truth_conformance.py",
@@ -95,8 +98,8 @@ class ProductionReleaseGate(_LegacyProductionReleaseGate):
     @staticmethod
     def _candidate_sha() -> str:
         """The exact commit this catalog instance is bound to."""
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+        result = subprocess.run(  # nosec B603  # fixed git argv, no shell
+            [GIT_BIN, "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
@@ -125,8 +128,8 @@ class ProductionReleaseGate(_LegacyProductionReleaseGate):
     @staticmethod
     def _working_tree_dirty() -> bool:
         """Do not qualify a commit while uncommitted source can change its meaning."""
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
+        result = subprocess.run(  # nosec B603  # fixed git argv, no shell
+            [GIT_BIN, "status", "--porcelain"],
             capture_output=True,
             text=True,
             check=False,

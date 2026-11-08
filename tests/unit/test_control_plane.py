@@ -1,10 +1,12 @@
 """tests/test_control_plane.py — Tests for PostgreSQL/Storage Control Plane, Fencing Tokens, Outbox & Fleet Registry"""
 
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.services.control_plane import (
     ControlPlaneStore,
     FleetRepository,
@@ -156,7 +158,7 @@ def test_fleet_installation_and_repo_registry(cp_store):
         assert row == ("my-org", "backend", "TRUSTED", 1)
 
 
+@contextmanager
 def sqlite3_conn(path):
-    import sqlite3
-
-    return sqlite3.connect(path)
+    with sqlite_connection(path) as conn:
+        yield conn

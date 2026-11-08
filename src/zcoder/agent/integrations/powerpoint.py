@@ -221,7 +221,7 @@ class PptxSession:
             "reorder_slides": reorder_slides,
         }
         try:
-            exec(  # nosec B102 -- explicit restricted local-code execution boundary
+            exec(  # nosec B102  # explicit restricted local-code execution boundary
                 compile(code, "<pptx-turn>", "exec"),
                 {
                     "__builtins__": {

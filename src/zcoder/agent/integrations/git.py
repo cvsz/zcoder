@@ -3,7 +3,10 @@ diff review, and blame explanations.
 """
 
 import shlex
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed git invocations for commit/PR helpers
+
+GIT_BIN = shutil.which("git") or "git"
 
 SYS = (
     "You are a senior software engineer writing git artifacts. "
@@ -12,7 +15,9 @@ SYS = (
 
 
 def _git(cmd: str, cwd: str = ".") -> str:
-    r = subprocess.run(shlex.split(cmd), cwd=cwd, capture_output=True, text=True, timeout=30)
+    r = subprocess.run(  # nosec B603  # shlex-split argv, no shell
+        shlex.split(cmd), cwd=cwd, capture_output=True, text=True, timeout=30
+    )
     return r.stdout.strip() or r.stderr.strip()
 
 
@@ -109,7 +114,9 @@ def cmd_git_commit(
         print("\nCommit was not created because local model generation failed.")
         return
     if write:
-        result = subprocess.run(["git", "commit", "-m", msg], cwd=cwd, capture_output=True, text=True)
+        result = subprocess.run(  # nosec B603  # fixed argv git invocation, no shell
+            [GIT_BIN, "commit", "-m", msg], cwd=cwd, capture_output=True, text=True
+        )
         if result.returncode == 0:
             print("\n✓ Committed.")
         else:

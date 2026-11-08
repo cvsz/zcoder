@@ -8,10 +8,10 @@ artifact integrity.
 from __future__ import annotations
 
 import hashlib
-import sqlite3
 
 import pytest
 
+from zcoder.core.sqlite import sqlite_connection
 from zcoder.domain.services.control_plane import ControlPlaneStore, GitHubInstallation
 from zcoder.domain.services.deployment import (
     ArtifactManifest,
@@ -106,7 +106,7 @@ class TestDRRehearsalProcedure:
         assert restored is True
 
         # Verify restored records using expected IDs
-        with sqlite3.connect(target_path) as conn:
+        with sqlite_connection(target_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT account_login FROM installations WHERE installation_id = 99001")
             row = cur.fetchone()

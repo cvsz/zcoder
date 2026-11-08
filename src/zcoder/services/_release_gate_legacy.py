@@ -44,8 +44,8 @@ class EvidenceLevel(StringEnum):
 
 
 class GateVerdict(StringEnum):
-    PASS = "PASS"
-    PASS_WITH_LIMITATIONS = "PASS_WITH_LIMITATIONS"
+    PASS = "PASS"  # nosec B105  # verdict enum value, not a password
+    PASS_WITH_LIMITATIONS = "PASS_WITH_LIMITATIONS"  # nosec B105  # verdict enum value, not a password
     FAIL = "FAIL"
     UNKNOWN = "UNKNOWN"
     NOT_APPLICABLE = "NOT_APPLICABLE"

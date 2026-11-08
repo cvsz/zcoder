@@ -20,7 +20,8 @@ import logging
 import os
 import re
 import shlex
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed pg_dump/pg_restore invocations, never a shell
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -30,6 +31,19 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 from zcoder.core.security import build_child_env
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_executable(name: str) -> str:
+    """Resolve a required PostgreSQL client binary to an absolute path.
+
+    Failing closed with ``FileNotFoundError`` preserves the existing error
+    handling (backup records a clear "install postgresql-client" message).
+    """
+    resolved = shutil.which(name)
+    if resolved is None:
+        raise FileNotFoundError(f"{name} executable not found on PATH")
+    return resolved
+
 
 # Password assignments inside libpq keyword/value strings or URL query
 # strings. Captures single-quoted, double-quoted, and bare token values.
@@ -246,9 +260,9 @@ class BackupManager:
             # Keep the password off the command line: pass it via PGPASSWORD
             # in the filtered child environment instead (SEC-008).
             target_url, password = _split_dsn_password(self.database_url)
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603  # resolved pg_dump/pg_restore argv, no shell
                 [
-                    "pg_dump",
+                    _resolve_executable("pg_dump"),
                     "--no-password",
                     "--format=custom",
                     "--compress=9",
@@ -369,9 +383,9 @@ class BackupManager:
         try:
             # Keep the password off the command line (SEC-008).
             target_url, password = _split_dsn_password(restore_url)
-            restore_result = subprocess.run(
+            restore_result = subprocess.run(  # nosec B603  # resolved pg_dump/pg_restore argv, no shell
                 [
-                    "pg_restore",
+                    _resolve_executable("pg_restore"),
                     "--no-password",
                     "--clean",
                     "--if-exists",
