@@ -11,6 +11,7 @@ from __future__ import annotations
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import URLError
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "cloudflare_rss_monitor.py"
 
@@ -40,6 +41,18 @@ class _FakeResponse:
         return False
 
 
+class _TrackingResponse(_FakeResponse):
+    """Response that records whether read() was invoked."""
+
+    def __init__(self, final_url: str, body: bytes = b"<rss><channel></channel></rss>"):
+        super().__init__(final_url, body)
+        self.read_called = False
+
+    def read(self) -> bytes:
+        self.read_called = True
+        return super().read()
+
+
 def test_fetch_feed_rejects_https_to_http_redirect():
     """F-01: an https feed redirecting to http must be rejected (no scheme escape)."""
     mod = _load_module()
@@ -60,3 +73,57 @@ def test_fetch_feed_accepts_stays_https():
     with patch.object(mod, "urlopen", return_value=_FakeResponse("https://example.com/feed.xml")):
         result = mod.fetch_feed("https://example.com/feed.xml")
     assert result is not None
+
+
+def test_fetch_feed_rejects_https_to_ftp_redirect():
+    """F-01: an https feed redirecting to ftp:// must be rejected (scheme escape)."""
+    mod = _load_module()
+    with patch.object(mod, "urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _TrackingResponse("ftp://example.com/feed.xml")
+        assert mod.fetch_feed("https://example.com/feed.xml") is None
+    # Validation occurs before reading response bytes; read() must not run.
+    assert mock_urlopen.return_value.read_called is False
+
+
+def test_fetch_feed_rejects_initial_non_https_schemes():
+    """F-01: http://, ftp://, file:// and scheme-less URLs are rejected up front."""
+    mod = _load_module()
+    for url in (
+        "http://example.com/feed.xml",
+        "ftp://example.com/feed.xml",
+        "file:///etc/passwd",
+        "",
+        "not-a-url",
+    ):
+        assert mod.fetch_feed(url) is None
+
+
+def test_fetch_feed_read_only_after_https_validation():
+    """F-01: resp.read() must not run when the final URL leaves https."""
+    mod = _load_module()
+    with patch.object(mod, "urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _TrackingResponse("http://example.com/feed.xml")
+        assert mod.fetch_feed("https://example.com/feed.xml") is None
+    assert mock_urlopen.return_value.read_called is False
+
+
+def test_fetch_feed_network_error_is_handled():
+    """F-01: urlopen network failures (URLError) yield None instead of crashing."""
+    mod = _load_module()
+    with patch.object(mod, "urlopen", side_effect=URLError("network down")):
+        assert mod.fetch_feed("https://example.com/feed.xml") is None
+
+
+def test_fetch_feed_timeout_is_handled():
+    """F-01: urlopen timeouts (TimeoutError/OSError) yield None instead of crashing."""
+    mod = _load_module()
+    with patch.object(mod, "urlopen", side_effect=TimeoutError("timed out")):
+        assert mod.fetch_feed("https://example.com/feed.xml") is None
+
+
+def test_fetch_feed_redirect_loop_is_handled():
+    """F-01: a redirect loop surfacing as urlopen failure is handled gracefully."""
+    mod = _load_module()
+    # urllib exhausts its redirect budget and raises URLError; fetch_feed must not leak it.
+    with patch.object(mod, "urlopen", side_effect=URLError("too many redirects")):
+        assert mod.fetch_feed("https://example.com/feed.xml") is None
