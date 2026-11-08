@@ -79,7 +79,7 @@ def test_readiness_503_fail_closed_on_import_or_construction_error(client, monke
     assert resp.status_code == 503
     assert resp.json() == {"status": "unavailable"}
 
- 
+
 def test_api_dispatcher_exception_does_not_leak_details(client, monkeypatch):
     monkeypatch.setattr(server, "authenticate_request", lambda _headers: object())
 
