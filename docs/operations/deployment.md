@@ -5,7 +5,7 @@
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `ZCODER_BASE_URL` | No | `http://127.0.0.1:8080/v1` | Loopback llama.cpp chat endpoint |
-| `ZCODER_MODEL` | No | `zqwen2.5-coder-7b-instruct-q4_k_m` | Local request label |
+| `ZCODER_MODEL` | No | `qwen-7b-q4km` | Local request label |
 | `DATABASE_URL` | No | SQLite | PostgreSQL DSN for API and worker processes; Docker entrypoint derives it from the mounted ZCoder password secret when configured |
 | `ZCODER_POSTGRES_SECRET_SOURCE` | Compose only | `${HOME}/.config/zcoder/postgresql.password` | Host path to the password file created by `make postgres-setup`; mounted read-only into the ZCoder container |
 | `ZCODER_AUTH_ENABLED` | Production API | `false` | Require verified OIDC bearer-token authentication |
