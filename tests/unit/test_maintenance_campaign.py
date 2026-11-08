@@ -7,6 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 import zcoder.services.maintenance_campaign as maintenance_campaign
+MaintenanceCampaignService = maintenance_campaign.MaintenanceCampaignService
+build_parser = maintenance_campaign.build_parser
+load_signals_file = maintenance_campaign.load_signals_file
+main = maintenance_campaign.main
+maintenance_campaign_work = maintenance_campaign.maintenance_campaign_work
 from zcoder.services.upgrade_loop import LoopReport, LoopState, WorkKind
 
 
@@ -51,8 +56,8 @@ class FakePipeline:
 
 
 def test_campaign_work_ignores_volatile_recommendation_uuid_for_fingerprint():
-    first = maintenance_campaign.maintenance_campaign_work(FakeRecommendation(id="rec-random-one"))
-    second = maintenance_campaign.maintenance_campaign_work(FakeRecommendation(id="rec-random-two"))
+    first = maintenance_campaign_work(FakeRecommendation(id="rec-random-one"))
+    second = maintenance_campaign_work(FakeRecommendation(id="rec-random-two"))
 
     assert first.kind == WorkKind.UPDATE
     assert first.fingerprint == second.fingerprint
@@ -64,7 +69,7 @@ def test_campaign_deduplicates_equivalent_recommendations_before_pipeline():
     recommendations = [FakeRecommendation(id="rec-1"), FakeRecommendation(id="rec-2")]
     pipeline = FakePipeline()
 
-    report = maintenance_campaign.MaintenanceCampaignService(pipeline, FakeIntelligence(recommendations)).run()
+    report = MaintenanceCampaignService(pipeline, FakeIntelligence(recommendations)).run()
 
     assert report.recommendations_discovered == 2
     assert report.work_seeded == 1
@@ -85,7 +90,7 @@ def test_empty_campaign_still_invokes_pipeline_to_resume_durable_work():
         )
     )
 
-    report = maintenance_campaign.MaintenanceCampaignService(pipeline, FakeIntelligence([])).run()
+    report = MaintenanceCampaignService(pipeline, FakeIntelligence([])).run()
 
     assert pipeline.seed == []
     assert report.recommendations_discovered == 0
@@ -106,7 +111,7 @@ def test_campaign_report_preserves_blocked_and_halt_summary():
         )
     )
 
-    report = maintenance_campaign.MaintenanceCampaignService(
+    report = MaintenanceCampaignService(
         pipeline,
         FakeIntelligence([FakeRecommendation(id="rec-1")]),
     ).run()
@@ -140,7 +145,7 @@ def test_load_signals_file_validates_and_builds_supported_signals(tmp_path):
         encoding="utf-8",
     )
 
-    signals = maintenance_campaign.load_signals_file(path)
+    signals = load_signals_file(path)
 
     assert len(signals) == 2
     assert signals[0].id == "signal-1"
@@ -154,7 +159,7 @@ def test_load_signals_file_rejects_unknown_signal_type(tmp_path):
     path.write_text('[{"type":"UNKNOWN"}]', encoding="utf-8")
 
     with pytest.raises(ValueError, match="unsupported maintenance signal type"):
-        maintenance_campaign.load_signals_file(path)
+        load_signals_file(path)
 
 
 def test_postgres_campaign_cli_uses_environment_secret_without_output(tmp_path, monkeypatch, capsys):
@@ -179,7 +184,7 @@ def test_postgres_campaign_cli_uses_environment_secret_without_output(tmp_path, 
 
     monkeypatch.setattr(maintenance_campaign, "build_postgres_store_pipeline", fake_builder)
 
-    result = maintenance_campaign.main(
+    result = main(
         [
             "--repository",
             str(tmp_path),
@@ -199,7 +204,7 @@ def test_postgres_campaign_cli_uses_environment_secret_without_output(tmp_path, 
 
 
 def test_campaign_cli_defaults_to_json_backend():
-    args = maintenance_campaign.build_parser().parse_args([])
+    args = build_parser().parse_args([])
 
     assert args.state_backend == "json"
     assert args.ledger_namespace == "zcoder-maintenance-campaign"
