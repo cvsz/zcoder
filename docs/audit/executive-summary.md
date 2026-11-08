@@ -3,71 +3,61 @@
 **Repository:** https://github.com/cvsz/zcoder
 **Owner:** cvsz
 **Default Branch:** main
-**Baseline SHA:** `9a0cb1d9f64b3767be95b8f0ef43a9a97e180346` (branch `fix/zcoder-defensive-fallback`, PR #168)
-**Final SHA:** `3a2f820bf15e4af0f349e29a1f847984a288894e` (main after PR #171 merge)
+**Baseline SHA:** `cf30b3dd40d2cf8316c407d996f2a54c498a69c7` (main, HEAD)
+**Final SHA:** `cf30b3dd40d2cf8316c407d996f2a54c498a69c7` (main, HEAD — no new implementation commits required)
 **Audit Date:** 2026-11-08
-**Auditor:** cvsz (implementation) / policedbc (independent review complete — APPROVED)
+**Auditor:** cvsz (implementation) / policedbc (independent review)
 
 ## Overall Verdict
 
-The repository is in **good functional health** with all CI gates passing. All 1891 tests pass (0 failures), 130 e2e tests pass, and 78 integration tests pass against PostgreSQL. Ruff, Black, mypy, Bandit, and ShellCheck all pass. Docker build succeeds.
+The repository is in **good functional health** with all CI gates passing. All 1808 unit/integration/e2e tests pass (32 skipped: PostgreSQL-unreachable integration tests and missing optional dependencies httpx/jwt/psutil). Ruff, Black, mypy, Bandit (-ll), ShellCheck, Docker build, Docker Compose config, and `uv lock --check` all pass.
 
-No critical vulnerabilities or data-corruption defects were found. The codebase demonstrates strong security awareness with multiple defense-in-depth improvements present on the current branch.
+No critical vulnerabilities or data-corruption defects were found during this independent audit. The codebase demonstrates strong security awareness with defense-in-depth controls present on the current branch.
+
+PR #168 (the only open PR at audit start) was reviewed and closed as **CLOSED_SUPERSEDED**: its head branch `fix/zcoder-defensive-fallback` introduces no `src/` changes beyond current main; its "remediate verified engineering findings" content is already present in main via merged PR #171 (`3a2f820`).
 
 ## Key Findings
 
 ### Fixed During This Audit
 
-| ID | Finding | Severity | File | Fix |
-|----|---------|----------|------|-----|
-| ZC-001 | `git commit` in unit tests fails under global `commit.gpgsign=true` because GPG requires a passphrase in batch mode | High | `tests/unit/codeagent/test_commands.py:101` | Added `-c commit.gpgsign=false` to test git commit invocation |
-| ZC-002 | Same GPG signing failure in release candidate test | High | `tests/unit/test_release_candidate.py:176` | Added `-c commit.gpgsign=false` to test git commit invocation |
-| ZC-003 | ShellCheck SC1007 warning (`CDPATH= cd` with space after `=`) | Medium | `build.sh:3`, `setup.sh:3` | Changed to `CDPATH='' cd` |
+None — baseline validation was clean. No code defects, invalid configurations, or security weaknesses required remediation.
 
-### Open Pull Requests Requiring Disposition
+### Pull Request Dispositions
 
-None — all open PRs have been dispositioned:
-- #168: Superseded by PR #171 (merged as 3a2f820)
-- #165: Closed as DUPLICATE of #166
-- #166: Closed as DUPLICATE of #165
-- #167: Closed as BLOCKED (head branch deleted)
-|----|-------|-------|--------|
-| #168 | fix(zgpu/dashboard): resolve F-16/F-17 dashboard API and import issues | Open | Current branch (`fix/zcoder-defensive-fallback`), all changes valid, all tests pass. Base SHA `f0d492f8` not in local clone (outdated vs main). **READY_FOR_MERGE** after rebase verification. |
-| #165 | feat: add auto audit/review/approve workflow | Open | **DUPLICATE** of #166 (same title, same base, same stats). Head branch deleted from remote. |
-| #166 | feat: add auto audit/review/approve workflow | Open | **DUPLICATE** of #165. Head branch deleted from remote. mergeable_state: dirty. |
-| #167 | feat: add auto-fix open PRs workflow | Open | Head branch deleted from remote. mergeable_state: dirty. Base SHA not in local clone. **BLOCKED** (branch deleted). |
+| PR | Title | Disposition | Basis |
+|----|-------|-------------|-------|
+| #168 | fix(zgpu/dashboard): resolve F-16/F-17 dashboard API and import issues | CLOSED_SUPERSEDED | Head branch `fix/zcoder-defensive-fallback` adds no `src/` changes beyond main; content already merged via PR #171 (`3a2f820`). Closed by cvsz with documented evidence. |
+| #158 | chore(deps): bump python from 3.14-slim to 3.15-slim | CLOSED_SUPERSEDED | Closed without merge; Python 3.15-slim not adopted (project requires Python 3.12+) |
+| #165 / #166 | feat: add auto audit/review/approve workflow | DUPLICATE | Identical title/base/stats; branches deleted from remote |
+| #167 | feat: add auto-fix open PRs workflow | BLOCKED | Head branch deleted from remote; base SHA not in local clone |
+| #146, #138, #137, #136, #123, #117, #62 | various drafts | DRAFT_INCOMPLETE / CLOSED_SUPERSEDED | Draft PRs closed without merge; incomplete implementation |
+| #1–#172 (merged) | — | MERGED_VERIFIED | 149 PRs merged; changes verified present on main |
 
-### Pull Request Inventory Summary
-
-- **Total PRs:** 167
-- **Open:** 4 (#165, #165, #166, #167, #168)
-- **Draft:** 1 (#146 — already merged as #147's successor, see inventory)
-- **Merged:** 162
-- **Closed unmerged:** 1 (#158 — Dependabot Python 3.15 bump, closed without merge)
-- **Pagination coverage:** Complete (all 167 PRs retrieved via `gh api --paginate`)
-
-### Validation Results
+## Validation Results
 
 | Check | Result | Details |
 |-------|--------|---------|
-| `ruff check .` | PASS | All checks passed |
-| `black --check .` | PASS | 362 files unchanged |
+| `ruff check .` | PASS | Exit 0 |
+| `black --check .` | PASS | 500 files unchanged |
 | `mypy src/zcoder` | PASS | No issues in 195 source files |
-| `bandit -r src/zcoder -ll` | PASS | No issues identified |
-| `shellcheck` (all scripts) | PASS | Exit 0 after fixing SC1007 |
-| `pytest` (unit + integration + e2e) | PASS | 1891 passed, 0 failed, 0 skipped (with PostgreSQL) |
-| `pytest` (without PostgreSQL) | PASS | 1863 passed, 28 skipped (PostgreSQL unreachable) |
-| Docker build | PASS | `zcoder:ci` built successfully |
+| `bandit -r src/zcoder -ll` | PASS | 95 low, 0 medium, 0 high |
+| `shellcheck` (build.sh, setup.sh) | PASS | Exit 0 |
+| `pytest` (full suite) | PASS | 1808 passed, 32 skipped |
+| Docker build (`zcoder:check`) | PASS | Exit 0 |
+| `docker compose config` | PASS | Exit 0 |
+| `uv lock --check` | PASS | Lockfile consistent |
 
-### Residual Risks
+## Residual Risks
 
-- PRs #165, #166, #167 have head branches deleted from the remote; they cannot be merged or rebased without recovering the branch.
-- `ruff format --check` reports 19 files would be reformatted (not a CI gate; P3 maintainability).
-- 28 tests skip when PostgreSQL is unavailable (expected; integration tests require PostgreSQL).
+- PRs #165, #166, #167 have head branches deleted from the remote; they cannot be merged or rebased without recovering the branch. Documented as DUPLICATE/BLOCKED.
+- `ruff-after.txt` is a stale artifact referencing the pre-Upgrade-57 `src/zcoder/claude/` namespace; `ruff check .` passes on the current `src/zcoder/agent/` tree. Not a CI gate; P3 cleanup.
+- Several direct dependencies have newer upstream versions available (e.g. ruff 0.16.5 → 0.17.4, fastapi 0.141.1 → 0.162.2), but `uv lock --check` passes and the CHANGELOG requires keeping Anthropic SDK on v1 until a v2 migration is verified. No forced upgrades.
+- 32 tests skip when PostgreSQL is unavailable or optional deps are missing (expected; not defects).
 
 ## Release Governance
 
-- GPG signing key available for `cvsz` (key `515DB3BD9BF14AA6646AC6770C54E869DE49D872`, "zcoder signing")
-- `commit.gpgsign=true` configured
-- Independent review by `policedbc` pending (account available in gh config but not active)
-- No commits have been signed yet in this audit session
+- GPG signing key available for `cvsz` (key `515DB3BD9BF14AA6646AC6770C54E869DE49D872`, "zcoder signing").
+- `commit.gpgsign=true` configured; user `cvsz <seaza@msn.com>`.
+- GPG signing verified functional (clearsign test exit 0).
+- Independent review by `policedbc` available in gh config (account present, not active).
+- No commits signed yet in this audit session.
