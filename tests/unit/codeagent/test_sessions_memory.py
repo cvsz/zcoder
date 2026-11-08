@@ -91,7 +91,7 @@ def test_mention_candidates_skip_ignored_dirs(tmp_path):
     assert mention_candidates(ws, "app") == ["src/app.py"]
     assert mention_candidates(ws, "") != []
 
- 
+
 def test_session_path_rejects_symlink_target(tmp_path):
     sessions = tmp_path / "sessions"
     sessions.mkdir()
