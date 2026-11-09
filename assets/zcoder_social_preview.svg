@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07101f"/><stop offset=".55" stop-color="#0a1630"/><stop offset="1" stop-color="#10112b"/></linearGradient>
+ <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#55e6ff"/><stop offset=".55" stop-color="#568cff"/><stop offset="1" stop-color="#9b78ff"/></linearGradient>
+ <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#142642" stop-opacity=".98"/><stop offset="1" stop-color="#0b172b" stop-opacity=".98"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <filter id="shadow"><feGaussianBlur stdDeviation="18"/></filter>
+ <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#5c82b5" stroke-opacity=".10" stroke-width="1"/></pattern>
+</defs>
+<rect width="1280" height="640" fill="url(#bg)"/>
+<rect width="1280" height="640" fill="url(#grid)"/>
+<circle cx="1030" cy="320" r="255" fill="#3b6bff" opacity=".08" filter="url(#shadow)"/>
+<circle cx="1025" cy="325" r="200" fill="none" stroke="#3a70c9" stroke-opacity=".18"/>
+<circle cx="1025" cy="325" r="150" fill="none" stroke="#4f8dff" stroke-opacity=".24" stroke-dasharray="4 9"/>
+<!-- left brand -->
+<g transform="translate(72 92)">
+ <rect x="0" y="0" width="58" height="58" rx="16" fill="#102b49" stroke="#58dfff" stroke-opacity=".65"/>
+ <path d="M15 40V18h8l7 11 7-11h8v22h-8V30l-7 10-7-10v10z" fill="url(#accent)"/>
+ <text x="78" y="43" font-family="Inter,Arial,sans-serif" font-size="42" font-weight="750" fill="#f3f8ff" letter-spacing="-1.5">ZCoder</text>
+ <text x="2" y="112" font-family="Inter,Arial,sans-serif" font-size="15" font-weight="700" fill="#67dff4" letter-spacing="3.5">ENTERPRISE AI CODING PLATFORM</text>
+ <text x="0" y="183" font-family="Inter,Arial,sans-serif" font-size="36" font-weight="720" fill="#f4f7ff">Build. Review. Ship.</text>
+ <text x="0" y="222" font-family="Inter,Arial,sans-serif" font-size="18" fill="#a9bad4">Local-first intelligence. Your infrastructure.</text>
+ <text x="0" y="250" font-family="Inter,Arial,sans-serif" font-size="18" fill="#a9bad4">Human-controlled autonomous engineering.</text>
+ <g transform="translate(0 298)">
+  <rect width="150" height="36" rx="18" fill="#122944" stroke="#35688e"/>
+  <circle cx="17" cy="18" r="4" fill="#56e5c4"/><text x="31" y="23" font-family="Inter,Arial,sans-serif" font-size="12" fill="#d9eaff">LOCAL-FIRST</text>
+  <rect x="162" width="153" height="36" rx="18" fill="#122944" stroke="#35688e"/>
+  <circle cx="179" cy="18" r="4" fill="#7ea6ff"/><text x="193" y="23" font-family="Inter,Arial,sans-serif" font-size="12" fill="#d9eaff">PROVIDER-NEUTRAL</text>
+  <rect x="327" width="125" height="36" rx="18" fill="#122944" stroke="#35688e"/>
+  <circle cx="344" cy="18" r="4" fill="#bb94ff"/><text x="358" y="23" font-family="Inter,Arial,sans-serif" font-size="12" fill="#d9eaff">SECURITY-FIRST</text>
+ </g>
+</g>
+<!-- connected architecture nodes -->
+<g stroke="url(#accent)" stroke-width="2" fill="none" opacity=".75">
+ <path d="M870 158L976 245M870 492L976 405M1112 158L1068 245M1112 492L1068 405"/>
+ <path d="M1025 195V230M1025 420V455" stroke-dasharray="5 7"/>
+</g>
+<!-- center platform -->
+<g transform="translate(884 236)">
+ <rect width="282" height="178" rx="24" fill="#58dfff" opacity=".10" filter="url(#glow)"/>
+ <rect x="0" y="0" width="282" height="178" rx="24" fill="url(#panel)" stroke="#5bdfff" stroke-opacity=".65" stroke-width="1.5"/>
+ <circle cx="141" cy="57" r="31" fill="#14375a" stroke="#65e5ff" stroke-opacity=".7"/>
+ <path d="M125 70V43h9l7 13 7-13h9v27h-9V56l-7 11-7-11v14z" fill="url(#accent)"/>
+ <text x="141" y="119" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="750" fill="#f6fbff">ZCoder Core</text>
+ <text x="141" y="145" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="12" fill="#9fb8d7">POLICY · ROUTING · ORCHESTRATION</text>
+</g>
+<!-- satellites -->
+<g font-family="Inter,Arial,sans-serif">
+ <g transform="translate(748 103)"><rect width="190" height="68" rx="15" fill="url(#panel)" stroke="#548bcb" stroke-opacity=".65"/><circle cx="24" cy="25" r="9" fill="#54e6ff" opacity=".9"/><text x="45" y="29" font-size="15" font-weight="700" fill="#edf7ff">AI Agents</text><text x="45" y="49" font-size="11" fill="#95aac6">Inspect · Plan · Execute</text></g>
+ <g transform="translate(1090 103)"><rect width="160" height="68" rx="15" fill="url(#panel)" stroke="#548bcb" stroke-opacity=".65"/><circle cx="24" cy="25" r="9" fill="#9d83ff"/><text x="45" y="29" font-size="15" font-weight="700" fill="#edf7ff">Local AI</text><text x="45" y="49" font-size="11" fill="#95aac6">Ollama · llama.cpp</text></g>
+ <g transform="translate(748 470)"><rect width="190" height="68" rx="15" fill="url(#panel)" stroke="#548bcb" stroke-opacity=".65"/><circle cx="24" cy="25" r="9" fill="#4ed9b5"/><text x="45" y="29" font-size="15" font-weight="700" fill="#edf7ff">Dev Interfaces</text><text x="45" y="49" font-size="11" fill="#95aac6">CLI · TUI · Web · API</text></g>
+ <g transform="translate(1090 470)"><rect width="160" height="68" rx="15" fill="url(#panel)" stroke="#548bcb" stroke-opacity=".65"/><circle cx="24" cy="25" r="9" fill="#ffba70"/><text x="45" y="29" font-size="15" font-weight="700" fill="#edf7ff">Enterprise</text><text x="45" y="49" font-size="11" fill="#95aac6">Policy · Audit · DR</text></g>
+</g>
+<!-- tiny code/workflow strip -->
+<g transform="translate(860 572)" font-family="monospace" font-size="11" fill="#7f9dbd">
+ <text x="0" y="0">$ zcoder --code-agent "ship with confidence"</text>
+ <text x="0" y="20" fill="#59dfc2">✓ inspect   ✓ plan   ✓ edit   ✓ test   ✓ validate</text>
+</g>
+<text x="72" y="600" font-family="Inter,Arial,sans-serif" font-size="12" fill="#607b9e">SELF-HOSTED  /  HYBRID-CLOUD  /  EVIDENCE-DRIVEN</text>
+</svg>
