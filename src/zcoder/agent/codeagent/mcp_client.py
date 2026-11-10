@@ -319,7 +319,9 @@ class SSETransport(_BaseTransport):
                 f"SSE server '{self.config.name}' did not advertise a message endpoint"
             ) from exc
         if self._message_endpoint is None:
-            error = self._stream_error or MCPConnectionError("SSE stream closed before endpoint was advertised")
+            error = self._stream_error or MCPConnectionError(
+                "SSE stream closed before endpoint was advertised"
+            )
             await self.close()
             raise MCPConnectionError(f"SSE server '{self.config.name}' failed: {error}") from error
 
@@ -392,9 +394,7 @@ class SSETransport(_BaseTransport):
                 headers=self.config.headers,
             )
             if response.status_code >= 400:
-                raise MCPConnectionError(
-                    f"SSE server '{self.config.name}' returned {response.status_code}"
-                )
+                raise MCPConnectionError(f"SSE server '{self.config.name}' returned {response.status_code}")
             if future is None:
                 return {}
             return await asyncio.wait_for(future, timeout=self.read_timeout)

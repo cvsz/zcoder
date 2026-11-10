@@ -403,7 +403,7 @@ def build_fastapi_app(server: MCPServer) -> Any:
         )
 
     @app.post("/mcp/messages/{session_id}")
-    async def mcp_sse_message(session_id: str, body: dict = Body(...)):
+    async def mcp_sse_message(session_id: str, body: dict = Body(...)):  # noqa: B008
         """Accept one JSON-RPC message for an active legacy SSE session."""
         queue = sessions.get(session_id)
         if queue is None:
