@@ -332,17 +332,13 @@ def _send(writer: asyncio.StreamWriter, msg: dict[str, Any]) -> None:
 
 def build_fastapi_app(server: MCPServer) -> Any:
     """Build a FastAPI app serving MCP over streamable-HTTP + SSE."""
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import Body, FastAPI
     from fastapi.responses import JSONResponse, StreamingResponse
 
     app = FastAPI(title="zcoder MCP Server", version=_SERVER_VERSION)
 
     @app.post("/mcp")
-    async def mcp_endpoint(request: Request):
-        try:
-            body = await request.json()
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail="Invalid JSON") from exc
+    async def mcp_endpoint(body: dict | list[dict] = Body(...)):  # noqa: B008
         if not isinstance(body, list):
             body = [body]
         responses = []
@@ -366,7 +362,7 @@ def build_fastapi_app(server: MCPServer) -> Any:
         return JSONResponse(responses)
 
     @app.get("/mcp/sse")
-    async def mcp_sse(request: Request):
+    async def mcp_sse():
         """Server-Sent Events endpoint for MCP over HTTP."""
         queue: asyncio.Queue[str] = asyncio.Queue()
 
