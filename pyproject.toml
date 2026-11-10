@@ -26,7 +26,7 @@ web = [
 tui = ["textual>=0.80.0"]
 excel = ["pandas>=2.0.0", "openpyxl>=3.1.0"]
 pptx = ["python-pptx>=0.6.23; python_version >= '3.11'"]
-anthropic = ["anthropic>=1.2.0,<3.0.0"]
+anthropic = ["anthropic>=1.2.0,<2.0.0"]
 all = [
     "fastapi>=0.141.1",
     "uvicorn>=0.23.0",
