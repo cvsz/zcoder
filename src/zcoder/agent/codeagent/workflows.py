@@ -139,9 +139,7 @@ class WorkflowEngine:
         async def parallel(tasks: list[dict[str, Any]]) -> list[str | None]:
             if len(tasks) > self.max_concurrent:
                 raise ValueError(f"parallel() exceeds {self.max_concurrent} concurrent limit")
-            coros = [
-                agent(t.get("prompt", ""), t.get("opts", {})) for t in tasks
-            ]
+            coros = [agent(t.get("prompt", ""), t.get("opts", {})) for t in tasks]
             return await asyncio.gather(*coros)
 
         def phase(title: str) -> WorkflowPhase:
@@ -163,7 +161,9 @@ class WorkflowEngine:
 
         # Execute the script: it should define main()
         try:
-            exec(compile(script, "<workflow>", "exec"), ns)
+            exec(
+                compile(script, "<workflow>", "exec"), ns
+            )  # nosec B102 — user-provided workflow script (documented feature)
         except Exception:
             return WorkflowRun(
                 name="workflow",
@@ -218,7 +218,7 @@ def default_workflow_script(task: str) -> str:
 
     This is what Claude Code would write automatically when ultracode is on.
     """
-    return f'''async def main():
+    return f"""async def main():
     log("Starting workflow for: {task}")
 
     # Phase 1: Research
@@ -251,4 +251,4 @@ def default_workflow_script(task: str) -> str:
 
     log("Workflow complete")
     return verify
-'''
+"""

@@ -128,12 +128,8 @@ def check_limits(file_count: int, line_count: int) -> str | None:
     return None
 
 
-_FILE_LINE_RX = re.compile(
-    r"^([\w./\\-]+\.\w+):(\d+)\s*[:\-—]\s*(.+)$", re.MULTILINE
-)
-_FILE_ONLY_RX = re.compile(
-    r"^([\w./\\-]+\.\w+)\s*[:\-—]\s*(.+)$", re.MULTILINE
-)
+_FILE_LINE_RX = re.compile(r"^([\w./\\-]+\.\w+):(\d+)\s*[:\-—]\s*(.+)$", re.MULTILINE)
+_FILE_ONLY_RX = re.compile(r"^([\w./\\-]+\.\w+)\s*[:\-—]\s*(.+)$", re.MULTILINE)
 
 
 def _extract_findings(text: str, reviewer_id: str) -> list[ReviewFinding]:
@@ -297,12 +293,9 @@ class UltraReview:
             }
 
         agents = [
-            ReviewerAgent(f"reviewer-{i}", self.llm, self.ws, self.policy)
-            for i in range(self.reviewers)
+            ReviewerAgent(f"reviewer-{i}", self.llm, self.ws, self.policy) for i in range(self.reviewers)
         ]
-        results = await asyncio.gather(
-            *(a.review(diff, base) for a in agents), return_exceptions=True
-        )
+        results = await asyncio.gather(*(a.review(diff, base) for a in agents), return_exceptions=True)
 
         all_findings: list[ReviewFinding] = []
         for r in results:
@@ -323,9 +316,7 @@ class UltraReview:
                 continue
 
         sev_order = {"high": 0, "medium": 1, "low": 2}
-        verified_findings.sort(
-            key=lambda f: (sev_order.get(f.severity, 9), f.file, f.line or 0)
-        )
+        verified_findings.sort(key=lambda f: (sev_order.get(f.severity, 9), f.file, f.line or 0))
 
         return {
             "status": "complete",

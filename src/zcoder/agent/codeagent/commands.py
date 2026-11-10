@@ -199,7 +199,9 @@ async def _skill(agent, arg):
     args = parts[1:]
     skill = registry.get(name)
     if skill is None:
-        return CommandResult(f"Skill '{name}' not found. Run /skills to list available skills.", is_error=True)
+        return CommandResult(
+            f"Skill '{name}' not found. Run /skills to list available skills.", is_error=True
+        )
     if not skill.user_invocable:
         return CommandResult(f"Skill '{name}' is not user-invocable.", is_error=True)
     try:

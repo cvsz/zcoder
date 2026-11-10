@@ -24,12 +24,8 @@ from zcoder.agent.codeagent.workspace import Workspace
 
 def _make_git_repo(tmp_path: Path, branch: str = "main") -> Path:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "a@b"], cwd=tmp_path, check=True
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "t"], cwd=tmp_path, check=True
-    )
+    subprocess.run(["git", "config", "user.email", "a@b"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
     subprocess.run(
         ["git", "commit", "--allow-empty", "-qm", "init"],
         cwd=tmp_path,
@@ -150,9 +146,7 @@ class TestReviewerAgent:
         subprocess.run(["git", "add", "buggy.py"], cwd=tmp_path, check=True)
         ws = Workspace(tmp_path)
 
-        llm = FakeReviewLLM([
-            {"text": "src/buggy.py:1 — division by zero will crash at runtime"}
-        ])
+        llm = FakeReviewLLM([{"text": "src/buggy.py:1 — division by zero will crash at runtime"}])
         policy = PermissionPolicy(workspace=ws)
         agent = ReviewerAgent("r0", llm, ws, policy)
         result = await agent.review("diff content", "main")
@@ -178,9 +172,7 @@ class TestVerifierAgent:
     async def test_verify_accepts_real_bug(self, tmp_path):
         (tmp_path / "buggy.py").write_text("x = 1 / 0\n")
         ws = Workspace(tmp_path)
-        llm = FakeReviewLLM([
-            {"text": "VERIFIED — the division by zero is a real crash bug"}
-        ])
+        llm = FakeReviewLLM([{"text": "VERIFIED — the division by zero is a real crash bug"}])
         policy = PermissionPolicy(workspace=ws)
         verifier = VerifierAgent(llm, ws, policy)
         finding = ReviewFinding("buggy.py", 1, "division by zero", "medium", "r0")
@@ -192,9 +184,7 @@ class TestVerifierAgent:
     async def test_verify_rejects_false_positive(self, tmp_path):
         (tmp_path / "fine.py").write_text("x = 1\n")
         ws = Workspace(tmp_path)
-        llm = FakeReviewLLM([
-            {"text": "REJECTED — this is intentional, not a bug"}
-        ])
+        llm = FakeReviewLLM([{"text": "REJECTED — this is intentional, not a bug"}])
         policy = PermissionPolicy(workspace=ws)
         verifier = VerifierAgent(llm, ws, policy)
         finding = ReviewFinding("fine.py", 1, "supposed bug", "medium", "r0")
@@ -220,10 +210,12 @@ class TestUltraReview:
         subprocess.run(["git", "add", "buggy.py"], cwd=tmp_path, check=True)
         ws = Workspace(tmp_path)
 
-        llm = FakeReviewLLM([
-            {"text": "src/buggy.py:1 — division by zero will crash"},
-            {"text": "VERIFIED — division by zero is a real crash bug"},
-        ])
+        llm = FakeReviewLLM(
+            [
+                {"text": "src/buggy.py:1 — division by zero will crash"},
+                {"text": "VERIFIED — division by zero is a real crash bug"},
+            ]
+        )
         review = UltraReview(ws, llm, reviewers=1)
         result = await review.run()
 
@@ -267,8 +259,13 @@ class TestFormatReview:
             "findings_verified": 1,
             "findings": [
                 ReviewFinding(
-                    "src/buggy.py", 42, "division by zero", "high", "r0",
-                    verified=True, verify_reason="VERIFIED — real crash"
+                    "src/buggy.py",
+                    42,
+                    "division by zero",
+                    "high",
+                    "r0",
+                    verified=True,
+                    verify_reason="VERIFIED — real crash",
                 )
             ],
             "note": "",

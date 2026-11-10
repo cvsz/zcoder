@@ -108,7 +108,9 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
         val = val.strip()
         if val.startswith("[") and val.endswith("]"):
             inner = val[1:-1].strip()
-            data[key] = [p.strip().strip('"').strip("'") for p in inner.split(",") if p.strip()] if inner else []
+            data[key] = (
+                [p.strip().strip('"').strip("'") for p in inner.split(",") if p.strip()] if inner else []
+            )
         elif key in _LIST_FIELDS:
             data[key] = _parse_list(val)
         elif key in {"disable-model-invocation", "user-invocable", "background"}:
@@ -283,7 +285,9 @@ class SkillRegistry:
                 background=_parse_bool(data.get("background", True)),
                 hooks=data.get("hooks", []) if isinstance(data.get("hooks"), list) else [],
                 paths=_parse_list(data.get("paths")),
-                shell=str(data.get("shell", "bash")),
+                shell=str(
+                    data.get("shell", "bash")
+                ),  # nosec B604 — skill shell name string, not subprocess shell=True
                 metadata=data.get("metadata", {}) if isinstance(data.get("metadata"), dict) else {},
                 license=data.get("license"),
                 compatibility=data.get("compatibility"),

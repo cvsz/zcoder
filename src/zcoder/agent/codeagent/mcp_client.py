@@ -183,9 +183,7 @@ class StdioTransport(_BaseTransport):
         protocol = asyncio.StreamReaderProtocol(self._reader)
         _read_transport, _ = await loop.connect_read_pipe(lambda: protocol, self._proc.stdout)
         self._read_transport = _read_transport
-        write_transport, _ = await loop.connect_write_pipe(
-            asyncio.streams.FlowControlMixin, self._proc.stdin
-        )
+        write_transport, _ = await loop.connect_write_pipe(asyncio.streams.FlowControlMixin, self._proc.stdin)
         self._writer = write_transport
         self._reader_task = asyncio.create_task(self._read_loop())
         self._started.set()
@@ -229,7 +227,9 @@ class StdioTransport(_BaseTransport):
                 return await asyncio.wait_for(fut, timeout=self.read_timeout)
             except TimeoutError:
                 self._pending.pop(req_id, None)
-                raise MCPConnectionError(f"stdio server '{self.config.name}' timed out waiting for response") from None
+                raise MCPConnectionError(
+                    f"stdio server '{self.config.name}' timed out waiting for response"
+                ) from None
 
     async def notifications(self) -> asyncio.Queue[dict[str, Any]]:
         return self._notify_queue
@@ -270,7 +270,9 @@ class HTTPTransport(_BaseTransport):
         self._client = httpx.AsyncClient(headers=headers, timeout=self.read_timeout)
         url = self.config.url or ""
         # streamable-http: POST to the URL; session id returned in Mcp-Session-Id header.
-        resp = await self._client.post(url, json={"jsonrpc": "2.0", "method": "initialize", "params": {}, "id": "0"})
+        resp = await self._client.post(
+            url, json={"jsonrpc": "2.0", "method": "initialize", "params": {}, "id": "0"}
+        )
         self._session_id = resp.headers.get("mcp-session-id") or self._session_id
 
     async def send(self, message: dict[str, Any]) -> dict[str, Any]:
@@ -309,7 +311,9 @@ class SSETransport(_BaseTransport):
     async def _sse_listen(self) -> None:
         assert self._client is not None
         try:
-            async with self._client.stream("GET", self.config.url or "", headers={"Accept": "text/event-stream", **self.config.headers}) as stream:
+            async with self._client.stream(
+                "GET", self.config.url or "", headers={"Accept": "text/event-stream", **self.config.headers}
+            ) as stream:
                 async for line in stream.aiter_lines():
                     if line.startswith("data: "):
                         try:
@@ -635,7 +639,9 @@ def mcp_config_entry(name: str, **kwargs: Any) -> dict[str, Any]:
     return {name: entry}
 
 
-def stdio_entry(name: str, command: str, args: list[str] | None = None, env: dict[str, str] | None = None) -> dict[str, Any]:
+def stdio_entry(
+    name: str, command: str, args: list[str] | None = None, env: dict[str, str] | None = None
+) -> dict[str, Any]:
     return mcp_config_entry(name, command=command, args=args or [], env=env or {}, type="stdio")
 
 

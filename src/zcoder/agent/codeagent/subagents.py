@@ -33,15 +33,40 @@ SUBAGENT_DEPTH_LIMIT = 5
 
 # Tools removed from every subagent (Claude Code-compatible).
 _SUBAGENT_HARD_DENY = frozenset(
-    {"Agent", "AskUserQuestion", "EndConversation", "EnterPlanMode", "ScheduleWakeup", "WaitForMcpServers", "Workflow"}
+    {
+        "Agent",
+        "AskUserQuestion",
+        "EndConversation",
+        "EnterPlanMode",
+        "ScheduleWakeup",
+        "WaitForMcpServers",
+        "Workflow",
+    }
 )
 
 # Tools a background subagent keeps (all others removed).
 _BACKGROUND_SUBAGENT_TOOLS = frozenset(
     {
-        "Read", "Grep", "Glob", "LSP", "Bash", "PowerShell", "Edit", "Write", "NotebookEdit",
-        "WebFetch", "WebSearch", "TodoWrite", "Skill", "ToolSearch", "EnterWorktree",
-        "ExitWorktree", "Monitor", "TaskStop", "SendMessage", "Artifact",
+        "Read",
+        "Grep",
+        "Glob",
+        "LSP",
+        "Bash",
+        "PowerShell",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "TodoWrite",
+        "Skill",
+        "ToolSearch",
+        "EnterWorktree",
+        "ExitWorktree",
+        "Monitor",
+        "TaskStop",
+        "SendMessage",
+        "Artifact",
     }
 )
 

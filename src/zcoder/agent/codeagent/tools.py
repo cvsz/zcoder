@@ -419,7 +419,9 @@ def _web_fetch(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     if not isinstance(url, str) or not url.strip():
         raise ToolError("url is required")
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
+        with urllib.request.urlopen(
+            url, timeout=30
+        ) as resp:  # nosec B310 — WebFetch tool intentionally opens user-supplied URL
             data = resp.read().decode("utf-8", errors="replace")
     except Exception as exc:
         return ToolOutput(f"Failed to fetch {url}: {exc}")
@@ -437,7 +439,9 @@ def _web_search(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     try:
         url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(
+            req, timeout=30
+        ) as resp:  # nosec B310 — WebSearch tool intentionally opens search-engine URL
             data = resp.read().decode("utf-8", errors="replace")
         import re
 
@@ -564,8 +568,16 @@ def _lsp(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         ext = resolved.suffix
         server_map = {
             ".py": ["pylsp", "--stdio"],
-            ".js": ["node", "node_modules/typescript-language-server/bin/typescript-language-server", "--stdio"],
-            ".ts": ["node", "node_modules/typescript-language-server/bin/typescript-language-server", "--stdio"],
+            ".js": [
+                "node",
+                "node_modules/typescript-language-server/bin/typescript-language-server",
+                "--stdio",
+            ],
+            ".ts": [
+                "node",
+                "node_modules/typescript-language-server/bin/typescript-language-server",
+                "--stdio",
+            ],
             ".go": ["gopls", "serve", "--stdio"],
             ".rs": ["rust-analyzer"],
         }
@@ -580,7 +592,9 @@ def _lsp(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
             text=True,
             timeout=10,
         )
-        return ToolOutput(f"LSP {operation} on {ws.rel(resolved)}: {proc.stdout.strip()[:500] or proc.stderr.strip()[:500] or 'no response'}")
+        return ToolOutput(
+            f"LSP {operation} on {ws.rel(resolved)}: {proc.stdout.strip()[:500] or proc.stderr.strip()[:500] or 'no response'}"
+        )
     except Exception as exc:
         return ToolOutput(f"LSP query failed: {exc}")
 
@@ -590,7 +604,9 @@ def _bash_output(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     shell_id = args.get("shell_id")
     if not isinstance(shell_id, str) or not shell_id.strip():
         raise ToolError("shell_id is required")
-    return ToolOutput(f"Shell {shell_id} output not available (background processes are not tracked in this mode).")
+    return ToolOutput(
+        f"Shell {shell_id} output not available (background processes are not tracked in this mode)."
+    )
 
 
 def _kill_shell(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
@@ -610,33 +626,33 @@ def _background_output(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
 
 
 def _call_mcp_tool(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
-        """Call a tool on a configured MCP server by full name (mcp__<server>__<tool>)."""
-        full_name = args.get("tool")
-        if not isinstance(full_name, str) or not full_name.strip():
-            raise ToolError("tool is required (format: mcp__<server>__<tool>)")
-        tool_args = args.get("arguments") or {}
-        if not isinstance(tool_args, dict):
-            raise ToolError("arguments must be a JSON object")
+    """Call a tool on a configured MCP server by full name (mcp__<server>__<tool>)."""
+    full_name = args.get("tool")
+    if not isinstance(full_name, str) or not full_name.strip():
+        raise ToolError("tool is required (format: mcp__<server>__<tool>)")
+    tool_args = args.get("arguments") or {}
+    if not isinstance(tool_args, dict):
+        raise ToolError("arguments must be a JSON object")
 
-        mcp = getattr(ctx, "agent_mcp", None)
-        if mcp is None:
-            raise ToolError("No MCP client configured. Add a server via .mcp.json.")
+    mcp = getattr(ctx, "agent_mcp", None)
+    if mcp is None:
+        raise ToolError("No MCP client configured. Add a server via .mcp.json.")
 
-        try:
-            result = asyncio.run(mcp.call_tool_full_name(full_name, tool_args))
-        except Exception as exc:
-            return ToolOutput(f"MCP tool '{full_name}' failed: {exc}")
+    try:
+        result = asyncio.run(mcp.call_tool_full_name(full_name, tool_args))
+    except Exception as exc:
+        return ToolOutput(f"MCP tool '{full_name}' failed: {exc}")
 
-        if isinstance(result, dict):
-            content = result.get("content", [])
-            if isinstance(content, list):
-                parts = []
-                for item in content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        parts.append(item.get("text", ""))
-                return ToolOutput("\n".join(parts) or "(no text output)")
-            return ToolOutput(str(result))
+    if isinstance(result, dict):
+        content = result.get("content", [])
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+            return ToolOutput("\n".join(parts) or "(no text output)")
         return ToolOutput(str(result))
+    return ToolOutput(str(result))
 
 
 def _enter_worktree(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:

@@ -162,22 +162,16 @@ class Hooks:
     async def pre_tool(self, tool: str, args: dict[str, Any]) -> HookResult:
         return await self._fire("PreToolUse", tool, args, {}, blocking=True)
 
-    async def post_tool(
-        self, tool: str, args: dict[str, Any], output: str, is_error: bool
-    ) -> HookResult:
+    async def post_tool(self, tool: str, args: dict[str, Any], output: str, is_error: bool) -> HookResult:
         return await self._fire(
             "PostToolUse", tool, args, {"output": output[:4000], "is_error": is_error}, blocking=False
         )
 
     async def stop(self, stop_reason: str, tool: str = "") -> HookResult:
-        return await self._fire(
-            "Stop", tool, {}, {"stop_reason": stop_reason}, blocking=False
-        )
+        return await self._fire("Stop", tool, {}, {"stop_reason": stop_reason}, blocking=False)
 
     async def subagent_start(self, agent_type: str, prompt: str) -> HookResult:
-        return await self._fire(
-            "SubagentStart", agent_type, {}, {"prompt": prompt[:2000]}, blocking=False
-        )
+        return await self._fire("SubagentStart", agent_type, {}, {"prompt": prompt[:2000]}, blocking=False)
 
     async def subagent_stop(self, agent_type: str, result_summary: str) -> HookResult:
         return await self._fire(
@@ -196,9 +190,7 @@ class Hooks:
         )
 
     async def worktree_create(self, path: str, branch: str) -> HookResult:
-        return await self._fire(
-            "WorktreeCreate", "", {}, {"path": path, "branch": branch}, blocking=True
-        )
+        return await self._fire("WorktreeCreate", "", {}, {"path": path, "branch": branch}, blocking=True)
 
     async def worktree_remove(self, path: str) -> HookResult:
         return await self._fire("WorktreeRemove", "", {}, {"path": path}, blocking=False)

@@ -38,7 +38,9 @@ compatibility: Python >=3.12
 
 This is the skill body with `` !`git diff` `` dynamic content.
 """
-        data, body = __import__("zcoder.agent.codeagent.skills", fromlist=["_parse_frontmatter"])._parse_frontmatter(text)
+        data, body = __import__(
+            "zcoder.agent.codeagent.skills", fromlist=["_parse_frontmatter"]
+        )._parse_frontmatter(text)
         assert data["name"] == "my-skill"
         assert data["description"] == "Does something useful"
         assert data["when_to_use"] == "When you need to do something"
@@ -134,8 +136,7 @@ class TestSkillRegistry:
     def test_discover_project_skill(self, tmp_path):
         skills_dir = tmp_path / ".claude" / "skills" / "summarize"
         skills_dir.mkdir(parents=True)
-        (skills_dir / "SKILL.md").write_text(
-            """---
+        (skills_dir / "SKILL.md").write_text("""---
 name: summarize
 description: Summarize uncommitted changes
 ---
@@ -143,8 +144,7 @@ description: Summarize uncommitted changes
 Current changes:
 
 !`git diff HEAD`
-"""
-        )
+""")
         registry = SkillRegistry(tmp_path, home=tmp_path / ".home")
         registry.cwd = tmp_path
         registry.home = tmp_path / ".home"
@@ -159,25 +159,21 @@ Current changes:
         # Personal skill
         personal_dir = tmp_path / ".home" / ".claude" / "skills" / "deploy"
         personal_dir.mkdir(parents=True)
-        (personal_dir / "SKILL.md").write_text(
-            """---
+        (personal_dir / "SKILL.md").write_text("""---
 name: deploy
 description: Personal deploy skill
 ---
 Personal deploy body
-"""
-        )
+""")
         # Project skill (lower priority)
         project_dir = tmp_path / ".claude" / "skills" / "deploy"
         project_dir.mkdir(parents=True)
-        (project_dir / "SKILL.md").write_text(
-            """---
+        (project_dir / "SKILL.md").write_text("""---
 name: deploy
 description: Project deploy skill
 ---
 Project deploy body
-"""
-        )
+""")
         registry = SkillRegistry(tmp_path, home=tmp_path / ".home")
         registry.cwd = tmp_path
         registry.home = tmp_path / ".home"
@@ -200,16 +196,14 @@ Project deploy body
     def test_eligible_for_context(self, tmp_path):
         skills_dir = tmp_path / ".claude" / "skills" / "pythonskill"
         skills_dir.mkdir(parents=True)
-        (skills_dir / "SKILL.md").write_text(
-            """---
+        (skills_dir / "SKILL.md").write_text("""---
 name: pythonskill
 description: Python-specific skill
 paths: ["src/*.py"]
 ---
 
 Python skill body
-"""
-        )
+""")
         registry = SkillRegistry(tmp_path, home=tmp_path / ".home")
         registry.cwd = tmp_path
         registry.home = tmp_path / ".home"

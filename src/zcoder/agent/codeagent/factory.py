@@ -36,24 +36,27 @@ def _load_mcp_configs(ws: Workspace) -> list:
                 cmd = entry.get("command")
                 url = entry.get("url")
                 etype = entry.get("type", "stdio" if cmd else "http")
-                configs.append(MCPServerConfig(
-                    name=name,
-                    type=etype,
-                    command=cmd,
-                    args=entry.get("args", []),
-                    env=entry.get("env", {}),
-                    url=url,
-                    headers=entry.get("headers", {}),
-                    timeout_ms=entry.get("timeout", 30000),
-                    always_load=entry.get("alwaysLoad", False),
-                    scope="project",
-                    source=str(project_path),
-                ))
+                configs.append(
+                    MCPServerConfig(
+                        name=name,
+                        type=etype,
+                        command=cmd,
+                        args=entry.get("args", []),
+                        env=entry.get("env", {}),
+                        url=url,
+                        headers=entry.get("headers", {}),
+                        timeout_ms=entry.get("timeout", 30000),
+                        always_load=entry.get("alwaysLoad", False),
+                        scope="project",
+                        source=str(project_path),
+                    )
+                )
         except Exception:
             pass
 
     # User scope: ~/.zcoder/mcp.json
     from zcoder.agent.codeagent.memory import zcoder_home
+
     user_path = zcoder_home() / "mcp.json"
     if user_path.is_file():
         try:
@@ -65,19 +68,21 @@ def _load_mcp_configs(ws: Workspace) -> list:
                 cmd = entry.get("command")
                 url = entry.get("url")
                 etype = entry.get("type", "stdio" if cmd else "http")
-                configs.append(MCPServerConfig(
-                    name=name,
-                    type=etype,
-                    command=cmd,
-                    args=entry.get("args", []),
-                    env=entry.get("env", {}),
-                    url=url,
-                    headers=entry.get("headers", {}),
-                    timeout_ms=entry.get("timeout", 30000),
-                    always_load=entry.get("alwaysLoad", False),
-                    scope="user",
-                    source=str(user_path),
-                ))
+                configs.append(
+                    MCPServerConfig(
+                        name=name,
+                        type=etype,
+                        command=cmd,
+                        args=entry.get("args", []),
+                        env=entry.get("env", {}),
+                        url=url,
+                        headers=entry.get("headers", {}),
+                        timeout_ms=entry.get("timeout", 30000),
+                        always_load=entry.get("alwaysLoad", False),
+                        scope="user",
+                        source=str(user_path),
+                    )
+                )
         except Exception:
             pass
 

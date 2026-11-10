@@ -340,7 +340,9 @@ class CodeAgent:
 
                 script = default_workflow_script(clean_text)
                 run = await engine.run_script(script)
-                yield Notice(f"Workflow complete: {run.agent_count} agents, {len(run.results)} results.", "info")
+                yield Notice(
+                    f"Workflow complete: {run.agent_count} agents, {len(run.results)} results.", "info"
+                )
                 for r in run.results:
                     if r.output:
                         yield Notice(f"[{r.label or 'agent'}] {r.output[:500]}", "info")
