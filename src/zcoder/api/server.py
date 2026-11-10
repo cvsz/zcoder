@@ -176,8 +176,28 @@ async def handle_v1_api(request: Request, path: str):
     if method in ("POST", "PUT", "PATCH"):
         try:
             payload = await request.json()
-        except Exception:
-            payload = {}
+        except (ValueError, UnicodeDecodeError):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "INVALID_JSON",
+                        "message": "Request body must contain valid JSON",
+                        "request_id": request_id,
+                    }
+                },
+            )
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": {
+                        "code": "INVALID_REQUEST_BODY",
+                        "message": "Request JSON body must be an object",
+                        "request_id": request_id,
+                    }
+                },
+            )
 
     # Only request metadata is read from headers; tenant identity comes from
     # the verified bearer-token claims in `ctx`.

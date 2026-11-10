@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### API
+- Reject malformed JSON request bodies with HTTP 400 and non-object JSON bodies with HTTP 422 before dispatching public API requests. Include the request ID in both error envelopes.
+
 ### Security
 - Refresh the locked dependency set to patched releases for truststore, numpy, pandas, platformdirs, and related transitive packages. Keep the Anthropic SDK on the supported v1 range until a separate v2 compatibility migration is verified.
 

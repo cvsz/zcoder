@@ -80,6 +80,54 @@ def test_readiness_503_fail_closed_on_import_or_construction_error(client, monke
     assert resp.json() == {"status": "unavailable"}
 
 
+def test_api_rejects_malformed_json_without_dispatching(client, monkeypatch):
+    monkeypatch.setattr(server, "authenticate_request", lambda _headers: object())
+    monkeypatch.setattr(
+        server.router,
+        "handle_request",
+        lambda **_kwargs: pytest.fail("dispatcher must not receive malformed JSON"),
+    )
+
+    response = client.post(
+        "/api/v1/jobs",
+        content="{",
+        headers={"Content-Type": "application/json", "X-Request-Id": "bad-json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_JSON",
+            "message": "Request body must contain valid JSON",
+            "request_id": "bad-json",
+        }
+    }
+
+
+def test_api_rejects_non_object_json_without_dispatching(client, monkeypatch):
+    monkeypatch.setattr(server, "authenticate_request", lambda _headers: object())
+    monkeypatch.setattr(
+        server.router,
+        "handle_request",
+        lambda **_kwargs: pytest.fail("dispatcher must not receive a non-object JSON body"),
+    )
+
+    response = client.post(
+        "/api/v1/jobs",
+        json=["unexpected", "array"],
+        headers={"X-Request-Id": "wrong-shape"},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_REQUEST_BODY",
+            "message": "Request JSON body must be an object",
+            "request_id": "wrong-shape",
+        }
+    }
+
+
 def test_api_dispatcher_exception_does_not_leak_details(client, monkeypatch):
     monkeypatch.setattr(server, "authenticate_request", lambda _headers: object())
 
