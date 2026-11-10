@@ -14,6 +14,7 @@ See docs/42_upgrade_v1.30.0.md, CHANGELOG.md, and ROADMAP.md.
 """
 
 import argparse
+import asyncio
 import os
 import sys
 from importlib.metadata import PackageNotFoundError, version
