@@ -3,7 +3,7 @@
 image:
   repository: ghcr.io/cvsz/zcoder
   pullPolicy: IfNotPresent
-  tag: "1.40.0"
+  tag: "1.60.0"
 
 imagePullSecrets: []
 nameOverride: ""
