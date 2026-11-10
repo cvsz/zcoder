@@ -516,6 +516,71 @@ def admin_hardware():
     }
 
 
+# --- API v2 Endpoints ------------------------------------------------------
+
+
+@app.get("/api/v2/version")
+def get_version_v2():
+    return {"version": VERSION, "api_version": "v2"}
+
+
+@app.get("/api/v2/health")
+def get_health_v2(deep: bool = False):
+    report = run_health_check(deep=deep)
+    res = report.to_dict()
+    res["api_version"] = "v2"
+    return res
+
+
+@app.get("/api/v2/models")
+def get_models_v2():
+    model_id = os.getenv("ZCODER_MODEL", "qwen3.8-27b-turbo-fable-neo-coder").strip()
+    return {
+        "api_version": "v2",
+        "models": [
+            {"id": model_id, "display_name": "Qwen3.8-27B TURBO Fable Neo Coder", "tier": "local", "context_window": 128000}
+        ]
+    }
+
+
+@app.get("/api/v2/admin/metrics")
+def admin_metrics_v2():
+    res = admin_metrics()
+    res["api_version"] = "v2"
+    return res
+
+
+@app.get("/api/v2/admin/providers")
+def admin_providers_v2():
+    return {
+        "api_version": "v2",
+        "providers": admin_providers()
+    }
+
+
+@app.get("/api/v2/admin/models/catalog")
+def admin_models_catalog_v2():
+    return {
+        "api_version": "v2",
+        "catalog": admin_models_catalog()
+    }
+
+
+@app.get("/api/v2/admin/tasks")
+def admin_tasks_v2():
+    return {
+        "api_version": "v2",
+        "tasks": admin_tasks()
+    }
+
+
+@app.get("/api/v2/admin/hardware")
+def admin_hardware_v2():
+    res = admin_hardware()
+    res["api_version"] = "v2"
+    return res
+
+
 # --- static frontend -------------------------------------------------------
 # Mounted last (and at "/") so every /api/* route above still takes
 # precedence; StaticFiles only handles paths FastAPI hasn't already matched.
