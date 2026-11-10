@@ -156,12 +156,7 @@ class MCPServer:
             return {"isError": True, "content": [{"type": "text", "content": str(exc)}]}
         except Exception:  # unexpected tool bug
             logger.exception("MCP tool %s failed", name)
-            return {
-                "isError": True,
-                "content": [
-                    {"type": "text", "content": "Tool execution failed. Check server logs for details."}
-                ],
-            }
+            return {"isError": True, "content": [{"type": "text", "content": "Tool execution failed. Check server logs for details."}]}
 
         text = out.text or ""
         if out.diff:
