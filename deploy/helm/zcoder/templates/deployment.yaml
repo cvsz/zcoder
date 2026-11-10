@@ -40,6 +40,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.database.existingSecret }}
                   key: {{ .Values.database.secretKey }}
+            - name: ZCODER_REDIS_HOST
+              value: {{ .Values.redis.host | quote }}
+            - name: ZCODER_REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            - name: ZCODER_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret }}
+                  key: {{ .Values.redis.secretKey }}
           ports:
             - name: http
               containerPort: 8000
@@ -86,6 +95,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.database.existingSecret }}
                   key: {{ .Values.database.secretKey }}
+            - name: ZCODER_REDIS_HOST
+              value: {{ .Values.redis.host | quote }}
+            - name: ZCODER_REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            - name: ZCODER_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret }}
+                  key: {{ .Values.redis.secretKey }}
             - name: ZCODER_WORKER_ORGANIZATION_ID
               value: {{ .Values.workers.standard.organizationId | quote }}
             - name: ZCODER_WORKER_PROJECT_ID

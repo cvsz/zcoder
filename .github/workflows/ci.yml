@@ -83,8 +83,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      zredis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db
+      ZCODER_REDIS_HOST: zredis
+      ZCODER_REDIS_PORT: 6379
     strategy:
       fail-fast: false
       matrix:
