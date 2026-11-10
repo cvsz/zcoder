@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -366,27 +367,75 @@ def build_fastapi_app(server: MCPServer) -> Any:
             return JSONResponse(responses[0])
         return JSONResponse(responses)
 
+    # The legacy MCP SSE transport uses a long-lived GET stream for server
+    # messages and a separate POST endpoint for client JSON-RPC requests.
+    sessions: dict[str, asyncio.Queue[str]] = {}
+
     @app.get("/mcp/sse")
     async def mcp_sse():
-        """Server-Sent Events endpoint for MCP over HTTP."""
+        """Open an MCP SSE session and advertise its JSON-RPC message endpoint."""
+        session_id = secrets.token_urlsafe(24)
         queue: asyncio.Queue[str] = asyncio.Queue()
+        sessions[session_id] = queue
 
         async def event_stream():
-            while True:
-                msg = await queue.get()
-                yield f"data: {msg}\n\n"
+            try:
+                yield f"event: endpoint\ndata: /mcp/messages/{session_id}\n\n"
+                while True:
+                    try:
+                        message = await asyncio.wait_for(queue.get(), timeout=15)
+                    except TimeoutError:
+                        # Keep intermediaries from closing an otherwise idle session.
+                        yield ": keep-alive\n\n"
+                        continue
+                    yield f"event: message\ndata: {message}\n\n"
+            finally:
+                sessions.pop(session_id, None)
 
-        # Register a one-shot handler that pushes responses into the queue.
-        # This is a simplified SSE bridge; full bidirectional SSE would need
-        # a persistent session registry.
-        async def _push(method: str, params: dict[str, Any], req_id: Any):
-            resp = await server.handle(
-                {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params or {}}
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.post("/mcp/messages/{session_id}")
+    async def mcp_sse_message(session_id: str, body: dict = Body(...)):  # noqa: B008
+        """Accept one JSON-RPC message for an active legacy SSE session."""
+        queue = sessions.get(session_id)
+        if queue is None:
+            return JSONResponse(
+                {"error": "Unknown or expired MCP SSE session"},
+                status_code=404,
             )
-            if resp is not None:
-                await queue.put(json.dumps(resp, ensure_ascii=False))
+        if not isinstance(body, dict) or body.get("jsonrpc") != "2.0":
+            return JSONResponse(
+                {"error": "Expected a JSON-RPC 2.0 object"},
+                status_code=400,
+            )
 
-        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        try:
+            response = await server.handle(body)
+        except Exception:  # noqa: BLE001
+            logger.exception("MCP SSE handler failed")
+            response = {
+                "jsonrpc": "2.0",
+                "id": body.get("id"),
+                "error": {"code": -32603, "message": "Internal server error"},
+            }
+
+        if response is not None:
+            response.setdefault("jsonrpc", "2.0")
+            if "id" not in response and body.get("id") is not None:
+                response["id"] = body["id"]
+            await queue.put(json.dumps(response, ensure_ascii=False))
+
+        # Legacy MCP SSE acknowledges POST delivery; JSON-RPC responses arrive
+        # asynchronously on the associated GET event stream.
+        return JSONResponse({}, status_code=202)
 
     return app
 
