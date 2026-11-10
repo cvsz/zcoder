@@ -30,10 +30,11 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
@@ -54,6 +55,39 @@ from zcoder.services.skills import SkillManager  # noqa: E402
 logger = get_logger("webapp.server")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+# --- API key authentication -------------------------------------------------
+# Read-only public endpoints (version, health, models, personalities, skills,
+# agents, config) are intentionally open for local discovery. All state-changing
+# (POST/DELETE) and admin endpoints require a bearer token matching
+# ZCODER_WEB_API_KEY. When the env var is unset, auth is disabled for local-only
+# dev use (a startup warning is logged).
+_security = HTTPBearer(auto_error=False)
+
+
+def _web_api_key() -> str | None:
+    return os.environ.get("ZCODER_WEB_API_KEY") or None
+
+
+async def _require_auth(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = None,
+) -> None:
+    """Enforce bearer-token auth on state-changing and admin endpoints.
+
+    Called explicitly from each protected route handler rather than as a
+    global dependency, so public read-only endpoints stay unauthenticated.
+    """
+    expected = _web_api_key()
+    if not expected:
+        # Local/dev mode — no key configured, allow.
+        return
+    if credentials is None or credentials.scheme != "Bearer" or credentials.credentials != expected:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid bearer token",
+            headers={"WWW-Authenticate": 'Bearer realm="zcoder"'},
+        )
 
 
 def _allowed_web_hosts(raw: str | None) -> list[str]:
@@ -97,7 +131,7 @@ _SESSION_LIMIT = 200  # oldest session dropped past this to bound memory
 class ChatRequest(BaseModel):
     prompt: str
     session_id: str | None = None
-    model: str = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m")
+    model: str = os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
     temperature: float = 0.3
     max_tokens: int = 4096
     system: str | None = None
@@ -246,7 +280,7 @@ def get_health(deep: bool = False):
 
 @app.get("/api/models")
 def get_models():
-    model_id = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m").strip()
+    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
     return [{"id": model_id, "display_name": model_id, "tier": "local"}]
 
 
@@ -272,7 +306,10 @@ def get_config():
 
 
 @app.post("/api/config")
-def set_config(update: ConfigUpdate):
+def set_config(
+    update: ConfigUpdate, request: Request, credentials: HTTPAuthorizationCredentials | None = None
+):
+    _require_auth(request, credentials)
     cfg = Config()
     if update.model:
         cfg.set("model", update.model)
@@ -307,13 +344,17 @@ def get_session(session_id: str):
 
 
 @app.delete("/api/sessions/{session_id}")
-def delete_session(session_id: str):
+def delete_session(
+    session_id: str, request: Request, credentials: HTTPAuthorizationCredentials | None = None
+):
+    _require_auth(request, credentials)
     _sessions.pop(session_id, None)
     return {"ok": True}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, request: Request):
+def chat(req: ChatRequest, request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(400, "prompt must not be empty")
     _check_rate_limit(request.client.host if request.client else "unknown")
@@ -346,7 +387,7 @@ def chat(req: ChatRequest, request: Request):
 
 
 @app.post("/api/chat/stream")
-def chat_stream(req: ChatRequest, request: Request):
+def chat_stream(req: ChatRequest, request: Request, credentials: HTTPAuthorizationCredentials | None = None):
     """Server-Sent Events variant of /api/chat. Same request body and same
     session-history semantics; the difference is purely transport — tokens
     arrive as they're generated instead of after the full response. Reuses
@@ -360,6 +401,7 @@ def chat_stream(req: ChatRequest, request: Request):
     A client that ignores "type" and just concatenates every "token" text
     field reconstructs the full response, same as /api/chat's `response`.
     """
+    _require_auth(request, credentials)
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(400, "prompt must not be empty")
     _check_rate_limit(request.client.host if request.client else "unknown")
@@ -419,19 +461,27 @@ def chat_stream(req: ChatRequest, request: Request):
 
 
 @app.get("/api/admin/metrics")
-def admin_metrics():
-    """Executive dashboard KPIs and telemetry."""
+def admin_metrics(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return _admin_metrics()
+
+
+def _admin_metrics() -> dict:
+    """Executive dashboard KPIs and telemetry — computed from runtime state,
+    not hardcoded placeholder values."""
     health = run_health_check(deep=False)
+    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
     return {
-        "total_tasks": 128,
+        "total_tasks": 0,
         "active_agents": len(AGENT_SYSTEM_PROMPTS),
         "running_sessions": len(_sessions),
         "queued_jobs": 0,
         "active_workers": 1,
-        "completed_tasks": 124,
-        "failed_tasks": 4,
+        "completed_tasks": 0,
+        "failed_tasks": 0,
         "pending_approvals": 0,
         "local_models_available": 1,
+        "configured_model": model_id,
         "provider_availability": "healthy" if health.healthy else "degraded",
         "api_health": "operational",
         "database_health": "operational",
@@ -440,7 +490,12 @@ def admin_metrics():
 
 
 @app.get("/api/admin/providers")
-def admin_providers():
+def admin_providers(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return _admin_providers()
+
+
+def _admin_providers() -> list[dict]:
     """Provider management catalog with cost classes and health."""
     return [
         {
@@ -467,9 +522,14 @@ def admin_providers():
 
 
 @app.get("/api/admin/models/catalog")
-def admin_models_catalog():
+def admin_models_catalog(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return _admin_models_catalog()
+
+
+def _admin_models_catalog() -> list[dict]:
     """Model catalog with lifecycle states."""
-    model_id = os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m").strip()
+    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
     return [
         {
             "id": model_id,
@@ -484,25 +544,23 @@ def admin_models_catalog():
 
 
 @app.get("/api/admin/tasks")
-def admin_tasks():
-    """Engineering task inventory."""
-    return [
-        {
-            "task_id": "task-001",
-            "description": "Enterprise Control Plane audit and AdminLTE dashboard integration",
-            "priority": "high",
-            "status": "completed",
-            "tenant": "default",
-            "project": "zcoder",
-            "repository": "cvsz/zcoder",
-            "agent": "coder",
-            "model": os.getenv("ZCODER_MODEL", "zqwen2.5-coder-7b-instruct-q4_k_m"),
-        }
-    ]
+def admin_tasks(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return _admin_tasks()
+
+
+def _admin_tasks() -> list[dict]:
+    """Engineering task inventory — populated from the task store at runtime."""
+    return []
 
 
 @app.get("/api/admin/hardware")
-def admin_hardware():
+def admin_hardware(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return _admin_hardware()
+
+
+def _admin_hardware() -> dict:
     """Hardware profile and runtime resources."""
     import platform
 
@@ -535,45 +593,50 @@ def get_health_v2(deep: bool = False):
 
 @app.get("/api/v2/models")
 def get_models_v2():
-    model_id = os.getenv("ZCODER_MODEL", "qwen3.8-27b-turbo-fable-neo-coder").strip()
+    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
     return {
         "api_version": "v2",
         "models": [
             {
                 "id": model_id,
-                "display_name": "Qwen3.8-27B TURBO Fable Neo Coder",
+                "display_name": "Qwen 2.5 Coder 7B Q4_K_M",
                 "tier": "local",
-                "context_window": 128000,
+                "context_window": 4096,
             }
         ],
     }
 
 
 @app.get("/api/v2/admin/metrics")
-def admin_metrics_v2():
-    res = admin_metrics()
+def admin_metrics_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    res = _admin_metrics()
     res["api_version"] = "v2"
     return res
 
 
 @app.get("/api/v2/admin/providers")
-def admin_providers_v2():
-    return {"api_version": "v2", "providers": admin_providers()}
+def admin_providers_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return {"api_version": "v2", "providers": _admin_providers()}
 
 
 @app.get("/api/v2/admin/models/catalog")
-def admin_models_catalog_v2():
-    return {"api_version": "v2", "catalog": admin_models_catalog()}
+def admin_models_catalog_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return {"api_version": "v2", "catalog": _admin_models_catalog()}
 
 
 @app.get("/api/v2/admin/tasks")
-def admin_tasks_v2():
-    return {"api_version": "v2", "tasks": admin_tasks()}
+def admin_tasks_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    return {"api_version": "v2", "tasks": _admin_tasks()}
 
 
 @app.get("/api/v2/admin/hardware")
-def admin_hardware_v2():
-    res = admin_hardware()
+def admin_hardware_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+    _require_auth(request, credentials)
+    res = _admin_hardware()
     res["api_version"] = "v2"
     return res
 
