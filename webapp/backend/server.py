@@ -505,6 +505,7 @@ def admin_tasks():
 def admin_hardware():
     """Hardware profile and runtime resources."""
     import platform
+
     return {
         "system": platform.system(),
         "release": platform.release(),
@@ -538,8 +539,13 @@ def get_models_v2():
     return {
         "api_version": "v2",
         "models": [
-            {"id": model_id, "display_name": "Qwen3.8-27B TURBO Fable Neo Coder", "tier": "local", "context_window": 128000}
-        ]
+            {
+                "id": model_id,
+                "display_name": "Qwen3.8-27B TURBO Fable Neo Coder",
+                "tier": "local",
+                "context_window": 128000,
+            }
+        ],
     }
 
 
@@ -552,26 +558,17 @@ def admin_metrics_v2():
 
 @app.get("/api/v2/admin/providers")
 def admin_providers_v2():
-    return {
-        "api_version": "v2",
-        "providers": admin_providers()
-    }
+    return {"api_version": "v2", "providers": admin_providers()}
 
 
 @app.get("/api/v2/admin/models/catalog")
 def admin_models_catalog_v2():
-    return {
-        "api_version": "v2",
-        "catalog": admin_models_catalog()
-    }
+    return {"api_version": "v2", "catalog": admin_models_catalog()}
 
 
 @app.get("/api/v2/admin/tasks")
 def admin_tasks_v2():
-    return {
-        "api_version": "v2",
-        "tasks": admin_tasks()
-    }
+    return {"api_version": "v2", "tasks": admin_tasks()}
 
 
 @app.get("/api/v2/admin/hardware")

@@ -338,6 +338,7 @@ def test_router_call_uses_provider_endpoint(monkeypatch):
 
 def test_router_call_local_mode_no_network(monkeypatch):
     monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
+
     # Local provider uses the loopback Coder and never the router HTTP adapter.
     def _fail(*a, **kw):
         raise AssertionError("local provider must not make a network call")
