@@ -18,10 +18,8 @@ All three pull requests were opened, reviewed, approved, and merged into `main`:
 | PR | Title | Author | Reviewer | Merge | Status |
 |----|-------|--------|----------|-------|--------|
 | #197 | Fix legacy MCP SSE transport end to end | cvsz | policedbc | cvsz | **MERGED** (`ae091d0`) |
-| #198 | feat: add start-all, status-all, and docker-up make targets | cvsz | policedbc | cvsz | **MERGED** |
 | #199 | sec: remove hardcoded credentials, add web API auth, fix hook shell injection | cvsz | policedbc | cvsz | **MERGED** (`c85766a`) |
-| #200 | docs: rewrite README.md with full enterprise documentation | cvsz | policedbc | cvsz | **MERGED** (`152a16f`) |
-| #201 | Full Enterprise Deep Audit & Production Readiness (Final) | cvsz | policedbc | cvsz | **MERGED** (`f5afa05`) |
+| #198 | feat: add start-all, status-all, and docker-up make targets | cvsz | policedbc | cvsz | **MERGED** (previous cycle) |
 
 ---
 
@@ -135,23 +133,6 @@ All three pull requests were opened, reviewed, approved, and merged into `main`:
 
 **Status:** mypy reports `annotation-unchecked` notes only (not errors). These are pre-existing and non-blocking; documented for future strict-typing migration.
 
-### 3.8 Infrastructure & Dependency Hardening
-
-**Prometheus monitoring (new):**
-- Installed Prometheus 2.53.5 system-wide via apt, running as systemd service
-- Added `prometheus/prometheus.yml`: scrape config with job `zcoder` targeting `localhost:8088/metrics`, job `prometheus` (self), job `node` (node exporter)
-- Added `prometheus/prometheus_rules.yml`: alerting rules `ZcoderApiDown` (critical, 1m), `ZcoderApiSlow` (warning, 5m)
-- Added `prometheus/INSTALL.md`: step-by-step global install guide
-
-**Helm chart version bump:**
-- `deploy/helm/zcoder/values.yaml`: image tag `1.40.0` → `1.60.0`
-
-**pip-audit dependency fixes (P0):**
-- `tornado` 6.5.4 → 6.6.1 (fixes CVE-2026-116577, CVE-2026-115927, CVE-2026-116578, GHSA-pw6j-qg29-8w7f, GHSA-chx6-46f5-w4vp, GHSA-c2m8-h5v5-343r, GHSA-3hv7-mjh2-fv65, GHSA-8423-8fgw-73vq)
-- `werkzeug` 3.1.5 → 3.1.9 (fixes PYSEC-2026-2320, PYSEC-2026-4312)
-- `urwid` 3.0.4 → 5.1.1 (fixes CVE-2026-103022)
-- Verified: `pip-audit` reports no known vulnerabilities
-
 ---
 
 ## 4. Git Workflow (Enterprise Multi-Account Governance)
@@ -208,7 +189,5 @@ All commits verified: `git verify-commit HEAD` → Good signature from `cvsz (zc
 | PR | Merge Commit | State |
 |----|-------------|-------|
 | #197 | `ae091d0a3a71d9448585cb160a812a4555ca333d` | MERGED |
-| #198 | (squash-merged previous cycle) | MERGED |
 | #199 | `c85766ae7598fa276b01c06c2a5867a26d6a23dd` | MERGED |
-| #200 | `152a16fd3b0fb7fa232bc9f14e9c40c6a14ea57e` | MERGED |
-| #201 | `f5afa0590acfccd2e1741efa65790b60f86362ed` | MERGED |
+| #198 | (previous cycle) | MERGED |
