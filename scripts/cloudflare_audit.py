@@ -47,10 +47,7 @@ if zone_id:
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read().decode())
             for rec in data.get("result", []):
-                print(
-                    f"[{rec['type']}] {rec['name']} -> {rec['content']} "
-                    f"(Proxied: {rec['proxied']})"
-                )
+                print(f"[{rec['type']}] {rec['name']} -> {rec['content']} (Proxied: {rec['proxied']})")
     except Exception as e:
         print("DNS Records Error:", e)
 
