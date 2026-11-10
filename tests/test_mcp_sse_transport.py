@@ -1,9 +1,11 @@
 """Regression tests for the legacy MCP SSE request/response transport."""
 
+import asyncio
 import json
 
 import pytest
 
+from zcoder.agent.codeagent.mcp_client import MCPServerConfig, SSETransport
 from zcoder.agent.codeagent.mcp_server import build_fastapi_app
 
 
@@ -72,3 +74,29 @@ def test_sse_message_endpoint_rejects_non_json_rpc_payload():
         response = client.post(message_endpoint, json={"method": "ping"})
 
     assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_sse_client_discovers_endpoint_and_correlates_responses():
+    transport = SSETransport(
+        MCPServerConfig(
+            name="local",
+            type="sse",
+            url="http://127.0.0.1:8422/mcp/sse",
+        )
+    )
+    future = asyncio.get_running_loop().create_future()
+    transport._pending["call-1"] = future
+
+    await transport._dispatch_sse_event("endpoint", "/mcp/messages/session-1")
+    assert transport._message_endpoint == "http://127.0.0.1:8422/mcp/messages/session-1"
+
+    await transport._dispatch_sse_event(
+        "message",
+        json.dumps({"jsonrpc": "2.0", "id": "call-1", "result": {"ok": True}}),
+    )
+    assert await future == {"jsonrpc": "2.0", "id": "call-1", "result": {"ok": True}}
+
+    notification = {"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}
+    await transport._dispatch_sse_event("message", json.dumps(notification))
+    assert await transport._notify_queue.get() == notification
