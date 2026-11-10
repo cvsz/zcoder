@@ -45,7 +45,7 @@ jobs:
             changed_files="$(git diff --name-only --diff-filter=ACMR "$EVENT_BEFORE...HEAD" -- '*.py')"
           fi
           if [[ -n "$changed_files" ]]; then
-            printf '%s\\n' "$changed_files" | xargs -r black --check
+            printf '%s\n' "$changed_files" | xargs -r black --check
           else
             echo "No changed Python files to format-check."
           fi
