@@ -67,11 +67,11 @@ class HookResult:
 
 
 class HookManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.hooks: list[Hook] = []
         self._load()
 
-    def _load(self):
+    def _load(self) -> None:
         if HOOKS_FILE.exists():
             try:
                 self.hooks = [Hook.from_dict(d) for d in json.loads(HOOKS_FILE.read_text())]
@@ -199,11 +199,11 @@ DEFAULT_RULES = [
 
 
 class PermissionEngine:
-    def __init__(self):
+    def __init__(self) -> None:
         self.rules: list[PermRule] = []
         self._load()
 
-    def _load(self):
+    def _load(self) -> None:
         if PERMS_FILE.exists():
             try:
                 self.rules = [PermRule.from_dict(d) for d in json.loads(PERMS_FILE.read_text())]

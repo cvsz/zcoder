@@ -432,7 +432,7 @@ def admin_metrics():
         "failed_tasks": 4,
         "pending_approvals": 0,
         "local_models_available": 1,
-        "provider_availability": "healthy" if health.ok else "degraded",
+        "provider_availability": "healthy" if health.healthy else "degraded",
         "api_health": "operational",
         "database_health": "operational",
         "uptime_seconds": time.monotonic(),

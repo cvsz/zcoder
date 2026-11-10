@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from pathlib import Path
 
 from zcoder.agent.codeagent.mcp_server import MCPServer, run_http, run_stdio
