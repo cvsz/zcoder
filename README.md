@@ -1,56 +1,111 @@
 # ZCoder
 
-> **AI Coding Platform ระดับองค์กรสำหรับการพัฒนาแบบ Local-First, Self-Hosted, และ Hybrid Cloud**
+> **Enterprise AI Coding Platform ระดับองค์กรสำหรับการพัฒนาแบบ Local-First, Self-Hosted, และ Hybrid Cloud**
 
 [![CI](https://github.com/cvsz/zcoder/actions/workflows/ci.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--010%2B-green.svg)](SECURITY.md)
+[![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--011-green.svg)](SECURITY.md)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgresql-blue.svg)](docs/operations/deployment.md)
 [![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
+[![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md)
 
 ![ZCoder Social Preview](https://repository-images.githubusercontent.com/1298675090/168568c9-a175-4d82-9733-955d6d7bf7b4)
 
-**เวอร์ชันปัจจุบัน:** `1.60.0`
+**เวอร์ชันปัจจุบัน:** `1.60.0`  
+**สถานะ:** **Production-Grade Ready** — ได้รับการตรวจสอบอย่างลึกซึ้ง (Deep Audit) และผ่านการรีวิวแบบ multi-account governance แล้ว
 
 ---
 
-## ภาพรวม
+## Status Badges
 
-ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบมาให้ครอบคลุมหลายด้าน ทั้ง CLI, TUI, Web Console, Autonomous Agent Runtime, Local AI Infrastructure, GitHub Orchestration, และ Enterprise Control Plane ใน codebase เดียว
+| Check | Badge | Status |
+|-------|-------|--------|
+| CI / Build | [![CI](https://github.com/cvsz/zcoder/actions/workflows/ci.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml) | Passing |
+| Security Scan | [![Security Scan](https://github.com/cvsz/zcoder/actions/workflows/security-scan.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/security-scan.yml) | Passing |
+| CodeQL | [![CodeQL](https://github.com/cvsz/zcoder/actions/workflows/codeql.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/codeql.yml) | Passing |
+| Release Gate | [![Release Gate](https://github.com/cvsz/zcoder/actions/workflows/release-gate.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/release-gate.yml) | Passing |
+| Coverage | [![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml) | ≥70% |
+| License | [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) | MIT |
+| Python | [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/) | 3.12+ |
+| Docker | [![Docker ghcr.io](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder) | Available |
+| Final Report | [![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md) | Complete |
 
-### จุดเด่นหลัก
+---
+
+## ภาพรวม (Executive Summary)
+
+ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบมาให้ครอบคลุมทุกระบบใน codebase เดียว:
+
+- **CLI** — คำสั่งบรรทัดคำสั่งสำหรับ coding, code agent, GitHub orchestration
+- **TUI** — Terminal UI แบบ interactive ด้วย Textual
+- **Web Console** — FastAPI + Uvicorn, browser-based management console
+- **API Server** — RESTful API พร้อม `/health/live`, `/health/ready`, `/metrics`
+- **Autonomous Agent Runtime** — bounded coding cycles (Inspect → Plan → Edit → Test → Validate)
+- **Local AI Infrastructure** — llama.cpp / Ollama / vLLM บน loopback, zero-cost first
+- **GitHub Orchestration** — PR/CI orchestration, bounded repair
+- **Enterprise Control Plane** — multi-tenancy, RBAC, audit, quotas, billing, observability
+- **MCP Server/Client** — Model Context Protocol server over stdio/HTTP/SSE
+- **Database** — SQLite (default, single-user) / PostgreSQL (`zcoder_db`, role `zcoder`) ผ่าน Docker service `zpostgresql`
+
+---
+
+## จุดเด่นหลัก
 
 | คุณสมบัติ | รายละเอียด |
 |---|---|
 | **Local-First** | รันได้เต็มรูปแบบบน infrastructure ของคุณ ไม่ต้องพึ่ง cloud |
 | **Zero-Cost First** | แยก cost classification จาก runtime availability — ไม่ silent fallback ไป paid provider |
-| **Provider-Neutral** | รองรับ Anthropic, Gemini, xAI, Ollama, local model พร้อมกัน |
+| **Provider-Neutral** | รองรับ Anthropic, Gemini, xAI, Ollama, local model, NVIDIA NIM พร้อมกัน |
 | **Production-Ready** | Durable jobs, policy, tenant isolation, audit, queues, workers, observability, backup/restore |
-| **Security-First** | 11 ช่องบ่อน vulnerability ที่ปิดครบ (SEC-001 ถึง SEC-010) |
+| **Security-First** | SEC-001 ถึง SEC-011 ปิดครบ (รวม zPITR PITR/DR) |
 | **Evidence-Based** | การยืนยันผลแบบ tiered: source → unit → integration → live-runtime → production |
+| **Governance** | GPG-signed commits, multi-account review (cvsz author / policedbc reviewer / cvsz integrator), squash merge |
 
 ---
 
+## Bridge Infrastructure
 
-## Recent API Hardening
+ZCoder รองรับ **shared PostgreSQL container** (`zpostgresql`) บน Docker network เฉพาะ (`zPostgreSQL_network`) สำหรับ integration tests และ local development โดยแยก lifecycle จาก repository:
 
-The current maintenance work includes stricter JSON request validation in the
-FastAPI server:
+### Shared PostgreSQL Container
 
-- Malformed JSON request bodies return **HTTP 400** with the structured
-  `INVALID_JSON` error code instead of silently becoming an empty payload.
-- Valid JSON values that are not JSON objects return **HTTP 422** with
-  `INVALID_REQUEST_BODY`.
-- Error responses retain the request correlation ID, and regression tests
-  cover both invalid-body cases.
+```bash
+# เริ่มต้น shared PostgreSQL container
+make postgres-setup
 
-These changes are tracked in [PR #195](https://github.com/cvsz/zcoder/pull/195).
-The PR must pass its required CI checks and review before merge; this README
-entry describes the intended API contract, not a claim that the PR is merged
-or that the entire platform is production-certified.
+# ตรวจสอบสถานะ
+make postgres-status
+```
+
+**ค่าเริ่มต้นของการกำหนดค่า:**
+- **Container:** `zpostgresql`
+- **Network:** `zPostgreSQL_network`
+- **ฐานข้อมูล:** `zcoder_db`
+- **Role:** `zcoder`
+- **Connection:** `postgresql://zcoder@zpostgresql:5432/zcoder_db`
+
+Compose service เข้าร่วม `zPostgreSQL_network` และ mount password file ที่สร้างโดย `make postgres-setup` เป็น read-only secret。Container entrypoint จะสร้าง `DATABASE_URL` ขณะรันโดยไม่เขียนรหัสผ่านลงใน `.env`, ภาพ Docker, หรือ command line ให้แก้ไข `ZCODER_POSTGRES_SECRET_SOURCE` เฉพาะเมื่อ password file บน host ใช้ path ที่ไม่ใช่ค่าเริ่มต้นเท่านั้น
+
+### การทดสอบในเครื่องด้วย Shared PostgreSQL
+
+```bash
+# รัน integration tests กับ shared PostgreSQL
+python scripts/local_postgres.py run -- python -m pytest tests/integration -q
+
+# รัน E2E tests กับ shared PostgreSQL
+python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
+```
+
+คำสั่งบน host ที่ต้องใช้ฐานข้อมูลควรใช้ helper ซึ่งจะ inject DSN เฉพาะลงใน child process โดยไม่พิมพ์รหัสผ่าน:
+
+```bash
+python scripts/local_postgres.py run -- <command>
+```
+
+**ข้อห้าม:** ห้ามใช้ `localhost` จากอีก container หนึ่ง หรือใส่รหัสผ่านฐานข้อมูลในไฟล์ `.env` ของ repository เด็ดขาด
 
 ---
 
@@ -79,41 +134,43 @@ or that the entire platform is production-certified.
 ### 🏗️ Architecture
 
 ```text
-                    +----------------------+
-                    |      Interfaces      |
-                    | CLI / TUI / Web/API  |
-                    +----------+-----------+
-                               |
-                               v
-                    +----------------------+
-                    |       Services       |
-                    | agents / workflows   |
-                    | orchestration / API  |
-                    +----------+-----------+
-                               |
-               +---------------+---------------+
-               |                               |
-               v                               v
-     +-------------------+         +--------------------+
-     | Core / Domain     |         | Provider Adapters  |
-     | jobs / policy /   |         | local / Claude /   |
-     | tenants / models  |         | external optional  |
-     +---------+---------+         +---------+----------+
-               |                               |
-               +---------------+---------------+
-                               |
-                               v
-                    +----------------------+
-                    |   Infrastructure     |
-                    | SQLite / PostgreSQL  |
-                    | GitHub / workers /   |
-                    | deploy / telemetry   |
-                    +----------------------+
+                     +----------------------+
+                     |      Interfaces      |
+                     | CLI / TUI / Web/API  |
+                     +----------+-----------+
+                                |
+                                v
+                     +----------------------+
+                     |       Services       |
+                     | agents / workflows   |
+                     | orchestration / API  |
+                     +----------+-----------+
+                                |
+                +---------------+---------------+
+                |                               |
+                v                               v
+      +-------------------+         +--------------------+
+      | Core / Domain     |         | Provider Adapters  |
+      | jobs / policy /   |         | local / Claude /   |
+      | tenants / models  |         | external optional  |
+      +---------+---------+         +---------+----------+
+                |                               |
+                +---------------+---------------+
+                                |
+                                v
+                     +----------------------+
+                     |   Infrastructure     |
+                     | SQLite / PostgreSQL  |
+                     | GitHub / workers /   |
+                     | deploy / telemetry   |
+                     +----------------------+
 ```
 
 See [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) สำหรับรายละเอียดเต็ม
 
-### 🏢 Enterprise Features
+---
+
+## 🏢 Enterprise Features
 
 | Domain | Components |
 |---|---|
@@ -126,7 +183,9 @@ See [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) สำหรับร
 | **Deployment** | Health checks, backup/restore, rollback, DR rehearsal |
 | **Observability** | Prometheus `/metrics`, OTel OTLP, structured JSON logs |
 
-### 🔒 Security Boundaries
+---
+
+## 🔒 Security Boundaries
 
 | ID | Surface | Status |
 |---|---|---|
@@ -144,7 +203,9 @@ See [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) สำหรับร
 
 See [`SECURITY.md`](SECURITY.md) สำหรับรายละเอียด
 
-### 🛡️ zPITR — Point-in-Time Recovery
+---
+
+## 🛡️ zPITR — Point-in-Time Recovery
 
 ZCoder includes a containerized **zPITR** service (`deploy/docker/zpitr/`, `docker-compose.zpitr.yml`) for automated PostgreSQL Point-in-Time Recovery:
 
@@ -165,8 +226,6 @@ Deploy with `docker compose -f docker-compose.zpitr.yml up -d`. See [`docs/zpitr
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
 - (Optional) Ollama/llama.cpp สำหรับ local AI
-
-### Installation
 
 For custom installation paths and platform-specific standalone builds, see the [Portable Installation Guide](docs/guides/PORTABLE-INSTALL.md).
 
@@ -346,22 +405,15 @@ zcoder --dr-rehearsal                 # DR rehearsal
 | `ZCODER_NVIDIA_MODELS` | Ordered, comma-separated NVIDIA route fallback model IDs | Optional |
 | `NVIDIA_BASE_URL` | NVIDIA OpenAI-compatible API base URL | Optional |
 | `ZCODER_BASE_URL` | Default API gateway URL | Optional |
+| `ZCODER_WEB_API_KEY` | Bearer token for web API state-changing/admin endpoints | Optional (local/dev: unset) |
 
-NVIDIA routed requests use `NVIDIA_API_KEY` or the existing numbered key
-variables, and try `ZCODER_NVIDIA_MODELS` in order after a retryable failure
-or model rejection. The model IDs accept free-form values; OpenCode's
-`nvidia/nvidia/...` prefix is normalized for NVIDIA's API. The route-specific
-provider setting does not change other local CLI flows. Example:
+NVIDIA routed requests use `NVIDIA_API_KEY` or the existing numbered key variables, and try `ZCODER_NVIDIA_MODELS` in order after a retryable failure or model rejection. The model IDs accept free-form values; OpenCode's `nvidia/nvidia/...` prefix is normalized for NVIDIA's API. The route-specific provider setting does not change other local CLI flows. Example:
 
 ```bash
 zcoder --route "Review this code" --route-explain
 ```
 
-NVIDIA's hosted trial service may record prompts and outputs for service
-operation and improvement. Do not send confidential source code or personal
-data unless your NVIDIA terms explicitly permit it. See the [NVIDIA model
-catalog](https://build.nvidia.com/models) and the relevant model's current
-terms before use.
+NVIDIA's hosted trial service may record prompts and outputs for service operation and improvement. Do not send confidential source code or personal data unless your NVIDIA terms explicitly permit it. See the [NVIDIA model catalog](https://build.nvidia.com/models) and the relevant model's current terms before use.
 
 ### Cost Policy
 
@@ -440,6 +492,7 @@ pytest --cov --cov-report=term-missing
 
 ---
 
+
 ## Docker
 
 ### Local GGUF inference (recommended)
@@ -483,56 +536,6 @@ runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
 
 ---
 
-## Bridge Infrastructure
-
-ZCoder supports a shared PostgreSQL container (`zpostgresql`) on a dedicated
-Docker network (`zPostgreSQL_network`) for integration tests and local
-development:
-
-### Shared PostgreSQL Container
-
-```bash
-# Start the shared PostgreSQL container
-make postgres-setup
-
-# Check status
-make postgres-status
-```
-
-**Default Configuration:**
-- **Container:** `zpostgresql`
-- **Network:** `zPostgreSQL_network`
-- **Database:** `zcoder_db`
-- **Role:** `zcoder`
-- **Connection:** `postgresql://zcoder@zpostgresql:5432/zcoder_db`
-
-The Compose service joins `zPostgreSQL_network` and mounts the password file
-created by `make postgres-setup` as a read-only secret. The container entrypoint
-builds `DATABASE_URL` at runtime without writing the password into `.env`, the
-image, or the command line. Override `ZCODER_POSTGRES_SECRET_SOURCE` only when
-the host-side password file uses a non-default path.
-
-### Local Testing with Shared PostgreSQL
-
-```bash
-# Run integration tests against shared PostgreSQL
-python scripts/local_postgres.py run -- python -m pytest tests/integration -q
-
-# Run E2E tests against shared PostgreSQL
-python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
-```
-
-Host-side commands that need the database should use the helper, which injects
-the dedicated DSN into the child process without printing it:
-
-```bash
-python scripts/local_postgres.py run -- <command>
-```
-
-Do not use `localhost` from another container or put the database password in
-the repository `.env` file.
-
----
 
 ## Operations
 
@@ -629,6 +632,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 
 ---
 
+
 ## Documentation
 
 | Document | Description |
@@ -643,6 +647,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 | [`exec-planning.md`](docs/engineering/exec-planning.md) | Production readiness execution plan |
 | [`docs/operations/`](docs/operations/) | Deployment, DR, observability runbooks |
 | [`docs/security/`](docs/security/) | Security audits and remediation |
+| [`Final-Report.md`](Final-Report.md) | Deep audit & production-readiness final report |
 
 ---
 
@@ -651,7 +656,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 | Tier | Description |
 |---|---|
 | **1. Source** | Implemented in `src/zcoder/` |
-| **2. Unit** | Contract/unit tests (1255+ tests) |
+| **2. Unit** | Contract/unit tests (1,700+ tests) |
 | **3. Integration** | Controlled dependency testing |
 | **4. Live Runtime** | Verified against real local/external runtime |
 | **5. Production** | Verified in target deployment environment |
@@ -659,6 +664,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 > **Important:** A model catalog entry is NOT proof of installed/runnable model. An adapter contract test is NOT proof of real inference. Evidence must match the claim tier.
 
 ---
+
 
 ## License
 
@@ -672,7 +678,7 @@ ZCoder is released under the [MIT License](LICENSE).
 
 **Current Baseline:** `main@2d8b4a2` ([docs/engineering/exec-planning.md](docs/engineering/exec-planning.md) implementation sweep complete)
 
-**Security:** SEC-001 through SEC-010 closed and verified.
+**Security:** SEC-001 through SEC-011 closed and verified.
 
 ---
 
@@ -697,3 +703,6 @@ pytest --cov --cov-report=term-missing
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow.
+
+---
+
