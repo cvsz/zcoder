@@ -25,6 +25,7 @@ from zcoder.agent.codeagent.events import (
 )
 from zcoder.agent.codeagent.loop import CodeAgent
 from zcoder.agent.codeagent.mcp_client import MCPClient, MCPServerConfig
+from zcoder.agent.codeagent.mcp_server import MCPServer
 from zcoder.agent.codeagent.permissions import Mode, PermissionPolicy
 from zcoder.agent.codeagent.review import ReviewFinding, UltraReview, format_review
 from zcoder.agent.codeagent.sessions import SessionStore
@@ -49,6 +50,7 @@ __all__ = [
     "CodeAgent",
     "Decision",
     "MCPClient",
+    "MCPServer",
     "MCPServerConfig",
     "Mode",
     "Notice",

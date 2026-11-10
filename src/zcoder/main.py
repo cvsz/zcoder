@@ -281,6 +281,31 @@ def build_parser():
         action="store_true",
         help="Launch the full-featured Native Desktop GUI application for ZCoder",
     )
+    g.add_argument(
+        "--mcp-server",
+        action="store_true",
+        help="Run zcoder as an MCP server over stdio (Model Context Protocol). "
+        "External MCP hosts (Claude Desktop, Cursor, etc.) connect via subprocess.",
+    )
+    g.add_argument(
+        "--mcp-server-http",
+        action="store_true",
+        help="Run zcoder as an MCP server over streamable-HTTP/SSE (localhost). "
+        "Requires uvicorn. Default port 8422.",
+    )
+    g.add_argument(
+        "--mcp-server-port",
+        type=int,
+        default=8422,
+        dest="mcp_server_port",
+        help="Port for --mcp-server-http (default: 8422).",
+    )
+    g.add_argument(
+        "--mcp-server-host",
+        default="127.0.0.1",
+        dest="mcp_server_host",
+        help="Host for --mcp-server-http (default: 127.0.0.1).",
+    )
     g.add_argument("--model", default=None)
     g.add_argument("--temperature", type=float, default=0.3)
     g.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens")
@@ -3296,6 +3321,16 @@ def main():
         from zcoder.interfaces.desktop.gui import run_desktop_gui
 
         run_desktop_gui()
+        return
+
+    if args.mcp_server or args.mcp_server_http:
+        from zcoder.agent.codeagent.mcp_server import MCPServer, run_http, run_stdio
+
+        server = MCPServer(Path.cwd())
+        if args.mcp_server_http:
+            run_http(server, host=args.mcp_server_host, port=args.mcp_server_port)
+        else:
+            asyncio.run(run_stdio(server))
         return
 
     if args.tui:
