@@ -21,6 +21,27 @@ services:
     secrets:
       - zcoder_postgres_password
 
+  zredis:
+    container_name: zredis
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "allkeys-lru"]
+    environment:
+      # REDIS_PASSWORD ถูกเซตผ่าน secrets ไม่ใช่ hardcode ใน environment
+      REDIS_PASSWORD_FILE: /run/secrets/zredis_password
+    volumes:
+      - zredis_data:/data
+    networks:
+      - zPostgreSQL_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    secrets:
+      - zredis_password
+
   llama-server:
     container_name: zcoder-llm
     image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
@@ -72,10 +93,14 @@ services:
       ZCODER_POSTGRES_HOST: zpostgresql
       ZCODER_POSTGRES_PORT: "5432"
       ZCODER_POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
+      ZCODER_REDIS_HOST: zredis
+      ZCODER_REDIS_PORT: "6379"
+      ZCODER_REDIS_PASSWORD_FILE: /run/secrets/zredis_password
       ZCODER_LOG_FORMAT: json
       ZCODER_LOG_LEVEL: INFO
     secrets:
       - zcoder_postgres_password
+      - zredis_password
     volumes:
       # Persist config/cache across container restarts without baking
       # secrets or state into the image.
@@ -85,6 +110,8 @@ services:
       llama-server:
         condition: service_healthy
       zpostgresql:
+        condition: service_healthy
+      zredis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-m", "zcoder.main", "--health-check"]
@@ -99,6 +126,7 @@ services:
 volumes:
   zcoder-home:
   zpostgresql_data:
+  zredis_data:
 
 networks:
   zPostgreSQL_network:
@@ -106,3 +134,5 @@ networks:
 secrets:
   zcoder_postgres_password:
     file: /home/cvsz/.config/zcoder/postgresql.password
+  zredis_password:
+    file: /home/cvsz/.config/zcoder/redis.password
