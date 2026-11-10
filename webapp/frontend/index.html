@@ -9,128 +9,367 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Bootstrap 4 (required by AdminLTE 3) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" />
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- AdminLTE 3.2 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/3.2.0/css/adminlte.min.css" />
+  <!-- ZCoder custom styles -->
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <div class="noise"></div>
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="./" aria-label="ZCoder home">
-        <span class="brand-mark">Z</span>
-        <span><strong>ZCoder</strong><small>engineering console</small></span>
-      </a>
-      <nav class="topnav" aria-label="Primary navigation">
-        <a href="#workspace">Workspace</a>
-        <a href="#capabilities">Capabilities</a>
-        <a href="https://github.com/cvsz/zcoder" target="_blank" rel="noreferrer">GitHub ↗</a>
+<body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed">
+<div class="wrapper">
+
+  <!-- Navbar -->
+  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+    <ul class="navbar-nav mr-auto">
+      <li class="nav-item d-none d-sm-inline-block">
+        <a href="./" class="nav-link">
+          <i class="nav-icon fas fa-terminal"></i> <strong>ZCoder</strong>
+        </a>
+      </li>
+    </ul>
+    <ul class="navbar-nav ml-auto">
+      <li class="nav-item">
+        <a class="nav-link" data-widget="control-sidebar" data-slide="true" aria-label="Toggle settings"><i class="fas fa-cog"></i></a>
+      </li>
+      <li class="nav-item dropdown">
+        <a class="nav-link" data-widget="fullscreen" aria-label="Toggle fullscreen"><i class="fas fa-expand-arrows-alt"></i></a>
+      </li>
+    </ul>
+  </nav>
+  <!-- /.navbar -->
+
+  <!-- Main Sidebar -->
+  <aside class="main-sidebar sidebar-dark-primary elevation-4" style="background: #07110d;">
+    <a href="./" class="brand-link" style="background: #07110d;">
+      <span class="brand-text font-weight-light">ZCoder Engineering Console</span>
+    </a>
+    <div class="sidebar">
+      <nav class="mt-2">
+        <ul class="nav nav-pills nav-sidebar flex-column nav-flat" data-widget="treeview" role="menu" data-accordion="false">
+          <li class="nav-item menu-open">
+            <a href="#workspace" class="nav-link active">
+              <i class="nav-icon fas fa-code"></i>
+              <p>Workspace</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#sessions" class="nav-link">
+              <i class="nav-icon fas fa-history"></i>
+              <p>Sessions</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#capabilities" class="nav-link">
+              <i class="nav-icon fas fa-cogs"></i>
+              <p>Capabilities</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" data-widget="control-sidebar" data-slide="true">
+              <i class="nav-icon fas fa-cog"></i>
+              <p>Settings</p>
+            </a>
+          </li>
+        </ul>
       </nav>
-      <div class="top-actions">
-        <span class="connection-pill" id="connectionPill"><i></i><span id="connectionLabel">API offline</span></span>
-        <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle theme">◐</button>
-        <button class="button compact" id="openConnectionBtn" type="button">Connect API</button>
+    </div>
+  </aside>
+  <!-- /.main-sidebar -->
+
+  <!-- Control Sidebar -->
+  <aside class="control-sidebar control-sidebar-dark" style="background: #0d1c16;">
+    <div class="p-3">
+      <h5 class="control-sidebar-heading text-light">Run Configuration</h5>
+      <div class="mb-3">
+        <label class="form-label text-muted small">Model</label>
+        <select id="modelSelect" class="form-control form-control-sm"><option>Connect API to load models</option></select>
       </div>
-    </header>
+      <div class="row mb-3">
+        <div class="col-6">
+          <label class="form-label text-muted small">Agent</label>
+          <select id="agentSelect" class="form-control form-control-sm"><option value="">None</option></select>
+        </div>
+        <div class="col-6">
+          <label class="form-label text-muted small">Skill</label>
+          <select id="skillSelect" class="form-control form-control-sm"><option value="">None</option></select>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label text-muted small">Personality</label>
+        <select id="personalitySelect" class="form-control form-control-sm"><option value="">None</option></select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label text-muted small">Temperature</label>
+        <div class="d-flex align-items-center">
+          <input id="tempRange" type="range" min="0" max="1" step="0.05" value="0.3" class="custom-range mr-2" />
+          <span id="tempVal" class="text-light small" style="min-width:40px;">0.30</span>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label text-muted small">System Instructions</label>
+        <textarea id="systemPrompt" class="form-control form-control-sm" rows="3" placeholder="Optional instructions for this run…"></textarea>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="streamToggle" checked />
+        <label class="form-check-label text-muted small" for="streamToggle">Streaming (Server-Sent Events)</label>
+      </div>
+      <button id="newSessionBtn" class="btn btn-success btn-sm w-100 mb-3"><i class="fas fa-plus mr-2"></i>New Session</button>
+      <div class="border-top pt-2">
+        <h6 class="control-sidebar-heading text-muted small">Sessions</h6>
+        <div id="sessionCount" class="text-light mb-2">0</div>
+        <div id="sessionList" class="session-list"><div class="empty-state text-muted small p-2">No live sessions yet.</div></div>
+      </div>
+    </div>
+  </aside>
+  <!-- /.control-sidebar -->
 
-    <main>
-      <section class="hero" id="capabilities">
-        <div class="hero-copy">
-          <div class="eyebrow">OPEN SOURCE · FULL STACK · AGENTIC</div>
-          <h1>Ship software with an<br /><span>engineering-grade AI loop.</span></h1>
-          <p>ZCoder unifies chat, agents, skills, repository context, streaming responses and durable engineering workflows behind one control surface.</p>
-          <div class="hero-actions">
-            <button class="button primary" id="heroConnectBtn" type="button">Connect backend <span>→</span></button>
-            <a class="button ghost" href="https://github.com/cvsz/zcoder" target="_blank" rel="noreferrer">View source</a>
+  <!-- Content Wrapper -->
+  <div class="content-wrapper" style="background: #0a1712;">
+    <div class="content-header">
+      <div class="container-fluid">
+        <div class="row mb-2">
+          <div class="col-sm-6">
+            <h1 class="m-0 text-light">Workspace</h1>
           </div>
-          <div class="metrics">
-            <div><strong id="modelMetric">—</strong><span>models</span></div>
-            <div><strong id="agentMetric">—</strong><span>agent roles</span></div>
-            <div><strong id="skillMetric">—</strong><span>skills</span></div>
-            <div><strong id="versionMetric">v—</strong><span>runtime</span></div>
+          <div class="col-sm-6">
+            <ol class="breadcrumb float-sm-right">
+              <li class="breadcrumb-item"><a href="./" class="text-muted">Home</a></li>
+              <li class="breadcrumb-item active" aria-current="page">Workspace</li>
+            </ol>
           </div>
         </div>
-        <div class="hero-visual" aria-label="ZCoder engineering pipeline">
-          <div class="orb orb-a"></div><div class="orb orb-b"></div>
-          <div class="pipeline-card">
-            <div class="pipeline-head"><span>LIVE ENGINEERING LOOP</span><b id="pipelineState">DISCONNECTED</b></div>
-            <div class="pipeline-row active"><i>01</i><span><b>Discover</b><small>repository + maintenance signals</small></span><em>ready</em></div>
-            <div class="pipeline-row"><i>02</i><span><b>Plan</b><small>bounded vertical slice</small></span><em>policy</em></div>
-            <div class="pipeline-row"><i>03</i><span><b>Execute</b><small>agent + skill + model</small></span><em>guarded</em></div>
-            <div class="pipeline-row"><i>04</i><span><b>Validate</b><small>tests + security + CI</small></span><em>gated</em></div>
-            <div class="pipeline-row"><i>05</i><span><b>Deliver</b><small>commit + PR + review</small></span><em>audited</em></div>
-          </div>
-        </div>
-      </section>
+      </div>
+    </div>
 
-      <section class="workspace-section" id="workspace">
-        <div class="section-heading">
-          <div><span>CONTROL PLANE</span><h2>Full-stack workspace</h2></div>
-          <p>The Pages app stays static and secret-free. Connect it to your deployed ZCoder FastAPI backend to activate live models, sessions and streaming.</p>
-        </div>
+    <!-- Main content -->
+    <section class="content">
+      <div class="container-fluid">
 
-        <div class="workspace-grid">
-          <aside class="control-panel">
-            <div class="panel-title"><span>RUN CONFIGURATION</span><button id="newSessionBtn" type="button">+ New</button></div>
-            <label>Model<select id="modelSelect"><option>Connect API to load models</option></select></label>
-            <div class="two-col">
-              <label>Agent<select id="agentSelect"><option value="">None</option></select></label>
-              <label>Skill<select id="skillSelect"><option value="">None</option></select></label>
-            </div>
-            <label>Personality<select id="personalitySelect"><option value="">None</option></select></label>
-            <label>Temperature <span class="value" id="tempVal">0.30</span><input id="tempRange" type="range" min="0" max="1" step="0.05" value="0.3" /></label>
-            <label>System instructions<textarea id="systemPrompt" rows="4" placeholder="Optional instructions for this run…"></textarea></label>
-            <label class="toggle-row"><span><b>Streaming</b><small>Server-Sent Events</small></span><input id="streamToggle" type="checkbox" checked /></label>
-            <div class="session-block">
-              <div class="panel-title"><span>SESSIONS</span><b id="sessionCount">0</b></div>
-              <div id="sessionList" class="session-list"><div class="empty-state">No live sessions yet.</div></div>
-            </div>
-          </aside>
-
-          <section class="console-panel">
-            <div class="console-head">
-              <div><span class="terminal-dots"><i></i><i></i><i></i></span><b>zcoder / workspace</b></div>
-              <div class="runtime-meta"><span id="sessionIdTag">session:new</span><span id="healthText">backend unavailable</span></div>
-            </div>
-            <div class="transcript" id="transcript" aria-live="polite">
-              <div class="welcome-card">
-                <span class="mini-mark">Z</span>
-                <h3>Engineering console ready.</h3>
-                <p>Connect a backend, choose a model and send a task. The browser never needs repository credentials or provider secrets persisted in storage.</p>
-                <div class="starter-grid">
-                  <button class="starter" data-prompt="Review this repository for the highest-impact reliability improvement and propose one bounded vertical slice."><b>Review</b><span>Find the next reliability slice</span></button>
-                  <button class="starter" data-prompt="Inspect the current architecture and identify the most important security hardening opportunity."><b>Secure</b><span>Prioritize security hardening</span></button>
-                  <button class="starter" data-prompt="Plan and implement one production-ready feature improvement with tests and clear acceptance criteria."><b>Build</b><span>Implement a feature slice</span></button>
+        <!-- Connection status small box -->
+        <div class="row">
+          <div class="col-12">
+            <div class="card bg-light text-dark border-secondary">
+              <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <h5 class="card-title mb-0">Backend Connection</h5>
+                  <p class="card-text mb-0 text-muted small" id="connectionLabel">API offline</p>
+                </div>
+                <div class="d-flex align-items-center gap-2" id="connectionPill">
+                  <i class="fas fa-circle text-muted" style="font-size:8px;"></i>
+                </div>
+                <div class="d-flex gap-2">
+                  <button id="openConnectionBtn" class="btn btn-sm btn-outline-secondary">Connect API</button>
+                  <button id="heroConnectBtn" class="btn btn-sm btn-success">Connect <i class="fas fa-plug ml-1"></i></button>
                 </div>
               </div>
             </div>
-            <form class="composer" id="chatForm">
-              <textarea id="promptInput" rows="2" placeholder="Describe the engineering task…"></textarea>
-              <div class="composer-foot"><span><kbd>Shift</kbd> + <kbd>Enter</kbd> newline</span><button class="button primary" id="sendBtn" type="submit">Run task →</button></div>
-            </form>
-          </section>
+          </div>
         </div>
-      </section>
 
-      <section class="feature-strip">
-        <article><span>01</span><h3>Provider boundary</h3><p>Keep provider SDKs and secrets behind the server adapter.</p></article>
-        <article><span>02</span><h3>Streaming sessions</h3><p>Live token delivery with resumable process-local conversations.</p></article>
-        <article><span>03</span><h3>Agent controls</h3><p>Compose model, role, skill, personality and system instructions.</p></article>
-        <article><span>04</span><h3>Security gates</h3><p>CodeQL, dependency review and CI remain part of delivery.</p></article>
-      </section>
-    </main>
+        <!-- Metrics row -->
+        <div class="row mb-4">
+          <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-dark border-secondary text-light">
+              <div class="inner">
+                <h3 id="modelMetric">—</h3>
+                <p>Models</p>
+              </div>
+              <div class="icon">
+                <i class="fas fa-microchip"></i>
+              </div>
+              <a href="#" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-dark border-secondary text-light">
+              <div class="inner">
+                <h3 id="agentMetric">—</h3>
+                <p>Agent Roles</p>
+              </div>
+              <div class="icon">
+                <i class="fas fa-robot"></i>
+              </div>
+              <a href="#" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-dark border-secondary text-light">
+              <div class="inner">
+                <h3 id="skillMetric">—</h3>
+                <p>Skills</p>
+              </div>
+              <div class="icon">
+                <i class="fas fa-plug"></i>
+              </div>
+              <a href="#" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6">
+            <div class="small-box bg-dark border-secondary text-light">
+              <div class="inner">
+                <h3 id="versionMetric">v—</h3>
+                <p>Runtime</p>
+              </div>
+              <div class="icon">
+                <i class="fas fa-info-circle"></i>
+              </div>
+              <a href="#" class="small-box-footer">More info <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+          </div>
+        </div>
+        <!-- /.row -->
 
-    <footer><span>ZCoder · open-source AI engineering</span><span>Pages frontend · FastAPI backend · <a href="https://github.com/cvsz/zcoder">source</a></span></footer>
+        <!-- Console + Control panels -->
+        <div class="row">
+          <!-- Control Panel (left) -->
+          <div class="col-lg-4 col-xl-3">
+            <div class="card card-primary card-outline">
+              <div class="card-header border-0 p-0">
+                <h3 class="card-title text-light">Run Configuration</h3>
+              </div>
+              <div class="card-body">
+                <div class="row mb-3">
+                  <div class="col-6">
+                    <label class="form-label text-muted small">Agent</label>
+                    <select id="agentSelect" class="form-control form-control-sm"><option value="">None</option></select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label text-muted small">Skill</label>
+                    <select id="skillSelect" class="form-control form-control-sm"><option value="">None</option></select>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small">Personality</label>
+                  <select id="personalitySelect" class="form-control form-control-sm"><option value="">None</option></select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small">Temperature</label>
+                  <div class="d-flex align-items-center">
+                    <input id="tempRange" type="range" min="0" max="1" step="0.05" value="0.3" class="custom-range mr-2" />
+                    <span id="tempVal" class="text-muted small" style="min-width:40px;">0.30</span>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small">System Instructions</label>
+                  <textarea id="systemPrompt" class="form-control form-control-sm" rows="3" placeholder="Optional instructions for this run…"></textarea>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input" type="checkbox" id="streamToggle" checked />
+                  <label class="form-check-label text-muted small" for="streamToggle">Streaming (SSE)</label>
+                </div>
+                <button id="newSessionBtn" class="btn btn-primary btn-sm w-100"><i class="fas fa-plus mr-2"></i>New Session</button>
+              </div>
+              <div class="card-footer border-0 bg-transparent pt-3">
+                <h6 class="card-title text-muted small">Sessions</h6>
+                <div id="sessionCount" class="text-light mb-2">0</div>
+                <div id="sessionList" class="session-list"><div class="empty-state text-muted small p-2">No live sessions yet.</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Console Panel (right) -->
+          <div class="col-lg-8 col-xl-9">
+            <div class="card card-outline card-dark">
+              <div class="card-header border-0 p-0">
+                <div class="d-flex justify-content-between align-items-center">
+                  <h3 class="card-title mb-0 text-light">Workspace Console</h3>
+                  <div>
+                    <span id="sessionIdTag" class="badge badge-light text-dark">session:new</span>
+                    <span id="healthText" class="badge badge-secondary ml-2">backend unavailable</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body p-0 d-flex flex-column h-100">
+                <div class="transcript" id="transcript" style="overflow-y:auto; flex:1 1 auto; padding:1.5rem;">
+                  <div class="welcome-card text-center" style="max-width:760px; margin:2rem auto;">
+                    <span class="mini-mark" style="width:52px;height:52px;border-radius:15px;background:var(--accent,#b8ff65);color:#07110d;font-weight:900;display:grid;place-items:center;margin:auto;font-size:24px;">Z</span>
+                    <h3 class="mt-3 mb-2 text-light">Engineering console ready.</h3>
+                    <p class="text-muted small">Connect a backend, choose a model and send a task. The browser never needs repository credentials or provider secrets persisted in storage.</p>
+                    <div class="starter-grid mt-4">
+                      <button class="starter btn btn-outline-secondary btn-sm" data-prompt="Review this repository for the highest-impact reliability improvement and propose one bounded vertical slice."><i class="fas fa-search mr-1"></i> Review</button>
+                      <button class="starter btn btn-outline-secondary btn-sm" data-prompt="Inspect the current architecture and identify the most important security hardening opportunity."><i class="fas fa-shield-alt mr-1"></i> Secure</button>
+                      <button class="starter btn btn-outline-secondary btn-sm" data-prompt="Plan and implement one production-ready feature improvement with tests and clear acceptance criteria."><i class="fas fa-hammer mr-1"></i> Build</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="composer border-top" style="flex-shrink:0; padding:1rem;">
+                  <form id="chatForm">
+                    <textarea id="promptInput" class="form-control form-control-sm" rows="2" placeholder="Describe the engineering task…"></textarea>
+                    <div class="input-group mt-2">
+                      <div class="input-group-text text-muted small"><kbd>Shift</kbd> + <kbd>Enter</kbd> newline</div>
+                      <button class="btn btn-primary" id="sendBtn" type="submit">Run task <i class="fas fa-arrow-right ml-1"></i></button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /.row -->
+
+      </div><!-- /.container-fluid -->
+    </section>
+    <!-- /.content -->
   </div>
+  <!-- /.content-wrapper -->
 
-  <dialog id="connectionDialog" class="connection-dialog">
-    <form method="dialog" id="connectionForm">
-      <div class="dialog-head"><div><span>BACKEND CONNECTION</span><h3>Connect ZCoder API</h3></div><button class="icon-btn" value="cancel" aria-label="Close">×</button></div>
-      <p>GitHub Pages hosts the frontend only. Enter the HTTPS origin of your deployed ZCoder FastAPI service. Localhost HTTP is allowed for local development.</p>
-      <label>API base URL<input id="apiBaseInput" type="url" placeholder="https://api.example.com" /></label>
-      <div class="security-note"><b>Security boundary</b><span>Inference is sent only to the configured loopback model server. The API base URL for the web backend may be stored locally.</span></div>
-      <div class="dialog-actions"><button class="button ghost" id="clearApiBtn" type="button">Use same origin</button><button class="button primary" id="saveApiBtn" type="submit" value="default">Save & connect</button></div>
-    </form>
-  </dialog>
+  <!-- Main Footer -->
+  <footer class="main-footer" style="background: #07110d; border-top: 1px solid rgba(255,255,255,.08);">
+    <div class="float-right d-none d-sm-inline">
+      Pages frontend · FastAPI backend · <a href="https://github.com/cvsz/zcoder" class="text-muted">source</a>
+    </div>
+    <strong>ZCoder &middot; open-source AI engineering</strong>
+  </footer>
 
-  <script src="app.js"></script>
+  <!-- Control Sidebar (dark mode toggle etc.) -->
+  <aside class="control-sidebar control-sidebar-dark" style="background: #0d1c16;">
+    <div class="p-3 mb-3">
+      <h5 class="control-sidebar-heading text-light">Appearance</h5>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="themeToggle" />
+        <label class="form-check-label text-muted small" for="themeToggle">Dark mode</label>
+      </div>
+    </div>
+    <div class="p-3 border-top">
+      <h5 class="control-sidebar-heading text-light">Security boundary</h5>
+      <p class="text-muted small">Inference is sent only to the configured loopback model server. The API base URL for the web backend may be stored locally.</p>
+    </div>
+  </aside>
+  <!-- /.control-sidebar -->
+
+</div>
+<!-- ./wrapper -->
+
+<!-- Connection Dialog -->
+<div class="modal fade" id="connectionDialog" tabindex="-1" aria-labelledby="connectionDialogLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background: #0d1c16; border-color: rgba(255,255,255,.12);">
+      <div class="modal-header border-0">
+        <h5 class="modal-title text-light" id="connectionDialogLabel">Connect ZCoder API</h5>
+        <button type="button" class="close text-muted" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">GitHub Pages hosts the frontend only. Enter the HTTPS origin of your deployed ZCoder FastAPI service. Localhost HTTP is allowed for local development.</p>
+        <label class="form-label text-muted small">API base URL</label>
+        <input id="apiBaseInput" type="url" class="form-control form-control-sm" placeholder="https://api.example.com" />
+        <div class="security-note mt-2 p-2" style="background:#11231b;border:1px solid rgba(255,255,255,.08);border-radius:8px;">
+          <div class="d-flex">
+            <div class="font-weight-bold text-light small">Security boundary</div>
+            <div class="text-muted small">Inference is sent only to the configured loopback model server.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearApiBtn">Use same origin</button>
+        <button type="button" class="btn btn-success btn-sm" id="saveApiBtn">Save &amp; connect</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>

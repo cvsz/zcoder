@@ -54,6 +54,7 @@ def process_postgres_outbox_once(
             try:
                 if not callable(handler):
                     raise TypeError("handler must be callable")
+                # handler validated as callable above, safe to invoke.
                 handler(action, payload)
             except Exception as exc:
                 transition = transition_after_failure(attempts, max_attempts)
