@@ -1,4 +1,4 @@
-.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker stop-all restart-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt opencode-free-prompt opencode-bg opencode-free-bg opencode-models opencode-free-models opencode-nvidia-models opencode-kilo-models clean
+.PHONY: help setup install install-dev test test-unit test-integration test-e2e test-cov lint format typecheck security check run gui tui health api start-api stop-api restart-api status-api logs-api worker start-worker stop-worker restart-worker status-worker logs-worker start-all stop-all restart-all status-all build standalone standalone-force build-desktop build-desktop-force sign verify cert-generate full-build full-build-desktop install-all docker-build docker-up docker-run docker-down docker-logs start stop restart update upgrade status logs postgres-setup postgres-status opencode opencode-prompt opencode-free-prompt opencode-bg opencode-free-bg opencode-models opencode-free-models opencode-nvidia-models opencode-kilo-models clean
 
 VENV_DIR ?= .venv
 PYTHON ?= $(shell if [ -f "$(VENV_DIR)/bin/python" ]; then echo "$(VENV_DIR)/bin/python"; elif [ -f "$(VENV_DIR)/Scripts/python.exe" ]; then echo "$(VENV_DIR)/Scripts/python.exe"; elif [ -n "$$VIRTUAL_ENV" ]; then echo "$$VIRTUAL_ENV/bin/python"; else echo "python3"; fi)
@@ -76,6 +76,8 @@ help:
 	@echo "  make logs-worker       Tail background queue worker log file"
 	@echo "  make stop-all           Stop all background services (api + worker + web)"
 	@echo "  make restart-all        Restart all background services (api + worker + web)"
+	@echo "  make start-all          Start ALL services (docker + web + api + worker)"
+	@echo "  make status-all         Show status of ALL services"
 	@echo ""
 	@echo "Web Console:"
 	@echo "  make build              Prepare web console environment (.web-venv)"
@@ -87,6 +89,7 @@ help:
 	@echo ""
 	@echo "Docker & Database:"
 	@echo "  make docker-build       Build ZCoder image (zcoder:latest)"
+	@echo "  make docker-up          Start all Docker services (llama.cpp, PostgreSQL, ZCoder)"
 	@echo "  make docker-run         Run ZCoder with local GGUF inference (ARGS='-p "..."')"
 	@echo "  make docker-logs        Follow llama.cpp model-server logs"
 	@echo "  make docker-down        Stop local inference and remove Compose resources"
@@ -220,6 +223,28 @@ stop-all: stop-api stop-worker stop
 
 restart-all: restart-api restart-worker restart
 	@echo "All services restarted"
+
+start-all:
+	@$(MAKE) docker-up || true
+	@$(MAKE) start || true
+	@$(MAKE) start-api || true
+	@$(MAKE) start-worker || true
+	@echo "All services started"
+	@echo "  Web console: http://$(HOST):$(PORT)"
+	@echo "  API server:  http://$(API_HOST):$(API_PORT)"
+	@echo "  Docker:      llama.cpp + PostgreSQL + ZCoder container"
+
+status-all:
+	@echo "=== ZCoder Service Status ==="
+	@echo ""
+	@echo "-- Docker containers --"
+	@docker compose ps 2>/dev/null || echo "  Docker not available or no containers"
+	@echo ""
+	@$(MAKE) status
+	@$(MAKE) status-api
+	@$(MAKE) status-worker
+	@echo ""
+	@echo "=== End status ==="
 
 # Preserve the historical `make build` behavior for the web console.
 build:
@@ -388,6 +413,9 @@ opencode-kilo-models:
 
 docker-build:
 	docker compose build zcoder
+
+docker-up:
+	ZCODER_GGUF_FILE=qwen-7b-q4km.gguf ZCODER_MODEL=qwen-7b-q4km ZCODER_CTX_SIZE=4096 docker compose --env-file .env up -d
 
 docker-run:
 	docker compose run --build --rm zcoder $(ARGS)
