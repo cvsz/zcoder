@@ -21,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
@@ -30,7 +31,24 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: ruff check .gemini/skills/gemini-omni-flash-api/scripts/upload_file.py .gemini/skills/gemini-omni-flash-api/scripts/video/generate_video.py .gemini/skills/gemini-omni-flash-api/scripts/video/inspect_video.py .gemini/skills/gemini-omni-flash-api/scripts/video/prep_video.py
-      - run: black --check .
+      - name: Check Black formatting for changed Python files
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git fetch --no-tags origin "$BASE_REF"
+            changed_files="$(git diff --name-only --diff-filter=ACMR "origin/$BASE_REF...HEAD" -- '*.py')"
+          else
+            changed_files="$(git diff --name-only --diff-filter=ACMR "$EVENT_BEFORE...HEAD" -- '*.py')"
+          fi
+          if [[ -n "$changed_files" ]]; then
+            printf '%s\\n' "$changed_files" | xargs -r black --check
+          else
+            echo "No changed Python files to format-check."
+          fi
       - run: mypy src/zcoder webapp --ignore-missing-imports
 
   security:
