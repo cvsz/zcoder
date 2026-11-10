@@ -1,6 +1,6 @@
 const el=(id)=>document.getElementById(id);
 const state={sessionId:null,busy:false,apiBase:"",online:false};
-const ids=["transcript","chatForm","promptInput","sendBtn","modelSelect","personalitySelect","agentSelect","skillSelect","tempRange","tempVal","systemPrompt","newSessionBtn","sessionIdTag","healthText","streamToggle","sessionList","sessionCount","connectionPill","connectionLabel","connectionDialog","apiBaseInput","openConnectionBtn","heroConnectBtn","connectionForm","clearApiBtn","themeToggle","modelMetric","agentMetric","skillMetric","versionMetric","pipelineState"];
+const ids=["transcript","chatForm","promptInput","sendBtn","modelSelect","personalitySelect","agentSelect","skillSelect","tempRange","tempVal","systemPrompt","newSessionBtn","sessionIdTag","healthText","streamToggle","sessionList","sessionCount","connectionPill","connectionLabel","connectionDialog","apiBaseInput","openConnectionBtn","heroConnectBtn","connectionForm","clearApiBtn","themeToggle","modelMetric","agentMetric","skillMetric","versionMetric"];
 const ui=Object.fromEntries(ids.map(id=>[id,el(id)]));
 
 function isPages(){return location.hostname.endsWith("github.io")}
@@ -23,11 +23,11 @@ function applyTheme(theme){document.documentElement.dataset.theme=theme;localSto
 applyTheme(localStorage.getItem("zcoder-theme")||"dark");
 ui.themeToggle.addEventListener("click",()=>applyTheme(document.documentElement.dataset.theme==="light"?"dark":"light"));
 
-function setConnection(online,message){state.online=online;ui.connectionPill.classList.toggle("online",online);ui.connectionLabel.textContent=message;ui.pipelineState.textContent=online?"CONNECTED":"DISCONNECTED";ui.healthText.textContent=online?"backend healthy":"backend unavailable"}
-function openConnection(){ui.apiBaseInput.value=state.apiBase;ui.connectionDialog.showModal()}
+function setConnection(online,message){state.online=online;ui.connectionPill.classList.toggle("online",online);ui.connectionLabel.textContent=message;ui.healthText.textContent=online?"backend healthy":"backend unavailable"}
+function openConnection(){ui.apiBaseInput.value=state.apiBase;$('#connectionDialog').modal('show')}
 ui.openConnectionBtn.addEventListener("click",openConnection);ui.heroConnectBtn.addEventListener("click",openConnection);
 ui.clearApiBtn.addEventListener("click",()=>{state.apiBase="";localStorage.removeItem("zcoder-api-base");ui.apiBaseInput.value=""});
-ui.connectionForm.addEventListener("submit",async(e)=>{e.preventDefault();try{state.apiBase=normalizeApiBase(ui.apiBaseInput.value);if(state.apiBase)localStorage.setItem("zcoder-api-base",state.apiBase);else localStorage.removeItem("zcoder-api-base");ui.connectionDialog.close();await bootstrap()}catch(err){alert(err.message)}});
+ui.connectionForm.addEventListener("submit",async(e)=>{e.preventDefault();try{state.apiBase=normalizeApiBase(ui.apiBaseInput.value);if(state.apiBase)localStorage.setItem("zcoder-api-base",state.apiBase);else localStorage.removeItem("zcoder-api-base");$('#connectionDialog').modal('hide');await bootstrap()}catch(err){alert(err.message)}});
 
 async function request(path,options={}){const res=await fetch(apiUrl(path),{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||`${path} → HTTP ${res.status}`);return data}
 const getJSON=(path)=>request(path);
@@ -49,10 +49,9 @@ async function loadCapabilities(){
   fillSelect(ui.modelSelect,models,"id",m=>`${m.display_name}${m.tier?` · ${m.tier}`:""}`);fillSelect(ui.agentSelect,agents);fillSelect(ui.skillSelect,skills);fillSelect(ui.personalitySelect,personalities);
   ui.modelMetric.textContent=models.length;ui.agentMetric.textContent=agents.length;ui.skillMetric.textContent=skills.length;ui.versionMetric.textContent=`v${version.version}`;
 }
-async function refreshSessions(){try{const sessions=await getJSON("/sessions");ui.sessionCount.textContent=sessions.length;ui.sessionList.innerHTML="";if(!sessions.length){ui.sessionList.innerHTML='<div class="empty-state">No live sessions yet.</div>';return}sessions.forEach(s=>{const item=document.createElement("div");item.className=`session-item${s.session_id===state.sessionId?" active":""}`;item.innerHTML=`<b>${escapeHtml(s.preview||"Untitled session")}</b><small>${s.session_id.slice(0,8)} · ${s.turns} turns</small>`;item.onclick=()=>loadSession(s.session_id);ui.sessionList.appendChild(item)})}catch{}}
+async function refreshSessions(){try{const sessions=await getJSON("/sessions");ui.sessionCount.textContent=sessions.length;ui.sessionList.innerHTML="";if(!sessions.length){ui.sessionList.innerHTML='<div class="empty-state text-muted small p-2">No live sessions yet.</div>';return}sessions.forEach(s=>{const item=document.createElement("div");item.className=`session-item${s.session_id===state.sessionId?" active":""}`;item.innerHTML=`<b>${escapeHtml(s.preview||"Untitled session")}</b><small>${s.session_id.slice(0,8)} · ${s.turns} turns</small>`;item.onclick=()=>loadSession(s.session_id);ui.sessionList.appendChild(item)})}catch{}}
 async function loadSession(id){try{const data=await getJSON(`/sessions/${id}`);state.sessionId=id;ui.sessionIdTag.textContent=`session:${id.slice(0,8)}`;ui.transcript.innerHTML="";(data.history||[]).forEach(m=>addMessage(m.role==="user"?"user":"assistant",m.content));refreshSessions()}catch(err){addMessage("error",err.message)}}
-function newSession(){state.sessionId=null;ui.sessionIdTag.textContent="session:new";ui.transcript.innerHTML='<div class="welcome-card"><span class="mini-mark">Z</span><h3>New engineering session.</h3><p>Choose a configuration and describe the bounded task you want ZCoder to execute.</p></div>';refreshSessions()}
-ui.newSessionBtn.addEventListener("click",newSession);
+function newSession(){state.sessionId=null;ui.sessionIdTag.textContent="session:new";ui.transcript.innerHTML='<div class="welcome-card text-center" style="max-width:760px;margin:2rem auto;"><span class="mini-mark" style="width:52px;height:52px;border-radius:15px;background:var(--accent,#b8ff65);color:#07110d;font-weight:900;display:grid;place-items:center;margin:auto;font-size:24px;">Z</span><h3 class="mt-3 mb-2 text-light">New engineering session.</h3><p class="text-muted small line-height:1.65;font-size:14px;">Choose a configuration and describe the bounded task you want ZCoder to execute.</p></div>';refreshSessions()}
 
 function payload(){return{prompt:ui.promptInput.value.trim(),session_id:state.sessionId,model:ui.modelSelect.value,temperature:Number(ui.tempRange.value),system:ui.systemPrompt.value.trim()||null,personality:ui.personalitySelect.value||null,agent:ui.agentSelect.value||null,skill:ui.skillSelect.value||null}}
 async function runNonStreaming(body){const data=await postJSON("/chat",body);state.sessionId=data.session_id;ui.sessionIdTag.textContent=`session:${data.session_id.slice(0,8)}`;addMessage("assistant",data.response,`${data.model} · completed`)}
