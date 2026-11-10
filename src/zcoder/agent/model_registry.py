@@ -347,6 +347,60 @@ def _init_claude_catalog() -> None:
     def _modality(mtype: str) -> ModelModality:
         return ModelModality(type=mtype)
 
+    # Register claude-fable-5-2
+    register_model(
+        provider_id="anthropic",
+        model_id="claude-fable-5-2",
+        display_name="Claude Fable 5.2",
+        model_family="fable",
+        release_date="2026-11-09",
+        availability="available",
+        lifecycle_state=LifecycleState.ACTIVE,
+        context_window=1_000_000,
+        max_output_tokens=128_000,
+        input_modalities=[_modality("text")],
+        output_modalities=[_modality("text")],
+        reasoning_support=True,
+        tool_calling=True,
+        streaming=True,
+        structured_output=True,
+        pricing_tiers=[
+            _tier(8.0, 40.0, max_input=200_000),
+        ],
+        rate_limit_per_minute=40_000,
+        rate_limit_per_day=1_200_000,
+        regional_restrictions=["US", "EU"],
+        data_retention_policy="30d",
+        local_hardware_requirements={"min_ram_gb": 16, "gpu_recommended": True},
+    )
+
+    # Register claude-mythos-5-2
+    register_model(
+        provider_id="anthropic",
+        model_id="claude-mythos-5-2",
+        display_name="Claude Mythos 5.2",
+        model_family="mythos",
+        release_date="2026-11-09",
+        availability="available",
+        lifecycle_state=LifecycleState.ACTIVE,
+        context_window=1_000_000,
+        max_output_tokens=128_000,
+        input_modalities=[_modality("text")],
+        output_modalities=[_modality("text")],
+        reasoning_support=True,
+        tool_calling=True,
+        streaming=True,
+        structured_output=True,
+        pricing_tiers=[
+            _tier(8.0, 40.0, max_input=200_000),
+        ],
+        rate_limit_per_minute=40_000,
+        rate_limit_per_day=1_200_000,
+        regional_restrictions=["US", "EU"],
+        data_retention_policy="30d",
+        local_hardware_requirements={"min_ram_gb": 16, "gpu_recommended": True},
+    )
+
     # Register claude-fable-5-1
     register_model(
         provider_id="anthropic",

@@ -610,7 +610,7 @@ class McpConnector:
     Loads .mcp.json from project root if present.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.servers: dict = {}
 
     @classmethod
@@ -949,7 +949,7 @@ TODO_FILE = Path(os.path.expanduser("~/.zcoder/code_todos.json"))
 
 
 class TodoManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self._todos: list = []
         if TODO_FILE.exists():
             try:
