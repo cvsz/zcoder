@@ -53,6 +53,10 @@ class SessionStore:
     def _path(self, session_id: str) -> Path:
         # Validate the ID first (basename + strict pattern allowlist).
         safe_id = self._validate_session_id(session_id)
+        # _validate_session_id() enforces a strict regex allowlist
+        # ([0-9]{8}-[0-9]{6}-[0-9a-f]{6}) and basename check, so safe_id
+        # contains no path separators or traversal sequences. It is safe to
+        # embed directly into a filesystem path below.
         root = self.dir.resolve()
         expected = root / f"{safe_id}.json"
         # Normalize the path with os.path.realpath, then prove containment
@@ -115,8 +119,10 @@ class SessionStore:
         return sorted(infos, key=lambda i: i.updated, reverse=True)
 
     def delete(self, session_id: str) -> None:
-        # _path() fully validates session_id before unlink(), so user-provided
-        # session_id cannot reach the filesystem sink unsanitized.
+        # _path() calls _validate_session_id() which enforces a strict regex
+        # allowlist ([0-9]{8}-[0-9]{6}-[0-9a-f]{6}) and basename check, so
+        # user-provided session_id cannot reach the filesystem sink
+        # unsanitized.
         self._path(session_id).unlink(missing_ok=True)
 
     def fork(self, session_id: str, *, label: str | None = None) -> str:

@@ -276,6 +276,9 @@ class NetworkComputeScanner:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # bind_address was validated above: it is a specific IPv4 address
+        # (not 0.0.0.0/unspecified), so binding to it does not expose the
+        # socket to all network interfaces.
         try:
             sock.bind((str(bind_address), port))
         except Exception as e:
