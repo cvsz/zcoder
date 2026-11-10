@@ -228,7 +228,8 @@ def test_nvidia_uses_numbered_key_and_ignores_compose_loopback(monkeypatch):
     assert providers.resolve_base_url("nvidia") == "https://integrate.api.nvidia.com/v1"
 
 
-def test_nvidia_opencode_model_prefix_normalization_and_free_form():
+def test_nvidia_opencode_model_prefix_normalization_and_free_form(monkeypatch):
+    monkeypatch.delenv("ZCODER_NVIDIA_MODELS", raising=False)
     from zcoder.agent.orchestration.router import _nvidia_model_chain
 
     assert _nvidia_model_chain("nvidia/nvidia/example-model") == ["nvidia/example-model"]
@@ -336,6 +337,7 @@ def test_router_call_uses_provider_endpoint(monkeypatch):
 
 
 def test_router_call_local_mode_no_network(monkeypatch):
+    monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
     # Local provider uses the loopback Coder and never the router HTTP adapter.
     def _fail(*a, **kw):
         raise AssertionError("local provider must not make a network call")
