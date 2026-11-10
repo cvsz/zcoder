@@ -24,7 +24,23 @@ from zcoder.agent.codeagent.memory import zcoder_home
 
 MANAGED_PATH = "/etc/zcoder/managed-settings.json"
 _MODES = {"default", "acceptEdits", "plan", "bypass"}
-_HOOK_EVENTS = {"PreToolUse", "PostToolUse"}
+_HOOK_EVENTS = frozenset(
+    {
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "Stop",
+        "SubagentStart",
+        "SubagentStop",
+        "Notification",
+        "PreCompact",
+        "PostCompact",
+        "WorktreeCreate",
+        "WorktreeRemove",
+        "Elicitation",
+    }
+)
 _STRICTNESS = {"plan": 0, "default": 1, "acceptEdits": 2, "bypass": 3}
 
 
