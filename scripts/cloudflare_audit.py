@@ -8,7 +8,10 @@ account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "dummy_account_id_placehold
 headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 print("=== AUSI PHASE 1: ACCOUNT & ZONE DISCOVERY ===")
-req = urllib.request.Request("https://api.cloudflare.com/client/v4/user/tokens/verify", headers=headers)
+req = urllib.request.Request(
+    "https://api.cloudflare.com/client/v4/user/tokens/verify",
+    headers=headers,
+)
 try:
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read().decode())
@@ -16,7 +19,10 @@ try:
 except Exception as e:
     print("Token Verify Error:", e)
 
-req = urllib.request.Request("https://api.cloudflare.com/client/v4/zones", headers=headers)
+req = urllib.request.Request(
+    "https://api.cloudflare.com/client/v4/zones",
+    headers=headers,
+)
 zone_id = None
 try:
     with urllib.request.urlopen(req) as resp:
