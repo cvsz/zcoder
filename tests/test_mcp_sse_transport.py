@@ -61,7 +61,9 @@ def test_sse_message_endpoint_rejects_non_json_rpc_payload():
     client = TestClient(build_fastapi_app(_EchoMCPServer()))
 
     with client.stream("GET", "/mcp/sse") as stream:
-        endpoint_line = next(iter(stream.iter_lines())[1:2])
+        lines = iter(stream.iter_lines())
+        assert next(lines) == "event: endpoint"
+        endpoint_line = next(lines)
         message_endpoint = endpoint_line.removeprefix("data: ")
         response = client.post(message_endpoint, json={"method": "ping"})
 
