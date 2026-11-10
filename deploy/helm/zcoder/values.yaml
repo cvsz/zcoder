@@ -81,6 +81,12 @@ database:
   existingSecret: "zcoder-db-credentials"
   secretKey: "DATABASE_URL"
 
+redis:
+  host: "zredis"
+  port: 6379
+  existingSecret: "zcoder-redis-credentials"
+  secretKey: "REDIS_PASSWORD"
+
 auth:
   enabled: true
   oidcIssuer: "https://auth.example.com"

@@ -194,9 +194,14 @@ class TestSEC001DeepResearchSSRF:
         with pytest.raises(ValueError, match="non-public"):
             handler.redirect_request(req, None, 302, "Found", {}, "http://127.0.0.1/internal")
 
-    def test_transport_redirect_to_public_allowed(self):
+    def test_transport_redirect_to_public_allowed(self, monkeypatch):
         """Redirect to public URL allowed."""
         from zcoder.core.outbound_security import _ExternalRedirectHandler
+
+        def fake_getaddrinfo(host, port, *, type):
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+
+        monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
 
         handler = _ExternalRedirectHandler()
         req = __import__("urllib.request").request.Request("https://public.example/start")

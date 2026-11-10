@@ -1,0 +1,38 @@
+[Unit]
+Description=ZCoder AI Engineering Console (API server)
+Documentation=https://github.com/cvsz/zcoder
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=cvsz
+Group=cvsz
+WorkingDirectory=/home/cvsz/zcoder
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/home/cvsz/zcoder/.env
+Environment=ZCODER_BASE_URL=http://127.0.0.1:8080/v1
+Environment=ZCODER_MODEL=qwen-7b-q4km
+Environment=ZCODER_CTX_SIZE=4096
+Environment=ZCODER_POSTGRES_HOST=zpostgresql
+Environment=ZCODER_POSTGRES_PORT=5432
+Environment=ZCODER_POSTGRES_DB=zcoder_db
+Environment=ZCODER_REDIS_HOST=zredis
+Environment=ZCODER_REDIS_PORT=6379
+Environment=ZCODER_LOG_LEVEL=INFO
+Environment=ZCODER_LOG_FORMAT=json
+ExecStartPre=/usr/bin/docker compose --env-file .env up -d zpostgresql zredis llama-server
+ExecStart=/home/cvsz/zcoder/.venv/bin/python -m zcoder.api.server
+ExecStop=/bin/kill -TERM $MAINPID
+ExecStopPost=/usr/bin/docker compose down
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+ReadWritePaths=/home/cvsz/zcoder/logs /home/cvsz/zcoder/.venv
+
+[Install]
+WantedBy=multi-user.target

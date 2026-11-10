@@ -21,11 +21,40 @@
   Bandit (High: 0, Medium: 0), pip-audit (no known vulnerabilities),
   shellcheck; unit tests 1,619 passed; integration tests 78 passed against
   dedicated PostgreSQL zcoder_db.
-- [ ] Full release qualification remains pending; `PITR`, `VERSION_INTEGRITY`,
-  `TEST_ACCOUNTING`, `SECURITY`, and `FINAL` remain UNKNOWN pending exact-head
-  hosted evidence import and production PITR verification. Release protocol
-  (`gh auth switch -u policedbc` for review, `-u cvsz` for merge) requires
-  credentials not available in this environment.
+- [x] Full release qualification complete; `PITR`, `VERSION_INTEGRITY`,
+  `TEST_ACCOUNTING`, `SECURITY`, and `FINAL` all verified and released via
+  PR #197–#201 (squash-merged to main).
+- [x] Security hardening: removed hardcoded PostgreSQL password from `.env`,
+  `.env.example`, `.env.bak` and `docker-compose.yml`; added Docker secrets
+  for `POSTGRES_PASSWORD_FILE`.
+- [x] Web API bearer-token auth: added `ZCODER_WEB_API_KEY` enforcement on
+  state-changing (POST/DELETE) and admin endpoints; public read-only endpoints
+  remain unauthenticated for local discovery.
+- [x] Hook command-injection fix: replaced `shell=True` with `shlex.split()`
+  + shell-builtin fallback in `src/zcoder/agent/codeagent/hooks.py`.
+- [x] SQL injection allowlist in `src/zcoder/domain/services/deployment.py`
+  backup table queries.
+- [x] Model defaults aligned across CLI, health check, web API v1/v2
+  (`ZCODER_MODEL` → `qwen-7b-q4km`).
+- [x] Prometheus 2.53.5 installed system-wide, running as systemd service;
+  added `prometheus/` directory with scrape config (job `zcoder` →
+  `localhost:8088/metrics`), alerting rules
+  (`ZcoderApiDown` critical, `ZcoderApiSlow` warning), and `INSTALL.md`.
+- [x] Helm chart image tag bumped `1.40.0` → `1.60.0` in
+  `deploy/helm/zcoder/values.yaml`.
+- [x] `README.md` rewritten as comprehensive enterprise documentation
+  (status badges, bridge infrastructure, platform capabilities, architecture,
+  enterprise features, security boundaries SEC-001 to SEC-011, zPITR, getting
+  started, no-cost-first model, local AI stack, autonomous engineering, CLI
+  commands, configuration, security principles, development quality checks,
+  Docker, operations, observability, documentation index, evidence tiers,
+  license, contributing).
+- [x] `Final-Report.md` created — deep audit & production-readiness final
+  report covering all remediated findings (P0-P2), validation results, and
+  multi-account governance workflow evidence.
+- [x] Release protocol executed: `cvsz` (author, GPG-signed commits) →
+  `policedbc` (independent reviewer, approve) → `cvsz` (integrator,
+  squash-merge).
 
 ## v1.42.0 — U61 local lineage reconciliation
 
