@@ -25,6 +25,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 
@@ -294,7 +295,7 @@ class HTTPTransport(_BaseTransport):
 
 
 class SSETransport(_BaseTransport):
-    """Remote SSE MCP server (deprecated transport)."""
+    """Remote client for the legacy MCP SSE transport."""
 
     def __init__(self, config: MCPServerConfig, read_timeout: float = 30.0):
         self.config = config
@@ -302,35 +303,105 @@ class SSETransport(_BaseTransport):
         self._client: httpx.AsyncClient | None = None
         self._notify_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._listen_task: asyncio.Task | None = None
+        self._endpoint_ready = asyncio.Event()
+        self._message_endpoint: str | None = None
+        self._pending: dict[Any, asyncio.Future[dict[str, Any]]] = {}
+        self._stream_error: Exception | None = None
 
     async def connect(self) -> None:
         self._client = httpx.AsyncClient(timeout=self.read_timeout)
-        # Open the SSE stream in the background.
         self._listen_task = asyncio.create_task(self._sse_listen())
+        try:
+            await asyncio.wait_for(self._endpoint_ready.wait(), timeout=self.read_timeout)
+        except TimeoutError as exc:
+            await self.close()
+            raise MCPConnectionError(
+                f"SSE server '{self.config.name}' did not advertise a message endpoint"
+            ) from exc
+        if self._message_endpoint is None:
+            error = self._stream_error or MCPConnectionError(
+                "SSE stream closed before endpoint was advertised"
+            )
+            await self.close()
+            raise MCPConnectionError(f"SSE server '{self.config.name}' failed: {error}") from error
+
+    async def _dispatch_sse_event(self, event: str, data: str) -> None:
+        if event == "endpoint":
+            self._message_endpoint = urljoin(self.config.url or "", data)
+            self._endpoint_ready.set()
+            return
+        if event != "message":
+            return
+        try:
+            message = json.loads(data)
+        except json.JSONDecodeError:
+            return
+        message_id = message.get("id")
+        if "method" in message and message_id is None:
+            await self._notify_queue.put(message)
+            return
+        future = self._pending.pop(message_id, None)
+        if future is not None and not future.done():
+            future.set_result(message)
 
     async def _sse_listen(self) -> None:
         assert self._client is not None
+        event = "message"
+        data_lines: list[str] = []
         try:
             async with self._client.stream(
-                "GET", self.config.url or "", headers={"Accept": "text/event-stream", **self.config.headers}
+                "GET",
+                self.config.url or "",
+                headers={"Accept": "text/event-stream", **self.config.headers},
             ) as stream:
+                stream.raise_for_status()
                 async for line in stream.aiter_lines():
-                    if line.startswith("data: "):
-                        try:
-                            msg = json.loads(line[6:])
-                        except json.JSONDecodeError:
-                            continue
-                        if "method" in msg and "id" not in msg:
-                            await self._notify_queue.put(msg)
-        except Exception:
-            pass
+                    if not line:
+                        if data_lines:
+                            await self._dispatch_sse_event(event, "\n".join(data_lines))
+                        event = "message"
+                        data_lines = []
+                    elif line.startswith(":"):
+                        continue
+                    elif line.startswith("event:"):
+                        event = line[6:].strip()
+                    elif line.startswith("data:"):
+                        data_lines.append(line[5:].lstrip())
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self._stream_error = exc
+        finally:
+            self._endpoint_ready.set()
+            error = MCPConnectionError(f"SSE stream for '{self.config.name}' closed")
+            for future in self._pending.values():
+                if not future.done():
+                    future.set_exception(error)
+            self._pending.clear()
 
     async def send(self, message: dict[str, Any]) -> dict[str, Any]:
-        assert self._client is not None
-        resp = await self._client.post(self.config.url or "", json=message, headers=self.config.headers)
-        if resp.status_code >= 400:
-            raise MCPConnectionError(f"SSE server '{self.config.name}' returned {resp.status_code}")
-        return resp.json()
+        if self._client is None or self._message_endpoint is None:
+            raise MCPConnectionError(f"SSE server '{self.config.name}' is not connected")
+        message_id = message.get("id")
+        future: asyncio.Future[dict[str, Any]] | None = None
+        if message_id is not None:
+            future = asyncio.get_running_loop().create_future()
+            self._pending[message_id] = future
+        try:
+            response = await self._client.post(
+                self._message_endpoint,
+                json=message,
+                headers=self.config.headers,
+            )
+            if response.status_code >= 400:
+                raise MCPConnectionError(f"SSE server '{self.config.name}' returned {response.status_code}")
+            if future is None:
+                return {}
+            return await asyncio.wait_for(future, timeout=self.read_timeout)
+        except Exception:
+            if future is not None and self._pending.get(message_id) is future:
+                self._pending.pop(message_id, None)
+            raise
 
     async def notifications(self) -> asyncio.Queue[dict[str, Any]]:
         return self._notify_queue
@@ -338,8 +409,14 @@ class SSETransport(_BaseTransport):
     async def close(self) -> None:
         if self._listen_task:
             self._listen_task.cancel()
+            try:
+                await self._listen_task
+            except asyncio.CancelledError:
+                pass
+            self._listen_task = None
         if self._client:
             await self._client.aclose()
+            self._client = None
 
 
 class WebSocketTransport(_BaseTransport):
