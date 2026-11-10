@@ -154,9 +154,9 @@ class MCPServer:
             out: ToolOutput = await loop.run_in_executor(None, tool.func, self._tool_ctx, args)
         except ToolError as exc:
             return {"isError": True, "content": [{"type": "text", "content": str(exc)}]}
-        except Exception as exc:  # unexpected tool bug
+        except Exception:  # unexpected tool bug
             logger.exception("MCP tool %s failed", name)
-            return {"isError": True, "content": [{"type": "text", "content": f"{type(exc).__name__}: {exc}"}]}
+            return {"isError": True, "content": [{"type": "text", "content": "Tool execution failed. Check server logs for details."}]}
 
         text = out.text or ""
         if out.diff:
@@ -305,12 +305,12 @@ async def run_stdio(server: MCPServer) -> None:
             continue
         try:
             response = await server.handle(msg)
-        except Exception as exc:  # unexpected server error
+        except Exception:  # unexpected server error
             logger.exception("MCP server handler failed")
             response = {
                 "jsonrpc": "2.0",
                 "id": msg.get("id"),
-                "error": {"code": -32603, "message": f"Internal error: {exc}"},
+                "error": {"code": -32603, "message": "Internal server error"},
             }
         if response is not None:
             response.setdefault("jsonrpc", "2.0")
@@ -345,12 +345,12 @@ def build_fastapi_app(server: MCPServer) -> Any:
         for msg in body:
             try:
                 resp = await server.handle(msg)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 logger.exception("MCP HTTP handler failed")
                 resp = {
                     "jsonrpc": "2.0",
                     "id": msg.get("id") if isinstance(msg, dict) else None,
-                    "error": {"code": -32603, "message": f"Internal error: {exc}"},
+                    "error": {"code": -32603, "message": "Internal server error"},
                 }
             if resp is not None:
                 resp.setdefault("jsonrpc", "2.0")
@@ -422,12 +422,12 @@ async def run_websocket(server: MCPServer, host: str = "127.0.0.1", port: int = 
                 continue
             try:
                 resp = await server.handle(msg)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 logger.exception("MCP WebSocket handler failed")
                 resp = {
                     "jsonrpc": "2.0",
                     "id": msg.get("id"),
-                    "error": {"code": -32603, "message": f"Internal error: {exc}"},
+                    "error": {"code": -32603, "message": "Internal server error"},
                 }
             if resp is not None:
                 resp.setdefault("jsonrpc", "2.0")
