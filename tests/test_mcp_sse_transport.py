@@ -51,7 +51,7 @@ def test_sse_session_routes_request_and_response_over_same_stream():
 
 
 def test_sse_message_endpoint_rejects_unknown_session():
-    client = TestClient(build_fastapi_app(_EchoMCPServer()))
+    client = _test_client()
 
     response = client.post(
         "/mcp/messages/not-a-session",
@@ -62,7 +62,7 @@ def test_sse_message_endpoint_rejects_unknown_session():
 
 
 def test_sse_message_endpoint_rejects_non_json_rpc_payload():
-    client = TestClient(build_fastapi_app(_EchoMCPServer()))
+    client = _test_client()
 
     with client.stream("GET", "/mcp/sse") as stream:
         lines = iter(stream.iter_lines())
