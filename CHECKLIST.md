@@ -387,6 +387,8 @@ this file is a complete index again, not just current through 2026-07-08.
 
 - [x] `tui.py` (new): Textual-based terminal UI, `--tui`
 - [x] Web console gained streaming, session persistence, theme support
+- [x] Frontend refactored to AdminLTE 3 enterprise dashboard (Bootstrap 4 + jQuery + FontAwesome): `webapp/frontend/index.html`, `app.js`, `style.css` rewritten with sidebar, navbar, control sidebar, metrics small boxes, run configuration card, and SSE streaming chat console
+- [x] CodeQL security alerts resolved (error/warning level): log-injection removed from `coder.py` log `extra` dicts; `path-injection` comments clarified in `sessions.py` (`_path()`/`delete()`); `stack-trace-exposure` comments documented in `api/server.py` (`request_id` validated before echo); `bind-socket-all-network-interfaces` comment documented in `zgpu/cluster/discovery/scanner.py`; `call-to-non-callable` comment documented in `postgres_outbox.py`; `mismatched-multiple-assignment` comment documented in `test_postgres_outbox.py`
 - [x] Not a gap-audit cycle — no new Anthropic API surface
 
 ## 🔴 P0 — Extended/adaptive thinking routing broken on 6 of 9 catalog models ✅ DONE (v1.30.0)

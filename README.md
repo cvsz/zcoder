@@ -117,7 +117,7 @@ python scripts/local_postgres.py run -- <command>
 |---|---|---|
 | **CLI** | Click/Typer patterns | `zcoder` และ `python main.py` entry points |
 | **TUI** | Textual 0.80+ | Terminal UI แบบ interactive |
-| **Web Console** | FastAPI + Uvicorn | Browser-based management console |
+| **Web Console** | FastAPI + Uvicorn + AdminLTE 3 | Browser-based management console (AdminLTE 3 dashboard: Bootstrap 4 + jQuery + FontAwesome via CDN) |
 | **API Server** | FastAPI + OpenAPI | RESTful API พร้อม `/metrics`, `/health/live`, `/health/ready` |
 
 ### 🤖 AI & Agent Runtime
@@ -273,6 +273,8 @@ zcoder --tui
 # Web console
 make build
 make start
+
+The console frontend is built with **AdminLTE 3** (Bootstrap 4 + jQuery + FontAwesome via CDN): sidebar navigation, main-header navbar, control sidebar, metrics small boxes, run configuration card, and workspace console with SSE streaming chat. Connect the backend via the API base URL dialog to activate live models, sessions and streaming.
 ```
 
 ---
