@@ -19,7 +19,7 @@
 
 ## ภาพรวม
 
-ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบมาให้ครบ盖 toutes ด้าน ทั้ง CLI, TUI, Web Console, Autonomous Agent Runtime, Local AI Infrastructure, GitHub Orchestration, และ Enterprise Control Plane ใน codebase เดียว
+ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบมาให้ครอบคลุมหลายด้าน ทั้ง CLI, TUI, Web Console, Autonomous Agent Runtime, Local AI Infrastructure, GitHub Orchestration, และ Enterprise Control Plane ใน codebase เดียว
 
 ### จุดเด่นหลัก
 
@@ -30,7 +30,27 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 | **Provider-Neutral** | รองรับ Anthropic, Gemini, xAI, Ollama, local model พร้อมกัน |
 | **Production-Ready** | Durable jobs, policy, tenant isolation, audit, queues, workers, observability, backup/restore |
 | **Security-First** | 11 ช่องบ่อน vulnerability ที่ปิดครบ (SEC-001 ถึง SEC-010) |
-| **Evidence-Based** | роверинг แบบ tiered: source → unit → integration → live-runtime → production |
+| **Evidence-Based** | การยืนยันผลแบบ tiered: source → unit → integration → live-runtime → production |
+
+---
+
+
+## Recent API Hardening
+
+The current maintenance work includes stricter JSON request validation in the
+FastAPI server:
+
+- Malformed JSON request bodies return **HTTP 400** with the structured
+  `INVALID_JSON` error code instead of silently becoming an empty payload.
+- Valid JSON values that are not JSON objects return **HTTP 422** with
+  `INVALID_REQUEST_BODY`.
+- Error responses retain the request correlation ID, and regression tests
+  cover both invalid-body cases.
+
+These changes are tracked in [PR #195](https://github.com/cvsz/zcoder/pull/195).
+The PR must pass its required CI checks and review before merge; this README
+entry describes the intended API contract, not a claim that the PR is merged
+or that the entire platform is production-certified.
 
 ---
 
@@ -136,11 +156,9 @@ Deploy with `docker compose -f docker-compose.zpitr.yml up -d`. See [`docs/zpitr
 
 ---
 
----
-
 ## เริ่มต้นใช้งาน
 
-### ตrequirements
+### Requirements
 
 - Python 3.12+
 - The local `--pptx` integration is supported on Python 3.12+. `--pptx-native` avoids local PPTX conversion dependencies but does not lower the project minimum Python version.
@@ -459,9 +477,6 @@ docker run --rm --entrypoint zcoder-server -p 8088:8088 -e HOST=0.0.0.0 \
   -e DATABASE_URL=postgresql://user:password@host:5432/zcoder \
   zcoder:local
 ```
-
-The image pins its Python and uv builder images by digest and installs the
-runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
 
 The image pins its Python and uv builder images by digest and installs the
 runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
