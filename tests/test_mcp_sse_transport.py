@@ -4,10 +4,14 @@ import json
 
 import pytest
 
-fastapi = pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient
-
 from zcoder.agent.codeagent.mcp_server import build_fastapi_app
+
+
+def _test_client():
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    return TestClient(build_fastapi_app(_EchoMCPServer()))
 
 
 class _EchoMCPServer:
@@ -18,7 +22,7 @@ class _EchoMCPServer:
 
 
 def test_sse_session_routes_request_and_response_over_same_stream():
-    client = TestClient(build_fastapi_app(_EchoMCPServer()))
+    client = _test_client()
 
     with client.stream("GET", "/mcp/sse", headers={"Accept": "text/event-stream"}) as stream:
         assert stream.status_code == 200
