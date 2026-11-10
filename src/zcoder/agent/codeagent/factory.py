@@ -12,7 +12,81 @@ from zcoder.agent.codeagent.memory import zcoder_home
 from zcoder.agent.codeagent.permissions import Mode, PermissionPolicy
 from zcoder.agent.codeagent.sessions import SessionStore
 from zcoder.agent.codeagent.settings import Settings, load_settings
+from zcoder.agent.codeagent.skills import SkillRegistry
 from zcoder.agent.codeagent.workspace import Workspace
+
+
+def _load_mcp_configs(ws: Workspace) -> list:
+    """Load MCP server configs from .mcp.json files in project and user scopes."""
+    configs: list = []
+    try:
+        from zcoder.agent.codeagent.mcp_client import MCPServerConfig
+    except ImportError:
+        return configs
+
+    # Project scope: <repo>/.mcp.json
+    project_path = ws.root / ".mcp.json"
+    if project_path.is_file():
+        try:
+            data = __import__("json").loads(project_path.read_text(encoding="utf-8"))
+            servers = data.get("mcpServers", {}) if isinstance(data, dict) else {}
+            for name, entry in servers.items():
+                if not isinstance(entry, dict):
+                    continue
+                cmd = entry.get("command")
+                url = entry.get("url")
+                etype = entry.get("type", "stdio" if cmd else "http")
+                configs.append(
+                    MCPServerConfig(
+                        name=name,
+                        type=etype,
+                        command=cmd,
+                        args=entry.get("args", []),
+                        env=entry.get("env", {}),
+                        url=url,
+                        headers=entry.get("headers", {}),
+                        timeout_ms=entry.get("timeout", 30000),
+                        always_load=entry.get("alwaysLoad", False),
+                        scope="project",
+                        source=str(project_path),
+                    )
+                )
+        except Exception:
+            pass
+
+    # User scope: ~/.zcoder/mcp.json
+    from zcoder.agent.codeagent.memory import zcoder_home
+
+    user_path = zcoder_home() / "mcp.json"
+    if user_path.is_file():
+        try:
+            data = __import__("json").loads(user_path.read_text(encoding="utf-8"))
+            servers = data.get("mcpServers", {}) if isinstance(data, dict) else {}
+            for name, entry in servers.items():
+                if not isinstance(entry, dict):
+                    continue
+                cmd = entry.get("command")
+                url = entry.get("url")
+                etype = entry.get("type", "stdio" if cmd else "http")
+                configs.append(
+                    MCPServerConfig(
+                        name=name,
+                        type=etype,
+                        command=cmd,
+                        args=entry.get("args", []),
+                        env=entry.get("env", {}),
+                        url=url,
+                        headers=entry.get("headers", {}),
+                        timeout_ms=entry.get("timeout", 30000),
+                        always_load=entry.get("alwaysLoad", False),
+                        scope="user",
+                        source=str(user_path),
+                    )
+                )
+        except Exception:
+            pass
+
+    return configs
 
 
 def build_agent(
@@ -63,6 +137,24 @@ def build_agent(
         pass_env=tuple(cfg.pass_env),
     )
     agent.settings = cfg
+    agent.skills = SkillRegistry(ws.root)
+    agent.skills.discover()
+    from zcoder.agent.codeagent.subagents import SubagentRegistry
+
+    agent.subagents = SubagentRegistry(ws.root)
+    agent.subagents.discover()
+
+    # MCP client — load .mcp.json configs
+    try:
+        from zcoder.agent.codeagent.mcp_client import MCPClient
+
+        mcp_client = MCPClient(ws.root)
+        for mcp_config in _load_mcp_configs(ws):
+            mcp_client.add_server(mcp_config)
+        agent.mcp = mcp_client
+    except ImportError:
+        agent.mcp = None
+
     return agent
 
 

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from zcoder.agent.codeagent.llm import LLMError
 from zcoder.agent.codeagent.loop import CodeAgent
 from zcoder.agent.codeagent.permissions import Mode
+from zcoder.agent.codeagent.review import UltraReview, format_review
+from zcoder.agent.codeagent.skills import render_skill
 from zcoder.agent.codeagent.workspace import ToolError
 
 
@@ -150,10 +152,146 @@ async def _diff(agent, arg):
     return CommandResult(out.strip() or "No changes.")
 
 
+@command("review", "Deep multi-agent code review (UltraReview)", "[ultra] [base-branch]")
+async def _review(agent, arg):
+    parts = arg.split()
+    ultra = False
+    base = None
+    if "ultra" in parts:
+        ultra = True
+        parts.remove("ultra")
+    if parts:
+        base = parts[0]
+    try:
+        review = UltraReview(agent.ws, agent.llm, reviewers=3 if ultra else 1)
+        result = await review.run(base=base)
+        return CommandResult(format_review(result))
+    except Exception as exc:
+        return CommandResult(f"Review failed: {exc}", is_error=True)
+
+
+@command("skills", "List available skills")
+async def _skills(agent, arg):
+    registry = getattr(agent, "skills", None)
+    if registry is None:
+        return CommandResult("Skills are not available.", is_error=True)
+    skills = registry.list_all()
+    if not skills:
+        return CommandResult("No skills found. Add .claude/skills/<name>/SKILL.md files.")
+    rows = []
+    for name in sorted(skills):
+        skill = skills[name]
+        scope = getattr(skill, "scope", "?")
+        listing = skill.full_listing()
+        rows.append(f"/{name} [{scope}] — {listing}")
+    return CommandResult("\n".join(rows))
+
+
+@command("skill", "Invoke a skill by name", "<name> [args...]")
+async def _skill(agent, arg):
+    registry = getattr(agent, "skills", None)
+    if registry is None:
+        return CommandResult("Skills are not available.", is_error=True)
+    parts = arg.split()
+    if not parts:
+        return CommandResult("Usage: /skill <name> [args...]", is_error=True)
+    name = parts[0]
+    args = parts[1:]
+    skill = registry.get(name)
+    if skill is None:
+        return CommandResult(
+            f"Skill '{name}' not found. Run /skills to list available skills.", is_error=True
+        )
+    if not skill.user_invocable:
+        return CommandResult(f"Skill '{name}' is not user-invocable.", is_error=True)
+    try:
+        rendered = render_skill(skill, args, agent.ws.root)
+        return CommandResult(action="prompt", prompt=rendered)
+    except Exception as exc:
+        return CommandResult(f"Skill '{name}' failed to render: {exc}", is_error=True)
+
+
+@command("workflows", "List recent workflow runs")
+async def _workflows(agent, arg):
+    runs = getattr(agent, "workflow_runs", [])
+    if not runs:
+        return CommandResult("No workflow runs yet. Use ultracode keyword or /effort ultracode.")
+    rows = []
+    for r in runs[-10:]:
+        rows.append(
+            f"{r.get('name', 'workflow')} [{r.get('status', '?')}] "
+            f"{r.get('agent_count', 0)} agents · {r.get('results', []) and len(r['results'])} results"
+        )
+    return CommandResult("\n".join(rows))
+
+
+@command("effort", "Show or set effort level", "[default|low|medium|high|xhigh|max|ultracode|off]")
+async def _effort(agent, arg):
+    if not arg:
+        return CommandResult(f"Effort: inherit · Ultracode: {getattr(agent, 'ultracode', False)}")
+    if arg == "ultracode":
+        agent.ultracode = True
+        return CommandResult("Ultracode enabled. The 'ultracode' keyword triggers workflow orchestration.")
+    if arg == "off":
+        agent.ultracode = False
+        return CommandResult("Ultracode disabled.")
+    return CommandResult(f"Effort '{arg}' noted. (Local inference: effort is model-dependent.)")
+
+
+@command("mcp", "Manage MCP servers", "[list | reconnect | connect <name> | disconnect <name>]")
+async def _mcp(agent, arg):
+    mcp = getattr(agent, "mcp", None)
+    if mcp is None:
+        return CommandResult("MCP client is not available.", is_error=True)
+    if not arg or arg == "list":
+        servers = mcp.list_servers()
+        if not servers:
+            return CommandResult("No MCP servers configured. Add one via .mcp.json.")
+        rows = []
+        for name in sorted(servers):
+            cfg = servers[name]
+            status = mcp.server_status(name)
+            rows.append(f"{name} [{cfg.type}] {status} — {cfg.url or cfg.command or ''}")
+        return CommandResult("\n".join(rows))
+    if arg == "reconnect":
+        await mcp.reconnect_failed()
+        return CommandResult("Reconnect attempt complete.")
+    parts = arg.split()
+    if len(parts) >= 2:
+        sub, name = parts[0], parts[1]
+        if sub == "connect":
+            await mcp.connect(name)
+            return CommandResult(f"Connected to MCP server '{name}'.")
+        if sub == "disconnect":
+            await mcp.disconnect(name)
+            return CommandResult(f"Disconnected from MCP server '{name}'.")
+    return CommandResult("Usage: /mcp [list | reconnect | connect <name> | disconnect <name>]", is_error=True)
+
+
+@command("rewind", "Revert files to their last checkpoint state (alias: /undo)")
+async def _rewind(agent, arg):
+    paths = agent.checkpoint()
+    restored = agent.rewind(paths)
+    return CommandResult("\n".join(restored) if restored else "Nothing to rewind.")
+
+
 @command("undo", "Revert the file changes from the last turn (alias: /rewind)")
 async def _undo(agent, arg):
     done = agent.undo()
     return CommandResult("\n".join(done) if done else "Nothing to undo.")
+
+
+@command("fork", "Branch the current session into a new one, keeping history", "[label]")
+async def _fork(agent, arg):
+    store = getattr(agent, "store", None)
+    if store is None:
+        return CommandResult("No session store available.", is_error=True)
+    label = arg.strip() or None
+    try:
+        new_id = store.fork(agent.session_id, label=label)
+    except KeyError:
+        return CommandResult("Current session is not saved.", is_error=True)
+    return CommandResult(f"Created forked session {new_id}.")
 
 
 @command("sessions", "List saved sessions for this directory")

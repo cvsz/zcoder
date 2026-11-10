@@ -51,7 +51,9 @@ async def test_tool_roundtrip_feeds_result_back(make_agent, tmp_path):
     second_request = agent.llm.requests[1][0]
     assert second_request[-1]["role"] == "tool" and "alpha" in second_request[-1]["content"]
     assert second_request[0]["role"] == "system" and "Working directory" in second_request[0]["content"]
-    assert len(agent.llm.requests[0][1]) == 9  # all tool definitions are offered
+    assert (
+        len(agent.llm.requests[0][1]) == 24
+    )  # all tool definitions are offered (includes Agent, MCP, EnterWorktree, ExitWorktree, EnterPlanMode, AskUserQuestion, Skill, WebFetch, WebSearch, NotebookEdit, LSP, TaskOutput, BashOutput, KillShell, BackgroundOutput)
 
 
 async def test_edit_requires_approval_and_applies_when_allowed(make_agent, tmp_path):

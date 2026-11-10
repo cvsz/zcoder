@@ -118,3 +118,18 @@ class SessionStore:
         # _path() fully validates session_id before unlink(), so user-provided
         # session_id cannot reach the filesystem sink unsanitized.
         self._path(session_id).unlink(missing_ok=True)
+
+    def fork(self, session_id: str, *, label: str | None = None) -> str:
+        """Create a new session that copies the messages from an existing one.
+
+        Returns the new session ID. The forked session shares the same cwd and
+        message history, allowing the agent to branch off a previous conversation
+        without losing the original.
+        """
+        original = self.load(session_id)
+        new_id = new_session_id()
+        messages = list(original.get("messages", []))
+        if label:
+            messages.append({"role": "user", "content": label})
+        self.save(new_id, original.get("cwd", ""), messages, original.get("usage"))
+        return new_id

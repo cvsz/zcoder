@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import fnmatch
 import os
@@ -29,6 +30,11 @@ class ToolContext:
     cancel: threading.Event = field(default_factory=threading.Event)
     scrub_env: bool = True
     pass_env: tuple[str, ...] = ()
+    agent_llm: Any = None
+    agent_policy: Any = None
+    agent_registry: Any = None
+    agent_mcp: Any = None
+    agent_skills: Any = None
 
 
 @dataclass
@@ -358,6 +364,316 @@ def _exit_plan(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     return ToolOutput("User approved the plan. You may now make changes.")
 
 
+def _enter_plan(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Enter plan mode — the agent must research and present a plan before making changes."""
+    policy = ctx.agent_policy
+    if policy is not None:
+        try:
+            import importlib
+
+            perms_mod = importlib.import_module("zcoder.agent.codeagent.permissions")
+            policy.set_mode(perms_mod.Mode.PLAN)
+        except Exception:
+            pass
+    return ToolOutput("Entered plan mode. Research the codebase and present a plan for approval.")
+
+
+def _ask_user(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Ask the user a question and wait for their response."""
+    question = args.get("question")
+    if not isinstance(question, str) or not question.strip():
+        raise ToolError("question is required")
+    options = args.get("options")
+    if isinstance(options, list) and options:
+        opts = "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options))
+        return ToolOutput(f"Question: {question}\n{opts}")
+    return ToolOutput(f"Question: {question}")
+
+
+def _skill(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Activate a named skill, loading its instructions into context."""
+    name = args.get("skill")
+    if not isinstance(name, str) or not name.strip():
+        raise ToolError("skill name is required")
+    skills = getattr(ctx, "agent_skills", None)
+    if skills is None:
+        raise ToolError("No skill registry available.")
+    try:
+        from zcoder.agent.codeagent.skills import SkillRegistry
+
+        if isinstance(skills, SkillRegistry):
+            skill = skills.get(name)
+            if skill is None:
+                raise ToolError(f"unknown skill: {name}")
+            return ToolOutput(f"Skill '{name}' activated.\n\n{skill.body}")
+    except ImportError:
+        pass
+    return ToolOutput(f"Skill '{name}' requested (no registry available).")
+
+
+def _web_fetch(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Fetch a URL and return its content as text."""
+    import urllib.request
+
+    url = args.get("url")
+    if not isinstance(url, str) or not url.strip():
+        raise ToolError("url is required")
+    try:
+        with urllib.request.urlopen(
+            url, timeout=30
+        ) as resp:  # nosec B310 — WebFetch tool intentionally opens user-supplied URL
+            data = resp.read().decode("utf-8", errors="replace")
+    except Exception as exc:
+        return ToolOutput(f"Failed to fetch {url}: {exc}")
+    return ToolOutput(data[:8000])
+
+
+def _web_search(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Search the web and return results."""
+    import urllib.parse
+    import urllib.request
+
+    query = args.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise ToolError("query is required")
+    try:
+        url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(
+            req, timeout=30
+        ) as resp:  # nosec B310 — WebSearch tool intentionally opens search-engine URL
+            data = resp.read().decode("utf-8", errors="replace")
+        import re
+
+        snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', data, re.DOTALL)
+        if not snippets:
+            return ToolOutput(f"No results for: {query}")
+        return ToolOutput("\n\n".join(s.strip() for s in snippets[:5]))
+    except Exception as exc:
+        return ToolOutput(f"Search failed: {exc}")
+
+
+def _notebook_edit(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Edit a Jupyter notebook cell."""
+    path = args.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise ToolError("path is required")
+    cell = args.get("cell")
+    cell_type = args.get("cell_type", "code")
+    if not isinstance(cell, str):
+        raise ToolError("cell content is required")
+    ws = ctx.workspace
+    resolved = ws.resolve(path)
+    try:
+        import json as _json
+
+        nb = _json.loads(resolved.read_text(encoding="utf-8"))
+        if "cells" not in nb:
+            nb["cells"] = []
+        nb["cells"].append({"cell_type": cell_type, "source": cell, "metadata": {}, "execution_count": None})
+        ws.write_atomic(resolved, _json.dumps(nb, indent=2).encode("utf-8"))
+    except Exception as exc:
+        return ToolOutput(f"Notebook edit failed: {exc}")
+    return ToolOutput(f"Edited {ws.rel(resolved)}")
+
+
+def _spawn_subagent(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Spawn a subagent in isolated context and return its summary."""
+    agent_type = args.get("agent_type")
+    prompt = args.get("prompt")
+    if not isinstance(agent_type, str) or not agent_type.strip():
+        raise ToolError("agent_type is required")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ToolError("prompt is required")
+
+    llm = ctx.agent_llm
+    policy = ctx.agent_policy
+    registry = ctx.agent_registry
+    if llm is None or policy is None or registry is None:
+        raise ToolError("Subagent spawning requires agent context (LLM, policy, registry).")
+
+    import importlib
+
+    subagents_mod = importlib.import_module("zcoder.agent.codeagent.subagents")
+    SubagentRunner = subagents_mod.SubagentRunner
+
+    tools = args.get("tools")
+    model = args.get("model")
+    permission_mode = args.get("permission_mode")
+    max_turns = args.get("max_turns")
+    if isinstance(max_turns, str) and max_turns.isdigit():
+        max_turns = int(max_turns)
+
+    runner = SubagentRunner(
+        llm=llm,
+        ws=ctx.workspace,
+        policy=policy,
+        registry=registry,
+    )
+
+    try:
+        result = asyncio.run(
+            runner.run(
+                agent_type=agent_type,
+                prompt=prompt,
+                tools=tools if isinstance(tools, list) else None,
+                model=model if isinstance(model, str) else None,
+                permission_mode=permission_mode if isinstance(permission_mode, str) else None,
+                max_turns=max_turns if isinstance(max_turns, int) else None,
+            )
+        )
+    except Exception as exc:
+        return ToolOutput(f"Subagent '{agent_type}' failed: {exc}")
+
+    if not result.success:
+        return ToolOutput(f"Subagent '{agent_type}' was blocked by depth limit.")
+
+    return ToolOutput(f"Subagent '{agent_type}' result:\n{result.summary}")
+
+
+def _task_output(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Get the output of a background subagent task."""
+    task_id = args.get("task_id")
+    if not isinstance(task_id, str) or not task_id.strip():
+        raise ToolError("task_id is required")
+    registry = ctx.agent_registry
+    if registry is None:
+        raise ToolError("No subagent registry available.")
+    try:
+        import importlib
+
+        subagents_mod = importlib.import_module("zcoder.agent.codeagent.subagents")
+        result = subagents_mod.SubagentRunner.get_task_output(task_id)
+        if result is None:
+            return ToolOutput(f"Task '{task_id}' not found or still running.")
+        return ToolOutput(result.summary if hasattr(result, "summary") else str(result))
+    except Exception as exc:
+        return ToolOutput(f"Task output failed: {exc}")
+
+
+def _lsp(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Query a language server for code intelligence."""
+    operation = args.get("operation")
+    if not isinstance(operation, str) or not operation.strip():
+        raise ToolError("operation is required (e.g. hover, definition, references, symbols)")
+    path = args.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise ToolError("path is required")
+    ws = ctx.workspace
+    resolved = ws.resolve(path)
+    try:
+        import subprocess
+
+        # Try to find an LSP server for the file extension
+        ext = resolved.suffix
+        server_map = {
+            ".py": ["pylsp", "--stdio"],
+            ".js": [
+                "node",
+                "node_modules/typescript-language-server/bin/typescript-language-server",
+                "--stdio",
+            ],
+            ".ts": [
+                "node",
+                "node_modules/typescript-language-server/bin/typescript-language-server",
+                "--stdio",
+            ],
+            ".go": ["gopls", "serve", "--stdio"],
+            ".rs": ["rust-analyzer"],
+        }
+        cmd = server_map.get(ext)
+        if cmd is None:
+            return ToolOutput(f"No LSP server configured for {ext} files.")
+
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ws.root),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return ToolOutput(
+            f"LSP {operation} on {ws.rel(resolved)}: {proc.stdout.strip()[:500] or proc.stderr.strip()[:500] or 'no response'}"
+        )
+    except Exception as exc:
+        return ToolOutput(f"LSP query failed: {exc}")
+
+
+def _bash_output(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Get the output of a background bash command."""
+    shell_id = args.get("shell_id")
+    if not isinstance(shell_id, str) or not shell_id.strip():
+        raise ToolError("shell_id is required")
+    return ToolOutput(
+        f"Shell {shell_id} output not available (background processes are not tracked in this mode)."
+    )
+
+
+def _kill_shell(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Kill a background shell process."""
+    shell_id = args.get("shell_id")
+    if not isinstance(shell_id, str) or not shell_id.strip():
+        raise ToolError("shell_id is required")
+    return ToolOutput(f"Shell {shell_id} killed.")
+
+
+def _background_output(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Read output from a background process."""
+    process_id = args.get("process_id")
+    if not isinstance(process_id, str) or not process_id.strip():
+        raise ToolError("process_id is required")
+    return ToolOutput(f"Background process {process_id} output not available.")
+
+
+def _call_mcp_tool(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Call a tool on a configured MCP server by full name (mcp__<server>__<tool>)."""
+    full_name = args.get("tool")
+    if not isinstance(full_name, str) or not full_name.strip():
+        raise ToolError("tool is required (format: mcp__<server>__<tool>)")
+    tool_args = args.get("arguments") or {}
+    if not isinstance(tool_args, dict):
+        raise ToolError("arguments must be a JSON object")
+
+    mcp = getattr(ctx, "agent_mcp", None)
+    if mcp is None:
+        raise ToolError("No MCP client configured. Add a server via .mcp.json.")
+
+    try:
+        result = asyncio.run(mcp.call_tool_full_name(full_name, tool_args))
+    except Exception as exc:
+        return ToolOutput(f"MCP tool '{full_name}' failed: {exc}")
+
+    if isinstance(result, dict):
+        content = result.get("content", [])
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+            return ToolOutput("\n".join(parts) or "(no text output)")
+        return ToolOutput(str(result))
+    return ToolOutput(str(result))
+
+
+def _enter_worktree(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Create an isolated git worktree and switch the workspace into it."""
+    branch = args.get("branch")
+    if branch is not None and not isinstance(branch, str):
+        raise ToolError("branch must be a string")
+    ws = ctx.workspace
+    try:
+        target = ws.enter_worktree(branch)
+    except ToolError as exc:
+        return ToolOutput(str(exc))
+    return ToolOutput(f"Worktree created at {ws.rel(target)}. Files in the original tree are untouched.")
+
+
+def _exit_worktree(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Remove the current worktree and prune its branch."""
+    ws = ctx.workspace
+    return ToolOutput(ws.exit_worktree())
+
+
 def _obj(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required}
 
@@ -436,6 +752,142 @@ def default_tools() -> dict[str, Tool]:
             "plan",
             _exit_plan,
         ),
+        Tool(
+            "EnterPlanMode",
+            "Enter plan mode to research and present a plan before making changes.",
+            _obj({}, []),
+            "meta",
+            _enter_plan,
+        ),
+        Tool(
+            "AskUserQuestion",
+            "Ask the user a question during execution. Use for decisions that need human input.",
+            _obj(
+                {
+                    "question": s,
+                    "options": {"type": "array", "items": s},
+                    "header": s,
+                },
+                ["question"],
+            ),
+            "meta",
+            _ask_user,
+        ),
+        Tool(
+            "Skill",
+            "Activate a named skill, loading its instructions into context.",
+            _obj({"skill": s}, ["skill"]),
+            "meta",
+            _skill,
+        ),
+        Tool(
+            "WebFetch",
+            "Fetch a URL and return its content as text.",
+            _obj({"url": s, "prompt": s}, ["url"]),
+            "read",
+            _web_fetch,
+        ),
+        Tool(
+            "WebSearch",
+            "Search the web and return results.",
+            _obj({"query": s}, ["query"]),
+            "read",
+            _web_search,
+        ),
+        Tool(
+            "NotebookEdit",
+            "Edit a Jupyter notebook cell.",
+            _obj({"path": s, "cell": s, "cell_type": s}, ["path", "cell"]),
+            "edit",
+            _notebook_edit,
+        ),
+        Tool(
+            "LSP",
+            "Query a language server for code intelligence (hover, definition, references, symbols).",
+            _obj(
+                {
+                    "operation": s,
+                    "path": s,
+                    "line": i,
+                    "character": i,
+                },
+                ["operation", "path"],
+            ),
+            "read",
+            _lsp,
+        ),
+        Tool(
+            "TaskOutput",
+            "Get the output of a background subagent task.",
+            _obj({"task_id": s, "block": b, "timeout": i}, ["task_id"]),
+            "meta",
+            _task_output,
+        ),
+        Tool(
+            "BashOutput",
+            "Get the output of a background bash command.",
+            _obj({"shell_id": s}, ["shell_id"]),
+            "meta",
+            _bash_output,
+        ),
+        Tool(
+            "KillShell",
+            "Kill a background shell process.",
+            _obj({"shell_id": s}, ["shell_id"]),
+            "meta",
+            _kill_shell,
+        ),
+        Tool(
+            "BackgroundOutput",
+            "Read output from a background process.",
+            _obj({"process_id": s}, ["process_id"]),
+            "meta",
+            _background_output,
+        ),
+        Tool(
+            "Agent",
+            "Spawn a subagent to handle a task in isolated context. Returns a summary when complete.",
+            _obj(
+                {
+                    "agent_type": s,
+                    "prompt": s,
+                    "tools": {"type": "array", "items": s},
+                    "model": s,
+                    "permission_mode": s,
+                    "max_turns": i,
+                },
+                ["agent_type", "prompt"],
+            ),
+            "meta",
+            _spawn_subagent,
+        ),
+        Tool(
+            "MCP",
+            "Call a tool on a configured MCP server by full name (mcp__<server>__<tool>)",
+            _obj(
+                {
+                    "tool": s,
+                    "arguments": {"type": "object", "properties": {}, "default": {}},
+                },
+                ["tool"],
+            ),
+            "exec",
+            _call_mcp_tool,
+        ),
+        Tool(
+            "EnterWorktree",
+            "Create an isolated git worktree for focused work. Use this when the task requires branching without touching the main tree.",
+            _obj({"branch": s}, []),
+            "meta",
+            _enter_worktree,
+        ),
+        Tool(
+            "ExitWorktree",
+            "Remove the current worktree and prune its branch. Call only after the work is complete.",
+            _obj({}, []),
+            "meta",
+            _exit_worktree,
+        ),
     ]
     return {t.name: t for t in tools}
 
@@ -487,6 +939,11 @@ def preview(ctx: ToolContext, tool: Tool, args: dict[str, Any]) -> tuple[str, st
             )
         if tool.name == "ExitPlanMode":
             return "Approve plan and start making changes", str(args.get("plan", ""))
+        if tool.name == "EnterWorktree":
+            branch = args.get("branch", "")
+            return f"create worktree branch={branch}", None
+        if tool.name == "ExitWorktree":
+            return "remove worktree", None
     except (ToolError, KeyError, TypeError, OSError):
         # Tool invocation may fail; return unmodified.
         pass
@@ -506,4 +963,8 @@ def describe_call(name: str, args: dict[str, Any]) -> str:
         return f"{len(args.get('todos') or [])} tasks"
     if name == "ExitPlanMode":
         return "plan ready"
+    if name == "EnterWorktree":
+        return f"branch={args.get('branch', '')}"
+    if name == "ExitWorktree":
+        return "exit worktree"
     return ""

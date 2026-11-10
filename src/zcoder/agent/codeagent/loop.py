@@ -30,7 +30,13 @@ from zcoder.agent.codeagent.llm import LLM, LLMChunk, LLMError, ToolCallRequest
 from zcoder.agent.codeagent.memory import build_system_prompt, expand_mentions, load_project_memory
 from zcoder.agent.codeagent.permissions import Mode, PermissionPolicy
 from zcoder.agent.codeagent.sessions import SessionStore, new_session_id
+from zcoder.agent.codeagent.subagents import SubagentRegistry
 from zcoder.agent.codeagent.tools import Tool, ToolContext, default_tools, preview, truncate, validate_args
+from zcoder.agent.codeagent.workflows import (
+    WorkflowEngine,
+    is_ultracode_prompt,
+    strip_ultracode_keyword,
+)
 from zcoder.agent.codeagent.workspace import ToolError, Workspace
 
 AskFn = Callable[[PermissionRequest], Awaitable[Decision]]
@@ -110,7 +116,17 @@ class CodeAgent:
         self.policy = policy or PermissionPolicy(workspace=workspace)
         self.policy.workspace = workspace
         self.tools = tools or default_tools()
-        self.ctx = ToolContext(workspace, scrub_env=scrub_env, pass_env=tuple(pass_env))
+        self.mcp: Any = None
+        self.ctx = ToolContext(
+            workspace,
+            scrub_env=scrub_env,
+            pass_env=tuple(pass_env),
+            agent_llm=self.llm,
+            agent_policy=self.policy,
+            agent_registry=getattr(self, "subagents", None),
+            agent_mcp=getattr(self, "mcp", None),
+            agent_skills=getattr(self, "skills", None),
+        )
         self.store, self.ask = store, ask
         self.context_window, self.max_steps = context_window, max_steps
         self.memory = memory if memory is not None else load_project_memory(workspace.root)
@@ -126,6 +142,12 @@ class CodeAgent:
         self.usage = Usage()
         self._interrupted = False
         self.running = False
+        self._session_started = False
+        self.skills: Any = None
+        self.subagents: Any = None
+        self.ultracode: bool = False
+        self.effort = "medium"
+        self.workflow_runs: list[Any] = []
 
     # --- state -----------------------------------------------------------
     @property
@@ -173,8 +195,23 @@ class CodeAgent:
         )
         return TurnDone(reason)
 
+    async def _stop(self, reason: str) -> TurnDone:
+        if self.hooks:
+            await self.hooks.stop(reason)
+        return self._done(reason)
+
     def undo(self) -> list[str]:
         return self.ws.undo_last_turn()
+
+    def checkpoint(self) -> list[Path]:
+        """Snapshot every file the agent has read. Use with rewind() to revert."""
+        return self.ws.snapshot()
+
+    def rewind(self, paths: list[Path] | None = None) -> list[str]:
+        """Revert files to their last checkpoint state. If paths is None, revert everything."""
+        if paths is None:
+            paths = self.ws.snapshot()
+        return self.ws.restore_to(paths)
 
     def _save(self) -> None:
         if self.store and self.messages:
@@ -212,6 +249,10 @@ class CodeAgent:
         return "\n".join(lines)[-24_000:]
 
     async def compact(self, instructions: str = "") -> str:
+        if self.hooks:
+            hook_result = await self.hooks.pre_compact("context_window_full")
+            if hook_result.blocked:
+                raise LLMError(hook_result.message or "Blocked by PreCompact hook.")
         last_user = max((i for i, m in enumerate(self.messages) if m.get("role") == "user"), default=0)
         head, tail = self.messages[:last_user], self.messages[last_user:]
         if not head:
@@ -237,6 +278,8 @@ class CodeAgent:
             {"role": "assistant", "content": "Understood. I have the context and will continue from here."},
             *tail,
         ]
+        if self.hooks:
+            await self.hooks.post_compact("context_window_full", summary.strip())
         return summary.strip()
 
     async def _chat(self) -> AsyncGenerator[LLMChunk, None]:
@@ -272,7 +315,43 @@ class CodeAgent:
         self.running, self._interrupted = True, False
         self.ctx.cancel.clear()
         self.ws.begin_turn()
+        # Fire SessionStart hook once per session
+        if self.hooks and not self._session_started:
+            self._session_started = True
+            await self.hooks.session_start(str(self.ws.root))
         self.audit.record("turn_start", chars=len(text), mode=self.policy.mode.value, model=self.llm.model)
+        # Fire UserPromptSubmit hook (can block the prompt)
+        if self.hooks:
+            hook_result = await self.hooks.user_prompt_submit(text)
+            if hook_result.blocked:
+                yield Notice(hook_result.message or "Blocked by UserPromptSubmit hook.", "error")
+                yield await self._stop("error")
+                return
+            for warning in hook_result.warnings:
+                yield Notice(warning, "warn")
+        # Ultracode: route to workflow orchestration
+        if is_ultracode_prompt(text):
+            clean_text = strip_ultracode_keyword(text)
+            yield Notice("Ultracode: orchestrating workflow for task.", "info")
+            try:
+                registry = getattr(self, "subagents", None) or SubagentRegistry(self.ws.root)
+                engine = WorkflowEngine(self.llm, self.ws, self.policy, registry)
+                from zcoder.agent.codeagent.workflows import default_workflow_script
+
+                script = default_workflow_script(clean_text)
+                run = await engine.run_script(script)
+                yield Notice(
+                    f"Workflow complete: {run.agent_count} agents, {len(run.results)} results.", "info"
+                )
+                for r in run.results:
+                    if r.output:
+                        yield Notice(f"[{r.label or 'agent'}] {r.output[:500]}", "info")
+                yield await self._stop("end")
+                return
+            except Exception as exc:
+                yield Notice(f"Workflow failed: {exc}", "error")
+                yield await self._stop("error")
+                return
         try:
             prompt, attached = expand_mentions(text, self.ws)
             if attached:
@@ -282,7 +361,7 @@ class CodeAgent:
             overflow_retried = False
             for _ in range(self.max_steps):
                 if self._interrupted:
-                    yield self._done("interrupted")
+                    yield await self._stop("interrupted")
                     return
                 if self.estimate_tokens() > int(self.context_window * 0.8) and len(self.messages) > 4:
                     try:
@@ -329,7 +408,7 @@ class CodeAgent:
                             pass
                     self.audit.record("llm_error", message=str(exc)[:300])
                     yield Notice(str(exc), "error")
-                    yield self._done("error")
+                    yield await self._stop("error")
                     return
                 overflow_retried = False
                 tail = filt.flush()
@@ -341,7 +420,7 @@ class CodeAgent:
                 if self._interrupted:
                     if visible:
                         self.messages.append({"role": "assistant", "content": visible})
-                    yield self._done("interrupted")
+                    yield await self._stop("interrupted")
                     return
                 assistant: dict[str, Any] = {"role": "assistant", "content": visible or None}
                 if calls:
@@ -355,7 +434,7 @@ class CodeAgent:
                     ]
                 self.messages.append(assistant)
                 if not calls:
-                    yield self._done("end")
+                    yield await self._stop("end")
                     return
                 for idx, call in enumerate(calls):
                     if self._interrupted:
@@ -363,7 +442,7 @@ class CodeAgent:
                             self.messages.append(
                                 {"role": "tool", "tool_call_id": rest.id, "content": "Interrupted by user."}
                             )
-                        yield self._done("interrupted")
+                        yield await self._stop("interrupted")
                         return
                     yield ToolStart(call.id, call.name, call.args)
                     sig = call.name + json.dumps(call.args, sort_keys=True, default=str)
@@ -386,7 +465,7 @@ class CodeAgent:
                     if call.name == "TodoWrite" and not end.is_error:
                         yield TodoUpdate(list(self.ctx.todos))
             yield Notice(f"Stopped after {self.max_steps} steps. Send a message to continue.", "warn")
-            yield self._done("max_turns")
+            yield await self._stop("max_turns")
         finally:
             self.running = False
             self._save()
