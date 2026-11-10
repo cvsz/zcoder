@@ -26,6 +26,7 @@ import asyncio
 import json
 import os
 import re
+import shlex
 import subprocess  # nosec B404  # user/org-configured hook commands
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,9 +113,52 @@ class Hooks:
         env = {k: os.environ[k] for k in _SAFE_ENV if k in os.environ}
         env["ZCODER_PROJECT_DIR"] = str(self.cwd)
         try:
+            # Decide whether to run through a shell. Commands with shell
+            # operators (|, &, ;, $, `, >, <, (...)) or shell built-ins
+            # (exit, echo, cd, export, ...) need shell=True. Everything else
+            # runs via argv without a shell to reduce command-injection
+            # surface. Hook commands are org-configured and audited either way.
+            _SHELL_OPS = frozenset("|&;$`><()")
+            _SHELL_BUILTINS = frozenset(
+                {
+                    "exit",
+                    "echo",
+                    "cd",
+                    "export",
+                    "unset",
+                    "alias",
+                    "unalias",
+                    "source",
+                    "exec",
+                    "eval",
+                    "printf",
+                    "read",
+                    "test",
+                    "true",
+                    "false",
+                    "type",
+                    "jobs",
+                    "fg",
+                    "bg",
+                    "kill",
+                    "wait",
+                    "trap",
+                    "umask",
+                    "ulimit",
+                    "shift",
+                    "set",
+                    "shopt",
+                }
+            )
+            first_word = hook.command.split()[0] if hook.command.split() else ""
+            use_shell = any(ch in hook.command for ch in _SHELL_OPS) or first_word in _SHELL_BUILTINS
+            if use_shell:
+                argv: str | list[str] = hook.command
+            else:
+                argv = shlex.split(hook.command)
             r = subprocess.run(  # noqa: S602  # nosec B602  # hook commands are configured by the user/org
-                hook.command,
-                shell=True,
+                argv,
+                shell=use_shell,
                 input=json.dumps(payload),
                 capture_output=True,
                 text=True,

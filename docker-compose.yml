@@ -4,7 +4,8 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: zcoder
-      POSTGRES_PASSWORD: zcoder
+      # POSTGRES_PASSWORD ถูกเซตผ่าน secrets ไม่ใช่ hardcode ใน environment
+      POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
       POSTGRES_DB: zcoder_db
     volumes:
       - zpostgresql_data:/var/lib/postgresql/data
@@ -17,6 +18,8 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    secrets:
+      - zcoder_postgres_password
 
   llama-server:
     container_name: zcoder-llm
