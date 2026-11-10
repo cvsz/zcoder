@@ -31,9 +31,7 @@ try:
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read().decode())
         for zone in data.get("result", []):
-            print(
-                f"Zone: {zone['name']} (ID: {zone['id']}, Status: {zone['status']})"
-            )
+            print(f"Zone: {zone['name']} (ID: {zone['id']}, Status: {zone['status']})")
             if zone["name"] == "zeaz.dev":
                 zone_id = zone["id"]
 except Exception as e:
