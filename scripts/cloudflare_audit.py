@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import urllib.request
 
 token = os.environ.get("CLOUDFLARE_API_TOKEN", "cfat_dummy_token_placeholder_redacted")
