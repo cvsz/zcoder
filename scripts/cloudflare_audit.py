@@ -10,7 +10,7 @@ headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json
 print("=== AUSI PHASE 1: ACCOUNT & ZONE DISCOVERY ===")
 req = urllib.request.Request("https://api.cloudflare.com/client/v4/user/tokens/verify", headers=headers)
 try:
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
         data = json.loads(resp.read().decode())
         print("Token Verify:", data.get("success"), data.get("messages"))
 except Exception as e:
@@ -19,7 +19,7 @@ except Exception as e:
 req = urllib.request.Request("https://api.cloudflare.com/client/v4/zones", headers=headers)
 zone_id = None
 try:
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
         data = json.loads(resp.read().decode())
         for zone in data.get("result", []):
             print(f"Zone: {zone['name']} (ID: {zone['id']}, Status: {zone['status']})")
@@ -34,7 +34,7 @@ if zone_id:
         f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records", headers=headers
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
             data = json.loads(resp.read().decode())
             for rec in data.get("result", []):
                 print(f"[{rec['type']}] {rec['name']} -> {rec['content']} (Proxied: {rec['proxied']})")
@@ -46,7 +46,7 @@ req = urllib.request.Request(
     f"https://api.cloudflare.com/client/v4/accounts/{account_id}/cfd_tunnel", headers=headers
 )
 try:
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
         data = json.loads(resp.read().decode())
         for tunnel in data.get("result", []):
             print(

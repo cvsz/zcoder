@@ -268,6 +268,7 @@ class NetworkComputeScanner:
             not isinstance(bind_address, ipaddress.IPv4Address)
             or bind_address.is_unspecified
             or not (bind_address.is_private or bind_address.is_loopback or bind_address.is_link_local)
+            or bind_address == ipaddress.IPv4Address("255.255.255.255")
         ):
             raise ValueError("bind_host must be a specific private, loopback, or link-local IPv4 address")
 

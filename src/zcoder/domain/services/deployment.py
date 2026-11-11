@@ -102,9 +102,7 @@ class DeploymentEngine:
                     raise ValueError(f"disallowed table for backup: {table}")
                 # Table name is validated against a hard-coded allowlist above,
                 # so this f-string cannot be injected with user-controlled input.
-                cur.execute(
-                    f'SELECT COUNT(*) FROM "{table}"'
-                )  # nosec B608  # table validated against allowlist
+                cur.execute(f'SELECT COUNT(*) FROM "{table}"')  # nosec B608
                 records[table] = cur.fetchone()[0]
 
             # Dump SQL lines
