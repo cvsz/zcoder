@@ -684,6 +684,25 @@ def build_parser():
     em.add_argument(
         "--embed-input-type", default="document", choices=["document", "query"], dest="embed_input_type"
     )
+    em.add_argument(
+        "--embed-local",
+        metavar="TEXT",
+        dest="embed_local",
+        help="Embed TEXT via local character n-gram model (zero-cost, no API key needed)",
+    )
+    em.add_argument(
+        "--embed-local-file",
+        metavar="FILE",
+        dest="embed_local_file",
+        help="Embed each line of FILE via local model",
+    )
+    em.add_argument(
+        "--embed-local-similarity",
+        nargs=2,
+        metavar=("A", "B"),
+        dest="embed_local_similarity",
+        help="Cosine similarity between two strings' local embeddings",
+    )
 
     so = p.add_argument_group("Structured Outputs")
     so.add_argument("--structured", action="store_true")
@@ -3861,6 +3880,21 @@ def main():
         from zcoder.agent.capabilities.embeddings import cmd_embed_similarity
 
         cmd_embed_similarity(args.embed_similarity[0], args.embed_similarity[1], model=args.embed_model)
+        return
+    if args.embed_local:
+        from zcoder.agent.capabilities.embeddings import cmd_embed_local
+
+        cmd_embed_local(args.embed_local)
+        return
+    if args.embed_local_file:
+        from zcoder.agent.capabilities.embeddings import cmd_embed_local_file
+
+        cmd_embed_local_file(args.embed_local_file)
+        return
+    if args.embed_local_similarity:
+        from zcoder.agent.capabilities.embeddings import cmd_embed_local_similarity
+
+        cmd_embed_local_similarity(args.embed_local_similarity[0], args.embed_local_similarity[1])
         return
     if args.stream_tools:
         import json as _json
