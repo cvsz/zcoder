@@ -641,6 +641,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 |---|---|
 | [`QUICKSTART.md`](docs/guides/QUICKSTART.md) | Basic setup and first commands |
 | [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | System architecture and boundaries |
+| [`PERFORMANCE.md`](docs/performance-optimization.md) | Performance optimization guide |
 | [`ROADMAP.md`](docs/engineering/ROADMAP.md) | Engineering direction |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 | [`SECURITY.md`](SECURITY.md) | Security guidance |
