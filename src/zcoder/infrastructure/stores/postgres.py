@@ -730,6 +730,40 @@ class PostgresControlPlaneStore:
             logger.error(f"PostgreSQL health check failed: {e}")
             return False
 
+    # ── Pool Statistics ───────────────────────────────────────────────────
+
+    def pool_stats(self) -> dict[str, int]:
+        """Return connection pool statistics.
+
+        Returns:
+            dict with keys: size (max connections), available (idle connections),
+            in_use (active connections)
+        """
+        pool = self._pool
+        if pool is None:
+            return {"size": 0, "available": 0, "in_use": 0}
+
+        if _PSYCOPG2_AVAILABLE:
+            # psycopg2 pool: minconn, maxconn, _pool (list of idle), _used (dict of used)
+            max_conn = getattr(pool, "maxconn", 0)
+            idle_count = len(getattr(pool, "_pool", []))
+            used_count = len(getattr(pool, "_used", {}))
+            return {
+                "size": max_conn,
+                "available": idle_count,
+                "in_use": used_count,
+            }
+        else:
+            # psycopg3 pool: min_size, max_size, _pool (idle), _used (used)
+            max_conn = getattr(pool, "max_size", 0)
+            idle_count = len(getattr(pool, "_pool", []))
+            used_count = len(getattr(pool, "_used", {}))
+            return {
+                "size": max_conn,
+                "available": idle_count,
+                "in_use": used_count,
+            }
+
     # ── Stats ─────────────────────────────────────────────────────────────
 
     def get_queue_stats(self) -> dict[str, int]:
