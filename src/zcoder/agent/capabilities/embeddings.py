@@ -39,6 +39,7 @@ import math
 import os
 import urllib.error
 import urllib.request
+from collections import Counter
 from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
@@ -55,6 +56,57 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # for code-retrieval workloads (this being a coder CLI, worth calling out).
 DEFAULT_MODEL = "voyage-3.5"
 CODE_MODEL = "voyage-code-3"
+
+# Local embeddings dimension
+LOCAL_EMBEDDING_DIM = 384
+
+
+class LocalEmbeddings:
+    """Zero-cost local embeddings using character n-gram hashing.
+
+    Generates deterministic embeddings without any external API or model server.
+    Uses feature hashing (hashing trick) to map character n-grams to fixed dimensions.
+    """
+
+    def __init__(self, dim: int = LOCAL_EMBEDDING_DIM):
+        self.dim = dim
+
+    def _get_ngrams(self, text: str) -> Counter[str]:
+        """Extract character 3-grams from text."""
+        text = text.lower()
+        ngrams: Counter[str] = Counter()
+        for i in range(len(text) - 2):
+            ngram = text[i : i + 3]
+            ngrams[ngram] += 1
+        return ngrams
+
+    def _hash_ngram(self, ngram: str) -> int:
+        """Hash n-gram to a fixed dimension index."""
+        # Use a simple deterministic hash
+        h = 0
+        for c in ngram:
+            h = (h * 31 + ord(c)) & 0xFFFFFFFF
+        return h % self.dim
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        """Embed a list of strings using character n-gram feature hashing."""
+        vectors = []
+        for text in texts:
+            ngrams = self._get_ngrams(text)
+            vec = [0.0] * self.dim
+            total = sum(ngrams.values()) or 1
+            for ngram, count in ngrams.items():
+                idx = self._hash_ngram(ngram)
+                vec[idx] += count / total
+            # L2 normalize
+            mag = math.sqrt(sum(x * x for x in vec))
+            if mag > 0:
+                vec = [x / mag for x in vec]
+            vectors.append(vec)
+        return vectors
+
+
+_local_embeddings = LocalEmbeddings()
 
 
 def _voyage_key(explicit: str | None = None) -> str:
@@ -99,6 +151,15 @@ def embed(
     except ZCoderError as e:
         raise RuntimeError(f"Voyage API error: {e.message}") from e
     return [item["embedding"] for item in data.get("data", [])]
+
+
+def embed_local(texts: list[str]) -> list[list[float]]:
+    """Embed texts using zero-cost local character n-gram embeddings.
+
+    This is a deterministic, offline alternative to API-based embeddings.
+    Uses fixed vocabulary of character 3-grams for consistent dimensionality.
+    """
+    return _local_embeddings.embed(texts)
 
 
 @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
@@ -187,6 +248,50 @@ def cmd_embed_similarity(text_a: str, text_b: str, model: str = DEFAULT_MODEL):
     try:
         vec_a, vec_b = embed([text_a, text_b], model=model, input_type="document")
     except RuntimeError as e:
+        print(f"[ERROR] {e}")
+        return None
+    sim = cosine_similarity(vec_a, vec_b)
+    print(f'  "{text_a[:50]}"')
+    print(f'  "{text_b[:50]}"')
+    print(f"  similarity: {sim:.4f}")
+    return sim
+
+
+def cmd_embed_local(text: str):
+    print(f"\033[94mℹ Embedding via local character n-gram model (dim={LOCAL_EMBEDDING_DIM})\033[0m\n")
+    try:
+        [vec] = embed_local([text])
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return None
+    non_zero = [(i, round(v, 5)) for i, v in enumerate(vec) if v != 0]
+    print(f"  dimensions: {len(vec)}")
+    print(f"  non-zero:   {len(non_zero)}")
+    print(f"  sample:     {non_zero[:8]}")
+    return vec
+
+
+def cmd_embed_local_file(path: str):
+    with open(path) as f:
+        lines = [l.strip() for l in f if l.strip()]
+    print(
+        f"\033[94mℹ Embedding {len(lines)} lines from {path} via local model (dim={LOCAL_EMBEDDING_DIM})\033[0m\n"
+    )
+    try:
+        vecs = embed_local(lines)
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return None
+    for line, vec in zip(lines, vecs, strict=False):
+        print(f"  [{len(vec)}d] {line[:60]}{'...' if len(line) > 60 else ''}")
+    return vecs
+
+
+def cmd_embed_local_similarity(text_a: str, text_b: str):
+    print(f"\033[94mℹ Cosine similarity via local model (dim={LOCAL_EMBEDDING_DIM})\033[0m\n")
+    try:
+        vec_a, vec_b = embed_local([text_a, text_b])
+    except Exception as e:
         print(f"[ERROR] {e}")
         return None
     sim = cosine_similarity(vec_a, vec_b)
