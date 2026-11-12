@@ -6,8 +6,8 @@ import os
 
 import pytest
 
-from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 from zcoder.domain.models.legacy_job import Job, JobStatus
+from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 
 TEST_DSN = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 
@@ -46,7 +46,7 @@ class TestPreparedStatements:
     def test_prepared_statement_cached(self, pg_store):
         """Test that same query uses cached prepared statement."""
         pg_store.prepare("cached_query", "SELECT 42 as answer")
-        
+
         # Check internal cache
         assert "cached_query" in pg_store._prepared_statements
         assert pg_store._prepared_statements["cached_query"] == "SELECT 42 as answer"
@@ -60,7 +60,7 @@ class TestPreparedStatements:
     def test_execute_prepared_with_params(self, pg_store):
         """Test executing prepared statement with parameters."""
         pg_store.prepare("param_query", "SELECT %s as val")
-        
+
         rows = pg_store.execute_prepared("param_query", ("hello",))
         assert len(rows) == 1
         assert rows[0][0] == "hello"

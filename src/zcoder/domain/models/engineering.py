@@ -54,7 +54,7 @@ class Checkpoint:
 
 class CheckpointPool:
     """Object pool for Checkpoint instances to reduce allocation overhead."""
-    
+
     def __init__(self, initial_size: int = 10):
         self._pool: Queue[Checkpoint] = Queue()
         self._created = 0
@@ -62,7 +62,7 @@ class CheckpointPool:
         for _ in range(initial_size):
             self._pool.put(Checkpoint())
             self._created += 1
-    
+
     def acquire(self) -> Checkpoint:
         """Get a Checkpoint from the pool, creating new if empty."""
         try:
@@ -70,7 +70,7 @@ class CheckpointPool:
         except Exception:
             self._created += 1
             return Checkpoint()
-    
+
     def release(self, checkpoint: Checkpoint) -> None:
         """Return a Checkpoint to the pool, resetting it first."""
         # Reset all fields
@@ -86,11 +86,11 @@ class CheckpointPool:
         except Exception:
             # Pool full, just discard
             pass
-    
+
     def created_count(self) -> int:
         """Return total number of Checkpoints ever created."""
         return self._created
-    
+
     def pool_size(self) -> int:
         """Return current pool size."""
         return self._pool.qsize()

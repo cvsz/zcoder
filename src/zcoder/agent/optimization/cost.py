@@ -155,80 +155,162 @@ def classify_complexity(prompt: str) -> str:
     - Estimated token count via local estimator
     """
     from zcoder.agent.optimization.local_tokens import estimate_tokens
-    
+
     words = len(prompt.split())
     prompt_lower = prompt.lower()
-    
+
     # Code markers for general programming
-    code_markers = sum(prompt.count(k) for k in [
-        "def ", "class ", "function ", "CREATE ", "INSERT ", "UPDATE ", "DELETE ",
-        "async ", "await ", "try:", "except:", "for ", "while ", "if ", "elif ", "else:",
-        "lambda ", "yield ", "with ", "import ", "from ", "return ", "raise ",
-        "=>", "->", "{}", "[]", "::", "@@",
-    ])
-    
+    code_markers = sum(
+        prompt.count(k)
+        for k in [
+            "def ",
+            "class ",
+            "function ",
+            "CREATE ",
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "async ",
+            "await ",
+            "try:",
+            "except:",
+            "for ",
+            "while ",
+            "if ",
+            "elif ",
+            "else:",
+            "lambda ",
+            "yield ",
+            "with ",
+            "import ",
+            "from ",
+            "return ",
+            "raise ",
+            "=>",
+            "->",
+            "{}",
+            "[]",
+            "::",
+            "@@",
+        ]
+    )
+
     # SQL-specific markers (SELECT is a strong indicator of DB operations)
     sql_markers = sum(prompt.count(k) for k in ["SELECT "])
-    
+
     # Task complexity keywords that indicate higher complexity
     complexity_keywords = [
-        "refactor", "comprehensive", "legacy", "architecture", "optimize", "performance",
-        "security", "authentication", "authorization", "migration", "integration",
-        "distributed", "concurrent", "parallel", "async", "microservice", "kubernetes",
-        "docker", "ci/cd", "pipeline", "testing", "benchmark", "profiling",
+        "refactor",
+        "comprehensive",
+        "legacy",
+        "architecture",
+        "optimize",
+        "performance",
+        "security",
+        "authentication",
+        "authorization",
+        "migration",
+        "integration",
+        "distributed",
+        "concurrent",
+        "parallel",
+        "async",
+        "microservice",
+        "kubernetes",
+        "docker",
+        "ci/cd",
+        "pipeline",
+        "testing",
+        "benchmark",
+        "profiling",
     ]
     complexity_score = sum(1 for kw in complexity_keywords if kw in prompt_lower)
-    
+
     # Task description keywords - these indicate a coding task request, not a simple snippet
     task_keywords = [
-        "write", "create", "build", "implement", "design", "develop", "function that",
-        "class that", "module that", "script that", "api that", "endpoint that",
-        "reads", "parses", "processes", "transforms", "validates", "generates",
+        "write",
+        "create",
+        "build",
+        "implement",
+        "design",
+        "develop",
+        "function that",
+        "class that",
+        "module that",
+        "script that",
+        "api that",
+        "endpoint that",
+        "reads",
+        "parses",
+        "processes",
+        "transforms",
+        "validates",
+        "generates",
     ]
     task_score = sum(1 for kw in task_keywords if kw in prompt_lower)
-    
+
     # Structural complexity indicators
     structural_score = 0
-    lines = prompt.split('\n')
+    lines = prompt.split("\n")
     for line in lines:
         stripped = line.strip()
-        if stripped.startswith(('if ', 'for ', 'while ', 'try:', 'except', 'with ', 'async ')):
+        if stripped.startswith(("if ", "for ", "while ", "try:", "except", "with ", "async ")):
             structural_score += 1
         # Count nesting level (indentation)
         indent = len(line) - len(line.lstrip())
         if indent > 4:
             structural_score += indent // 4
-    
+
     # Use local token estimation for more accurate sizing
     estimated_tokens = estimate_tokens(prompt, "claude-sonnet-5")
-    
+
     # Simple code snippets (short, minimal structure, no task/SQL keywords) should be low complexity
-    is_simple_snippet = (words < 20 and code_markers <= 1 and sql_markers == 0 and structural_score == 0 and 
-                         task_score == 0 and complexity_score == 0 and estimated_tokens < 50)
-    
+    is_simple_snippet = (
+        words < 20
+        and code_markers <= 1
+        and sql_markers == 0
+        and structural_score == 0
+        and task_score == 0
+        and complexity_score == 0
+        and estimated_tokens < 50
+    )
+
     # High complexity: very long, lots of code, high structural complexity, many complexity keywords, or many tokens
-    if (words > 500 or code_markers > 5 or sql_markers > 2 or structural_score > 10 or 
-        complexity_score > 2 or estimated_tokens > 1500):
+    if (
+        words > 500
+        or code_markers > 5
+        or sql_markers > 2
+        or structural_score > 10
+        or complexity_score > 2
+        or estimated_tokens > 1500
+    ):
         return "high"
-    
+
     # Medium complexity: moderate length, some code, SQL markers, moderate structure, some complexity/task keywords
-    if not is_simple_snippet and (words > 50 or code_markers >= 1 or sql_markers >= 1 or structural_score > 1 or 
-        complexity_score > 0 or task_score > 0 or estimated_tokens > 200):
+    if not is_simple_snippet and (
+        words > 50
+        or code_markers >= 1
+        or sql_markers >= 1
+        or structural_score > 1
+        or complexity_score > 0
+        or task_score > 0
+        or estimated_tokens > 200
+    ):
         return "medium"
-    
+
     return "low"
 
 
 def select_model(complexity: str, force: str | None = None, prefer_latency: bool = False) -> str:
     if force:
         return force
-    
+
     # Latency-aware routing: prefer faster/cheaper models when latency is critical
     if prefer_latency:
         # Haiku is fastest, then Sonnet, then Opus
         latency_tier = ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5"]
         return {"low": latency_tier[0], "medium": latency_tier[0], "high": latency_tier[0]}[complexity]
-    
+
     return {"low": TIER_MODELS[0], "medium": TIER_MODELS[1], "high": TIER_MODELS[2]}[complexity]
 
 

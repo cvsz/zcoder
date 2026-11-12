@@ -54,12 +54,13 @@ OUTPUT_300K_MAX_TOKENS = 300_000
 
 class QueueFullError(Exception):
     """Raised when batch queue is full and blocking is disabled."""
+
     pass
 
 
 class BatchProcessor:
     """Async batch processor with backpressure handling."""
-    
+
     def __init__(self, max_queue_size: int = 0):
         """
         Args:
@@ -68,15 +69,17 @@ class BatchProcessor:
         if max_queue_size < 0:
             raise ValueError("max_queue_size must be >= 0")
         self.max_queue_size = max_queue_size
-        self._queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size) if max_queue_size > 0 else asyncio.Queue()
-    
+        self._queue: asyncio.Queue = (
+            asyncio.Queue(maxsize=max_queue_size) if max_queue_size > 0 else asyncio.Queue()
+        )
+
     def enqueue(self, item: Any, block: bool = True) -> None:
         """Add an item to the queue.
-        
+
         Args:
             item: Item to enqueue
             block: If True, wait for space. If False, raise QueueFullError when full.
-            
+
         Raises:
             QueueFullError: If queue is full and block=False
         """
@@ -84,7 +87,7 @@ class BatchProcessor:
             # Unlimited queue
             self._queue.put_nowait(item)
             return
-        
+
         if block:
             # This would need async context, so we use put_nowait and handle full
             # For sync interface, we can't truly block, so raise if full
@@ -95,34 +98,34 @@ class BatchProcessor:
             if self._queue.full():
                 raise QueueFullError("Queue is full")
             self._queue.put_nowait(item)
-    
+
     async def aenqueue(self, item: Any) -> None:
         """Async version of enqueue that properly waits for space."""
         await self._queue.put(item)
-    
+
     def dequeue(self) -> Any:
         """Remove and return an item from the queue.
-        
+
         Returns:
             The dequeued item
-            
+
         Raises:
             asyncio.QueueEmpty: If queue is empty
         """
         return self._queue.get_nowait()
-    
+
     async def adequeue(self) -> Any:
         """Async version of dequeue."""
         return await self._queue.get()
-    
+
     def queue_size(self) -> int:
         """Return current queue size."""
         return self._queue.qsize()
-    
+
     def is_full(self) -> bool:
         """Check if queue is full."""
         return self._queue.full()
-    
+
     def is_empty(self) -> bool:
         """Check if queue is empty."""
         return self._queue.empty()

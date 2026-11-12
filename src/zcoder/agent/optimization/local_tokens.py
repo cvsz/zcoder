@@ -6,7 +6,7 @@ Integrates with existing TokenCounter for API fallback when precise counts neede
 
 Estimation strategy:
 - English text: ~4 characters per token (0.25 tokens/char)
-- Code: ~3 characters per token (0.33 tokens/char) 
+- Code: ~3 characters per token (0.33 tokens/char)
 - With system prompt/tools: additional overhead
 """
 
@@ -14,9 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Any
-
 
 # Model-specific character-to-token multipliers
 # Based on typical tokenizer behavior for each model family
@@ -51,6 +49,7 @@ TOOLS_SCHEMA_CHAR_FACTOR = 0.15  # Additional tokens per schema character
 @dataclass
 class TokenEstimate:
     """Result of token estimation."""
+
     input_tokens: int
     model: str
     method: str  # "local" or "api"
@@ -68,23 +67,40 @@ class LocalTokenEstimator:
         # Try exact match first
         if model in MODEL_MULTIPLIERS:
             return MODEL_MULTIPLIERS[model]
-        
+
         # Try prefix match (e.g., "claude-sonnet-5-20260101")
         for prefix, mult in MODEL_MULTIPLIERS.items():
             if model.startswith(prefix):
                 return mult
-        
+
         return MODEL_MULTIPLIERS["default"]
 
     def _is_code(self, text: str) -> bool:
         """Heuristic to detect if text is code."""
         code_indicators = [
-            r'\bdef\b', r'\bclass\b', r'\bfunction\b', r'\bimport\b',
-            r'\bfrom\b', r'\breturn\b', r'\bif\b.*:',
-            r'\bfor\b.*:', r'\bwhile\b.*:', r'\{', r'\}',
-            r'\[', r'\]', r'\(\)', r'->', r'=>',
-            r'SELECT\b', r'INSERT\b', r'UPDATE\b', r'DELETE\b',
-            r'CREATE\b', r'TABLE\b', r'INDEX\b',
+            r"\bdef\b",
+            r"\bclass\b",
+            r"\bfunction\b",
+            r"\bimport\b",
+            r"\bfrom\b",
+            r"\breturn\b",
+            r"\bif\b.*:",
+            r"\bfor\b.*:",
+            r"\bwhile\b.*:",
+            r"\{",
+            r"\}",
+            r"\[",
+            r"\]",
+            r"\(\)",
+            r"->",
+            r"=>",
+            r"SELECT\b",
+            r"INSERT\b",
+            r"UPDATE\b",
+            r"DELETE\b",
+            r"CREATE\b",
+            r"TABLE\b",
+            r"INDEX\b",
         ]
         text_lower = text.lower()
         return any(re.search(pattern, text_lower) for pattern in code_indicators)
@@ -93,7 +109,7 @@ class LocalTokenEstimator:
         """Estimate tokens from character count."""
         if not text:
             return 0
-        
+
         char_count = len(text)
         if is_code:
             # Code: ~3 chars per token
@@ -163,6 +179,7 @@ class LocalTokenEstimator:
                 tools_tokens += TOOLS_OVERHEAD_PER_TOOL
                 # Add schema tokens
                 import json
+
                 schema_str = json.dumps(tool.get("input_schema", {}))
                 tools_tokens += int(len(schema_str) * TOOLS_SCHEMA_CHAR_FACTOR)
 
@@ -187,24 +204,25 @@ class LocalTokenEstimator:
     ) -> TokenEstimate:
         """Estimate with detailed breakdown."""
         is_code = self._is_code(prompt)
-        
+
         prompt_tokens = self._estimate_chars(prompt, is_code)
         system_tokens = 0
         if system:
             system_tokens = self._estimate_chars(system, self._is_code(system))
-        
+
         history_tokens = 0
         if history:
             for msg in history:
                 content = msg.get("content", "")
                 if content:
                     history_tokens += self._estimate_chars(content, self._is_code(content))
-        
+
         tools_tokens = 0
         if tools:
             for tool in tools:
                 tools_tokens += TOOLS_OVERHEAD_PER_TOOL
                 import json
+
                 schema_str = json.dumps(tool.get("input_schema", {}))
                 tools_tokens += int(len(schema_str) * TOOLS_SCHEMA_CHAR_FACTOR)
 

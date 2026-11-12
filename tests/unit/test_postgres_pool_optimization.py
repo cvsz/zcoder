@@ -61,9 +61,10 @@ class TestPoolConfiguration:
 
     def test_concurrent_claims_no_pool_exhaustion(self, pg_store):
         """Test that concurrent job claims don't exhaust the pool."""
-        from zcoder.domain.models.legacy_job import Job, JobStatus
         import time
         import uuid
+
+        from zcoder.domain.models.legacy_job import Job, JobStatus
 
         # Enqueue enough jobs for all workers with unique IDs
         run_id = uuid.uuid4().hex[:8]
@@ -106,7 +107,7 @@ class TestPoolConfiguration:
         initial_available = initial_stats["available"]
 
         # Get a connection
-        with pg_store._get_conn() as conn:
+        with pg_store._get_conn() as _conn:
             during_stats = pg_store.pool_stats()
             # One connection should be in use
             assert during_stats["in_use"] == initial_stats["in_use"] + 1
@@ -139,6 +140,7 @@ class TestPoolPerformance:
 
     def test_concurrent_connection_throughput(self, pg_store):
         """Test throughput under concurrent connection acquisition."""
+
         def acquire_and_query():
             with pg_store._get_conn() as conn:
                 with conn.cursor() as cur:

@@ -13,9 +13,7 @@ class TestComplexityClassification:
     def test_complexity_classification_code_heavy(self):
         """Code-heavy prompts should route to higher tier."""
         code_prompt = (
-            "def fibonacci(n):\n"
-            "    if n <= 1: return n\n"
-            "    return fibonacci(n-1) + fibonacci(n-2)\n"
+            "def fibonacci(n):\n" "    if n <= 1: return n\n" "    return fibonacci(n-1) + fibonacci(n-2)\n"
         ) * 10
         assert classify_complexity(code_prompt) == "high"
 
@@ -31,7 +29,9 @@ class TestComplexityClassification:
 
     def test_complexity_classification_sql_heavy(self):
         """SQL-heavy prompts should route to higher tier."""
-        sql_prompt = "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(100)); SELECT * FROM users WHERE age > 18;"
+        sql_prompt = (
+            "CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(100)); SELECT * FROM users WHERE age > 18;"
+        )
         assert classify_complexity(sql_prompt) in ("medium", "high")
 
     def test_complexity_classification_very_long(self):
@@ -111,7 +111,9 @@ class TestCostRoutingAccuracy:
         for prompt, expected_complexity, expected_model in test_cases:
             complexity = classify_complexity(prompt)
             model = select_model(complexity)
-            assert complexity == expected_complexity, f"Prompt: {prompt[:50]}... Expected {expected_complexity}, got {complexity}"
+            assert (
+                complexity == expected_complexity
+            ), f"Prompt: {prompt[:50]}... Expected {expected_complexity}, got {complexity}"
             assert model == expected_model, f"Prompt: {prompt[:50]}... Expected {expected_model}, got {model}"
 
     def test_code_marker_detection(self):
@@ -119,12 +121,15 @@ class TestCostRoutingAccuracy:
         # Python code markers - minimal stubs are low complexity
         assert classify_complexity("def func(): pass") == "low"
         assert classify_complexity("class MyClass: pass") == "low"
-        
+
         # But code with more substance is medium
         assert classify_complexity("def func():\n    return 42") in ("medium", "high")
-        assert classify_complexity("class MyClass:\n    def method(self):\n        return 1") in ("medium", "high")
+        assert classify_complexity("class MyClass:\n    def method(self):\n        return 1") in (
+            "medium",
+            "high",
+        )
         assert classify_complexity("async def handler(): await foo()") in ("medium", "high")
-        
+
         # SQL markers
         assert classify_complexity("SELECT * FROM table") in ("medium", "high")
         assert classify_complexity("CREATE INDEX idx ON table(col)") in ("medium", "high")
