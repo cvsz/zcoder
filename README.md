@@ -8,7 +8,7 @@
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--011-green.svg)](SECURITY.md)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgresql-blue.svg)](docs/operations/deployment.md)
-[![Coverage](https://img.shields.io/badge/Coverage-80.51%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
 [![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md)
 
@@ -27,7 +27,7 @@
 | Security Scan | [![Security Scan](https://github.com/cvsz/zcoder/actions/workflows/security-scan.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/security-scan.yml) | Passing |
 | CodeQL | [![CodeQL](https://github.com/cvsz/zcoder/actions/workflows/codeql.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/codeql.yml) | Passing |
 | Release Gate | [![Release Gate](https://github.com/cvsz/zcoder/actions/workflows/release-gate.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/release-gate.yml) | Passing |
-| Coverage | [![Coverage](https://img.shields.io/badge/Coverage-80.51%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml) | **80.51%** |
+| Coverage | [![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml) | **81.68%** |
 | License | [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) | MIT |
 | Python | [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/) | 3.12+ |
 | Docker | [![Docker ghcr.io](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder) | Available |
