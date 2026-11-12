@@ -188,7 +188,7 @@ class EnterprisePolicyEngine:
                     raise ValueError(f"bad condition key: {key!r}")
                 lhs_value = self._lookup(key, resource)
                 rhs_value = self._parse_scalar(rhs)
-                if op in ("in",):
+                if op.strip() == "in":
                     return lhs_value in (
                         rhs_value if isinstance(rhs_value, (list, tuple, set)) else {rhs_value}
                     )
