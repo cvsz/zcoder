@@ -13,6 +13,7 @@ CLI flags:
   --prompt-lib-get TAG      Retrieve a saved prompt by tag
 """
 
+import functools
 import json
 import time
 from pathlib import Path
@@ -38,9 +39,19 @@ def _call(client, model: str, system: str, user: str, max_tokens: int = 2048) ->
     return client.generate(user, system=system).strip()
 
 
+# Use functools.lru_cache for the actual optimization function
+# We need to wrap the client call in a way that can be cached
+@functools.lru_cache(maxsize=128)
+def _cached_optimize_call(prompt: str, model: str, client_hash: int) -> str:
+    """This will be called by optimize() with a client that has a __hash__."""
+    # This is a placeholder - the real implementation is in optimize()
+    # We use client_hash to differentiate between different client instances
+    raise NotImplementedError("Called via optimize()")
+
+
 def optimize(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> str:
     if not client:
-        # Offline rule-based prompt enhancement
+        # Offline rule-based prompt enhancement - not cached
         lines = [line.strip() for line in prompt.strip().splitlines() if line.strip()]
         enhanced = "Act as an expert software engineer.\n\nTask:\n" + "\n".join(lines)
         if not any(k in prompt.lower() for k in ("return", "output", "format")):
@@ -53,9 +64,54 @@ def optimize(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-
         "Return ONLY the improved prompt — no commentary, no explanation."
     )
     try:
-        return _call(client, model, system, f"Prompt to improve:\n{prompt}")
+        # Use client id as part of cache key to isolate different clients
+        client_id = id(client)
+        cache_key = (prompt, model, client_id)
+        
+        if not hasattr(optimize, "_lru_cache"):
+            # Create a proper LRU cache using OrderedDict
+            from collections import OrderedDict
+            optimize._lru_cache = OrderedDict()
+            optimize._cache_hits = 0
+            optimize._cache_misses = 0
+            optimize._max_cache_size = 128
+        
+        if cache_key in optimize._lru_cache:
+            optimize._cache_hits += 1
+            # Move to end (most recently used)
+            optimize._lru_cache.move_to_end(cache_key)
+            return optimize._lru_cache[cache_key]
+        
+        optimize._cache_misses += 1
+        result = _call(client, model, system, f"Prompt to improve:\n{prompt}")
+        
+        # Add to cache, evict if necessary
+        optimize._lru_cache[cache_key] = result
+        if len(optimize._lru_cache) > optimize._max_cache_size:
+            optimize._lru_cache.popitem(last=False)  # Remove least recently used
+        
+        return result
     except Exception as exc:
         return f"[ERROR] Local prompt optimization failed: {exc}"
+
+
+def get_optimize_cache_stats() -> dict:
+    """Get cache statistics for the optimize function."""
+    if not hasattr(optimize, "_lru_cache"):
+        return {"hits": 0, "misses": 0, "size": 0}
+    return {
+        "hits": getattr(optimize, "_cache_hits", 0),
+        "misses": getattr(optimize, "_cache_misses", 0),
+        "size": len(optimize._lru_cache),
+    }
+
+
+def clear_optimize_cache():
+    """Clear the optimize function cache."""
+    if hasattr(optimize, "_lru_cache"):
+        optimize._lru_cache.clear()
+        optimize._cache_hits = 0
+        optimize._cache_misses = 0
 
 
 def score(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> dict:
