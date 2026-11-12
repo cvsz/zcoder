@@ -218,7 +218,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     attempt_id=row[2],
                     sequence=row[3],
                     phase=row[4],
-                    state_snapshot=row[5],
+                    state_snapshot=json.loads(row[5]) if isinstance(row[5], str) else row[5],
                     timestamp=row[6],
                 )
 
@@ -240,7 +240,7 @@ class PostgresEngineeringStore(PostgresControlPlaneStore, EngineeringStore):
                     status=TaskStatus(row[2]),
                     created_at=row[3],
                     updated_at=row[4],
-                    metadata=row[5],
+                    metadata=json.loads(row[5]) if isinstance(row[5], str) else row[5],
                 )
                 for row in rows
             ]

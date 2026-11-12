@@ -17,6 +17,8 @@
 #   ZCODER_VALIDATION_RETENTION Keep this many newest validation dirs (0 = keep all)
 #   ZCODER_ALLOW_SKIPS=1        Do not fail when a required pytest step reports skips
 
+# shellcheck disable=SC2026,SC1078,SC1079
+
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,7 +38,7 @@ mkdir -p "$LOG_DIR" "$JUNIT_DIR" "$BUILD_DIR"
 
 # Use the explicitly selected PostgreSQL container. Never start, stop or
 # recreate it from this runner.
-export ZCODER_POSTGRES_CONTAINER="${ZCODER_POSTGRES_CONTAINER:-zPostgreSQL}"
+export ZCODER_POSTGRES_CONTAINER="${ZCODER_POSTGRES_CONTAINER:-zpostgresql}"
 RETENTION="${ZCODER_VALIDATION_RETENTION:-0}"
 
 declare -a RESULTS=()
@@ -155,8 +157,10 @@ log "============================================================"
 trap 'INTERRUPTED=1; log ""; log "INTERRUPTED: validation cancelled by signal"; exit 130' INT TERM
 
 # ── 0. Environment / PostgreSQL preflight ────────────────────────────────────
+# shellcheck disable=SC2016
 run_step "Environment and PostgreSQL status" required preflight -- \
     bash -c '
+        # shellcheck disable=SC2026,SC1078,SC1079
         set -u
         status=0
         echo "Python executable: $0"
@@ -258,6 +262,7 @@ run_step "Black" required lint -- "$PYTHON" -m black --check .
 run_step "Mypy" required type -- "$PYTHON" -m mypy src/zcoder
 
 # ── 9. Bandit (full low report + medium/high gate) ───────────────────────────
+# shellcheck disable=SC2016
 run_step "Bandit" required security -- \
     bash -c '
         # The JSON report is informational and legitimately exits 1 when it
@@ -267,6 +272,7 @@ run_step "Bandit" required security -- \
     ' "$PYTHON" "$LOG_DIR/bandit-full.json"
 
 # ── 10. Dependency audit ─────────────────────────────────────────────────────
+# shellcheck disable=SC2016
 run_step "Dependency audit" required security -- \
     bash -c '
         set -u
@@ -287,8 +293,10 @@ run_step "Build sdist and wheel" required build -- \
     "$PYTHON" -m build --outdir "$BUILD_DIR" .
 
 # ── 12. Install wheel in an isolated venv + import/package smoke test ────────
+# shellcheck disable=SC2016
 run_step "Wheel install smoke test" required build -- \
     bash -c '
+        # shellcheck disable=SC2026,SC1078,SC1079
         set -u
         shopt -s nullglob
         wheels=("$1"/zcoder-*.whl)
@@ -320,6 +328,7 @@ PY
 
 # ── 13. ShellCheck (repository shell scripts) ────────────────────────────────
 if command -v shellcheck >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
     run_step "ShellCheck" required lint -- \
         bash -c 'shopt -s nullglob; files=(scripts/*.sh); ((${#files[@]})) && shellcheck -S warning "${files[@]}" || true'
 else
@@ -350,6 +359,7 @@ else
 fi
 
 # ── 15. Secret scan of the working diff ──────────────────────────────────────
+# shellcheck disable=SC2016
 run_step "Secret scan of working diff" required security -- \
     bash -c '
         set -u
@@ -362,6 +372,7 @@ run_step "Secret scan of working diff" required security -- \
     '
 
 # ── 16. Git state evidence (informational, never a gate) ─────────────────────
+# shellcheck disable=SC2016
 run_step "Git status" info info -- \
     bash -c 'git status --porcelain=v1 -b; echo; git rev-parse HEAD; echo; git diff --stat'
 

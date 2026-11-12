@@ -21,12 +21,14 @@ Example YAML:
       depends_on: [refactor, tests]
 """
 
+import asyncio
 import json
 import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Callable, Coroutine
 
 from zcoder.core.provider_policy import create_anthropic_client
 
@@ -48,10 +50,58 @@ class WorkflowStep:
 
 
 @dataclass
+class AsyncWorkflowStep:
+    """A workflow step that executes an async function."""
+    id: str
+    fn: Callable[[], Coroutine[Any, Any, Any]]
+    depends_on: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Workflow:
     name: str
     steps: list[WorkflowStep]
     model: str = "claude-sonnet-5"
+
+
+class WorkflowEngine:
+    """Async workflow engine with semaphore-based concurrency control."""
+    
+    def __init__(self, max_concurrent: int = 10):
+        if max_concurrent <= 0:
+            raise ValueError("max_concurrent must be > 0")
+        self.max_concurrent = max_concurrent
+        self._semaphore: asyncio.Semaphore | None = None
+    
+    async def execute(self, steps: list[AsyncWorkflowStep]) -> list[Any]:
+        """Execute steps with concurrency control.
+        
+        Args:
+            steps: List of AsyncWorkflowStep to execute
+            
+        Returns:
+            List of results in the same order as input steps
+        """
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.max_concurrent)
+        
+        async def run_step(step: AsyncWorkflowStep) -> Any:
+            async with self._semaphore:
+                return await step.fn()
+        
+        # Execute all steps concurrently with semaphore limiting
+        tasks = [run_step(step) for step in steps]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Convert exceptions to error results
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append({"error": str(result), "step_id": steps[i].id})
+            else:
+                processed_results.append(result)
+        
+        return processed_results
 
 
 @dataclass

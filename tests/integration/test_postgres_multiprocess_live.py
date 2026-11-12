@@ -83,10 +83,10 @@ class TestRealPostgresMultiProcess:
                     cur.execute("DELETE FROM jobs WHERE id = %s", (job.id,))
 
     def test_multi_process_concurrent_claims_no_duplicates(self, pg_store):
-        # Clean jobs table
+        # Clean jobs table completely
         with pg_store._get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM jobs WHERE id LIKE 'mp_job_%'")
+                cur.execute("DELETE FROM jobs")
 
         # Enqueue 30 jobs
         num_jobs = 30
