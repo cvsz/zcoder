@@ -110,7 +110,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - run: pip install -e .
+      - run: pip install -e '.[web]'
       - run: python -m pip wheel --no-deps --wheel-dir dist .
       - run: python -c "import zipfile; from pathlib import Path; wheel=next(Path('dist').glob('zcoder-*.whl')); names=set(zipfile.ZipFile(wheel).namelist()); assert any(n.startswith('zgpu/') for n in names), 'zgpu package missing'; assert not any(n.startswith('zgpu/tests/') for n in names), 'zGPU tests must not be packaged'; required={'zgpu/dashboard/index.html','zgpu/dashboard/dashboard.css','zgpu/dashboard/dashboard.js'}; assert required.issubset(names), f'zGPU dashboard assets missing from wheel {sorted(required - names)}'"
       - run: python -c "import zcoder; import zgpu; import main; print(zcoder.__version__)"
