@@ -782,14 +782,16 @@ class PostgresControlPlaneStore:
 
         # Convert psycopg2 %s placeholders to PostgreSQL $1, $2, ... format
         import re
+
         param_count = 0
+
         def replace_placeholder(match):
             nonlocal param_count
             param_count += 1
             return f"${param_count}"
-        
-        pg_query = re.sub(r'%s', replace_placeholder, query)
-        
+
+        pg_query = re.sub(r"%s", replace_placeholder, query)
+
         self._prepared_statements[name] = pg_query
         with self._get_conn() as conn:
             with conn.cursor() as cur:

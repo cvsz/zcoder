@@ -17,9 +17,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
-from zcoder.agent.optimization.local_tokens import LocalTokenEstimator, estimate_tokens
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
@@ -93,9 +93,7 @@ class TokenCounter:
         history: list[dict] | None = None,
     ) -> dict:
         """Count tokens using local estimation (zero API cost)."""
-        tokens = self._local_estimator.estimate(
-            prompt, self.model, system, tools, history
-        )
+        tokens = self._local_estimator.estimate(prompt, self.model, system, tools, history)
         return {"input_tokens": tokens, "method": "local"}
 
     def estimate_local(
@@ -106,15 +104,15 @@ class TokenCounter:
         history: list[dict] | None = None,
     ) -> int:
         """Quick local token estimation returning just the count."""
-        return self._local_estimator.estimate(
-            prompt, self.model, system, tools, history
-        )
+        return self._local_estimator.estimate(prompt, self.model, system, tools, history)
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, req: "urllib.request.Request") -> dict:
         return urlopen_json(req, timeout=30)
 
-    def count_file(self, file_path: str, prompt: str, system: str | None = None, use_local: bool = False) -> dict:
+    def count_file(
+        self, file_path: str, prompt: str, system: str | None = None, use_local: bool = False
+    ) -> dict:
         content = Path(file_path).read_text()
         full = f"File:\n```\n{content}\n```\n\n{prompt}"
         return self.count(full, system=system, use_local=use_local)

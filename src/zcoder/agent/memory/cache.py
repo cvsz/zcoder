@@ -66,11 +66,11 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 class MemoryCache:
     """Memory-bounded LRU cache with memory usage tracking.
-    
+
     Evicts least recently used items when memory limit is exceeded.
     Thread-safe for concurrent access.
     """
-    
+
     def __init__(self, max_size_mb: float = 100):
         """
         Args:
@@ -80,11 +80,11 @@ class MemoryCache:
         self._cache: OrderedDict[str, Any] = OrderedDict()
         self._lock = threading.RLock()
         self._total_size = 0
-    
+
     def _estimate_size(self, value: Any) -> int:
         """Estimate memory size of a value in bytes."""
         if isinstance(value, str):
-            return len(value.encode('utf-8'))
+            return len(value.encode("utf-8"))
         elif isinstance(value, (bytes, bytearray)):
             return len(value)
         elif isinstance(value, (list, tuple)):
@@ -94,26 +94,26 @@ class MemoryCache:
         else:
             # Rough estimate for other types
             return sys.getsizeof(value)
-    
+
     def set(self, key: str, value: Any) -> None:
         """Set a key-value pair, evicting LRU items if necessary."""
         with self._lock:
             size = self._estimate_size(value)
-            
+
             # Remove existing key if present
             if key in self._cache:
                 old_value = self._cache[key]
                 self._total_size -= self._estimate_size(old_value)
-            
+
             # Evict LRU items until we have space
             while self._total_size + size > self.max_size_bytes and self._cache:
                 lru_key, lru_value = self._cache.popitem(last=False)
                 self._total_size -= self._estimate_size(lru_value)
-            
+
             # Add new item
             self._cache[key] = value
             self._total_size += size
-    
+
     def get(self, key: str) -> Any | None:
         """Get a value by key, marking it as recently used."""
         with self._lock:
@@ -122,22 +122,23 @@ class MemoryCache:
                 self._cache[key] = value  # Move to end (most recently used)
                 return value
             return None
-    
+
     def memory_usage_mb(self) -> float:
         """Return current memory usage in megabytes."""
         with self._lock:
             return self._total_size / (1024 * 1024)
-    
+
     def size(self) -> int:
         """Return number of items in cache."""
         with self._lock:
             return len(self._cache)
-    
+
     def clear(self) -> None:
         """Clear all items from cache."""
         with self._lock:
             self._cache.clear()
             self._total_size = 0
+
 
 # ── Mid-conversation system messages (v1.18.0; model gate corrected v1.36.0) ─
 # Per platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages

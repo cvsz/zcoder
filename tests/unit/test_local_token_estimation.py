@@ -33,17 +33,17 @@ class TestLocalTokenEstimation:
         """Test that local estimation is fast (<1ms per estimate)."""
         estimator = LocalTokenEstimator()
         prompt = "Test prompt for speed measurement " * 100
-        
+
         # Warm up
         for _ in range(10):
             estimator.estimate(prompt, "claude-sonnet-5")
-        
+
         # Measure
         start = time.perf_counter()
         for _ in range(1000):
             estimator.estimate(prompt, "claude-sonnet-5")
         elapsed = time.perf_counter() - start
-        
+
         # 1000 estimates in <1 second = <1ms each
         assert elapsed < 1.0, f"1000 estimates took {elapsed:.3f}s (target <1s)"
 
@@ -51,7 +51,7 @@ class TestLocalTokenEstimation:
         """Test that different models have appropriate multipliers."""
         estimator = LocalTokenEstimator()
         prompt = "Test prompt " * 50
-        
+
         # All models should give reasonable estimates
         for model in ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5-20251001", "gpt-4"]:
             tokens = estimator.estimate(prompt, model)
@@ -68,8 +68,11 @@ class TestLocalTokenEstimation:
         """Test estimation including system prompt."""
         estimator = LocalTokenEstimator()
         prompt = "User question here"
-        system = "You are a helpful assistant with a very long system prompt that contains many instructions and guidelines for how to respond to the user." * 5
-        
+        system = (
+            "You are a helpful assistant with a very long system prompt that contains many instructions and guidelines for how to respond to the user."
+            * 5
+        )
+
         tokens = estimator.estimate(prompt, "claude-sonnet-5", system=system)
         # Should include system prompt tokens
         assert tokens > estimator.estimate(prompt, "claude-sonnet-5")
@@ -79,10 +82,18 @@ class TestLocalTokenEstimation:
         estimator = LocalTokenEstimator()
         prompt = "Use the tool to get data"
         tools = [
-            {"name": "get_data", "description": "Get data from API", "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}}},
-            {"name": "process_data", "description": "Process the data", "input_schema": {"type": "object", "properties": {"data": {"type": "string"}}}},
+            {
+                "name": "get_data",
+                "description": "Get data from API",
+                "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}},
+            },
+            {
+                "name": "process_data",
+                "description": "Process the data",
+                "input_schema": {"type": "object", "properties": {"data": {"type": "string"}}},
+            },
         ]
-        
+
         tokens = estimator.estimate(prompt, "claude-sonnet-5", tools=tools)
         assert tokens > estimator.estimate(prompt, "claude-sonnet-5")
 
@@ -93,20 +104,20 @@ class TestTokenCounterIntegration:
     def test_token_counter_uses_local_estimator(self):
         """Test that TokenCounter can use local estimator as backend."""
         from zcoder.agent.optimization.tokens import TokenCounter
-        
+
         # TokenCounter should work without API key for local estimation
         counter = TokenCounter(api_key="", model="claude-sonnet-5")
-        
+
         # Should have local estimator available
-        assert hasattr(counter, '_local_estimator') or hasattr(counter, 'estimate_local')
-        
+        assert hasattr(counter, "_local_estimator") or hasattr(counter, "estimate_local")
+
     def test_fallback_to_api_when_needed(self):
         """Test that precise counting still works via API when needed."""
         from zcoder.agent.optimization.tokens import TokenCounter
-        
+
         # This test would require a real API key, so we just verify the interface exists
         counter = TokenCounter(api_key="test-key", model="claude-sonnet-5")
-        assert hasattr(counter, 'count')  # Original API method
+        assert hasattr(counter, "count")  # Original API method
 
 
 if __name__ == "__main__":
