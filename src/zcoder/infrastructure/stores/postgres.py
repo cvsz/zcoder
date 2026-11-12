@@ -190,6 +190,7 @@ class PostgresControlPlaneStore:
         self._max_conn = max_conn
         self._connect_timeout = connect_timeout
         self._pool: Any | None = None
+        self._prepared_statements: dict[str, str] = {}
         self._init_pool()
 
     def _init_pool(self) -> None:
@@ -763,6 +764,80 @@ class PostgresControlPlaneStore:
                 "available": idle_count,
                 "in_use": used_count,
             }
+
+    # ── Prepared Statements ──────────────────────────────────────────────
+
+    def prepare(self, name: str, query: str) -> str:
+        """Prepare a statement for repeated execution.
+
+        Args:
+            name: Unique name for the prepared statement
+            query: SQL query with %s placeholders for parameters (psycopg2 format)
+
+        Returns:
+            The statement name
+        """
+        if name in self._prepared_statements:
+            return name
+
+        # Convert psycopg2 %s placeholders to PostgreSQL $1, $2, ... format
+        import re
+        param_count = 0
+        def replace_placeholder(match):
+            nonlocal param_count
+            param_count += 1
+            return f"${param_count}"
+        
+        pg_query = re.sub(r'%s', replace_placeholder, query)
+        
+        self._prepared_statements[name] = pg_query
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"PREPARE {name} AS {pg_query}")
+        return name
+
+    def execute_prepared(self, name: str, params: tuple = ()) -> list[tuple]:
+        """Execute a prepared statement with parameters.
+
+        Args:
+            name: Name of the prepared statement
+            params: Parameter values
+
+        Returns:
+            List of result rows
+        """
+        if name not in self._prepared_statements:
+            raise ValueError(f"Prepared statement '{name}' not found")
+
+        # Build EXECUTE query with parameter values
+        if params:
+            # For psycopg2, we need to use the parameterized EXECUTE
+            placeholders = ", ".join(["%s"] * len(params))
+            execute_query = f"EXECUTE {name} ({placeholders})"
+        else:
+            execute_query = f"EXECUTE {name}"
+
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(execute_query, params)
+                return cur.fetchall()
+
+    def explain_analyze(self, query: str, params: tuple = ()) -> str:
+        """Run EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) on a query.
+
+        Args:
+            query: SQL query to analyze
+            params: Query parameters
+
+        Returns:
+            Formatted query plan as string
+        """
+        explain_query = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) {query}"
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(explain_query, params)
+                rows = cur.fetchall()
+        return "\n".join(row[0] for row in rows)
 
     # ── Stats ─────────────────────────────────────────────────────────────
 
