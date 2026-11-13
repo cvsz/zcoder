@@ -155,6 +155,7 @@ class TestGlobalFunctions:
     def reset_global(self):
         """Reset global state."""
         import zcoder.agent.plugin.performance as perf
+
         perf._global_initializer = None
         yield
         perf._global_initializer = None
@@ -169,7 +170,7 @@ class TestGlobalFunctions:
     async def test_initialize_plugin_system(self):
         """Test initialize_plugin_system convenience function."""
         lazy_manager, hook_bus = await initialize_plugin_system()
-        
+
         assert isinstance(lazy_manager, LazyPluginManager)
         assert isinstance(hook_bus, OptimizedHookBus)
 

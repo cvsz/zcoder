@@ -33,12 +33,11 @@ from zcoder.agent.codeagent.mcp_client import MCPError
 from zcoder.agent.codeagent.tools import (
     Tool,
     ToolContext,
-    ToolError,
     ToolOutput,
     default_tools,
     preview,
 )
-from zcoder.agent.codeagent.workspace import IGNORED_DIRS, Workspace
+from zcoder.agent.codeagent.workspace import IGNORED_DIRS, ToolError, Workspace
 
 logger = logging.getLogger("zcoder.mcp.server")
 
@@ -221,6 +220,114 @@ class MCPServer:
     async def list_prompts(self) -> list[dict[str, Any]]:
         return []
 
+    async def get_prompt(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Get a prompt template (F13-09)."""
+        # Built-in prompts could be added here
+        return {
+            "description": f"Prompt template: {name}",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": {
+                        "type": "text",
+                        "text": f"Prompt '{name}' with arguments: {arguments or {}}",
+                    },
+                }
+            ],
+        }
+
+    # ------------------------------------------------------------------ sampling
+
+    async def create_message(
+        self,
+        messages: list[dict[str, Any]],
+        max_tokens: int,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+        stop_sequences: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a message via sampling (F13-10).
+
+        This allows the MCP client to request the server to generate a completion.
+        """
+        if self.agent is None:
+            raise MCPError("Sampling requires an active zcoder agent session")
+
+        # Build the prompt from messages
+        prompt_parts = []
+        if system_prompt:
+            prompt_parts.append(system_prompt)
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                # Handle content blocks
+                for block in content:
+                    if block.get("type") == "text":
+                        prompt_parts.append(f"{role}: {block.get('text', '')}")
+            else:
+                prompt_parts.append(f"{role}: {content}")
+
+        prompt = "\n\n".join(prompt_parts)
+
+        # Use the agent's LLM to generate the response
+        try:
+            response_text = ""
+            async with asyncio.timeout(30.0):
+                async for chunk in self.agent.llm.stream([{"role": "user", "content": prompt}], []):
+                    if chunk.kind == "text":
+                        response_text += chunk.text
+
+            return {
+                "role": "assistant",
+                "content": {
+                    "type": "text",
+                    "text": response_text,
+                },
+                "model": self.agent.llm.model,
+                "stopReason": "endTurn",
+            }
+        except Exception as exc:
+            raise MCPError(f"Sampling failed: {exc}") from exc
+
+    # ------------------------------------------------------------------ roots
+
+    async def list_roots(self) -> list[dict[str, Any]]:
+        """List workspace roots (F13-14)."""
+        return [
+            {
+                "uri": f"file://{self.ws.root}",
+                "name": self.ws.root.name,
+            }
+        ]
+
+    # ------------------------------------------------------------------ logging
+
+    async def set_logging_level(self, level: str) -> None:
+        """Set logging level (F13-15)."""
+        import logging
+
+        level_map = {
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warn": logging.WARNING,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+        }
+        logging.getLogger("zcoder.mcp.server").setLevel(level_map.get(level.lower(), logging.INFO))
+
+    # ------------------------------------------------------------------ cancellation
+
+    async def handle_cancellation(self, request_id: str, reason: str | None = None) -> None:
+        """Handle cancellation notification (F13-13)."""
+        # Log the cancellation
+        import logging
+
+        logging.getLogger("zcoder.mcp.server").info(
+            f"Request {request_id} cancelled: {reason or 'no reason'}"
+        )
+
     # ------------------------------------------------------------------ JSON-RPC dispatch
 
     async def handle(self, message: dict[str, Any]) -> dict[str, Any] | None:
@@ -235,6 +342,8 @@ class MCPServer:
                     "tools": {"listChanged": False},
                     "resources": {"listChanged": False, "subscribe": False},
                     "prompts": {"listChanged": False},
+                    "sampling": {},
+                    "roots": {"listChanged": True},
                     "logging": {},
                 },
                 "serverInfo": {"name": _SERVER_NAME, "version": _SERVER_VERSION},
@@ -267,6 +376,44 @@ class MCPServer:
                 return {"isError": True, "content": [{"type": "text", "content": str(exc)}]}
         if method == "prompts/list":
             return {"prompts": await self.list_prompts()}
+        if method == "prompts/get":
+            name = params.get("name")
+            arguments = params.get("arguments")
+            if not isinstance(name, str):
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32602, "message": "Invalid params: 'name' is required"},
+                }
+            try:
+                return await self.get_prompt(name, arguments)
+            except MCPError as exc:
+                return {"isError": True, "content": [{"type": "text", "content": str(exc)}]}
+        if method == "sampling/createMessage":
+            messages = params.get("messages", [])
+            max_tokens = params.get("maxTokens", 1024)
+            system_prompt = params.get("systemPrompt")
+            temperature = params.get("temperature")
+            stop_sequences = params.get("stopSequences")
+            metadata = params.get("metadata")
+            try:
+                return await self.create_message(
+                    messages, max_tokens, system_prompt, temperature, stop_sequences, metadata
+                )
+            except MCPError as exc:
+                return {"isError": True, "content": [{"type": "text", "content": str(exc)}]}
+        if method == "roots/list":
+            return {"roots": await self.list_roots()}
+        if method == "logging/setLevel":
+            level = params.get("level", "info")
+            await self.set_logging_level(level)
+            return {}
+        if method == "notifications/cancelled":
+            request_id = params.get("requestId")
+            reason = params.get("reason")
+            if isinstance(request_id, str):
+                await self.handle_cancellation(request_id, reason)
+            return None
         if method == "ping":
             return {}
         if method == "notifications/initialized":

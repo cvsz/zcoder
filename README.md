@@ -10,7 +10,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgresql-blue.svg)](docs/operations/deployment.md)
 [![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
-[![Final Report](https://img.shields.io/badge/Report-Final--Report.md-blue)](Final-Report.md)
+[![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md)
 
 ![ZCoder Social Preview](https://repository-images.githubusercontent.com/1298675090/168568c9-a175-4d82-9733-955d6d7bf7b4)
 
@@ -31,7 +31,7 @@
 | License | [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) | MIT |
 | Python | [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/) | 3.12+ |
 | Docker | [![Docker ghcr.io](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder) | Available |
-| Final Report | [![Final Report](https://img.shields.io/badge/Report-Final--Report.md-blue)](Final-Report.md) | Complete |
+| Final Report | [![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md) | Complete |
 
 ---
 

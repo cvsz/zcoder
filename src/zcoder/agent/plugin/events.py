@@ -102,6 +102,15 @@ class HookEvent(StrEnum):
     MODEL_CALL = "model.call"
     AUDIO_CALL = "audio.call"
 
+    # Additional lifecycle events (F05-21 to F05-27)
+    INSTRUCTIONS_LOADED = "instructions.loaded"
+    CWD_CHANGED = "cwd.changed"
+    FILE_CHANGED = "file.changed"
+    DIRECTORY_ADDED = "directory.added"
+    PRE_MODEL_SWITCH = "model.pre_switch"
+    POST_MODEL_SWITCH = "model.post_switch"
+    MESSAGE_DISPLAY = "message.display"
+
     # Classic hooks (backward compat with claude-code)
     CLASSIC_PRE_TOOL_USE = "classic.pre_tool_use"
     CLASSIC_POST_TOOL_USE = "classic.post_tool_use"
@@ -192,6 +201,14 @@ ORG_CONTROLLED_EVENTS: Final[frozenset[HookEvent]] = frozenset(
         HookEvent.WORKTREE_CREATE,
         HookEvent.WORKTREE_REMOVE,
         HookEvent.ELICITATION,
+        # F05-21 to F05-27
+        HookEvent.INSTRUCTIONS_LOADED,
+        HookEvent.CWD_CHANGED,
+        HookEvent.FILE_CHANGED,
+        HookEvent.DIRECTORY_ADDED,
+        HookEvent.PRE_MODEL_SWITCH,
+        HookEvent.POST_MODEL_SWITCH,
+        HookEvent.MESSAGE_DISPLAY,
     }
 )
 

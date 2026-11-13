@@ -85,7 +85,57 @@ class ModeChanged:
     type: str = "mode"
 
 
-Event = TextDelta | ToolStart | ToolEnd | TodoUpdate | UsageUpdate | Notice | TurnDone | ModeChanged
+@dataclass
+class UserPromptExpansion:
+    """User prompt was expanded with context (files, skills, etc.)."""
+
+    original_prompt: str
+    expanded_prompt: str
+    added_context: list[str]
+    type: str = "user_prompt_expansion"
+
+
+@dataclass
+class PostToolUseFailure:
+    """A tool execution failed after being approved."""
+
+    tool: str
+    args: dict[str, Any]
+    error: str
+    type: str = "post_tool_use_failure"
+
+
+@dataclass
+class PostToolBatch:
+    """A batch of tool calls completed."""
+
+    tool_calls: list[dict[str, Any]]
+    results: list[dict[str, Any]]
+    type: str = "post_tool_batch"
+
+
+@dataclass
+class StopFailure:
+    """Agent stop was requested but failed."""
+
+    reason: str
+    type: str = "stop_failure"
+
+
+Event = (
+    TextDelta
+    | ToolStart
+    | ToolEnd
+    | TodoUpdate
+    | UsageUpdate
+    | Notice
+    | TurnDone
+    | ModeChanged
+    | UserPromptExpansion
+    | PostToolUseFailure
+    | PostToolBatch
+    | StopFailure
+)
 
 
 def event_to_dict(event: Any) -> dict[str, Any]:

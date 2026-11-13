@@ -15,38 +15,51 @@ from zcoder.config.production import ProductionConfig
 logger = logging.getLogger(__name__)
 
 # Always-pinned variables (every build)
-ALWAYS_PINNED = frozenset({
-    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT",
-    "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
-    "BASH_ENV", "ENV", "ZDOTDIR", "NODE_OPTIONS",
-    "CLAUDE_CODE_MANAGED_SETTINGS_PATH",
-    "CLAUDE_CODE_REMOTE_SETTINGS_PATH",
-    "CLAUDE_CODE_MOCK_REMOTE_SETTINGS",
-    "CLAUDE_CODE_DISABLE_ADMIN_ENV_UNION",
-    "CLAUDE_CONFIG_DIR",
-    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
-    "USE_LOCAL_OAUTH",
-    "USE_STAGING_OAUTH",
-    "CLAUDE_LOCAL_OAUTH_API_BASE",
-})
+ALWAYS_PINNED = frozenset(
+    {
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "LD_AUDIT",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+        "DYLD_FRAMEWORK_PATH",
+        "BASH_ENV",
+        "ENV",
+        "ZDOTDIR",
+        "NODE_OPTIONS",
+        "CLAUDE_CODE_MANAGED_SETTINGS_PATH",
+        "CLAUDE_CODE_REMOTE_SETTINGS_PATH",
+        "CLAUDE_CODE_MOCK_REMOTE_SETTINGS",
+        "CLAUDE_CODE_DISABLE_ADMIN_ENV_UNION",
+        "CLAUDE_CONFIG_DIR",
+        "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+        "USE_LOCAL_OAUTH",
+        "USE_STAGING_OAUTH",
+        "CLAUDE_LOCAL_OAUTH_API_BASE",
+    }
+)
 
 # Launcher variables (pinned when policy names launcher)
-LAUNCHER_PINNED = frozenset({
-    "CLAUDE_CODE_PROCESS_WRAPPER",
-})
+LAUNCHER_PINNED = frozenset(
+    {
+        "CLAUDE_CODE_PROCESS_WRAPPER",
+    }
+)
 
 # Policy/settings source variables (always pinned)
-POLICY_SOURCE_PINNED = frozenset({
-    "CLAUDE_CODE_MANAGED_SETTINGS_PATH",
-    "CLAUDE_CODE_REMOTE_SETTINGS_PATH",
-    "CLAUDE_CODE_MOCK_REMOTE_SETTINGS",
-    "CLAUDE_CODE_DISABLE_ADMIN_ENV_UNION",
-    "CLAUDE_CONFIG_DIR",
-    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
-    "USE_LOCAL_OAUTH",
-    "USE_STAGING_OAUTH",
-    "CLAUDE_LOCAL_OAUTH_API_BASE",
-})
+POLICY_SOURCE_PINNED = frozenset(
+    {
+        "CLAUDE_CODE_MANAGED_SETTINGS_PATH",
+        "CLAUDE_CODE_REMOTE_SETTINGS_PATH",
+        "CLAUDE_CODE_MOCK_REMOTE_SETTINGS",
+        "CLAUDE_CODE_DISABLE_ADMIN_ENV_UNION",
+        "CLAUDE_CONFIG_DIR",
+        "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+        "USE_LOCAL_OAUTH",
+        "USE_STAGING_OAUTH",
+        "CLAUDE_LOCAL_OAUTH_API_BASE",
+    }
+)
 
 
 @dataclass
@@ -60,6 +73,7 @@ class PinnedEnvManager:
     def __post_init__(self):
         if self.config is None:
             from zcoder.config.production import load_config
+
             self.config = load_config()
 
     def set_managed_env(self, env: dict[str, str]):

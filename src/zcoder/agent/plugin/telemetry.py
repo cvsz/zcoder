@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TelemetryEvent:
     """A telemetry event to be sent."""
+
     event: str
     props: dict[str, Any]
     timestamp: float = field(default_factory=time.time)
@@ -29,6 +30,7 @@ class TelemetryEvent:
 @dataclass
 class TelemetryMark:
     """A feature mark to be sent."""
+
     feature: str
     kind: str  # ok, sad, bad
     reason: str | None = None
@@ -62,11 +64,13 @@ class TelemetryPlugin:
         if not self._validate_event_name(event):
             logger.warning(f"Invalid telemetry event name: {event}")
             return
-        self.event_queue.append(TelemetryEvent(
-            event=event,
-            props=props,
-            session_id=self.session_id,
-        ))
+        self.event_queue.append(
+            TelemetryEvent(
+                event=event,
+                props=props,
+                session_id=self.session_id,
+            )
+        )
         self._maybe_flush()
 
     def mark(self, feature: str, kind: str, reason: str | None = None, props: dict[str, Any] | None = None):
@@ -78,18 +82,21 @@ class TelemetryPlugin:
         if kind in ("sad", "bad") and not reason:
             raise ValueError(f"Reason required for {kind} mark")
 
-        self.mark_queue.append(TelemetryMark(
-            feature=feature,
-            kind=kind,
-            reason=reason,
-            props=props or {},
-            session_id=self.session_id,
-        ))
+        self.mark_queue.append(
+            TelemetryMark(
+                feature=feature,
+                kind=kind,
+                reason=reason,
+                props=props or {},
+                session_id=self.session_id,
+            )
+        )
         self._maybe_flush()
 
     def _validate_event_name(self, name: str) -> bool:
         """Validate event name is snake_case."""
         import re
+
         return bool(re.fullmatch(r"[a-z][a-z0-9_]*", name))
 
     def _maybe_flush(self):
@@ -123,6 +130,7 @@ class TelemetryPlugin:
 
     async def start_periodic_flush(self):
         """Start periodic flush task."""
+
         async def _flush_loop():
             while self.enabled:
                 await asyncio.sleep(self._flush_interval)

@@ -36,7 +36,7 @@ class TestPluginSystemIntegration:
             # Create a test plugin
             test_plugin = plugin_dir / "test_plugin"
             test_plugin.mkdir()
-            
+
             manifest = {
                 "name": "test_plugin",
                 "version": "1.0.0",
@@ -44,17 +44,13 @@ class TestPluginSystemIntegration:
                 "description": "Test plugin",
                 "hooks": {
                     "tool.call": [{"command": "on_tool_call", "matcher": "*"}],
-                    "pre_tool_use": [{"command": "on_pre_tool"}]
+                    "pre_tool_use": [{"command": "on_pre_tool"}],
                 },
-                "tools": {
-                    "test_tool": {"description": "A test tool"}
-                },
-                "commands": {
-                    "test_cmd": {"description": "Test command", "handler": "handle_test"}
-                }
+                "tools": {"test_tool": {"description": "A test tool"}},
+                "commands": {"test_cmd": {"description": "Test command", "handler": "handle_test"}},
             }
             (test_plugin / "manifest.json").write_text(json.dumps(manifest))
-            
+
             # Create hooks.py
             (test_plugin / "hooks.py").write_text("""
 def on_tool_call(args):
@@ -114,9 +110,7 @@ def handle_test(args):
                     "name": f"plugin_{tier_name}",
                     "version": "1.0.0",
                     "tier": tier_name,
-                    "hooks": {
-                        "tool.call": [{"command": f"hook_{tier_name}"}]
-                    }
+                    "hooks": {"tool.call": [{"command": f"hook_{tier_name}"}]},
                 }
                 (pdir / "manifest.json").write_text(json.dumps(manifest))
                 (pdir / "hooks.py").write_text(f"""
@@ -149,9 +143,7 @@ def hook_{tier_name}(args):
                 "name": "test_plugin",
                 "version": "1.0.0",
                 "tier": "user",
-                "hooks": {
-                    "pre_tool_use": [{"command": "on_pre_tool"}]
-                }
+                "hooks": {"pre_tool_use": [{"command": "on_pre_tool"}]},
             }
             (test_plugin / "manifest.json").write_text(json.dumps(manifest))
             (test_plugin / "hooks.py").write_text("""
@@ -184,9 +176,7 @@ def on_pre_tool(args):
                 "name": "org_plugin",
                 "version": "1.0.0",
                 "tier": "prepend",
-                "hooks": {
-                    "tool_check": [{"command": "org_tool_check"}]
-                }
+                "hooks": {"tool_check": [{"command": "org_tool_check"}]},
             }
             (org_plugin / "manifest.json").write_text(json.dumps(manifest))
             (org_plugin / "hooks.py").write_text("""
@@ -204,9 +194,7 @@ def org_tool_check(args):
                 "name": "user_plugin",
                 "version": "1.0.0",
                 "tier": "user",
-                "hooks": {
-                    "tool_check": [{"command": "user_tool_check"}]
-                }
+                "hooks": {"tool_check": [{"command": "user_tool_check"}]},
             }
             (user_plugin / "manifest.json").write_text(json.dumps(manifest))
             (user_plugin / "hooks.py").write_text("""
@@ -235,11 +223,7 @@ def user_tool_check(args):
             # Create plugin
             test_plugin = plugin_dir / "test_plugin"
             test_plugin.mkdir()
-            manifest = {
-                "name": "test_plugin",
-                "version": "1.0.0",
-                "tier": "user"
-            }
+            manifest = {"name": "test_plugin", "version": "1.0.0", "tier": "user"}
             (test_plugin / "manifest.json").write_text(json.dumps(manifest))
 
             loader = PluginLoader(plugin_dirs=[plugin_dir])
@@ -273,11 +257,7 @@ def user_tool_check(args):
 
             test_plugin = plugin_dir / "test_plugin"
             test_plugin.mkdir()
-            manifest = {
-                "name": "test_plugin",
-                "version": "1.0.0",
-                "tier": "user"
-            }
+            manifest = {"name": "test_plugin", "version": "1.0.0", "tier": "user"}
             (test_plugin / "manifest.json").write_text(json.dumps(manifest))
 
             loader = PluginLoader(plugin_dirs=[plugin_dir])
@@ -306,9 +286,7 @@ def user_tool_check(args):
                 "name": "test_plugin",
                 "version": "1.0.0",
                 "tier": "user",
-                "mcp_servers": {
-                    "user_server": {"command": "user_server.py"}
-                }
+                "mcp_servers": {"user_server": {"command": "user_server.py"}},
             }
             (test_plugin / "manifest.json").write_text(json.dumps(manifest))
 
@@ -322,20 +300,20 @@ def user_tool_check(args):
                 org_allowlist=["allowed_server"],
                 managed_servers=["managed_server"],
                 prepend_plugins=["org_prepend"],
-                append_plugins=["org_append"]
+                append_plugins=["org_append"],
             )
 
             # Test MCP registry directly (hooks are tested in unit tests)
             registry = mcp_control.registry
-            
+
             # Test user tier blocked for managed server
             allowed = registry.register_tool("mcp__managed_server__tool", "user", "managed_server")
             assert allowed is False
-            
+
             # Test user tier allowed for allowed server
             allowed = registry.register_tool("mcp__allowed_server__tool", "user", "allowed_server")
             assert allowed is True
-            
+
             # Test prepend tier always allowed
             allowed = registry.register_tool("mcp__any_server__tool", "prepend", "any_server")
             assert allowed is True
@@ -378,11 +356,7 @@ class TestPerformanceIntegration:
         plugin_manager = PluginManager()
         hook_bus = OptimizedHookBus(plugin_manager)
 
-        ctx = HookContext(
-            event=HookEvent.SESSION_START,
-            session_id="test",
-            cwd="/tmp"
-        )
+        ctx = HookContext(event=HookEvent.SESSION_START, session_id="test", cwd="/tmp")
 
         await hook_bus.fire(ctx)
         assert hook_bus.metrics.hook_dispatch_count == 1
@@ -404,6 +378,7 @@ class TestPerformanceIntegration:
         """Test global plugin system functions."""
         # Reset global state
         import zcoder.agent.plugin.performance as perf
+
         perf._global_initializer = None
 
         lazy_manager, hook_bus = await initialize_plugin_system()

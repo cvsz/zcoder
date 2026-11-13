@@ -16,6 +16,7 @@ class TestPromptCompositionHooks:
         """Create hooks fixture."""
         from zcoder.agent.plugin.hook_bus import HookBus
         from zcoder.agent.plugin.manager import PluginManager
+
         manager = PluginManager()
         bus = HookBus(manager)
         return create_prompt_composition_hooks(bus)

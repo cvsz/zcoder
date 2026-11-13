@@ -76,6 +76,7 @@ class TestTelemetryHooks:
         """Create hooks fixture."""
         from zcoder.agent.plugin.hook_bus import HookBus
         from zcoder.agent.plugin.manager import PluginManager
+
         manager = PluginManager()
         bus = HookBus(manager)
         plugin = create_telemetry_plugin(bus)

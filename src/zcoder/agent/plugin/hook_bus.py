@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from zcoder.agent.plugin.events import BLOCKING_EVENTS, HookEvent
-from zcoder.agent.plugin.loader import LoadedHook
-from zcoder.agent.plugin.manager import LoadedPlugin, PluginManager
+from zcoder.agent.plugin.loader import LoadedHook, LoadedPlugin
+from zcoder.agent.plugin.manager import PluginManager
 from zcoder.agent.plugin.tier import PluginTier
 
 logger = logging.getLogger(__name__)
@@ -25,17 +25,43 @@ _SAFE_ENV = frozenset(("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "USER", "SHEL
 
 # Shell operators that require shell=True
 _SHELL_OPS = frozenset("|&;$`><()")
-_SHELL_BUILTINS = frozenset({
-    "exit", "echo", "cd", "export", "unset", "alias", "unalias",
-    "source", "exec", "eval", "printf", "read", "test", "true", "false",
-    "type", "jobs", "fg", "bg", "kill", "wait", "trap", "umask", "ulimit",
-    "shift", "set", "shopt",
-})
+_SHELL_BUILTINS = frozenset(
+    {
+        "exit",
+        "echo",
+        "cd",
+        "export",
+        "unset",
+        "alias",
+        "unalias",
+        "source",
+        "exec",
+        "eval",
+        "printf",
+        "read",
+        "test",
+        "true",
+        "false",
+        "type",
+        "jobs",
+        "fg",
+        "bg",
+        "kill",
+        "wait",
+        "trap",
+        "umask",
+        "ulimit",
+        "shift",
+        "set",
+        "shopt",
+    }
+)
 
 
 @dataclass
 class HookContext:
     """Context passed to hooks."""
+
     event: HookEvent
     tool: str = ""
     args: dict[str, Any] = field(default_factory=dict)
@@ -50,6 +76,7 @@ class HookContext:
 @dataclass
 class HookResult:
     """Result of hook execution."""
+
     blocked: bool = False
     message: str = ""
     warnings: tuple[str, ...] = ()
@@ -61,15 +88,22 @@ class HookResult:
 class HookBus:
     """Event bus for hook dispatch with tier precedence."""
 
-    def __init__(self, plugin_manager: PluginManager):
+    def __init__(
+        self,
+        plugin_manager: PluginManager,
+        parallel_execution: bool = False,
+        max_concurrent_hooks: int = 10,
+    ):
         self.plugin_manager = plugin_manager
         self._hook_cache: dict[str, list[tuple[LoadedPlugin, LoadedHook]]] = {}
         self._builtin_hooks: dict[str, list[tuple[PluginTier, Any]]] = {}  # event -> list of (tier, handler)
         self._trace: list[tuple[PluginTier, HookEvent, str]] = []  # For deny-rules-hold
+        self._parallel_execution = parallel_execution
+        self._max_concurrent_hooks = max_concurrent_hooks
 
     def register(self, event: HookEvent, handler: Any, tier: PluginTier = PluginTier.BUILTIN) -> None:
         """Register a built-in hook handler.
-        
+
         Built-in hooks run at the specified tier (default BUILTIN).
         """
         event_name = event.value
@@ -88,11 +122,11 @@ class HookBus:
         # Get plugin hooks
         plugin_hooks = self._get_cached_hooks(event)
         all_hooks = [(PluginTier.from_string(p.manifest.tier), h) for p, h in plugin_hooks]
-        
+
         # Add builtin hooks
         if event in self._builtin_hooks:
             all_hooks.extend(self._builtin_hooks[event])
-        
+
         # Sort by tier precedence (lower value = higher precedence)
         all_hooks.sort(key=lambda x: x[0].value)
         return all_hooks
@@ -102,7 +136,12 @@ class HookBus:
         self._hook_cache.clear()
 
     async def fire(self, context: HookContext) -> HookResult:
-        """Fire hooks for an event with tier precedence and deny-rules-hold."""
+        """Fire hooks for an event with tier precedence and deny-rules-hold.
+
+        Supports both sequential and parallel execution. When parallel_execution
+        is enabled, hooks at the same tier are executed concurrently (up to
+        max_concurrent_hooks limit), while maintaining tier precedence order.
+        """
         self._trace.clear()
         hooks = self._get_all_hooks(context.event.value)
         if not hooks:
@@ -115,27 +154,119 @@ class HookBus:
         deny_reason = None
         continue_past_user = False
 
-        # First pass: run all hooks in tier order
-        for tier, hook in hooks:
-            self._trace.append((tier, context.event, "builtin" if tier == PluginTier.BUILTIN else ""))
+        if self._parallel_execution:
+            # Group hooks by tier
+            hooks_by_tier: dict[PluginTier, list[tuple[PluginTier, Any]]] = {}
+            for tier, hook in self._get_all_hooks(context.event.value):
+                hooks_by_tier.setdefault(tier, []).append((tier, hook))
 
-            try:
-                result = await self._run_hook(hook, context, tier)
-                if result.blocked:
-                    blocked = True
-                    message = result.message or "Blocked by hook"
-                    deny_reason = result.deny_reason
-                    break
-                if result.warnings:
-                    warnings.extend(result.warnings)
-                if result.modified_args:
-                    modified_args = result.modified_args
-                if result.continue_past_user_tier:
-                    continue_past_user = True
-            except Exception as e:
-                logger.error(f"Hook error: {context.event}: {e}")
-                if context.event in BLOCKING_EVENTS:
-                    warnings.append(f"Hook error: {e}")
+            # Process tiers in precedence order
+            for tier in sorted(hooks_by_tier.keys(), key=lambda t: t.value):
+                tier_hooks = hooks_by_tier[tier]
+                self._trace.extend(
+                    (tier, context.event, "builtin" if tier == PluginTier.BUILTIN else "") for _ in tier_hooks
+                )
+
+                if len(tier_hooks) == 1:
+                    # Single hook at this tier - run sequentially
+                    tier, hook = tier_hooks[0]
+                    try:
+                        result = await self._run_hook(hook, context, tier)
+                        self._trace.append(
+                            (tier, context.event, "builtin" if tier == PluginTier.BUILTIN else "")
+                        )
+                        if result.blocked:
+                            return HookResult(
+                                blocked=True,
+                                message=result.message or "Blocked by hook",
+                                deny_reason=result.deny_reason,
+                            )
+                        if result.warnings:
+                            warnings.extend(result.warnings)
+                        if result.modified_args:
+                            modified_args = result.modified_args
+                        if result.continue_past_user_tier:
+                            continue_past_user = True
+                    except Exception as e:
+                        logger.error(f"Hook error: {context.event}: {e}")
+                        if context.event in BLOCKING_EVENTS:
+                            warnings.append(f"Hook error: {e}")
+                    if blocked:
+                        break
+                else:
+                    # Multiple hooks at same tier - run in parallel
+                    semaphore = asyncio.Semaphore(self._max_concurrent_hooks)
+
+                    async def run_hook_with_semaphore(
+                        tier: PluginTier, hook: Any, _semaphore: asyncio.Semaphore = semaphore
+                    ) -> HookResult:
+                        async with _semaphore:
+                            self._trace.append(
+                                (tier, context.event, "builtin" if tier == PluginTier.BUILTIN else "")
+                            )
+                            try:
+                                return await self._run_hook(hook, context, tier)
+                            except Exception as e:
+                                logger.error(f"Hook error: {context.event}: {e}")
+                                if context.event in BLOCKING_EVENTS:
+                                    warnings.append(f"Hook error: {e}")
+                                return HookResult(
+                                    blocked=(context.event in BLOCKING_EVENTS),
+                                    message=f"Hook error: {e}",
+                                    deny_reason="hook_error",
+                                )
+
+                    # Run all hooks at this tier in parallel
+                    tasks = [run_hook_with_semaphore(tier, hook) for tier, hook in tier_hooks]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                    # Process results
+                    for item in results:
+                        if isinstance(item, BaseException):
+                            logger.error(f"Hook execution failed: {result}")
+                            if context.event in BLOCKING_EVENTS:
+                                warnings.append(f"Hook execution failed: {result}")
+                            continue
+
+                        # Type narrowing: after the isinstance check, result is HookResult
+                        hook_result: HookResult = result
+
+                        if hook_result.blocked:
+                            blocked = True
+                            message = result.message or "Blocked by hook"
+                            deny_reason = result.deny_reason
+                            break
+                        if result.warnings:
+                            warnings.extend(result.warnings)
+                        if result.modified_args:
+                            modified_args = result.modified_args
+                        if result.continue_past_user_tier:
+                            continue_past_user = True
+
+                    if blocked:
+                        break
+        else:
+            # Sequential execution (original behavior)
+            for tier, hook in self._get_all_hooks(context.event.value):
+                self._trace.append((tier, context.event, "builtin" if tier == PluginTier.BUILTIN else ""))
+
+                try:
+                    result = await self._run_hook(hook, context, tier)
+                    if result.blocked:
+                        blocked = True
+                        message = result.message or "Blocked by hook"
+                        deny_reason = result.deny_reason
+                        break
+                    if result.warnings:
+                        warnings.extend(result.warnings)
+                    if result.modified_args:
+                        modified_args = result.modified_args
+                    if result.continue_past_user_tier:
+                        continue_past_user = True
+                except Exception as e:
+                    logger.error(f"Hook error: {context.event}: {e}")
+                    if context.event in BLOCKING_EVENTS:
+                        warnings.append(f"Hook error: {e}")
 
         # Deny-rules-hold: if user-tier plugin rewrote a blocking decision,
         # re-run without user tier and compare
@@ -213,7 +344,7 @@ class HookBus:
         tier: PluginTier,
     ) -> HookResult:
         """Run a single hook with timeout and env sanitization.
-        
+
         Args:
             hook: Either a LoadedHook (plugin hook) or a callable (builtin hook)
             context: Hook execution context
@@ -231,6 +362,7 @@ class HookBus:
 
         # Check if it's a LoadedHook (plugin hook) or a builtin callable
         from zcoder.agent.plugin.loader import LoadedHook
+
         is_loaded_hook = isinstance(hook, LoadedHook)
 
         if is_loaded_hook:
@@ -246,10 +378,12 @@ class HookBus:
 
             # Build sanitized environment
             env = {k: os.environ[k] for k in _SAFE_ENV if k in os.environ}
-            env.update({
-                "ZCODER_HOOK_EVENT": context.event.value,
-                "ZCODER_PROJECT_DIR": context.cwd,
-            })
+            env.update(
+                {
+                    "ZCODER_HOOK_EVENT": context.event.value,
+                    "ZCODER_PROJECT_DIR": context.cwd,
+                }
+            )
             if context.tool:
                 env["ZCODER_TOOL_NAME"] = context.tool
 
@@ -285,7 +419,7 @@ class HookBus:
             stderr = process.stderr.strip()
 
             # Blocking events: non-zero exit = block
-            blocked = (context.event in BLOCKING_EVENTS and returncode != 0)
+            blocked = context.event in BLOCKING_EVENTS and returncode != 0
 
             if blocked:
                 return HookResult(
@@ -312,7 +446,7 @@ class HookBus:
                     result = await hook(context)
                 else:
                     result = hook(context)
-                
+
                 if not isinstance(result, HookResult):
                     return HookResult(
                         blocked=False,
@@ -330,29 +464,35 @@ class HookBus:
 
     # Convenience methods for common events
     async def session_start(self, session_id: str, cwd: str) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.SESSION_START,
-            session_id=session_id,
-            cwd=cwd,
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.SESSION_START,
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
 
     async def user_prompt_submit(self, prompt: str, session_id: str, cwd: str) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.USER_PROMPT_SUBMIT,
-            session_id=session_id,
-            cwd=cwd,
-            args={"prompt": prompt},
-            extra={"prompt": prompt},
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.USER_PROMPT_SUBMIT,
+                session_id=session_id,
+                cwd=cwd,
+                args={"prompt": prompt},
+                extra={"prompt": prompt},
+            )
+        )
 
     async def pre_tool_use(self, tool: str, args: dict[str, Any], session_id: str, cwd: str) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.PRE_TOOL_USE,
-            tool=tool,
-            args=args,
-            session_id=session_id,
-            cwd=cwd,
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.PRE_TOOL_USE,
+                tool=tool,
+                args=args,
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
 
     async def post_tool_use(
         self,
@@ -363,36 +503,360 @@ class HookBus:
         session_id: str,
         cwd: str,
     ) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.POST_TOOL_USE,
-            tool=tool,
-            args=args,
-            session_id=session_id,
-            cwd=cwd,
-            extra={"output": output[:4000], "is_error": is_error},
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.POST_TOOL_USE,
+                tool=tool,
+                args=args,
+                session_id=session_id,
+                cwd=cwd,
+                extra={"output": output[:4000], "is_error": is_error},
+            )
+        )
 
     async def tool_check(self, tool: str, args: dict[str, Any], session_id: str, cwd: str) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.TOOL_CHECK,
-            tool=tool,
-            args=args,
-            session_id=session_id,
-            cwd=cwd,
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.TOOL_CHECK,
+                tool=tool,
+                args=args,
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
 
     async def env_get(self, name: str, session_id: str, cwd: str) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.ENV_GET,
-            args={"name": name},
-            session_id=session_id,
-            cwd=cwd,
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.ENV_GET,
+                args={"name": name},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
 
     async def env_set(self, name: str, value: str, session_id: str, cwd: str) -> HookResult:
-        return await self.fire(HookContext(
-            event=HookEvent.ENV_SET,
-            args={"name": name, "value": value},
-            session_id=session_id,
-            cwd=cwd,
-        ))
+        return await self.fire(
+            HookContext(
+                event=HookEvent.ENV_SET,
+                args={"name": name, "value": value},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Filesystem hooks
+    async def fs_read(self, path: str, session_id: str, cwd: str, encoding: str = "utf-8") -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.FS_READ,
+                args={"path": path, "encoding": encoding},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def fs_write(
+        self, path: str, content: str, session_id: str, cwd: str, encoding: str = "utf-8"
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.FS_WRITE,
+                args={"path": path, "content": content, "encoding": encoding},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def fs_list(self, path: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.FS_LIST,
+                args={"path": path},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def fs_stat(self, path: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.FS_STAT,
+                args={"path": path},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - HTTP hooks
+    async def http_fetch(
+        self,
+        url: str,
+        session_id: str,
+        cwd: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: str | None = None,
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.HTTP_FETCH,
+                args={"url": url, "method": method, "headers": headers or {}, "body": body},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Process hooks
+    async def process_run(
+        self,
+        command: str,
+        session_id: str,
+        cwd: str,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.PROCESS_RUN,
+                args={"command": command, "args": args or [], "env": env or {}},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Clock hooks
+    async def clock_after(self, duration: float, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CLOCK_AFTER,
+                args={"duration": duration},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def clock_every(self, interval: float, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CLOCK_EVERY,
+                args={"interval": interval},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def clock_now(self, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CLOCK_NOW,
+                args={},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def clock_sleep(self, duration: float, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CLOCK_SLEEP,
+                args={"duration": duration},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Store hooks
+    async def store_get(self, key: str, session_id: str, cwd: str, namespace: str = "default") -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.STORE_GET,
+                args={"key": key, "namespace": namespace},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def store_set(
+        self,
+        key: str,
+        value: str,
+        session_id: str,
+        cwd: str,
+        namespace: str = "default",
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.STORE_SET,
+                args={"key": key, "value": value, "namespace": namespace},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def store_delete(
+        self, key: str, session_id: str, cwd: str, namespace: str = "default"
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.STORE_DELETE,
+                args={"key": key, "namespace": namespace},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Config hooks
+    async def config_read(self, key: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CONFIG_READ,
+                args={"key": key},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def config_write(self, key: str, value: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CONFIG_WRITE,
+                args={"key": key, "value": value},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Model hooks
+    async def model_call(
+        self,
+        provider: str,
+        model: str,
+        prompt: str,
+        session_id: str,
+        cwd: str,
+        options: dict[str, Any] | None = None,
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.MODEL_CALL,
+                args={"provider": provider, "model": model, "prompt": prompt, "options": options or {}},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F06 - Audio hooks
+    async def audio_call(
+        self,
+        operation: str,
+        session_id: str,
+        cwd: str,
+        input_data: str | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.AUDIO_CALL,
+                args={"operation": operation, "input_data": input_data, "options": options or {}},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    # F05-21 to F05-27 - Additional lifecycle events
+    async def instructions_loaded(self, instructions: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.INSTRUCTIONS_LOADED,
+                args={"instructions": instructions},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def cwd_changed(self, old_cwd: str, new_cwd: str, session_id: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.CWD_CHANGED,
+                args={"old_cwd": old_cwd, "new_cwd": new_cwd},
+                session_id=session_id,
+                cwd=new_cwd,
+            )
+        )
+
+    async def file_changed(self, path: str, change_type: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.FILE_CHANGED,
+                args={"path": path, "change_type": change_type},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def directory_added(self, path: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.DIRECTORY_ADDED,
+                args={"path": path},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def pre_model_switch(
+        self,
+        old_provider: str,
+        old_model: str,
+        new_provider: str,
+        new_model: str,
+        session_id: str,
+        cwd: str,
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.PRE_MODEL_SWITCH,
+                args={
+                    "old_provider": old_provider,
+                    "old_model": old_model,
+                    "new_provider": new_provider,
+                    "new_model": new_model,
+                },
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def post_model_switch(
+        self,
+        old_provider: str,
+        old_model: str,
+        new_provider: str,
+        new_model: str,
+        session_id: str,
+        cwd: str,
+    ) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.POST_MODEL_SWITCH,
+                args={
+                    "old_provider": old_provider,
+                    "old_model": old_model,
+                    "new_provider": new_provider,
+                    "new_model": new_model,
+                },
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )
+
+    async def message_display(self, message: str, message_type: str, session_id: str, cwd: str) -> HookResult:
+        return await self.fire(
+            HookContext(
+                event=HookEvent.MESSAGE_DISPLAY,
+                args={"message": message, "message_type": message_type},
+                session_id=session_id,
+                cwd=cwd,
+            )
+        )

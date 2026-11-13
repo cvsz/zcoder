@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DiffHunk:
     """A single diff hunk."""
+
     old_start: int
     old_count: int
     new_start: int
@@ -26,6 +27,7 @@ class DiffHunk:
 @dataclass
 class DiffFile:
     """A file with diffs."""
+
     path: str
     status: str  # added, modified, deleted, renamed
     hunks: list[DiffHunk] = field(default_factory=list)
@@ -35,6 +37,7 @@ class DiffFile:
 @dataclass
 class DiffPane:
     """Diff pane state for docked or dialog mode."""
+
     repo_path: str
     session_id: str
     base: str = "HEAD"
@@ -171,6 +174,7 @@ class UIPaneManager:
     async def _fetch_diff(self, repo_path: str) -> list[DiffFile]:
         """Fetch git diff for repo."""
         import subprocess
+
         try:
             # Get file list with status
             result = subprocess.run(
@@ -221,6 +225,7 @@ class UIPaneManager:
             if line.startswith("@@"):
                 # Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
                 import re
+
                 match = re.match(r"@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@", line)
                 if match:
                     old_start = int(match.group(1))
@@ -236,13 +241,15 @@ class UIPaneManager:
                         i += 1
                     i -= 1  # Adjust for outer loop
 
-                    hunks.append(DiffHunk(
-                        old_start=old_start,
-                        old_count=old_count,
-                        new_start=new_start,
-                        new_count=new_count,
-                        lines=hunk_lines,
-                    ))
+                    hunks.append(
+                        DiffHunk(
+                            old_start=old_start,
+                            old_count=old_count,
+                            new_start=new_start,
+                            new_count=new_count,
+                            lines=hunk_lines,
+                        )
+                    )
             i += 1
         return hunks
 

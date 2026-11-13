@@ -124,6 +124,7 @@ class TestUIPaneManager:
         """Test creating a pane."""
         from zcoder.agent.plugin.hook_bus import HookBus
         from zcoder.agent.plugin.manager import PluginManager
+
         manager = PluginManager()
         bus = HookBus(manager)
         pane_manager = UIPaneManager(bus)

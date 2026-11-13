@@ -128,6 +128,7 @@ class TestMCPControlHooks:
         """Create MCP control fixture."""
         from zcoder.agent.plugin.hook_bus import HookBus
         from zcoder.agent.plugin.manager import PluginManager
+
         manager = PluginManager()
         bus = HookBus(manager)
         mcp_control = create_mcp_control(

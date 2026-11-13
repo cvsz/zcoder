@@ -6,10 +6,14 @@ hook/tool/command modules for execution.
 
 import importlib.util
 import logging
+import shutil
+import subprocess  # nosec B404 - git operations with validated input
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from zcoder.agent.plugin.manifest import HookConfig, PluginManifest
 
@@ -55,7 +59,7 @@ class LoadedPlugin:
 
 
 class PluginLoader:
-    """Loads plugins from directories."""
+    """Loads plugins from directories and git repositories."""
 
     DEFAULT_PLUGIN_DIRS = [
         Path.home() / ".zcoder" / "plugins",
@@ -66,6 +70,70 @@ class PluginLoader:
     def __init__(self, plugin_dirs: list[Path] | None = None):
         self.plugin_dirs = plugin_dirs or self.DEFAULT_PLUGIN_DIRS
         self._builtin_plugins_dir = Path(__file__).parent.parent.parent / "plugins"
+        self._git_cache_dir = Path.home() / ".zcoder" / "plugin-cache"
+
+    def _is_git_url(self, url: str) -> bool:
+        """Check if a string is a git repository URL."""
+        parsed = urlparse(url)
+        return parsed.scheme in ("git", "http", "https", "ssh") or url.endswith(".git")
+
+    def _clone_git_repo(self, url: str, target_dir: Path, branch: str | None = None, depth: int = 1) -> Path:
+        """Clone a git repository to a target directory."""
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+
+        # Use cache directory for git operations
+        self._git_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate cache key from URL
+        cache_key = url.replace("://", "_").replace("/", "_").replace(".", "_").replace("@", "_")
+        cache_dir = self._git_cache_dir / cache_key
+
+        if cache_dir.exists():
+            # Update existing cache
+            logger.info(f"Updating cached git repo: {url}")
+            subprocess.run(
+                ["git", "-C", str(cache_dir), "fetch", "--all", "--tags"],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
+        else:
+            # Clone with depth for faster operation
+            logger.info(f"Cloning git repo: {url}")
+            clone_cmd = ["git", "clone", "--depth", str(depth)]
+            if branch:
+                clone_cmd.extend(["--branch", branch])
+            clone_cmd.extend([url, str(cache_dir)])
+            subprocess.run(clone_cmd, check=True, capture_output=True, timeout=120)
+
+        # Copy from cache to target directory
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
+        shutil.copytree(cache_dir, target_dir)
+
+        # Checkout specific branch if provided
+        if branch:
+            subprocess.run(
+                ["git", "-C", str(target_dir), "checkout", branch],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+
+        return target_dir
+
+    def load_from_git(self, url: str, branch: str | None = None, depth: int = 1) -> LoadedPlugin:
+        """Load a plugin from a git repository URL."""
+        if not self._is_git_url(url):
+            raise ValueError(f"Not a valid git URL: {url}")
+
+        # Create temporary directory for the plugin
+        with tempfile.TemporaryDirectory(prefix="zcoder-plugin-") as tmpdir:
+            plugin_path = Path(tmpdir) / "plugin"
+            self._clone_git_repo(url, plugin_path, branch, depth)
+
+            # Load the plugin from the cloned directory
+            return self.load_from_directory(plugin_path)
 
     def load_manifest(self, plugin_path: Path) -> PluginManifest:
         """Load and validate plugin manifest."""

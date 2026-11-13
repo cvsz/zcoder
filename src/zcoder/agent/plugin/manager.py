@@ -23,9 +23,22 @@ class PluginManager:
     _plugins_by_name: dict[str, LoadedPlugin] = field(default_factory=dict)
     _loaded: bool = False
 
+    # Enterprise allowlist/blocklist configuration
+    allowlist: list[str] = field(default_factory=list)
+    blocklist: list[str] = field(default_factory=list)
+    allow_git_plugins: bool = True
+
     def __post_init__(self):
         for tier in PluginTier:
             self._plugins_by_tier[tier] = []
+
+    def _is_allowed(self, plugin_name: str) -> bool:
+        """Check if a plugin is allowed based on allowlist/blocklist."""
+        if self.blocklist and plugin_name in self.blocklist:
+            return False
+        if self.allowlist and plugin_name not in self.allowlist:
+            return False
+        return True
 
     def load_all(self) -> None:
         """Discover and load all plugins."""
@@ -35,12 +48,15 @@ class PluginManager:
         loaded_plugins = self.loader.load_all_plugins()
 
         for plugin in loaded_plugins:
+            if not self._is_allowed(plugin.manifest.name):
+                logger.info(f"Plugin {plugin.manifest.name} blocked by allowlist/blocklist policy")
+                continue
             tier = PluginTier.from_string(plugin.manifest.tier)
             self._plugins_by_tier[tier].append(plugin)
             self._plugins_by_name[plugin.manifest.name] = plugin
 
         self._loaded = True
-        logger.info(f"Plugin manager loaded {len(loaded_plugins)} plugins")
+        logger.info(f"Plugin manager loaded {len(self._plugins_by_name)} plugins")
 
     def _ensure_loaded(self) -> None:
         """Ensure plugins are loaded (lazy loading)."""
@@ -152,3 +168,24 @@ class PluginManager:
             stats["total_tools"] += tier_stats["tools"]
             stats["total_commands"] += tier_stats["commands"]
         return stats
+
+    def load_from_git(self, url: str, branch: str | None = None, depth: int = 1) -> LoadedPlugin | None:
+        """Load a plugin from a git repository URL."""
+        if not self.allow_git_plugins:
+            logger.warning(f"Git plugin loading is disabled, skipping {url}")
+            return None
+
+        if not self._is_allowed("git-plugin"):
+            logger.info(f"Git plugin from {url} blocked by allowlist/blocklist policy")
+            return None
+
+        try:
+            plugin = self.loader.load_from_git(url, branch=branch, depth=depth)
+            tier = PluginTier.from_string(plugin.manifest.tier)
+            self._plugins_by_tier[tier].append(plugin)
+            self._plugins_by_name[plugin.manifest.name] = plugin
+            logger.info(f"Loaded git plugin: {plugin.manifest.name} from {url}")
+            return plugin
+        except Exception as e:
+            logger.error(f"Failed to load git plugin from {url}: {e}")
+            raise

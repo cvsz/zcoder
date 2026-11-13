@@ -103,7 +103,9 @@ class SettingsPolicyHooks:
         )
 
 
-def create_settings_policy_hooks(hook_bus: HookBus, config: ProductionConfig | None = None) -> SettingsPolicyHooks:
+def create_settings_policy_hooks(
+    hook_bus: HookBus, config: ProductionConfig | None = None
+) -> SettingsPolicyHooks:
     """Create settings policy hooks."""
     reader = SettingsPolicyReader(config=config)
     return SettingsPolicyHooks(reader=reader, hook_bus=hook_bus)
