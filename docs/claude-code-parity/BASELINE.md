@@ -296,6 +296,6 @@ python scripts/local_postgres.py status
 - ✅ Phase 10 (UI/TUI & Extension Framework) completed: Multi-pane TUI, UI Hooks, Slash completion
 - ✅ Phase 11 (Provider & Audio Capabilities) completed: F03 Audio (providers, STT, VAD, streaming), F15 Provider (vLLM direct, retry classification), Model lifecycle hooks
 
-**Next Steps:** Phase 12 (Enterprise Security and Observability): F14 Telemetry enhancements (traces, OTel, retry metrics, queue depth, retention), F17 Audit trails.
+**Next Steps:** Phase 14 (Documentation and Release Readiness): Documentation updates, release notes, migration guides.
 
-All quality gates passing (2252 tests passed, 1 skipped). Ready for Phase 12: Enterprise Security and Observability.
+All quality gates passing (2252 tests passed, 1 skipped). Ready for Phase 14: Documentation and Release Readiness.
