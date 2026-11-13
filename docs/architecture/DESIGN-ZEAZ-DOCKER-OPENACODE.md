@@ -4,22 +4,22 @@
 
 This design integrates:
 1. **OpenCode Zen free models** (via Docker Model Runner)
-2. **zcoder existing GGUF models** (Qwen 1.5B and 7B)
+2. **zcoder existing GGUF models (1.5B, 7B and 32B)
 3. **Docker Model Runner** for local model execution
 4. **zcoder LLM pipeline** for agent operations
 
 ## Existing zcoder GGUF Models
 
-The repository already ships with quantized Qwen models:
+The repository already ships with quantized ZCoder GGUF models:
 
 | Model File | Parameters | Quantization | Description |
 |---|---|---|---|
-| `models/qwen-1.5b-q4km.gguf` | 1.5B | Q4_K_M | Fast local coding and script generation |
-| `models/qwen-7b-q4km.gguf` | 7B | Q4_K_M | Top-tier code intelligence and advanced media scripting |
+| `/zdata/models/zcoder-1.5b-q4km.gguf` | 1.5B | Q4_K_M | Fast local coding and script generation |
+| `/zdata/models/zcoder-7b-q4km.gguf` | 7B | Q4_K_M | Top-tier code intelligence and advanced media scripting |
 
 **Configuration** (`src/zgpu/models_config.json`):
-- `qwen2.5-coder-1.5b`: `qwen-1.5b-q4km.gguf`, Q4_K_M
-- `qwen2.5-coder-7b`: `qwen-7b-q4km.gguf`, Q4_K_M
+- `zcoder-1.5b`: `zcoder-1.5b-q4km.gguf`, Q4_K_M
+- `zcoder-7b`: `zcoder-7b-q4km.gguf`, Q4_K_M
 
 ## Docker Model Runner Integration
 
@@ -31,12 +31,12 @@ docker model pull hf.co/bartowski/Qwen2.5-Coder-1.5B-GGUF
 docker model pull hf.co/bartowski/Qwen2.5-Coder-7B-GGUF
 
 # Or tag and use locally
-docker model tag hf.co/bartowski/Qwen2.5-Coder-1.5B-GGUF ai/qwen2.5-coder-1.5b
-docker model tag hf.co/bartowski/Qwen2.5-Coder-7B-GGUF ai/qwen2.5-coder-7b
+docker model tag hf.co/bartowski/Qwen2.5-Coder-1.5B-GGUF ai/zcoder-1.5b
+docker model tag hf.co/bartowski/Qwen2.5-Coder-7B-GGUF ai/zcoder-7b
 
 # Run interactively
-docker model run ai/qwen2.5-coder-1.5b "Write a Python function for Fibonacci"
-docker model run ai/qwen2.5-coder-7b "Analyze this codebase for security issues"
+docker model run ai/zcoder-1.5b "Write a Python function for Fibonacci"
+docker model run ai/zcoder-7b "Analyze this codebase for security issues"
 ```
 
 ### DMR with OpenCode Zen Free Models
@@ -58,10 +58,10 @@ Map the zeaz repository names to actual model configurations:
 | zeaz-* | Mapped Model | Provider | Use Case |
 |---|---|---|---|
 | `zeaz-auto` | `ai/devstral-small-2` | dmr | Auto-coding, task decomposition |
-| `zeaz-coder` | `ai/qwen2.5-coder-1.5b` | dmr | Code generation, completion (fast) |
-| `zeaz-coder` | `ai/qwen2.5-coder-7b` | dmr | Advanced code intelligence (preferred) |
+| `zeaz-coder` | `ai/zcoder-1.5b` | dmr | Code generation, completion (fast) |
+| `zeaz-coder` | `ai/zcoder-7b` | dmr | Advanced code intelligence (preferred) |
 | `zeaz-free` | Any OpenCode Zen `-free` model | opencode-zen | No-cost inference |
-| `zeaz-local` | `ai/qwen2.5-coder-1.5b` (GGUF) | dmr | Local-only, privacy-focused |
+| `zeaz-local` | `ai/zcoder-1.5b` (GGUF) | dmr | Local-only, privacy-focused |
 | `zeaz-reasoning` | `ai/thoughtworks-qwq-32b` or `nemotron-3.5-lightning-free` | dmr | Complex reasoning, code analysis |
 
 ## OpenCode Configuration Design
@@ -86,7 +86,7 @@ Map the zeaz repository names to actual model configurations:
           "temperature": 0.7
         },
         "zeaz-coder": {
-          "name": "ai/qwen2.5-coder-7b",
+          "name": "ai/zcoder-7b",
           "max_tokens": 32768,
           "temperature": 0.3
         },
@@ -95,7 +95,7 @@ Map the zeaz repository names to actual model configurations:
           "description": "OpenCode Zen free model"
         },
         "zeaz-local": {
-          "name": "ai/qwen2.5-coder-1.5b",
+          "name": "ai/zcoder-1.5b",
           "description": "zcoder GGUF model (local)"
         },
         "zeaz-reasoning": {
@@ -117,7 +117,7 @@ Start the zcoder LLM server with existing GGUF models:
 cd /home/cvsz/zcoder
 python -m zcoder.scripts.docker_entrypoint.py \
   python -m zcoder.main llm-server \
-  --model qwen2.5-coder-7b \
+  --model zcoder-7b \
   --quantization Q4_K_M
 ```
 
@@ -125,7 +125,7 @@ Or use the existing server.py:
 
 ```bash
 python -m zcoder.src.zgpu.llm.server \
-  --model-path models/qwen-7b-q4km.gguf \
+  --model-path /zdata/models/zcoder-7b-q4km.gguf \
   --quantization Q4_K_M \
   --host 0.0.0.0 \
   --port 8000
@@ -158,7 +158,7 @@ services:
   zcoder-llm:
     build: .
     environment:
-      - ZCODER_LLM_MODEL=qwen2.5-coder-7b
+      - ZCODER_LLM_MODEL=zcoder-7b
       - ZCODER_LLM_QUANTIZATION=Q4_K_M
     depends_on:
       - model-runner
@@ -187,8 +187,8 @@ The z-platform was extracted from `cvsz/zeaz-platform` with these key integratio
 
 | Model | VRAM Required | Cost | Use Case |
 |---|---|---|---|
-| `qwen-1.5b-q4km.gguf` | ~2 GB | Free (local) | Fast coding, script generation |
-| `qwen-7b-q4km.gguf` | ~14 GB | Free (local) | Top-tier code intelligence |
+| `zcoder-1.5b-q4km.gguf` | ~2 GB | Free (local) | Fast coding, script generation |
+| `zcoder-7b-q4km.gguf` | ~14 GB | Free (local) | Top-tier code intelligence |
 | `deepseek-v4-flash-free` | ~8 GB | Free (OpenCode Zen) | General coding, chat |
 | `devstral-small-2` | ~4 GB | Free (OpenCode Zen) | Fast coding agent |
 | `nemotron-3.5-lightning-free` | ~12 GB | Free (OpenCode Zen) | Reasoning, code analysis |
@@ -198,7 +198,7 @@ The z-platform was extracted from `cvsz/zeaz-platform` with these key integratio
 ```bash
 # 1. Enable Docker Model Runner in Docker Desktop
 # 2. Pull models
-docker model pull ai/qwen2.5-coder-7b
+docker model pull ai/zcoder-7b
 docker model pull ai/devstral-small-2
 docker model pull deepseek-v4-flash-free
 
@@ -209,12 +209,12 @@ docker model pull deepseek-v4-flash-free
 opencode
 
 # 5. Select model
-# /models → select dmr/zeaz-coder (qwen2.5-coder-7b)
+# /models → select dmr/zeaz-coder (zcoder-7b)
 # Or: /models → select dmr/zeaz-free (deepseek-v4-flash-free)
 
 # 6. Or use zcoder local GGUF server
 python -m zcoder.src.zgpu.llm.server \
-  --model-path models/qwen-7b-q4km.gguf \
+  --model-path /zdata/models/zcoder-7b-q4km.gguf \
   --port 8000
 ```
 
