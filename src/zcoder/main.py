@@ -752,6 +752,12 @@ def build_parser():
         dest="list_models_legacy",
         help="Include superseded (still-callable) models in --list-models' offline view",
     )
+    mo.add_argument(
+        "--list-providers",
+        action="store_true",
+        dest="list_providers",
+        help="List all known AI providers with their capabilities",
+    )
     mo.add_argument("--model-info", metavar="ID", dest="model_info")
     mo.add_argument(
         "--check-deprecated",
@@ -2307,6 +2313,13 @@ def build_parser():
     co.add_argument("--force-model", default=None, dest="force_model")
     co.add_argument("--cost-summary", action="store_true", dest="cost_summary")
     co.add_argument("--cost-reset", action="store_true", dest="cost_reset")
+    co.add_argument(
+        "--cost-estimate",
+        nargs=3,
+        metavar=("PROVIDER", "INPUT_TOKENS", "OUTPUT_TOKENS"),
+        dest="cost_estimate",
+        help="Estimate cost for a provider given input and output token counts",
+    )
 
     po = p.add_argument_group("Prompt Optimizer")
     po.add_argument(
@@ -3276,6 +3289,12 @@ def main():
 
         cmd_cost_reset()
         return
+    if args.cost_estimate:
+        from zcoder.agent.models.registry import cmd_cost_estimate
+
+        provider, input_tokens, output_tokens = args.cost_estimate
+        cmd_cost_estimate(provider, int(input_tokens), int(output_tokens))
+        return
     if args.metrics_show:
         from zcoder.agent.enterprise.metrics import cmd_metrics_show
 
@@ -3442,6 +3461,11 @@ def main():
         from zcoder.agent.models.registry import cmd_list_models
 
         cmd_list_models(key, include_legacy=getattr(args, "list_models_legacy", False))
+        return
+    if args.list_providers:
+        from zcoder.agent.models.registry import cmd_list_providers
+
+        cmd_list_providers()
         return
     if args.model_info:
         from zcoder.agent.models.registry import cmd_model_info
