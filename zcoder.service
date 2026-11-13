@@ -13,7 +13,7 @@ WorkingDirectory=/home/cvsz/zcoder
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=-/home/cvsz/zcoder/.env
 Environment=ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-Environment=ZCODER_MODEL=qwen-7b-q4km
+Environment=ZCODER_MODEL=zcoder-7b-q4km
 Environment=ZCODER_CTX_SIZE=4096
 Environment=ZCODER_POSTGRES_HOST=zpostgresql
 Environment=ZCODER_POSTGRES_PORT=5432
