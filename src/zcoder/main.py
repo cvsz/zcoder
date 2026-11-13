@@ -743,6 +743,12 @@ def build_parser():
     ci.add_argument("--cite", nargs="+", metavar="FILE")
     ci.add_argument("--rag", metavar="DIR")
     ci.add_argument("--rag-pattern", default="*.md", dest="rag_pattern")
+    ci.add_argument(
+        "--rag-cache-query",
+        metavar="QUERY",
+        dest="rag_cache_query",
+        help="Execute a cached RAG query using vector similarity with result caching (TTL 5m)",
+    )
 
     mo = p.add_argument_group("Models API")
     mo.add_argument("--list-models", action="store_true", dest="list_models")
@@ -2242,9 +2248,9 @@ def build_parser():
         help="JSON string for vector store configuration (dimension, index_type, metric)",
     )
     rag.add_argument(
-        "--embed",
+        "--rag-embed",
         metavar="TEXT",
-        dest="embed_text",
+        dest="rag_embed",
         default="",
         help="Generate embeddings for given text (shows vector info)",
     )
@@ -2506,9 +2512,7 @@ def build_parser():
     )
 
     wf = p.add_argument_group("Workflows")
-    wf.add_argument("--workflow-run", metavar="PATH", dest="workflow_run")
     wf.add_argument("--workflow-input", default="", dest="workflow_input")
-    wf.add_argument("--workflow-scaffold", metavar="PATH", dest="workflow_scaffold")
 
     hk = p.add_argument_group("Hooks")
     hk.add_argument("--hooks-add", nargs=2, metavar=("EVENT", "COMMAND"), dest="hooks_add")
@@ -3646,6 +3650,18 @@ def main():
 
         cmd_rag_query(
             args.rag_index_name, args.rag_query, key, model, k=args.rag_k, tenant_id=args.rag_tenant
+        )
+        return
+    if args.rag_cache_query:
+        from zcoder.agent.rag.engine import cmd_rag_cache_query
+
+        cmd_rag_cache_query(
+            args.rag_index_name,
+            args.rag_cache_query,
+            key,
+            model,
+            k=args.rag_k,
+            tenant_id=args.rag_tenant,
         )
         return
 

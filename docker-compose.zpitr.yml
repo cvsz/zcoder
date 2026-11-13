@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zpitr:
     container_name: zPITR

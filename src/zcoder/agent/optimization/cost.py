@@ -24,9 +24,12 @@ module instead of folded into local estimation here.
 import json
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+import requests
 
 from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
@@ -37,6 +40,110 @@ SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 _cost_lock = threading.Lock()
 _cost_cache: dict = {}
 _cache_ttl = 300  # 5 minutes TTL for cost cache
+
+# Connection pool for HTTP API requests
+_connection_pool: requests.Session | None = None
+
+
+def get_connection_pool() -> requests.Session:
+    """Get or create a thread-safe HTTP connection pool."""
+    global _connection_pool
+    if _connection_pool is None:
+        _connection_pool = requests.Session()
+        # Configure connection pool settings
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=10,
+            max_retries=3,
+        )
+        _connection_pool.mount("https://", adapter)
+        _connection_pool.mount("http://", adapter)
+    return _connection_pool
+
+
+def release_connection_pool() -> None:
+    """Release the connection pool resources."""
+    global _connection_pool
+    if _connection_pool is not None:
+        _connection_pool.close()
+        _connection_pool = None
+
+
+# ── Response Cache with TTL ──────────────────────────────────────────────
+# Cache for API responses to avoid redundant calls.
+
+
+_response_cache: OrderedDict[str, dict] = OrderedDict()
+
+
+def _cache_key(model: str, in_tok: int, out_tok: int, inference_geo: str) -> str:
+    """Generate a cache key for cost estimation."""
+    import hashlib
+
+    data = f"{model}:{in_tok}:{out_tok}:{inference_geo}"
+    return hashlib.sha256(data.encode()).hexdigest()
+
+
+def _evict_cache() -> None:
+    """Evict oldest entries from the response cache when it exceeds capacity."""
+    max_cache_size = 100  # Keep last 100 entries
+    while len(_response_cache) > max_cache_size:
+        _response_cache.popitem(last=False)
+
+
+def estimate_cost_cached(
+    model: str,
+    in_tok: int,
+    out_tok: int,
+    use_intro_pricing: bool = False,
+    inference_geo: str = "global",
+) -> float:
+    """Estimate cost with caching to avoid redundant calculations.
+
+    Uses an OrderedDict-based TTL cache. If the same (model, tokens, geo)
+    combination has been computed within the TTL window, the cached result
+    is returned immediately.
+
+    Args:
+        model: Model identifier
+        in_tok: Input token count
+        out_tok: Output token count
+        use_intro_pricing: Whether to use Sonnet 5 intro pricing
+        inference_geo: Data residency ("us" or "global")
+
+    Returns:
+        Estimated cost in USD
+    """
+    key = _cache_key(model, in_tok, out_tok, inference_geo)
+
+    with _cost_lock:
+        # Check cache hit
+        if key in _response_cache:
+            entry = _response_cache[key]
+            # Check TTL
+            entry_time = entry["timestamp"]
+            now = time.time()
+            if now - entry_time < _cache_ttl:
+                # Cache hit — return cached cost
+                return entry["cost"]
+            else:
+                # Expired — remove and recompute
+                del _response_cache[key]
+
+        # Cache miss — compute cost
+        cost = estimate_cost(model, in_tok, out_tok, use_intro_pricing, inference_geo)
+
+        # Store in cache
+        _response_cache[key] = {
+            "cost": cost,
+            "timestamp": time.time(),
+        }
+
+        # Evict if over capacity
+        _evict_cache()
+
+        return cost
+
 
 PRICE: dict[str, dict[str, float]] = {
     # Current

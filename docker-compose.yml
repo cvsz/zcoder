@@ -105,6 +105,6 @@ volumes:
 
 secrets:
   zcoder_postgres_password:
-    file: /home/cvsz/.config/zcoder/postgresql.password
+    file: ${ZCODER_POSTGRES_SECRET_SOURCE:-${HOME}/.config/zcoder/postgresql.password}
   zredis_password:
     file: /home/cvsz/.config/zcoder/redis.password

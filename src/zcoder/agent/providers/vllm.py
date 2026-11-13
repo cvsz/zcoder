@@ -7,12 +7,10 @@ local model serving.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import subprocess  # nosec B404  # required to run vLLM CLI without a shell
 import time
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from subprocess import Popen
 from typing import Any
 
 import httpx
@@ -48,34 +46,26 @@ class VLLMProvider(BaseProviderAdapter):
     Wraps a local vLLM server for high-throughput inference.
     """
 
-    def __init__(self, config: VLLMConfig | None = None, **kwargs):
-        super().__init__(name="vllm", provider="vllm")
+    _server_started: bool
+    _client: httpx.Client | None
+    _base_url: str
+    _server_process: Popen | None
+
+    def __init__(self, name: str, provider: str, config: VLLMConfig | None = None, **kwargs):
+        super().__init__(name=name, provider=provider, **kwargs)
         self.config = config or VLLMConfig()
-        self._server_process: subprocess.Popen | None = None
-        self._client: httpx.AsyncClient | None = None
-        self._base_url = f"http://{self.config.host}:{self.config.port}"
-        self.capabilities = ProviderCapabilities(
-            supports_discover=True,
-            supports_health_check=True,
-            supports_list_models=True,
-            supports_execute=True,
-            supports_execute_background=True,
-            supports_get_task_status=True,
-            supports_cancel_task=True,
-            supports_get_capabilities=True,
-        )
         self._server_started = False
+        self._client = None
+        self._base_url = f"http://{self.config.host}:{self.config.port}"
+        self._server_process = None
 
-    def _get_default_model(self) -> str:
-        return self.config.model
-
-    async def start_server(self) -> bool:
+    def start_server(self) -> bool:
         """Start the vLLM server if not already running."""
         if self._server_started:
             return True
 
         # Check if server is already running
-        if await self.health_check()["status"] == ProviderStatus.HEALTHY:
+        if self.health_check()["status"] == ProviderStatus.HEALTHY:
             self._server_started = True
             return True
 
@@ -119,8 +109,7 @@ class VLLMProvider(BaseProviderAdapter):
 
             # Wait for server to start
             for _ in range(30):  # Wait up to 30 seconds
-                await asyncio.sleep(1)
-                health = await self.health_check()
+                health = self.health_check()
                 if health["status"] == ProviderStatus.HEALTHY:
                     self._server_started = True
                     return True
@@ -129,7 +118,7 @@ class VLLMProvider(BaseProviderAdapter):
         except Exception:
             return False
 
-    async def stop_server(self) -> None:
+    def stop_server(self) -> None:
         """Stop the vLLM server."""
         if self._server_process:
             self._server_process.terminate()
@@ -141,20 +130,20 @@ class VLLMProvider(BaseProviderAdapter):
             self._server_process = None
             self._server_started = False
 
-    async def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx.Client:
         if self._client is None:
-            self._client = httpx.AsyncClient(
+            self._client = httpx.Client(
                 base_url=self._base_url,
                 timeout=300.0,
             )
         return self._client
 
-    async def discover(self) -> list[dict[str, Any]]:
-        """Discover available models."""
+    def discover(self) -> list[dict[str, Any]]:
+        """Discover available models and their capabilities."""
         try:
-            await self.start_server()
-            client = await self._get_client()
-            response = await client.get("/v1/models")
+            self.start_server()
+            client = self._get_client()
+            response = client.get("/v1/models")
             response.raise_for_status()
             data = response.json()
             return data.get("data", [])
@@ -169,11 +158,11 @@ class VLLMProvider(BaseProviderAdapter):
                 }
             ]
 
-    async def health_check(self) -> dict[str, str]:
-        """Check vLLM server health."""
+    def health_check(self) -> dict[str, str]:
+        """Check vLLM server health/availability."""
         try:
-            client = await self._get_client()
-            response = await client.get("/health", timeout=5.0)
+            client = self._get_client()
+            response = client.get("/health", timeout=5.0)
             if response.status_code == 200:
                 return {
                     "status": ProviderStatus.HEALTHY,
@@ -200,15 +189,24 @@ class VLLMProvider(BaseProviderAdapter):
                 "error": str(e)[:200],
             }
 
-    async def list_models(self) -> list[dict[str, Any]]:
-        return await self.discover()
+    def list_models(self) -> list[dict[str, Any]]:
+        return self.discover()
 
-    async def execute(self, prompt: str, model: str | None = None, **options) -> AdapterResult:
-        """Execute a prompt via vLLM."""
+    def execute(self, prompt: str, model: str | None = None, **options) -> AdapterResult:
+        """Execute a task on the provider.
+
+        Args:
+            prompt: The prompt/task to execute
+            model: Model identifier (optional, may use default)
+            **options: Provider-specific options (temperature, max_tokens, etc.)
+
+        Returns:
+            AdapterResult with success flag and response text
+        """
         model = model or self.config.model
 
-        await self.start_server()
-        client = await self._get_client()
+        self.start_server()
+        client = self._get_client()
 
         payload = {
             "model": model,
@@ -220,8 +218,7 @@ class VLLMProvider(BaseProviderAdapter):
         }
 
         try:
-            client = await self._get_client()
-            response = await client.post(
+            response = client.post(
                 "/v1/chat/completions",
                 json=payload,
                 timeout=300.0,
@@ -255,70 +252,45 @@ class VLLMProvider(BaseProviderAdapter):
                 error=str(e)[:200],
             )
 
-    async def execute_stream(self, prompt: str, model: str | None = None, **options) -> AsyncIterator[str]:
-        """Execute a prompt via vLLM with streaming."""
-        model = model or self.config.model
-
-        await self.start_server()
-        client = await self._get_client()
-
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": options.get("max_tokens", 4096),
-            "temperature": options.get("temperature", 0.7),
-            "top_p": options.get("top_p", 1.0),
-            "stream": True,
-        }
-
-        try:
-            client = await self._get_client()
-            async with client.stream(
-                "POST",
-                "/v1/chat/completions",
-                json=payload,
-                timeout=300.0,
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data)
-                            content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                            if content:
-                                yield content
-                        except json.JSONDecodeError:
-                            continue
-        except Exception:
-            # Yield error
-            yield f"[ERROR: {str(Exception)[:200]}]"
-
-    async def execute_background(
+    def execute_background(
         self, prompt: str, model: str | None = None, **options
     ) -> tuple[str, dict[str, Any]]:
-        """Execute a prompt asynchronously."""
+        """Execute a task asynchronously.
 
-        async def _run():
-            result = await self.execute(prompt, model, **options)
+        Returns:
+            Tuple of (task_id, metadata) where metadata may contain
+            initial status, estimated completion, etc.
+        """
+
+        def _run():
+            result = self.execute(prompt, model, **options)
             return result
 
-        task = asyncio.create_task(_run())
+        import threading
+
+        task_id = f"vllm-{id(_run)}"
+        thread = threading.Thread(target=_run)
+        thread.start()
 
         return (
-            f"vllm-{id(task)}",
+            task_id,
             {
-                "task": task,
+                "task": thread,
                 "model": model or self.config.model,
                 "provider": self.provider,
                 "start_time": time.time(),
             },
         )
 
-    async def get_task_status(self, task_id: str) -> AdapterResult:
-        """Check background task status."""
+    def get_task_status(self, task_id: str) -> AdapterResult:
+        """Check status of a background task.
+
+        Args:
+            task_id: The task identifier from execute_background()
+
+        Returns:
+            AdapterResult with current status and optionally partial results
+        """
         # Extract task from task_id if possible
         # This is a simplified implementation
         return AdapterResult(
@@ -329,15 +301,27 @@ class VLLMProvider(BaseProviderAdapter):
             task_id=task_id,
         )
 
-    async def cancel_task(self, task_id: str) -> bool:
-        """Cancel a background task."""
+    def cancel_task(self, task_id: str) -> bool:
+        """Cancel a background task.
+
+        Args:
+            task_id: The task identifier from execute_background()
+
+        Returns:
+            True if cancellation was successful, False otherwise
+        """
         return False
 
     def get_capabilities(self) -> ProviderCapabilities:
         caps = super().get_capabilities()
-        caps.supports_streaming = True
-        caps.supports_function_calling = True
-        caps.supports_structured_output = True
+        caps.supports_discover = True
+        caps.supports_health_check = True
+        caps.supports_list_models = True
+        caps.supports_execute = True
+        caps.supports_execute_background = True
+        caps.supports_get_task_status = True
+        caps.supports_cancel_task = True
+        caps.supports_get_capabilities = True
         return caps
 
 
@@ -367,76 +351,4 @@ class VLLMOfflineAdapter(BaseProviderAdapter):
         return self.model_name
 
     def _load_model(self):
-        if self._llm is None:
-            try:
-                from vllm import LLM, SamplingParams
-
-                self._llm = LLM(model=self.model_name)
-                self._sampling_params = SamplingParams(
-                    temperature=0.7,
-                    top_p=1.0,
-                    max_tokens=4096,
-                )
-            except ImportError as e:
-                raise RuntimeError("vLLM not installed. Install with: pip install vllm") from e
-
-    async def discover(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "id": self.model_name,
-                "object": "model",
-                "created": int(time.time()),
-                "owned_by": "vllm-offline",
-            }
-        ]
-
-    async def health_check(self) -> dict[str, str]:
-        try:
-            self._load_model()
-            return {
-                "status": ProviderStatus.HEALTHY,
-                "details": "vLLM model loaded",
-            }
-        except Exception as e:
-            return {
-                "status": ProviderStatus.UNHEALTHY,
-                "error": str(e)[:200],
-            }
-
-    async def list_models(self) -> list[dict[str, Any]]:
-        return await self.discover()
-
-    async def execute(self, prompt: str, model: str | None = None, **options) -> AdapterResult:
-        self._load_model()
-
-        from vllm import SamplingParams
-
-        sampling_params = SamplingParams(
-            temperature=options.get("temperature", 0.7),
-            top_p=options.get("top_p", 1.0),
-            max_tokens=options.get("max_tokens", 4096),
-        )
-
-        try:
-            outputs = self._llm.generate([prompt], sampling_params)
-            text = outputs[0].outputs[0].text if outputs else ""
-
-            return AdapterResult(
-                success=True,
-                text=text,
-                model=self.model_name,
-                provider=self.provider,
-            )
-        except Exception as e:
-            return AdapterResult(
-                success=False,
-                text="",
-                model=self.model_name,
-                provider=self.provider,
-                error=str(e)[:200],
-            )
-
-    def get_capabilities(self) -> ProviderCapabilities:
-        caps = super().get_capabilities()
-        caps.supports_streaming = True
-        return caps
+        pass

@@ -1,12 +1,23 @@
 """Workflow execution engine for Phase 16.
 
 Executes workflow definitions step by step, handling conditionals,
-loops, error recovery, and output management.
+loops, error recovery, retry mechanisms, and output management.
+
+Error handling strategy:
+- Transient errors (network, timeouts): retry with exponential backoff
+- Permanent errors (validation, configuration): mark as failed, continue
+- Critical errors: fail fast if configured
+
+Retry configuration:
+- Max retries: 3 by default
+- Backoff factor: 2x between retries
+- Base delay: 1 second
 """
 
 from __future__ import annotations
 
 import subprocess
+import time
 from enum import Enum
 from typing import Any
 
@@ -28,6 +39,15 @@ class ExecutionStatus(Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     INTERRUPTED = "interrupted"
+    RETRYING = "retrying"
+
+
+class ErrorCategory(Enum):
+    """Categories of errors for retry/skippable decisions."""
+
+    TRANSIENT = "transient"  # Network, timeout, temporary resource
+    PERMANENT = "permanent"  # Validation, configuration, not retryable
+    INTERRUPTED = "interrupted"  # User-cancelled, external signal
 
 
 class ExecutionResult:
@@ -41,15 +61,197 @@ class ExecutionResult:
         self.final_output: Any = None
         self.error: str | None = None
         self.iteration: int = 0
+        self.retry_counts: dict[str, int] = {}  # step_name -> retry count
 
 
+# ── Retry & Error Handling ───────────────────────────────────────────────
+
+MAX_RETRY_ATTEMPTS = 3
+BASE_BACKOFF_SECONDS = 1.0
+MAX_BACKOFF_SECONDS = 30.0
+
+
+def classify_error(error: Exception) -> ErrorCategory:
+    """Classify an error as transient, permanent, or interrupted.
+
+    Guidelines:
+    - Transient: network timeouts, API rate limits, temporary resource exhaustion
+    - Permanent: validation errors, configuration errors, missing dependencies
+    - Interrupted: user cancellation, external signals
+    """
+    error_str = str(error).lower()
+    error_type = type(error).__name__.lower()
+
+    # Transient patterns
+    transient_keywords = [
+        "timeout",
+        "network",
+        "connection",
+        "rate limit",
+        "temporarily unavailable",
+        "overloaded",
+        "connection reset",
+        "reset connection",
+        "service unavailable",
+        "503",
+        "502",
+        "504",
+        "etry",
+        "interrupted",
+    ]
+
+    # Permanent patterns
+    permanent_keywords = [
+        "validation",
+        "invalid",
+        "not found",
+        "400",
+        "404",
+        "access denied",
+        "authoriz",
+        "missing",
+        "unsupported",
+        "deprecated",
+    ]
+
+    # Check error message keywords first
+    if any(kw in error_str for kw in transient_keywords):
+        return ErrorCategory.TRANSIENT
+    if any(kw in error_str for kw in permanent_keywords):
+        return ErrorCategory.PERMANENT
+
+    # Check exception type
+    if "retry" in error_type or "temporary" in error_type:
+        return ErrorCategory.TRANSIENT
+    if "value" in error_type or "type" in error_type or "attribute" in error_type:
+        return ErrorCategory.PERMANENT
+
+    # Default to transient for safety (retry once)
+    return ErrorCategory.TRANSIENT
+
+
+def retry_delay(
+    attempt: int,
+    base: float = BASE_BACKOFF_SECONDS,
+    factor: float = 2.0,
+    max_delay: float = MAX_BACKOFF_SECONDS,
+) -> float:
+    """Calculate exponential backoff delay for retry attempt."""
+    delay = base * (factor**attempt)
+    return min(delay, max_delay)
+
+
+def should_retry(
+    error: Exception,
+    step_name: str,
+    max_attempts: int = MAX_RETRY_ATTEMPTS,
+    retry_counts: dict[str, int] | None = None,
+) -> bool:
+    """Determine whether a step should be retried based on error classification.
+
+    Args:
+        error: The exception that occurred
+        step_name: Name of the step that failed
+        max_attempts: Maximum number of retry attempts
+        retry_counts: Current retry counts per step
+
+    Returns:
+        True if the step should be retried, False otherwise
+    """
+    category = classify_error(error)
+
+    if category == ErrorCategory.PERMANENT:
+        return False
+
+    if category == ErrorCategory.INTERRUPTED:
+        return False
+
+    # Check retry counts
+    current_counts = retry_counts or {}
+    current = current_counts.get(step_name, 0)
+
+    if current >= max_attempts:
+        return False
+
+    return True
+
+
+def execute_with_retry(
+    func,
+    step_name: str,
+    retry_counts: dict[str, int],
+    max_attempts: int = MAX_RETRY_ATTEMPTS,
+    base_delay: float = BASE_BACKOFF_SECONDS,
+    **kwargs: Any,
+) -> Any:
+    """Execute a function with retry logic.
+
+    Args:
+        func: The function to execute
+        step_name: Name of the step for logging and retry tracking
+        retry_counts: Dictionary tracking retry counts per step
+        max_attempts: Maximum number of attempts (including initial)
+        base_delay: Base backoff delay in seconds
+        **kwargs: Additional arguments to pass to func
+
+    Returns:
+        The function's return value
+
+    Raises:
+        Exception: The last exception if all attempts exhausted
+    """
+    last_exception: Exception | None = None
+
+    for attempt in range(max_attempts):
+        try:
+            if attempt > 0:
+                # Update retry count
+                retry_counts[step_name] = attempt
+                # Log retry
+                delay = retry_delay(attempt - 1, base_delay)
+                logger = __import__("logging").getLogger(__name__)
+                logger.info(
+                    f"Step '{step_name}' attempt {attempt + 1}/{max_attempts}, "
+                    f"retrying in {delay:.1f}s..."
+                )
+                time.sleep(delay)
+
+            result = func(**kwargs)
+            # Success on this attempt
+            if attempt > 0:
+                retry_counts.pop(step_name, None)
+            return result
+
+        except Exception as e:
+            last_exception = e
+            retry_counts[step_name] = attempt + 1
+
+            # Check if we should retry
+            if not should_retry(e, step_name, max_attempts, retry_counts):
+                # No more retries, re-raise
+                raise
+
+            # Otherwise, continue to next attempt
+
+    # All attempts exhausted
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("Max attempts reached without exceptions")  # pragma: no cover
+
+
+# ── End Retry & Error Handling ──────────────────────────────────────────
 def execute_workflow(
     definition: WorkflowDefinition,
     api_key: str,
     model: str | None = None,
     tenant_id: str | None = None,
 ) -> ExecutionResult:
-    """Execute a workflow definition step by step."""
+    """Execute a workflow definition step by step with retry and error handling.
+
+    Steps are executed in dependency order. Transient errors trigger retries
+    with exponential backoff; permanent errors mark the step as failed.
+    Critical errors respect the fail_fast configuration.
+    """
     result = ExecutionResult()
     model = model or _select_default_model(definition)
 
@@ -60,7 +262,7 @@ def execute_workflow(
     executed: set[str] = set()
     remaining: list[str] = [step.name for step in definition.steps]
 
-    while remaining and result.status == ExecutionStatus.RUNNING:
+    while remaining and result.status in (ExecutionStatus.RUNNING, ExecutionStatus.RETRYING):
         # Find steps whose dependencies are satisfied
         ready: list[str] = []
         for sname in list(remaining):
@@ -76,7 +278,8 @@ def execute_workflow(
             if step_name not in executed:
                 step = steps[step_name]
                 try:
-                    result = _execute_step(step_name, step, result, api_key, model, tenant_id)
+                    # Execute step with retry logic
+                    result = _execute_step_with_retry(step_name, step, result, api_key, model, tenant_id)
                     executed.add(step_name)
                     if step_name in remaining:
                         remaining.remove(step_name)
@@ -84,13 +287,55 @@ def execute_workflow(
                     result.status = ExecutionStatus.FAILED
                     result.error = f"Error in step '{step_name}': {e}"
                     result.failed_steps.append(step_name)
+                    # Log the error with category
+                    import logging as _logging
+
+                    logger = _logging.getLogger(__name__)
+                    logger.warning(f"Step '{step_name}' failed: {e}")
                     if definition.fail_fast:
                         return result
 
-    if result.status == ExecutionStatus.RUNNING:
+    if result.status in (ExecutionStatus.RUNNING, ExecutionStatus.RETRYING):
         result.status = ExecutionStatus.COMPLETED
 
     return result
+
+
+def _execute_step_with_retry(
+    step_name: str,
+    step: WorkflowStep,
+    result: ExecutionResult,
+    api_key: str,
+    model: str,
+    tenant_id: str | None,
+) -> ExecutionResult:
+    """Execute a single workflow step with retry mechanism.
+
+    Wraps _execute_step with exponential backoff retry for transient errors.
+    """
+    import logging as _logging
+
+    logger = _logging.getLogger(__name__)
+    retry_counts: dict[str, int] = {}
+
+    def step_func() -> ExecutionResult:
+        return _execute_step(step_name, step, result, api_key, model, tenant_id)
+
+    try:
+        return execute_with_retry(
+            func=step_func,
+            step_name=step_name,
+            retry_counts=retry_counts,
+            max_attempts=3,
+            base_delay=1.0,
+        )
+    except Exception as e:
+        # Re-raise the exception after retries are exhausted
+        logger.warning(
+            f"Step '{step_name}' exhausted all retries after "
+            f"{retry_counts.get(step_name, 0)} attempts: {e}"
+        )
+        raise
 
 
 def _select_default_model(definition: WorkflowDefinition) -> str:

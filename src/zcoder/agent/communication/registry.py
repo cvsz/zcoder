@@ -1,159 +1,171 @@
-"""Agent Discovery Registry for Phase 17.
+"""
+Agent discovery registry for Phase 17.
 
-Provides a service registry for agent discovery and lookup,
-enabling distributed task offloading and agent communication.
+Provides agent discovery and registry service for distributed agent systems.
+Supports local agent registration, remote discovery, and capability tracking.
 """
 
 from __future__ import annotations
 
-import asyncio
-import logging
-import time
+import json
 from dataclasses import dataclass, field
-from enum import Enum
+from pathlib import Path
 from typing import Any
 
-import aiohttp
+AGENT_REGISTRY_DIR = Path.home() / ".zcoder" / "agent_registry"
+REGISTRY_FILE = AGENT_REGISTRY_DIR / "agents.json"
 
-logger = logging.getLogger(__name__)
-
-
-class RegistryState(Enum):
-    """State of the agent registry."""
-
-    OFFLINE = "offline"
-    ONLINE = "online"
-    MAINTENANCE = "maintenance"
+# Module-level registry instance
+_instance: AgentRegistry | None = None
 
 
-@dataclass
-class AgentDescription:
-    """Description of an agent available in the network."""
+def _ensure_registry_dir() -> None:
+    """Ensure the agent registry directory exists."""
+    AGENT_REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
 
-    agent_id: str
-    name: str
-    capabilities: set[str] = field(default_factory=set)
-    endpoint: str = ""  # HTTP endpoint or connection string
-    metadata: dict[str, Any] = field(default_factory=dict)
-    last_seen: float = 0.0
-    tags: set[str] = field(default_factory=set)
+
+def _load_registry() -> dict[str, dict[str, Any]]:
+    """Load the agent registry from disk."""
+    _ensure_registry_dir()
+    if not REGISTRY_FILE.exists():
+        return {}
+    try:
+        with open(REGISTRY_FILE) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_registry(registry: dict[str, dict[str, Any]]) -> None:
+    """Save the agent registry to disk."""
+    _ensure_registry_dir()
+    with open(REGISTRY_FILE, "w") as f:
+        json.dump(registry, f, indent=2)
 
 
 class AgentRegistry:
-    """Service registry for agent discovery."""
+    """Agent discovery registry for distributed agent systems."""
 
-    def __init__(self, backend: str = "memory", registry_url: str | None = None) -> None:
-        self.backend = backend
-        self.registry_url = registry_url
-        self._agents: dict[str, AgentDescription] = {}
-        self._state: RegistryState = RegistryState.OFFLINE
-        self._refresh_task: asyncio.Task | None = None
+    def __init__(self) -> None:
+        """Initialize the registry, loading from disk if needed."""
+        self._registry: dict[str, dict[str, Any]] = _load_registry()
 
-    def start(self) -> None:
-        """Start the registry service."""
-        self._state = RegistryState.ONLINE
-        if self.backend == "memory":
-            # In-memory registry, no background refresh needed
-            pass
-        elif self.backend == "http" and self.registry_url:
-            self._refresh_task = asyncio.create_task(self._periodic_refresh())
-
-    def stop(self) -> None:
-        """Stop the registry service."""
-        self._state = RegistryState.OFFLINE
-        if self._refresh_task:
-            self._refresh_task.cancel()
-            self._refresh_task = None
-
-    def register(self, agent: AgentDescription) -> None:
+    def register_agent(self, agent: AgentInfo) -> None:
         """Register an agent in the registry."""
-        self._agents[agent.agent_id] = agent
-        agent.last_seen = time.time()
-        logger.info(f"Registered agent: {agent.agent_id} ({agent.name})")
+        self._registry[agent.agent_id] = {
+            "name": agent.name,
+            "capabilities": agent.capabilities,
+            "endpoint": agent.endpoint,
+            "last_seen": agent.last_seen,
+            "tags": agent.tags,
+        }
+        _save_registry(self._registry)
 
-    def unregister(self, agent_id: str) -> None:
+    def unregister_agent(self, agent_id: str) -> None:
         """Unregister an agent from the registry."""
-        if agent_id in self._agents:
-            del self._agents[agent_id]
-            logger.info(f"Unregistered agent: {agent_id}")
+        if agent_id in self._registry:
+            del self._registry[agent_id]
+            _save_registry(self._registry)
 
-    def get(self, agent_id: str) -> AgentDescription | None:
-        """Get an agent description by ID."""
-        agent = self._agents.get(agent_id)
-        if agent and self._is_stale(agent):
-            # Remove stale agents
-            del self._agents[agent_id]
+    def get_agent(self, agent_id: str) -> AgentInfo | None:
+        """Get information about a specific agent."""
+        if agent_id not in self._registry:
             return None
-        return agent
+        info = self._registry[agent_id]
+        return AgentInfo(
+            agent_id=agent_id,
+            name=info["name"],
+            capabilities=info.get("capabilities", {}),
+            endpoint=info.get("endpoint", ""),
+            last_seen=info.get("last_seen", 0),
+            tags=info.get("tags", []),
+        )
 
-    def search(
-        self, capabilities: set[str] | None = None, tags: set[str] | None = None
-    ) -> list[AgentDescription]:
-        """Search for agents matching given capabilities and/or tags."""
-        results: list[AgentDescription] = []
-        for agent in self._agents.values():
-            if self._matches(agent, capabilities, tags):
-                results.append(agent)
-        return results
-
-    def _matches(self, agent: AgentDescription, capabilities: set[str] | None, tags: set[str] | None) -> bool:
-        """Check if an agent matches the search criteria."""
-        if capabilities:
-            if not capabilities.issubset(agent.capabilities):
-                return False
-        if tags:
-            if not tags.intersection(agent.tags):
-                return False
-        return True
-
-    def _is_stale(self, agent: AgentDescription, max_age: float = 300.0) -> bool:
-        """Check if an agent is stale based on last_seen timestamp."""
-        return time.time() - agent.last_seen > max_age
-
-    def list_agents(self) -> list[AgentDescription]:
+    def list_agents(self) -> list[AgentInfo]:
         """List all registered agents."""
-        return list(self._agents.values())
+        return [
+            AgentInfo(
+                agent_id=aid,
+                name=info["name"],
+                capabilities=info.get("capabilities", {}),
+                endpoint=info.get("endpoint", ""),
+                last_seen=info.get("last_seen", 0),
+                tags=info.get("tags", []),
+            )
+            for aid, info in self._registry.items()
+        ]
 
-    async def discover(
-        self, capabilities: set[str] | None = None, tags: set[str] | None = None, timeout: float = 5.0
-    ) -> list[AgentDescription]:
-        """Discover agents matching criteria, potentially via HTTP registry."""
-        if self.backend == "http" and self.registry_url:
-            return await self._http_discover(capabilities, tags, timeout)
-        return self.search(capabilities, tags)
+    def find_agents_by_capability(
+        self, capability: str, tag: str | None = None
+    ) -> list[AgentInfo]:
+        """Find agents that have a specific capability or tag."""
+        matching: list[AgentInfo] = []
+        for agent_id, info in self._registry.items():
+            capabilities = info.get("capabilities", {})
+            tags = info.get("tags", [])
+            has_capability = capability in capabilities
+            has_tag = tag is None or tag in tags
+            if has_capability or has_tag:
+                matching.append(
+                    AgentInfo(
+                        agent_id=agent_id,
+                        name=info["name"],
+                        capabilities=capabilities,
+                        endpoint=info.get("endpoint", ""),
+                        last_seen=info.get("last_seen", 0),
+                        tags=tags,
+                    )
+                )
+        return matching
 
-    async def _http_discover(
-        self, capabilities: set[str] | None, tags: set[str] | None, timeout: float
-    ) -> list[AgentDescription]:
-        """Discover agents via HTTP registry endpoint."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.registry_url}/agents",
-                    timeout=aiohttp.ClientTimeout(total=timeout),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        agents: list[AgentDescription] = []
-                        for item in data.get("agents", []):
-                            agent = AgentDescription(
-                                agent_id=item.get("agent_id", ""),
-                                name=item.get("name", ""),
-                                capabilities=set(item.get("capabilities", [])),
-                                endpoint=item.get("endpoint", ""),
-                                metadata=item.get("metadata", {}),
-                                last_seen=item.get("last_seen", 0.0),
-                                tags=set(item.get("tags", [])),
-                            )
-                            agents.append(agent)
-                        return agents
-        except Exception as e:
-            logger.warning(f"HTTP agent discovery failed: {e}")
-        return []
+    def search_agents(
+        self, query: str, search_in: list[str] | None = None
+    ) -> list[AgentInfo]:
+        """Search for agents by name or tags."""
+        if search_in is None:
+            search_in = ["name", "tags"]
+
+        query_lower = query.lower()
+        matching: list[AgentInfo] = []
+        for agent_id, info in self._registry.items():
+            name_match = (
+                query_lower in info.get("name", "").lower()
+                if "name" in search_in
+                else False
+            )
+            tags_match = (
+                any(query_lower in tag.lower() for tag in info.get("tags", []))
+                if "tags" in search_in
+                else False
+            )
+            if name_match or tags_match:
+                matching.append(
+                    AgentInfo(
+                        agent_id=agent_id,
+                        name=info["name"],
+                        capabilities=info.get("capabilities", {}),
+                        endpoint=info.get("endpoint", ""),
+                        last_seen=info.get("last_seen", 0),
+                        tags=info.get("tags", []),
+                    )
+                )
+        return matching
 
 
-def create_default_registry() -> AgentRegistry:
-    """Create a default in-memory agent registry."""
-    registry = AgentRegistry(backend="memory")
-    registry.start()
-    return registry
+@dataclass
+class AgentInfo:
+    """Information about a registered agent."""
+    agent_id: str
+    name: str
+    capabilities: dict[str, Any] = field(default_factory=dict)
+    endpoint: str = ""  # URL or identifier for the agent
+    last_seen: float = field(default_factory=lambda: __import__("time").time())
+    tags: list[str] = field(default_factory=list)
+
+
+def get_registry() -> AgentRegistry:
+    """Get the global registry instance."""
+    global _instance
+    if _instance is None:
+        _instance = AgentRegistry()
+    return _instance

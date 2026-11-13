@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import statistics as stats
 import time
 from collections.abc import Generator
 from contextlib import asynccontextmanager, contextmanager
@@ -177,6 +178,12 @@ class ZCoderMetrics:
         # Cost metrics
         self.cost_usd_total = _Counter()
 
+        # F16-43: Performance metrics
+        self.perf_model_duration_seconds = _Histogram()  # model call duration in seconds
+        self.perf_token_usage = _Counter()  # tokens per model call
+        self.perf_cache_hits_total = _Counter()  # cache hit count
+        self.perf_cache_misses_total = _Counter()  # cache miss count
+
         # Maintenance campaign metrics (bounded cardinality; no campaign IDs as labels)
         self.maintenance_campaigns_total = _Counter()
         self.maintenance_campaigns_noncompleted_total = _Counter()
@@ -214,12 +221,160 @@ class ZCoderMetrics:
         """Set maximum observations to keep in histograms."""
         self._histogram_max_observations = max(100, max_observations)
 
+    def record_model_call(
+        self,
+        duration_seconds: float,
+        tokens: int = 0,
+        cache_hit: bool = False,
+    ) -> None:
+        """Record a model inference call's performance metrics.
+
+        Args:
+            duration_seconds: Time spent in the model call
+            tokens: Number of tokens processed (input + output)
+            cache_hit: Whether the response was served from cache
+        """
+        self.model_calls_total.inc()
+        self.model_duration_seconds.observe(duration_seconds)
+        if tokens > 0:
+            self.perf_token_usage.inc(tokens)
+        if cache_hit:
+            self.perf_cache_hits_total.inc()
+        else:
+            self.perf_cache_misses_total.inc()
+
+    def record_model_error(self) -> None:
+        """Record a model inference error."""
+        self.model_errors_total.inc()
+
+    def record_api_request(self, duration_seconds: float, error: bool = False) -> None:
+        """Record an API request metric.
+
+        Args:
+            duration_seconds: Time spent on the API request
+            error: Whether the request resulted in an error
+        """
+        self.api_requests_total.inc()
+        self.api_duration_seconds.observe(duration_seconds)
+        if error:
+            self.api_errors_total.inc()
+
+    def record_github_api_call(self, operation: str, error: bool = False) -> None:
+        """Record a GitHub API call metric.
+
+        Args:
+            operation: The GitHub operation performed
+            error: Whether the call resulted in an error
+        """
+        self.github_api_calls_total.inc()
+        if error:
+            self.github_api_errors_total.inc()
+
+    def record_retry(self, category: str, success: bool, duration_seconds: float) -> None:
+        """Record a retry attempt metric.
+
+        Args:
+            category: The retry category (transient, permanent, interrupted)
+            success: Whether the retry was successful
+            duration_seconds: Total retry duration
+        """
+        self.retry_attempts_total.inc()
+        self.retry_category_total.inc(labels={"category": category})
+        if success:
+            self.retry_successes_total.inc()
+        else:
+            self.retry_failures_total.inc()
+        self.retry_duration_seconds.observe(duration_seconds)
+
     def _maybe_trim_histograms(self) -> None:
         """Trim histogram observations if they exceed the configured maximum."""
         for attr_name in dir(self):
             attr = getattr(self, attr_name)
             if isinstance(attr, _Histogram) and len(attr._observations) > self._histogram_max_observations:
                 attr._observations = attr._observations[-self._histogram_max_observations :]
+
+    def check_sla_violations(self, thresholds: dict[str, float] | None = None) -> list[dict[str, Any]]:
+        """Check for SLA violations against configured thresholds.
+
+        Args:
+            thresholds: Dict of metric name -> max acceptable value.
+                       If None, uses default SLA thresholds.
+
+        Returns:
+            List of violation dicts with metric_name, current_value, threshold, severity
+        """
+        if thresholds is None:
+            # Default SLA thresholds
+            thresholds = {
+                "model_duration_seconds": 5.0,  # 5s max per model call
+                "api_duration_seconds": 10.0,  # 10s max per API request
+                "queue_wait_seconds": 30.0,  # 30s max wait in queue
+            }
+
+        violations: list[dict[str, Any]] = []
+
+        # Check model duration SLA
+        if "model_duration_seconds" in thresholds:
+            threshold = thresholds["model_duration_seconds"]
+            durations = self.model_duration_seconds._observations
+            if durations:
+                # Compute p95 manually: sort and take the value at 95th percentile
+                sorted_durations = sorted(durations)
+                idx = int(len(sorted_durations) * 0.95)
+                idx = min(idx, len(sorted_durations) - 1)  # Clamp to valid range
+                p95 = sorted_durations[idx]
+                if p95 > threshold:
+                    violations.append(
+                        {
+                            "metric": "model_duration_seconds",
+                            "current_value": round(p95, 3),
+                            "threshold": threshold,
+                            "severity": "high",
+                            "message": f"P95 model call duration {p95:.2f}s exceeds SLA threshold {threshold}s",
+                        }
+                    )
+
+        # Check API duration SLA
+        if "api_duration_seconds" in thresholds:
+            threshold = thresholds["api_duration_seconds"]
+            durations = self.api_duration_seconds._observations
+            if durations:
+                sorted_durations = sorted(durations)
+                idx = int(len(sorted_durations) * 0.95)
+                idx = min(idx, len(sorted_durations) - 1)  # Clamp to valid range
+                p95 = sorted_durations[idx]
+                if p95 > threshold:
+                    violations.append(
+                        {
+                            "metric": "api_duration_seconds",
+                            "current_value": round(p95, 3),
+                            "threshold": threshold,
+                            "severity": "high",
+                            "message": f"P95 API request duration {p95:.2f}s exceeds SLA threshold {threshold}s",
+                        }
+                    )
+
+        # Check queue wait SLA
+        if "queue_wait_seconds" in thresholds:
+            threshold = thresholds["queue_wait_seconds"]
+            durations = self.queue_wait_seconds._observations
+            if durations:
+                sorted_durations = sorted(durations)
+                idx = int(len(sorted_durations) * 0.95)
+                idx = min(idx, len(sorted_durations) - 1)  # Clamp to valid range
+                p95 = sorted_durations[idx]
+                if p95 > threshold:
+                    violations.append(
+                        {
+                            "metric": "queue_wait_seconds",
+                            "current_value": round(p95, 3),
+                            "threshold": threshold,
+                            "severity": "medium",
+                            "message": f"P95 queue wait duration {p95:.2f}s exceeds SLA threshold {threshold}s",
+                        }
+                    )
+
+        return violations
 
     def prometheus_exposition(self) -> str:
         """Render metrics in Prometheus text format."""
@@ -348,6 +503,16 @@ class ZCoderMetrics:
         g("zcoder_queue_depth", "Current queue depth", self.queue_depth)
         g("zcoder_queue_depth_max", "Maximum queue depth observed", self.queue_depth_max)
         h("zcoder_queue_wait_seconds", "Time spent in queue", self.queue_wait_seconds)
+
+        # F16-43: Performance metrics
+        h(
+            "zcoder_perf_model_duration_seconds",
+            "Model inference duration (seconds)",
+            self.perf_model_duration_seconds,
+        )
+        c("zcoder_perf_token_usage", "Total tokens processed", self.perf_token_usage)
+        c("zcoder_perf_cache_hits_total", "Total cache hits", self.perf_cache_hits_total)
+        c("zcoder_perf_cache_misses_total", "Total cache misses", self.perf_cache_misses_total)
 
         return "\n".join(lines) + "\n"
 
@@ -521,7 +686,19 @@ def trace_model_call(
             span.record_exception(exc)
             raise
         finally:
-            metrics_registry.model_duration_seconds.observe(time.monotonic() - started_at)
+            duration = time.monotonic() - started_at
+            metrics_registry.model_duration_seconds.observe(duration)
+            # Record performance metrics
+            try:
+                # Try to get token count from span attributes or environment
+                import os
+
+                tokens_str = os.getenv("ZCODER_LAST_TOKEN_COUNT", "0")
+                tokens = int(tokens_str) if tokens_str.isdigit() else 0
+                if tokens > 0:
+                    metrics_registry.perf_token_usage.inc(tokens)
+            except (ValueError, TypeError):
+                pass
 
 
 @contextmanager
