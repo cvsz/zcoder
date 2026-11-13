@@ -32,7 +32,7 @@ def main():
         "evidence_ref": f"ZPITR-REHEARSAL/{args.drill_id}",
         "evidence_sha256": args.evidence_hash,
         "details": {
-            "wal_source": "zpostgresql",
+            "wal_source": "zpostgressql",
             "restore_target": "isolated-sandbox",
             "method": "pg_receivewal+basebackup",
         },

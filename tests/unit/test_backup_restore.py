@@ -23,7 +23,7 @@ from zcoder.services.backup_restore import (
 def backup_manager(tmp_path):
     """Create a BackupManager with a temp destination directory."""
     return BackupManager(
-        database_url="postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db",  # Controlled fixture; never connected
+        database_url="postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db",  # Controlled fixture; never connected
         backup_destination=str(tmp_path / "backups"),
         strategy="pg_dump",
         retention_days_daily=7,
@@ -96,7 +96,7 @@ class TestPgDumpBackup:
 
     def test_backup_fails_without_pg_dump_binary(self, backup_manager):
         """Backup fails gracefully if pg_dump binary not available."""
-        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db"
+        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db"
 
         with patch("subprocess.run", side_effect=FileNotFoundError("pg_dump not found")):
             record = backup_manager.run_pg_dump_backup()
@@ -108,7 +108,7 @@ class TestPgDumpBackup:
         """Backup handles subprocess timeout correctly."""
         import subprocess
 
-        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db"
+        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db"
 
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("pg_dump", 3600)):
             record = backup_manager.run_pg_dump_backup()
@@ -118,7 +118,7 @@ class TestPgDumpBackup:
 
     def test_backup_creates_manifest(self, backup_manager, tmp_path):
         """Successful backup should write a JSON manifest."""
-        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db"
+        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db"
 
         # Create a fake dump file
         dest = Path(backup_manager.backup_destination)
@@ -153,7 +153,7 @@ class TestRestoreDrill:
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: invoked.append(a))
 
         result = backup_manager.run_restore_drill(
-            "pgdump_guard", target_database_url="postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db"
+            "pgdump_guard", target_database_url="postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db"
         )
 
         assert result.success is False
@@ -163,13 +163,13 @@ class TestRestoreDrill:
     def test_restore_rejects_implicit_source_database_name(self, backup_manager, monkeypatch):
         # When using PGDATABASE as implicit source name and target matches, restore should be rejected
         (backup_manager.backup_destination / "pgdump_guard.sql.gz").write_bytes(b"fixture")
-        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgresql"  # no explicit DB name
+        backup_manager.database_url = "postgresql://zcoder:zcoder@zpostgressql"  # no explicit DB name
         monkeypatch.setenv("PGDATABASE", "source")
         invoked = []
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: invoked.append(a))
 
         result = backup_manager.run_restore_drill(
-            "pgdump_guard", target_database_url="postgresql://zpostgresql/source"
+            "pgdump_guard", target_database_url="postgresql://zpostgressql/source"
         )
 
         assert result.success is False
@@ -303,8 +303,8 @@ class TestDryRunBackup:
     def test_dry_run_invokes_no_subprocess_and_writes_nothing(self, backup_manager, monkeypatch):
         calls = []
         monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a))
-        monkeypatch.setenv("DATABASE_URL", "postgresql://zpostgresql/dryrun")
-        backup_manager.database_url = "postgresql://zpostgresql/dryrun"
+        monkeypatch.setenv("DATABASE_URL", "postgresql://zpostgressql/dryrun")
+        backup_manager.database_url = "postgresql://zpostgressql/dryrun"
 
         record = backup_manager.run_pg_dump_backup(dry_run=True)
 
@@ -334,7 +334,7 @@ class TestRestoreDrillVerification:
         monkeypatch.setattr(backup_manager, "_verify_restored_state", lambda *args: verified.append(args))
 
         result = backup_manager.run_restore_drill(
-            backup_id, target_database_url="postgresql://zpostgresql/isolated_restore"
+            backup_id, target_database_url="postgresql://zpostgressql/isolated_restore"
         )
 
         assert result.success is False
@@ -367,7 +367,7 @@ class TestRestoreDrillVerification:
         monkeypatch.setattr(backup_manager, "_verify_restored_state", fake_verify)
         result = backup_manager.run_restore_drill(
             backup_id,
-            target_database_url="postgresql://zpostgresql/target",
+            target_database_url="postgresql://zpostgressql/target",
             expected_job_ids=["job-42"],
         )
         assert result.success is False
@@ -386,7 +386,7 @@ class TestRestoreDrillVerification:
         )
         result = backup_manager.run_restore_drill(
             backup_id,
-            target_database_url="postgresql://zpostgresql/target",
+            target_database_url="postgresql://zpostgressql/target",
             expected_job_ids=["job-1"],
             expected_repo_ids=["repo-1"],
         )
@@ -404,7 +404,7 @@ class TestRestoreDrillVerification:
             lambda url, j, r: RestoredStateVerification(),
         )
         result = backup_manager.run_restore_drill(
-            backup_id, target_database_url="postgresql://zpostgresql/target"
+            backup_id, target_database_url="postgresql://zpostgressql/target"
         )
         assert result.success is True
 
@@ -416,7 +416,7 @@ class TestRestoreDrillVerification:
 
         monkeypatch.setattr(backup_manager, "_verify_restored_state", boom)
         result = backup_manager.run_restore_drill(
-            backup_id, target_database_url="postgresql://zpostgresql/target"
+            backup_id, target_database_url="postgresql://zpostgressql/target"
         )
         assert result.success is False
         assert result.error is not None
@@ -459,7 +459,7 @@ class TestVerifyRestoredStateUnit:
         monkeypatch.setitem(sys.modules, "psycopg2", fake_psycopg2)
 
         outcome = br.BackupManager._verify_restored_state(
-            None, "postgresql://zpostgresql/restored", ["j1"], []
+            None, "postgresql://zpostgressql/restored", ["j1"], []
         )
         assert outcome.jobs_verified == 7
         assert outcome.repos_verified == 7
@@ -475,7 +475,7 @@ class TestVerifyRestoredStateUnit:
 
         monkeypatch.setitem(sys.modules, "psycopg2", types.SimpleNamespace(connect=refuse))
         with pytest.raises(RuntimeError):
-            br.BackupManager._verify_restored_state(None, "postgresql://zpostgresql/restored", [], [])
+            br.BackupManager._verify_restored_state(None, "postgresql://zpostgressql/restored", [], [])
 
 
 class TestWalArchiveConfig:

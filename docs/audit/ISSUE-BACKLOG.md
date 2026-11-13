@@ -44,7 +44,7 @@ Reviewed across `src/zcoder`, `src/zgpu`, `scripts` (Python). Findings:
 
 - No flaky tests reported; full suite deterministic.
 - 4 tests skip when optional deps (httpx, jwt, psutil) are missing — expected, not defects.
-- PostgreSQL-backed integration tests skip when the local `zpostgresql` container is unavailable — expected; pass when provisioned.
+- PostgreSQL-backed integration tests skip when the local `zpostgressql` container is unavailable — expected; pass when provisioned.
 - zGPU tests (`src/zgpu/tests/`) are not in pytest `testpaths` — observation GZ-01 (see BUG-AND-GAP-REGISTER).
 
 ## Release blockers

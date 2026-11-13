@@ -12,8 +12,8 @@
 
 ## PostgreSQL Setup
 
-The shared PostgreSQL container `zpostgresql` on network `zPostgreSQL_network` was started and provisioned:
-- Container: `zpostgresql` (postgres:15-alpine)
+The shared PostgreSQL container `zpostgressql` on network `zPostgreSQL_network` was started and provisioned:
+- Container: `zpostgressql` (postgres:15-alpine)
 - Database: `zcoder_db`
 - Role: `zcoder`
 - Network: `zPostgreSQL_network`

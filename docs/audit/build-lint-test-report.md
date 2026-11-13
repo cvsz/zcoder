@@ -29,7 +29,7 @@
 
 ## Skipped Tests
 
-28 tests are skipped when PostgreSQL is unavailable. All skips have explicit justification: "PostgreSQL instance not reachable" or "DATABASE_URL PostgreSQL instance not reachable" or "PostgreSQL test container not reachable". These are integration tests requiring a live PostgreSQL database. With PostgreSQL running (`zpostgresql` container), 0 tests are skipped.
+28 tests are skipped when PostgreSQL is unavailable. All skips have explicit justification: "PostgreSQL instance not reachable" or "DATABASE_URL PostgreSQL instance not reachable" or "PostgreSQL test container not reachable". These are integration tests requiring a live PostgreSQL database. With PostgreSQL running (`zpostgressql` container), 0 tests are skipped.
 
 ## Warnings
 

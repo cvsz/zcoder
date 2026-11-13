@@ -32,7 +32,7 @@ from zcoder.infrastructure.auth.scim import ScimProvisioningService
 from zcoder.infrastructure.stores.enterprise_postgres import EnterprisePostgresStore
 from zcoder.services.agent_runtime import Job, JobStatus
 
-PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
+PG_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db")
 
 
 def pg_is_available():

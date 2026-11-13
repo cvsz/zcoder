@@ -331,7 +331,7 @@ failures. The temporary container, volume, and objects under the unique drill
 prefix were removed and cleanup was verified.
 
 This confirms the local WAL-G/R2 upload and recovery path for synthetic data;
-it is not production evidence. The shared `zpostgresql` cluster still has
+it is not production evidence. The shared `zpostgressql` cluster still has
 `archive_mode=off`, and `z-platform` is not a dedicated ZCoder PITR bucket.
 Only an Operations-run drill using the approved production archive and an
 isolated production recovery target can satisfy the release gate.

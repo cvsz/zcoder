@@ -1496,7 +1496,7 @@ Support:
 Inspect actual deployment files before changes.
 
 Preserve:
-- Shared zpostgresql lifecycle.
+- Shared zpostgressql lifecycle.
 - Dedicated zcoder_db.
 - Read-only GGUF mount.
 - Loopback-only local inference.

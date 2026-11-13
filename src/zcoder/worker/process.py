@@ -7,6 +7,7 @@ Provides:
   • Worker pool type support (standard, sandbox, trusted)
   • Signal-safe operation
   • Health reporting
+  • OpenTelemetry tracing for retry and queue operations
 
 This module is intended to be run as a separate OS process:
     python worker_process.py --worker-id w1 --pool-type standard
@@ -29,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from zcoder.core.exceptions import ConfigError
+from zcoder.infrastructure.observability.otel import trace_queue_span
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +190,17 @@ class Worker:
 
         try:
             while not self._stop_event.is_set():
+                # Update queue depth metrics
+                if self._metrics and hasattr(self._store, "get_queue_depth"):
+                    try:
+                        depth = self._store.get_queue_depth()
+                        self._metrics.queue_depth.set(float(depth))
+                        if hasattr(self._metrics, "queue_depth_max"):
+                            current_max = self._metrics.queue_depth_max.get()
+                            self._metrics.queue_depth_max.set(max(current_max, depth))
+                    except Exception:
+                        pass  # Best effort
+
                 # Don't claim if at concurrency limit
                 if len(self._active_jobs) >= self.concurrency:
                     time.sleep(1.0)
@@ -230,13 +243,15 @@ class Worker:
             self._metrics.jobs_running.inc()
 
     def _claim_job(self) -> Any:
-        if self._tenant_context is not None:
-            return self._store.claim_job_scoped(
-                self._tenant_context,
-                self.worker_id,
-                lease_duration=self.lease_duration,
-            )
-        return self._store.claim_job_with_fencing(self.worker_id, lease_duration=self.lease_duration)
+        """Claim a job from the queue with queue depth tracing."""
+        with trace_queue_span(operation="claim", queue_name="jobs"):
+            if self._tenant_context is not None:
+                return self._store.claim_job_scoped(
+                    self._tenant_context,
+                    self.worker_id,
+                    lease_duration=self.lease_duration,
+                )
+            return self._store.claim_job_with_fencing(self.worker_id, lease_duration=self.lease_duration)
 
     def _mutate_job(self, job_id: str, fencing_token: int, status: Any, cost_usd: float) -> bool:
         if self._tenant_context is not None:

@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover - psycopg2 optional in minimal envs
     psycopg2 = None  # type: ignore[assignment]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PG_URL = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
+PG_URL = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db")
 WAIT_TIMEOUT = 60.0
 
 

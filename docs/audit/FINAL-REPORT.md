@@ -131,7 +131,7 @@ flag). actionlint's integrated shellcheck over workflow `run:` blocks → clean.
 ## 16. Integration results
 
 PostgreSQL-backed integration/e2e tests executed against the local
-`zpostgresql` container (database `zcoder_db`, role `zcoder`) — pass
+`zpostgressql` container (database `zcoder_db`, role `zcoder`) — pass
 (`scripts/local_postgres.py status` → "zcoder_db ready for zcoder
 (PostgreSQL 15.19)").
 

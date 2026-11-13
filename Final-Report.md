@@ -50,7 +50,7 @@ ZCoder v1.60.0 achieves **full enterprise production-grade readiness** with comp
 
 | Area | Description |
 |------|-------------|
-| **TEST_DATABASE_URL** | Added to `.env` and `.env.example` with proper PostgreSQL DSN from `zpostgresql` container |
+| **TEST_DATABASE_URL** | Added to `.env` and `.env.example` with proper PostgreSQL DSN from `zpostgressql` container |
 | **Removed zcoder-local-inference** | Deleted duplicate/redundant folder as requested |
 | **Integration Tests** | All 86 integration tests pass with real PostgreSQL |
 | **Unit Tests** | All 2,225 tests pass (2,178 unit + 86 integration + E2E) |
@@ -141,7 +141,7 @@ Total                         2225 passed, 16 skipped
 
 ### 3.4 PostgreSQL Integration Validation
 
-- **Container**: `zpostgresql` on `zPostgreSQL_network`
+- **Container**: `zpostgressql` on `zPostgreSQL_network`
 - **Database**: `zcoder_db`
 - **Role**: `zcoder`
 - **Connection**: `postgresql://zcoder:****@172.26.0.7:5432/zcoder_db`
@@ -194,7 +194,7 @@ Total                         2225 passed, 16 skipped
 
 ### 6.1 Docker Compose Stack
 - **llama.cpp** (local inference) — health-checked, loopback only
-- **PostgreSQL 15** (zpostgresql) — secrets via files, health-checked
+- **PostgreSQL 15** (zpostgressql) — secrets via files, health-checked
 - **Redis 7** (zredis) — LRU eviction, health-checked
 - **ZCoder** — multi-service network mode, depends_on healthy
 
@@ -204,7 +204,7 @@ Total                         2225 passed, 16 skipped
 profile: "production"
 database:
   mode: "postgres"
-  url: "postgresql://zcoder:****@zpostgresql:5432/zcoder_db"
+  url: "postgresql://zcoder:****@zpostgressql:5432/zcoder_db"
 auth:
   enabled: true
   oidc_issuer: "https://auth.example.com"

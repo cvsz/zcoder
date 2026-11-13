@@ -26,9 +26,9 @@ COMPOSE_FILE="${DOCKER_COMPOSE_FILE:-docker-compose.yml}"
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-zcoder}"
 
 # Resources declared by docker-compose.yml that this audit expects to exist.
-EXPECTED_CONTAINERS=(zpostgresql zredis zcoder-llm zcoder)
+EXPECTED_CONTAINERS=(zpostgressql zredis zcoder-llm zcoder)
 EXPECTED_IMAGES=("postgres:15-alpine" "redis:7-alpine" "zcoder:latest" "ghcr.io/ggml-org/llama.cpp:server")
-EXPECTED_VOLUMES=(zpostgresql_data zredis_data zcoder-home)
+EXPECTED_VOLUMES=(zpostgressql_data zredis_data zcoder-home)
 EXPECTED_NETWORKS=(zPostgreSQL_network)
 
 LLAMA_HEALTH_URL="http://127.0.0.1:8080/health"

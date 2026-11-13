@@ -11,9 +11,10 @@ Provides:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -187,6 +188,39 @@ class ZCoderMetrics:
         self.maintenance_observer_errors_total = _Counter()
         self.maintenance_campaign_duration_seconds = _Histogram()
 
+        # F14-11: Retry metrics
+        self.retry_attempts_total = _Counter()
+        self.retry_successes_total = _Counter()
+        self.retry_failures_total = _Counter()
+        self.retry_duration_seconds = _Histogram()
+        self.retry_category_total = _Counter()  # labels: category
+
+        # F14-12: Queue depth metrics (enhanced)
+        self.queue_depth = _Gauge()
+        self.queue_depth_max = _Gauge()
+        self.queue_wait_seconds = _Histogram()
+
+        # F14-18: Configurable retention settings
+        self._metrics_retention_seconds: int = int(
+            os.getenv("ZCODER_METRICS_RETENTION_SECONDS", "86400")
+        )  # 24h default
+        self._histogram_max_observations: int = int(os.getenv("ZCODER_HISTOGRAM_MAX_OBSERVATIONS", "10000"))
+
+    def set_retention(self, retention_seconds: int) -> None:
+        """Set metrics retention period in seconds."""
+        self._metrics_retention_seconds = max(0, retention_seconds)
+
+    def set_histogram_max_observations(self, max_observations: int) -> None:
+        """Set maximum observations to keep in histograms."""
+        self._histogram_max_observations = max(100, max_observations)
+
+    def _maybe_trim_histograms(self) -> None:
+        """Trim histogram observations if they exceed the configured maximum."""
+        for attr_name in dir(self):
+            attr = getattr(self, attr_name)
+            if isinstance(attr, _Histogram) and len(attr._observations) > self._histogram_max_observations:
+                attr._observations = attr._observations[-self._histogram_max_observations :]
+
     def prometheus_exposition(self) -> str:
         """Render metrics in Prometheus text format."""
         lines: list[str] = []
@@ -288,6 +322,33 @@ class ZCoderMetrics:
             self.maintenance_campaign_duration_seconds,
         )
 
+        # F14-11: Retry metrics
+        c(
+            "zcoder_retry_attempts_total",
+            "Total retry attempts",
+            self.retry_attempts_total,
+        )
+        c(
+            "zcoder_retry_successes_total",
+            "Total successful retries",
+            self.retry_successes_total,
+        )
+        c(
+            "zcoder_retry_failures_total",
+            "Total failed retries",
+            self.retry_failures_total,
+        )
+        h(
+            "zcoder_retry_duration_seconds",
+            "Retry delay duration",
+            self.retry_duration_seconds,
+        )
+
+        # F14-12: Queue depth metrics
+        g("zcoder_queue_depth", "Current queue depth", self.queue_depth)
+        g("zcoder_queue_depth_max", "Maximum queue depth observed", self.queue_depth_max)
+        h("zcoder_queue_wait_seconds", "Time spent in queue", self.queue_wait_seconds)
+
         return "\n".join(lines) + "\n"
 
 
@@ -338,6 +399,10 @@ class _NoOpTracer:
     @contextmanager
     def start_as_current_span(self, name: str, **kwargs) -> Generator[_NoOpSpan, None, None]:
         yield _NoOpSpan()
+
+    def start_span(self, name: str, **kwargs) -> _NoOpSpan:
+        """Start a span without entering it as a context manager."""
+        return _NoOpSpan()
 
 
 # ─── Initialization ──────────────────────────────────────────────────────────
@@ -474,3 +539,85 @@ def trace_anthropic_call(model: str = "", operation: str = "inference") -> Gener
             m.anthropic_errors_total.inc()
             span.record_exception(exc)
             raise
+
+
+@contextmanager
+def trace_retry_span(
+    attempt: int,
+    max_attempts: int,
+    category: str = "transient",
+    operation: str = "retry",
+) -> Generator[Any, None, None]:
+    """Trace a retry attempt with classification metadata (sync version)."""
+    tracer = get_tracer()
+    metrics_registry = get_metrics()
+    with tracer.start_as_current_span(f"retry.{operation}") as span:
+        span.set_attribute("retry.attempt", attempt)
+        span.set_attribute("retry.max_attempts", max_attempts)
+        span.set_attribute("retry.category", category)
+        metrics_registry.retry_attempts_total.inc()
+        metrics_registry.retry_category_total.inc(labels={"category": category})
+        started_at = time.monotonic()
+        try:
+            yield span
+            metrics_registry.retry_successes_total.inc()
+        except Exception as exc:
+            metrics_registry.retry_failures_total.inc()
+            metrics_registry.retry_duration_seconds.observe(time.monotonic() - started_at)
+            span.record_exception(exc)
+            raise
+        finally:
+            metrics_registry.retry_duration_seconds.observe(time.monotonic() - started_at)
+
+
+@asynccontextmanager
+async def trace_retry_span_async(
+    attempt: int,
+    max_attempts: int,
+    category: str = "transient",
+    operation: str = "retry",
+):
+    """Trace a retry attempt with classification metadata (async version)."""
+    tracer = get_tracer()
+    metrics_registry = get_metrics()
+    span = tracer.start_span(f"retry.{operation}")
+    span.set_attribute("retry.attempt", attempt)
+    span.set_attribute("retry.max_attempts", max_attempts)
+    span.set_attribute("retry.category", category)
+    metrics_registry.retry_attempts_total.inc()
+    metrics_registry.retry_category_total.inc(labels={"category": category})
+    started_at = time.monotonic()
+    try:
+        span.__enter__()
+        metrics_registry.retry_attempts_total.inc()
+        yield span
+        metrics_registry.retry_successes_total.inc()
+    except Exception as exc:
+        metrics_registry.retry_failures_total.inc()
+        metrics_registry.retry_duration_seconds.observe(time.monotonic() - started_at)
+        span.record_exception(exc)
+        raise
+    finally:
+        span.__exit__(None, None, None)
+        metrics_registry.retry_duration_seconds.observe(time.monotonic() - started_at)
+
+
+@contextmanager
+def trace_queue_span(
+    operation: str = "queue",
+    queue_name: str = "default",
+) -> Generator[Any, None, None]:
+    """Trace queue operations with depth and wait time tracking."""
+    tracer = get_tracer()
+    metrics_registry = get_metrics()
+    with tracer.start_as_current_span(f"queue.{operation}") as span:
+        span.set_attribute("queue.name", queue_name)
+        span.set_attribute("queue.operation", operation)
+        metrics_registry.queue_depth.inc()
+        started_at = time.monotonic()
+        try:
+            yield span
+        finally:
+            wait_time = time.monotonic() - started_at
+            metrics_registry.queue_wait_seconds.observe(wait_time)
+            metrics_registry.queue_depth.dec()

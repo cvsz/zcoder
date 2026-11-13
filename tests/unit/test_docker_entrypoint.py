@@ -12,7 +12,7 @@ def test_database_url_uses_dedicated_zcoder_database_and_role(tmp_path):
 
     result = configure_database_url(env)
 
-    assert result == f"postgresql://zcoder:{'a' * 64}@zpostgresql:5432/zcoder_db"
+    assert result == f"postgresql://zcoder:{'a' * 64}@zpostgressql:5432/zcoder_db"
     assert env["DATABASE_URL"] == result
 
 

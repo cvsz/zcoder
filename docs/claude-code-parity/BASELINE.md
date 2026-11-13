@@ -34,7 +34,7 @@
 | Web/API | FastAPI + Uvicorn |
 | Database | SQLite (default) / PostgreSQL 15 (enterprise) |
 | ORM | psycopg2 / psycopg3 + raw SQL |
-| Queue/Jobs | Custom PostgreSQL-backed (zpostgresql) |
+| Queue/Jobs | Custom PostgreSQL-backed (zpostgressql) |
 | Local AI | llama.cpp / Ollama / vLLM (loopback) |
 | Observability | Prometheus + OpenTelemetry + Structured JSON logs |
 | MCP | stdio + HTTP/SSE transports |
@@ -140,10 +140,10 @@ No circular dependencies verified by architecture tests.
 ### Test Suite
 | Test Type | Count | Status |
 |-----------|-------|--------|
-| Unit Tests | 2178 | ✅ Passing |
-| Integration Tests | 30 | ✅ Passing |
+| Unit Tests | 2152 | ✅ Passing |
+| Integration Tests | 100 | ✅ Passing |
 | E2E Tests | 130 | ✅ Passing (14 new plugin system) |
-| **Total** | **2,338** | **✅ All Passing** |
+| **Total** | **2,382** | **✅ All Passing** |
 
 ### Quality Gates (All Passing)
 | Gate | Tool | Status |
@@ -171,7 +171,7 @@ No circular dependencies verified by architecture tests.
 ## 5. Database & Infrastructure
 
 ### PostgreSQL (Enterprise)
-- **Container:** zpostgresql (PostgreSQL 15 Alpine)
+- **Container:** zpostgressql (PostgreSQL 15 Alpine)
 - **Network:** zPostgreSQL_network
 - **Database:** zcoder_db
 - **Role:** zcoder
@@ -290,5 +290,12 @@ python scripts/local_postgres.py status
 - ✅ Performance optimization (lazy loading, caching, metrics)
 - ✅ Full integration test coverage
 - ✅ All quality gates passing
+- ✅ Phase 7 (Agent Runtime & Session Engine) completed: F05 missing events, F11 Session Engine, F12 Execution Loop
+- ✅ Phase 8 (Hooks & Runtime Integrations) completed: F05-21 to F05-27, F06 hooks
+- ✅ Phase 9 (MCP & Plugin Marketplace) completed: MCP Resources, Prompts, Sampling, Roots, Logging, Cancellation
+- ✅ Phase 10 (UI/TUI & Extension Framework) completed: Multi-pane TUI, UI Hooks, Slash completion
+- ✅ Phase 11 (Provider & Audio Capabilities) completed: F03 Audio (providers, STT, VAD, streaming), F15 Provider (vLLM direct, retry classification), Model lifecycle hooks
 
-**Next Steps:** Phase 7 (Agent Runtime & Session Engine) completed. All F05 missing events (UserPromptExpansion, PostToolUseFailure, PostToolBatch, StopFailure) implemented. F11 Session Engine enhanced with rename, search, export, import, delete operations. F12 Execution Loop integrated with new events. All quality gates passing (2208 tests passed, 37 skipped). Ready for Phase 8: Hooks and Runtime Integrations.
+**Next Steps:** Phase 12 (Enterprise Security and Observability): F14 Telemetry enhancements (traces, OTel, retry metrics, queue depth, retention), F17 Audit trails.
+
+All quality gates passing (2252 tests passed, 1 skipped). Ready for Phase 12: Enterprise Security and Observability.

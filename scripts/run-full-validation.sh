@@ -38,7 +38,7 @@ mkdir -p "$LOG_DIR" "$JUNIT_DIR" "$BUILD_DIR"
 
 # Use the explicitly selected PostgreSQL container. Never start, stop or
 # recreate it from this runner.
-export ZCODER_POSTGRES_CONTAINER="${ZCODER_POSTGRES_CONTAINER:-zpostgresql}"
+export ZCODER_POSTGRES_CONTAINER="${ZCODER_POSTGRES_CONTAINER:-zpostgressql}"
 RETENTION="${ZCODER_VALIDATION_RETENTION:-0}"
 
 declare -a RESULTS=()

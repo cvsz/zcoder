@@ -1,0 +1,64 @@
+# Multi-sector GGUF model server configuration for ZCoder local inference.
+#
+# Each sector runs ONE llama-server instance on its own loopback port and
+# serves exactly one GGUF model (llama-server serves one model per process).
+# All inference is local-only (loopback); no hosted model API calls are made.
+#
+# Control with: scripts/model-server {list|start|restart|stop|status|health} <sector|all>
+#
+# NOTE: ports 8080/8081 are occupied by existing services on this host, so
+# this config uses 9801-9804. Adjust if they collide with other services.
+
+# Directory containing GGUF model files.
+models_dir: /zdata/models
+
+# llama-server binary.
+llama_server_binary: /home/cvsz/.local/bin/llama-server
+
+# Runtime state directory (pidfiles) and log directory.
+run_dir: /home/cvsz/zcoder/run
+log_dir: /home/cvsz/zcoder/logs
+
+# Defaults applied to sectors that omit a field.
+default_ctx_size: 4096
+default_threads: -1
+default_gpu_layers: -1
+
+# Seconds to wait for /health after starting a sector.
+start_timeout: 120
+# Seconds to wait for a sector to terminate on stop.
+stop_timeout: 15
+
+sectors:
+  # Default sector (the existing zcoder service serves the same model on 8080).
+  - name: zcoder-7b
+    model: zcoder-7b-q4km.gguf
+    alias: zcoder-7b-q4km
+    host: 127.0.0.1
+    port: 9801
+    ctx_size: 4096
+    enabled: true
+
+  - name: zcoder-1.5b
+    model: zcoder-1.5b-q4km.gguf
+    alias: zcoder-1.5b-q4km
+    host: 127.0.0.1
+    port: 9802
+    ctx_size: 4096
+    enabled: false
+
+  - name: zcoder-9b
+    model: zcoder-9b-bf16.gguf
+    alias: zcoder-9b-bf16
+    host: 127.0.0.1
+    port: 9803
+    ctx_size: 4096
+    enabled: false
+
+  - name: zcoder-32b
+    model: zcoder-32b-q4km.gguf
+    alias: zcoder-32b-q4km
+    host: 127.0.0.1
+    port: 9804
+    ctx_size: 4096
+    enabled: false
