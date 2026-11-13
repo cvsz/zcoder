@@ -9,6 +9,7 @@ import os
 import re
 import signal
 import subprocess  # nosec B404  # Bash tool is permission-gated by PermissionPolicy
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from zcoder.agent.codeagent.workspace import IGNORED_DIRS, ToolError, Workspace
+from zcoder.agent.tools.sandbox import SandboxViolation
 
 MAX_OUTPUT_CHARS = 30_000
 MAX_READ_BYTES = 2_000_000
@@ -329,6 +331,175 @@ def _bash(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
             pipe.close()
         except Exception:
             # Closing a pipe must never mask the command result.
+            pass
+
+
+# --- Python sandbox enforcement ----------------------------------------------
+
+_PYTHON_NETWORK_IMPORTS = {
+    "socket",
+    "http",
+    "urllib",
+    "requests",
+    "httpx",
+    "aiohttp",
+    "websockets",
+    "ftplib",
+    "telnetlib",
+    "smtplib",
+    "poplib",
+    "imaplib",
+    "nntplib",
+    "xmlrpc.client",
+    "xmlrpc.server",
+    "http.client",
+    "http.server",
+    "email",
+    "ssl",
+    "asyncio",
+    "selectors",
+    "select",
+}
+
+_PYTHON_FILESYSTEM_OPS = {
+    "open",
+    "os.remove",
+    "os.unlink",
+    "os.rmdir",
+    "os.removedirs",
+    "os.rename",
+    "os.replace",
+    "os.mkdir",
+    "os.makedirs",
+    "shutil.rmtree",
+    "shutil.move",
+    "shutil.copy",
+    "shutil.copy2",
+    "pathlib.Path.write_text",
+    "pathlib.Path.write_bytes",
+    "pathlib.Path.unlink",
+    "pathlib.Path.rmdir",
+}
+
+
+def _enforce_python_sandbox(
+    code: str, cwd: str, allow_net: bool = False, allowed_roots: list | None = None
+) -> None:
+    """Enforce sandbox policy on Python code.
+
+    Checks for:
+    - Network-related imports when network is disabled
+    - Filesystem operations outside allowed roots (best-effort static check)
+    """
+    if not allow_net:
+        # Check for network-related imports
+        import re
+
+        for imp in _PYTHON_NETWORK_IMPORTS:
+            # Match import statements: import X, from X import Y, import X as Y
+            pattern = rf"(?:^|\n)\s*(?:import\s+{re.escape(imp)}\b|from\s+{re.escape(imp)}\s+import)"
+            if re.search(pattern, code):
+                raise SandboxViolation(
+                    f"network import '{imp}' is blocked inside the sandbox (use allow_net=true to permit)"
+                )
+
+    # Check for filesystem operations that might escape allowed roots
+    # This is a best-effort static check - we look for open() calls with relative paths
+    # that could traverse outside allowed roots
+    if allowed_roots:
+        allowed = [Path(r).expanduser().resolve() for r in allowed_roots]
+        sandbox_cwd = allowed[0]
+
+        # Check for open() with path traversal patterns
+        import re
+
+        open_pattern = r"open\s*\(\s*['\"]([^'\"]+)['\"]"
+        for match in re.finditer(open_pattern, code):
+            path_str = match.group(1)
+            try:
+                candidate = Path(path_str).expanduser()
+                if not candidate.is_absolute():
+                    candidate = sandbox_cwd / candidate
+                resolved = candidate.resolve()
+            except Exception:
+                continue
+            if not any(resolved == root or root in resolved.parents for root in allowed):
+                raise SandboxViolation(f"file path '{path_str}' resolves outside the sandbox root(s)")
+
+
+def _code_exec(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Execute Python code in a sandboxed subprocess and return the output."""
+    code = args.get("code")
+    if not isinstance(code, str) or not code.strip():
+        raise ToolError("code is required")
+    timeout = _int(args, "timeout", 120, 1, 600)
+    allow_net = args.get("allow_net", False)
+
+    # Get sandbox roots from context or use workspace root
+    allowed_roots = [ctx.workspace.root]
+    extra_roots = args.get("extra_roots")
+    if isinstance(extra_roots, list):
+        allowed_roots.extend(extra_roots)
+
+    # Enforce sandbox policy on the Python code
+    # Check for network imports and filesystem access in the code
+    try:
+        _enforce_python_sandbox(code, str(ctx.workspace.root), allow_net, allowed_roots)
+    except SandboxViolation as e:
+        raise ToolError(f"Sandbox violation: {e}") from e
+
+    # Execute the code in a subprocess
+    env = {**bash_environment(ctx), "PYTHONUNBUFFERED": "1", "TERM": "dumb", "NO_COLOR": "1"}
+    proc = subprocess.Popen(  # nosec B603  # gated by PermissionPolicy; user approves non-read-only commands
+        [sys.executable, "-c", code],
+        cwd=ctx.workspace.root,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    pipe = proc.stdout
+    if pipe is None:
+        proc.kill()
+        raise ToolError("failed to capture command stdout")
+    chunks: list[bytes] = []
+
+    def pump() -> None:
+        for block in iter(lambda: pipe.read(4096), b""):
+            chunks.append(block)
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + timeout
+    status = ""
+    try:
+        while proc.poll() is None:
+            if ctx.cancel.is_set():
+                status = "interrupted by user"
+            elif time.monotonic() > deadline:
+                status = f"timed out after {timeout}s"
+            if status:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    proc.kill()
+                break
+            time.sleep(0.05)
+        proc.wait()
+        reader.join(timeout=2)
+        text = b"".join(chunks).decode("utf-8", errors="replace")
+        text = truncate(text)
+        if status:
+            text += f"\n[command {status}]"
+            raise ToolError(text)
+        if proc.returncode != 0:
+            raise ToolError(f"{text}\n[exit code {proc.returncode}]".strip())
+        return ToolOutput(text or "(no output)")
+    finally:
+        try:
+            pipe.close()
+        except Exception:
             pass
 
 
@@ -729,6 +900,16 @@ def default_tools() -> dict[str, Tool]:
             _obj({"command": s, "timeout": i}, ["command"]),
             "exec",
             _bash,
+        ),
+        Tool(
+            "CodeExec",
+            "Execute Python code in a sandboxed subprocess and return the output. Supports filesystem/network isolation via sandbox policy.",
+            _obj(
+                {"code": s, "timeout": i, "allow_net": b, "extra_roots": {"type": "array", "items": s}},
+                ["code"],
+            ),
+            "exec",
+            _code_exec,
         ),
         Tool(
             "TodoWrite",

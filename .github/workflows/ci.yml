@@ -92,9 +92,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    # This job runs on the GitHub-hosted runner, not inside a job container.
+    # Service-container DNS aliases are not resolvable from the host runner;
+    # use the published localhost ports for both services.
     env:
-      DATABASE_URL: postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db
-      ZCODER_REDIS_HOST: zredis
+      DATABASE_URL: postgresql://zcoder:zcoder@127.0.0.1:5432/zcoder_db
+      TEST_DATABASE_URL: postgresql://zcoder:zcoder@127.0.0.1:5432/zcoder_db
+      ZCODER_REDIS_HOST: 127.0.0.1
       ZCODER_REDIS_PORT: 6379
     strategy:
       fail-fast: false
@@ -110,7 +114,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - run: pip install -e .
+      - run: pip install -e '.[web]'
       - run: python -m pip wheel --no-deps --wheel-dir dist .
       - run: python -c "import zipfile; from pathlib import Path; wheel=next(Path('dist').glob('zcoder-*.whl')); names=set(zipfile.ZipFile(wheel).namelist()); assert any(n.startswith('zgpu/') for n in names), 'zgpu package missing'; assert not any(n.startswith('zgpu/tests/') for n in names), 'zGPU tests must not be packaged'; required={'zgpu/dashboard/index.html','zgpu/dashboard/dashboard.css','zgpu/dashboard/dashboard.js'}; assert required.issubset(names), f'zGPU dashboard assets missing from wheel {sorted(required - names)}'"
       - run: python -c "import zcoder; import zgpu; import main; print(zcoder.__version__)"

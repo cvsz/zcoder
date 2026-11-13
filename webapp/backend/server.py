@@ -34,7 +34,6 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
@@ -62,27 +61,27 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 # (POST/DELETE) and admin endpoints require a bearer token matching
 # ZCODER_WEB_API_KEY. When the env var is unset, auth is disabled for local-only
 # dev use (a startup warning is logged).
-_security = HTTPBearer(auto_error=False)
 
 
 def _web_api_key() -> str | None:
     return os.environ.get("ZCODER_WEB_API_KEY") or None
 
 
-async def _require_auth(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = None,
-) -> None:
+def _require_auth(request: Request) -> None:
     """Enforce bearer-token auth on state-changing and admin endpoints.
 
-    Called explicitly from each protected route handler rather than as a
-    global dependency, so public read-only endpoints stay unauthenticated.
+    Reads the ``Authorization: Bearer <token>`` header directly so the check
+    actually executes (the previous dependency-injection default was never
+    awaited in the sync route handlers, which bypassed auth). Called
+    explicitly from each protected route handler rather than as a global
+    dependency, so public read-only endpoints stay unauthenticated.
     """
     expected = _web_api_key()
     if not expected:
         # Local/dev mode — no key configured, allow.
         return
-    if credentials is None or credentials.scheme != "Bearer" or credentials.credentials != expected:
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Bearer ") or auth.removeprefix("Bearer ").strip() != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid bearer token",
@@ -307,9 +306,10 @@ def get_config():
 
 @app.post("/api/config")
 def set_config(
-    update: ConfigUpdate, request: Request, credentials: HTTPAuthorizationCredentials | None = None
+    update: ConfigUpdate,
+    request: Request,
 ):
-    _require_auth(request, credentials)
+    _require_auth(request)
     cfg = Config()
     if update.model:
         cfg.set("model", update.model)
@@ -345,16 +345,20 @@ def get_session(session_id: str):
 
 @app.delete("/api/sessions/{session_id}")
 def delete_session(
-    session_id: str, request: Request, credentials: HTTPAuthorizationCredentials | None = None
+    session_id: str,
+    request: Request,
 ):
-    _require_auth(request, credentials)
+    _require_auth(request)
     _sessions.pop(session_id, None)
     return {"ok": True}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def chat(
+    req: ChatRequest,
+    request: Request,
+):
+    _require_auth(request)
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(400, "prompt must not be empty")
     _check_rate_limit(request.client.host if request.client else "unknown")
@@ -387,7 +391,10 @@ def chat(req: ChatRequest, request: Request, credentials: HTTPAuthorizationCrede
 
 
 @app.post("/api/chat/stream")
-def chat_stream(req: ChatRequest, request: Request, credentials: HTTPAuthorizationCredentials | None = None):
+def chat_stream(
+    req: ChatRequest,
+    request: Request,
+):
     """Server-Sent Events variant of /api/chat. Same request body and same
     session-history semantics; the difference is purely transport — tokens
     arrive as they're generated instead of after the full response. Reuses
@@ -401,7 +408,7 @@ def chat_stream(req: ChatRequest, request: Request, credentials: HTTPAuthorizati
     A client that ignores "type" and just concatenates every "token" text
     field reconstructs the full response, same as /api/chat's `response`.
     """
-    _require_auth(request, credentials)
+    _require_auth(request)
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(400, "prompt must not be empty")
     _check_rate_limit(request.client.host if request.client else "unknown")
@@ -461,8 +468,8 @@ def chat_stream(req: ChatRequest, request: Request, credentials: HTTPAuthorizati
 
 
 @app.get("/api/admin/metrics")
-def admin_metrics(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_metrics(request: Request):
+    _require_auth(request)
     return _admin_metrics()
 
 
@@ -490,8 +497,8 @@ def _admin_metrics() -> dict:
 
 
 @app.get("/api/admin/providers")
-def admin_providers(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_providers(request: Request):
+    _require_auth(request)
     return _admin_providers()
 
 
@@ -522,8 +529,8 @@ def _admin_providers() -> list[dict]:
 
 
 @app.get("/api/admin/models/catalog")
-def admin_models_catalog(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_models_catalog(request: Request):
+    _require_auth(request)
     return _admin_models_catalog()
 
 
@@ -544,8 +551,8 @@ def _admin_models_catalog() -> list[dict]:
 
 
 @app.get("/api/admin/tasks")
-def admin_tasks(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_tasks(request: Request):
+    _require_auth(request)
     return _admin_tasks()
 
 
@@ -555,8 +562,8 @@ def _admin_tasks() -> list[dict]:
 
 
 @app.get("/api/admin/hardware")
-def admin_hardware(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_hardware(request: Request):
+    _require_auth(request)
     return _admin_hardware()
 
 
@@ -608,34 +615,34 @@ def get_models_v2():
 
 
 @app.get("/api/v2/admin/metrics")
-def admin_metrics_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_metrics_v2(request: Request):
+    _require_auth(request)
     res = _admin_metrics()
     res["api_version"] = "v2"
     return res
 
 
 @app.get("/api/v2/admin/providers")
-def admin_providers_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_providers_v2(request: Request):
+    _require_auth(request)
     return {"api_version": "v2", "providers": _admin_providers()}
 
 
 @app.get("/api/v2/admin/models/catalog")
-def admin_models_catalog_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_models_catalog_v2(request: Request):
+    _require_auth(request)
     return {"api_version": "v2", "catalog": _admin_models_catalog()}
 
 
 @app.get("/api/v2/admin/tasks")
-def admin_tasks_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_tasks_v2(request: Request):
+    _require_auth(request)
     return {"api_version": "v2", "tasks": _admin_tasks()}
 
 
 @app.get("/api/v2/admin/hardware")
-def admin_hardware_v2(request: Request, credentials: HTTPAuthorizationCredentials | None = None):
-    _require_auth(request, credentials)
+def admin_hardware_v2(request: Request):
+    _require_auth(request)
     res = _admin_hardware()
     res["api_version"] = "v2"
     return res

@@ -8,7 +8,7 @@
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--011-green.svg)](SECURITY.md)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgresql-blue.svg)](docs/operations/deployment.md)
-[![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
 [![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md)
 
@@ -27,7 +27,7 @@
 | Security Scan | [![Security Scan](https://github.com/cvsz/zcoder/actions/workflows/security-scan.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/security-scan.yml) | Passing |
 | CodeQL | [![CodeQL](https://github.com/cvsz/zcoder/actions/workflows/codeql.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/codeql.yml) | Passing |
 | Release Gate | [![Release Gate](https://github.com/cvsz/zcoder/actions/workflows/release-gate.yml/badge.svg)](https://github.com/cvsz/zcoder/actions/workflows/release-gate.yml) | Passing |
-| Coverage | [![Coverage](https://img.shields.io/badge/Coverage-70%25-yellow.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml) | ≥70% |
+| Coverage | [![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml) | **81.68%** |
 | License | [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) | MIT |
 | Python | [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/) | 3.12+ |
 | Docker | [![Docker ghcr.io](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder) | Available |
@@ -117,7 +117,7 @@ python scripts/local_postgres.py run -- <command>
 |---|---|---|
 | **CLI** | Click/Typer patterns | `zcoder` และ `python main.py` entry points |
 | **TUI** | Textual 0.80+ | Terminal UI แบบ interactive |
-| **Web Console** | FastAPI + Uvicorn | Browser-based management console |
+| **Web Console** | FastAPI + Uvicorn + AdminLTE 3 | Browser-based management console (AdminLTE 3 dashboard: Bootstrap 4 + jQuery + FontAwesome via CDN) |
 | **API Server** | FastAPI + OpenAPI | RESTful API พร้อม `/metrics`, `/health/live`, `/health/ready` |
 
 ### 🤖 AI & Agent Runtime
@@ -273,6 +273,8 @@ zcoder --tui
 # Web console
 make build
 make start
+
+The console frontend is built with **AdminLTE 3** (Bootstrap 4 + jQuery + FontAwesome via CDN): sidebar navigation, main-header navbar, control sidebar, metrics small boxes, run configuration card, and workspace console with SSE streaming chat. Connect the backend via the API base URL dialog to activate live models, sessions and streaming.
 ```
 
 ---
@@ -639,6 +641,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 |---|---|
 | [`QUICKSTART.md`](docs/guides/QUICKSTART.md) | Basic setup and first commands |
 | [`ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | System architecture and boundaries |
+| [`PERFORMANCE.md`](docs/performance-optimization.md) | Performance optimization guide |
 | [`ROADMAP.md`](docs/engineering/ROADMAP.md) | Engineering direction |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 | [`SECURITY.md`](SECURITY.md) | Security guidance |

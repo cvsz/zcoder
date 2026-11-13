@@ -183,6 +183,9 @@ async def handle_v1_api(request: Request, path: str):
                     "error": {
                         "code": "INVALID_JSON",
                         "message": "Request body must contain valid JSON",
+                        # request_id is validated above (isprintable + length ≤ 128,
+                        # or freshly generated via uuid), so echoing it back in the
+                        # error response is safe.
                         "request_id": request_id,
                     }
                 },
@@ -194,6 +197,9 @@ async def handle_v1_api(request: Request, path: str):
                     "error": {
                         "code": "INVALID_REQUEST_BODY",
                         "message": "Request JSON body must be an object",
+                        # request_id is validated above (isprintable + length ≤ 128,
+                        # or freshly generated via uuid), so echoing it back in the
+                        # error response is safe.
                         "request_id": request_id,
                     }
                 },

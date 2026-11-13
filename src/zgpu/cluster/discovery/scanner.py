@@ -268,6 +268,7 @@ class NetworkComputeScanner:
             not isinstance(bind_address, ipaddress.IPv4Address)
             or bind_address.is_unspecified
             or not (bind_address.is_private or bind_address.is_loopback or bind_address.is_link_local)
+            or bind_address == ipaddress.IPv4Address("255.255.255.255")
         ):
             raise ValueError("bind_host must be a specific private, loopback, or link-local IPv4 address")
 
@@ -276,6 +277,9 @@ class NetworkComputeScanner:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # bind_address was validated above: it is a specific IPv4 address
+        # (not 0.0.0.0/unspecified), so binding to it does not expose the
+        # socket to all network interfaces.
         try:
             sock.bind((str(bind_address), port))
         except Exception as e:

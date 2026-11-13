@@ -22,6 +22,8 @@ class FakeCursor:
         if normalized.startswith("SELECT id, action, payload, attempts FROM outbox"):
             if len(params) != 2:
                 raise ValueError("expected (max_attempts, max_messages)")
+            # params validated above to have exactly 2 elements, so this
+            # unpacking is safe.
             max_attempts, max_messages = params
             eligible = [row for row in self.conn.rows if row[4] == "PENDING" and row[3] < max_attempts]
             self._rows = eligible[:max_messages]

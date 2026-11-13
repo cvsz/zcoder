@@ -3,7 +3,8 @@ claude_tokens.py — Token Counting
 ZCoder CLI v1.8.0
 
 Count tokens BEFORE sending a request (no API cost incurred).
-Uses the /v1/messages/count_tokens endpoint.
+Uses the /v1/messages/count_tokens endpoint for precise counting,
+with local estimation as zero-cost fallback.
 
 CLI flags:
   --count-tokens           Count tokens in a prompt without calling the model
@@ -16,6 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
@@ -24,11 +26,16 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 
 class TokenCounter:
-    """Count tokens without sending to the model."""
+    """Count tokens without sending to the model.
+
+    Supports both API-based precise counting and local estimation.
+    Local estimation is used when no API key is provided or explicitly requested.
+    """
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
         self.api_key = api_key
         self.model = model
+        self._local_estimator = LocalTokenEstimator()
 
     def count(
         self,
@@ -36,7 +43,23 @@ class TokenCounter:
         system: str | None = None,
         tools: list[dict] | None = None,
         history: list[dict] | None = None,
+        use_local: bool = False,
     ) -> dict:
+        """Count tokens via API or local estimation.
+
+        Args:
+            prompt: User prompt
+            system: Optional system prompt
+            tools: Optional tool definitions
+            history: Optional conversation history
+            use_local: Force local estimation even if API key available
+
+        Returns:
+            Dict with input_tokens and optionally other metadata
+        """
+        if use_local or not self.api_key:
+            return self.count_local(prompt, system, tools, history)
+
         messages = list(history or [])
         messages.append({"role": "user", "content": prompt})
 
@@ -62,14 +85,37 @@ class TokenCounter:
         except ZCoderError as e:
             raise RuntimeError(f"Token count failed: {e.message}") from e
 
+    def count_local(
+        self,
+        prompt: str,
+        system: str | None = None,
+        tools: list[dict] | None = None,
+        history: list[dict] | None = None,
+    ) -> dict:
+        """Count tokens using local estimation (zero API cost)."""
+        tokens = self._local_estimator.estimate(prompt, self.model, system, tools, history)
+        return {"input_tokens": tokens, "method": "local"}
+
+    def estimate_local(
+        self,
+        prompt: str,
+        system: str | None = None,
+        tools: list[dict] | None = None,
+        history: list[dict] | None = None,
+    ) -> int:
+        """Quick local token estimation returning just the count."""
+        return self._local_estimator.estimate(prompt, self.model, system, tools, history)
+
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, req: "urllib.request.Request") -> dict:
         return urlopen_json(req, timeout=30)
 
-    def count_file(self, file_path: str, prompt: str, system: str | None = None) -> dict:
+    def count_file(
+        self, file_path: str, prompt: str, system: str | None = None, use_local: bool = False
+    ) -> dict:
         content = Path(file_path).read_text()
         full = f"File:\n```\n{content}\n```\n\n{prompt}"
-        return self.count(full, system=system)
+        return self.count(full, system=system, use_local=use_local)
 
     def estimate_cost(self, token_count: int, model: str | None = None) -> dict:
         """Rough cost estimate based on current pricing tiers."""
@@ -106,18 +152,20 @@ def cmd_count_tokens(
     system: str | None = None,
     file_path: str | None = None,
     budget: int | None = None,
+    use_local: bool = False,
 ):
     tc = TokenCounter(api_key=api_key, model=model)
     if file_path:
-        result = tc.count_file(file_path, prompt, system=system)
+        result = tc.count_file(file_path, prompt, system=system, use_local=use_local)
     else:
-        result = tc.count(prompt, system=system)
+        result = tc.count(prompt, system=system, use_local=use_local)
 
     tokens = result.get("input_tokens", 0)
+    method = result.get("method", "api")
     est = tc.estimate_cost(tokens, model)
 
     print(f"\n  Model:            {model}")
-    print(f"  Input tokens:     {tokens:,}")
+    print(f"  Input tokens:     {tokens:,} ({method})")
     print(f"  Estimated cost:   ${est['estimated_cost_usd']:.6f} (input only)")
     if budget:
         pct = tokens / budget * 100

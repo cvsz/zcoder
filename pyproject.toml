@@ -97,6 +97,7 @@ show_missing = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+exclude = ["external/", "dist/", "build/", "*.egg-info/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
@@ -119,6 +120,7 @@ ignore = ["E501"]
 [tool.black]
 line-length = 110
 target-version = ["py312"]
+exclude = "/(external|dist|build|\\.egg-info|\\.venv|\\.venv-validation|\\.web-venv|logs/validation|smoke-venv|venv)/"
 
 [tool.mypy]
 python_version = "3.12"

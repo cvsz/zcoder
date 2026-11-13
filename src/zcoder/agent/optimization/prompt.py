@@ -15,9 +15,44 @@ CLI flags:
 
 import json
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 PROMPT_LIB_PATH = Path.home() / ".zcoder" / "prompt_library.json"
+
+
+class OptimizeCache:
+    """LRU cache for prompt optimization results."""
+
+    def __init__(self, max_size: int = 128):
+        self._cache: OrderedDict[tuple, str] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
+        self._max_size = max_size
+
+    def get(self, key: tuple) -> str | None:
+        if key in self._cache:
+            self._hits += 1
+            self._cache.move_to_end(key)
+            return self._cache[key]
+        self._misses += 1
+        return None
+
+    def set(self, key: tuple, value: str) -> None:
+        self._cache[key] = value
+        if len(self._cache) > self._max_size:
+            self._cache.popitem(last=False)
+
+    def stats(self) -> dict:
+        return {"hits": self._hits, "misses": self._misses, "size": len(self._cache)}
+
+    def clear(self) -> None:
+        self._cache.clear()
+        self._hits = 0
+        self._misses = 0
+
+
+_optimize_cache = OptimizeCache()
 
 
 def _strip_json_fence(text: str) -> str:
@@ -40,7 +75,7 @@ def _call(client, model: str, system: str, user: str, max_tokens: int = 2048) ->
 
 def optimize(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> str:
     if not client:
-        # Offline rule-based prompt enhancement
+        # Offline rule-based prompt enhancement - not cached
         lines = [line.strip() for line in prompt.strip().splitlines() if line.strip()]
         enhanced = "Act as an expert software engineer.\n\nTask:\n" + "\n".join(lines)
         if not any(k in prompt.lower() for k in ("return", "output", "format")):
@@ -53,9 +88,31 @@ def optimize(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-
         "Return ONLY the improved prompt — no commentary, no explanation."
     )
     try:
-        return _call(client, model, system, f"Prompt to improve:\n{prompt}")
+        # Use client id as part of cache key to isolate different clients
+        client_id = id(client)
+        cache_key = (prompt, model, client_id)
+
+        cached = _optimize_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = _call(client, model, system, f"Prompt to improve:\n{prompt}")
+
+        _optimize_cache.set(cache_key, result)
+
+        return result
     except Exception as exc:
         return f"[ERROR] Local prompt optimization failed: {exc}"
+
+
+def get_optimize_cache_stats() -> dict:
+    """Get cache statistics for the optimize function."""
+    return _optimize_cache.stats()
+
+
+def clear_optimize_cache() -> None:
+    """Clear the optimize function cache."""
+    _optimize_cache.clear()
 
 
 def score(prompt: str, client=None, model: str = "zqwen2.5-coder-7b-instruct-q4_k_m") -> dict:
