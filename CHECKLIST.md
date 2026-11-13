@@ -35,7 +35,7 @@
 - [x] SQL injection allowlist in `src/zcoder/domain/services/deployment.py`
   backup table queries.
 - [x] Model defaults aligned across CLI, health check, web API v1/v2
-  (`ZCODER_MODEL` → `qwen-7b-q4km`).
+  (`ZCODER_MODEL` → `zcoder-7b-q4km`).
 - [x] Prometheus 2.53.5 installed system-wide, running as systemd service;
   added `prometheus/` directory with scrape config (job `zcoder` →
   `localhost:8088/metrics`), alerting rules
@@ -68,7 +68,7 @@
 - [ ] Production release gate: `VERSION_INTEGRITY`, `TEST_ACCOUNTING`,
   `PITR`, `SECURITY`, and `FINAL` remain UNKNOWN for this uncommitted candidate.
 - [ ] Type-check remediation: mypy reports 499 errors across 45 files; the CLI entry point passes an isolated mypy check.
-- [ ] Local-only migration: 28 source modules still reference Anthropic SDK or endpoints. Audited provider-specific CLI requests fail closed in local mode; `--advisor` now uses local two-pass generation. One real CPU inference against `qwen-7b-q4km.gguf` returned `LOCAL_OK`; other models, hardware, and task-quality acceptance remain unverified.
+- [ ] Local-only migration: 28 source modules still reference Anthropic SDK or endpoints. Audited provider-specific CLI requests fail closed in local mode; `--advisor` now uses local two-pass generation. One real CPU inference against `zcoder-7b-q4km.gguf` returned `LOCAL_OK`; other models, hardware, and task-quality acceptance remain unverified.
 - [ ] GitHub delivery alignment: protection requires Python 3.10/3.11 checks, while local CI emits 3.12/3.13; update repository settings together with the PR workflow revision.
 - [ ] Hosted exact-head checks, independent review, merge, and post-merge verification remain pending.
 
