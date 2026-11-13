@@ -22,6 +22,7 @@ module instead of folded into local estimation here.
 """
 
 import json
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -31,6 +32,11 @@ from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
+
+# Thread-safe cost log cache
+_cost_lock = threading.Lock()
+_cost_cache: dict = {}
+_cache_ttl = 300  # 5 minutes TTL for cost cache
 
 PRICE: dict[str, dict[str, float]] = {
     # Current
@@ -316,15 +322,30 @@ def select_model(complexity: str, force: str | None = None, prefer_latency: bool
 
 def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_preview: str):
     SPEND_LOG.parent.mkdir(parents=True, exist_ok=True)
-    entries = []
-    if SPEND_LOG.exists():
-        try:
-            entries = json.loads(SPEND_LOG.read_text())
-        except Exception:
-            # Spend log may be corrupt; start with empty entries.
-            pass
-    entries.append(
-        {
+
+    # Use thread-safe cache
+    with _cost_lock:
+        _cost_cache.setdefault("entries", []).append(
+            {
+                "ts": datetime.now().isoformat(),
+                "model": model,
+                "in_tok": in_tok,
+                "out_tok": out_tok,
+                "cost_usd": round(cost, 6),
+                "prompt": prompt_preview[:80],
+            }
+        )
+        # Keep only last 5000 entries
+        _cost_cache["entries"] = _cost_cache["entries"][-5000:]
+        # Write to file
+        SPEND_LOG.write_text(json.dumps(_cost_cache["entries"], indent=2))
+
+    # Also update persistent log
+    try:
+        all_entries = json.loads(SPEND_LOG.read_text()) if SPEND_LOG.exists() else []
+        # Merge and dedupe by timestamp+model
+        existing_entries = {e["ts"] + e["model"]: e for e in all_entries}
+        existing_entries[f"{datetime.now().isoformat()}{model}"] = {
             "ts": datetime.now().isoformat(),
             "model": model,
             "in_tok": in_tok,
@@ -332,8 +353,9 @@ def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_previe
             "cost_usd": round(cost, 6),
             "prompt": prompt_preview[:80],
         }
-    )
-    SPEND_LOG.write_text(json.dumps(entries[-5000:], indent=2))
+        SPEND_LOG.write_text(json.dumps(list(existing_entries.values())[-5000:], indent=2))
+    except Exception:
+        pass
 
 
 @dataclass
@@ -422,12 +444,26 @@ def cmd_optimized(prompt: str, api_key: str, verbose: bool = False, force_model:
     print(r.text)
 
 
-def cmd_cost_summary(limit: int = 20):
-    if not SPEND_LOG.exists():
-        print("No cost log found.")
-        return
-    entries = json.loads(SPEND_LOG.read_text())
-    recent = entries[-limit:]
+def cmd_cost_summary(limit: int = 20, use_cache: bool = True):
+    """Print cost summary from the spend log.
+
+    Args:
+        limit: Number of recent entries to show
+        use_cache: If True, use the in-memory cache for faster access
+    """
+    # Use cache if available and requested
+    entries = []
+    with _cost_lock:
+        if use_cache and _cost_cache.get("entries"):
+            entries = _cost_cache["entries"][-limit:]
+        else:
+            # Fall back to file
+            if not SPEND_LOG.exists():
+                print("No cost log found.")
+                return
+            entries = json.loads(SPEND_LOG.read_text())[-limit:]
+
+    recent = entries[-limit:] if limit > 0 else entries
     total = sum(e["cost_usd"] for e in entries)
     print(f"Total spend logged: ${total:.4f}  ({len(entries)} calls)\n")
     print(f"{'Timestamp':<21} {'Model':<35} {'Cost':>9}  Prompt preview")
@@ -437,8 +473,18 @@ def cmd_cost_summary(limit: int = 20):
 
 
 def cmd_cost_reset():
+    """Clear the cost log and in-memory cache."""
+    with _cost_lock:
+        _cost_cache.clear()
     if SPEND_LOG.exists():
         SPEND_LOG.unlink()
         print("✓ Cost log cleared.")
     else:
         print("No log to clear.")
+
+
+def cmd_cost_clear_cache():
+    """Clear only the in-memory cost cache."""
+    with _cost_lock:
+        _cost_cache.clear()
+    print("✓ Cost cache cleared.")

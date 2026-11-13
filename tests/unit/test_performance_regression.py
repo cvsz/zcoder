@@ -19,6 +19,10 @@ from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 
 TEST_DSN = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 
+# Skip PostgreSQL-backed tests when no database is available (CI has no Postgres).
+_pg_available = bool(TEST_DSN) and TEST_DSN.startswith("postgresql")
+pytestmark = pytest.mark.skipif(not _pg_available, reason="PostgreSQL instance not reachable")
+
 
 class MockClient:
     """Mock client for prompt optimization testing."""

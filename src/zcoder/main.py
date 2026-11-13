@@ -2226,6 +2226,108 @@ def build_parser():
         help="Tenant boundary for RAG indexes (SEC-007; required for index/query)",
     )
 
+    # Phase 16: Vector Store
+    rag.add_argument(
+        "--vector-store-backend",
+        metavar="BACKEND",
+        dest="vector_store_backend",
+        default="pgvector",
+        help="Vector store backend: pgvector, faiss, or offline",
+    )
+    rag.add_argument(
+        "--vector-store-config",
+        metavar="JSON",
+        dest="vector_store_config",
+        default="",
+        help="JSON string for vector store configuration (dimension, index_type, metric)",
+    )
+    rag.add_argument(
+        "--embed",
+        metavar="TEXT",
+        dest="embed_text",
+        default="",
+        help="Generate embeddings for given text (shows vector info)",
+    )
+
+    # Phase 16: Multi-Modal
+    mm = p.add_argument_group("Multi-Modal")
+    mm.add_argument(
+        "--extract-frames",
+        metavar="SECONDS",
+        dest="extract_frames",
+        default="",
+        help="Extract frames at specified seconds from video for analysis",
+    )
+    mm.add_argument(
+        "--transcribe",
+        metavar="FILE",
+        dest="transcribe_file",
+        default="",
+        help="Transcribe audio/video file using Whisper",
+    )
+    mm.add_argument(
+        "--describe-image",
+        metavar="FILE",
+        dest="describe_image",
+        default="",
+        help="Generate description of an image using local model",
+    )
+
+    # Phase 16: Workflow Automation
+    wf = p.add_argument_group("Workflow")
+    wf.add_argument(
+        "--workflow-run",
+        metavar="PATH",
+        dest="workflow_run",
+        default="",
+        help="Run a workflow definition YAML file",
+    )
+    wf.add_argument(
+        "--workflow-scaffold",
+        metavar="PATH",
+        dest="workflow_scaffold",
+        default="",
+        help="Scaffold a new workflow definition from a template",
+    )
+    wf.add_argument(
+        "--workflow-list",
+        action="store_true",
+        dest="workflow_list",
+        default=False,
+        help="List existing workflow definitions",
+    )
+    wf.add_argument(
+        "--workflow-validate",
+        metavar="PATH",
+        dest="workflow_validate",
+        default="",
+        help="Validate a workflow YAML file",
+    )
+
+    # Phase 16: Performance Optimization
+    po = p.add_argument_group("Performance")
+    po.add_argument(
+        "--lazy-load",
+        action="store_true",
+        dest="lazy_load",
+        default=False,
+        help="Use lazy model loading with prewarm",
+    )
+    po.add_argument(
+        "--pool-connections",
+        action="store_true",
+        dest="pool_connections",
+        default=False,
+        help="Use connection pooling for model API requests",
+    )
+    po.add_argument(
+        "--optimize-tokens",
+        action="store_true",
+        dest="optimize_tokens",
+        default=False,
+        help="Apply token optimization heuristics to prompts",
+    )
+
     ev = p.add_argument_group("Evaluation")
     ev.add_argument("--eval-run", metavar="SUITE_JSON", dest="eval_run")
     ev.add_argument("--eval-compare", nargs=2, metavar=("MODEL_A", "MODEL_B"), dest="eval_compare")
