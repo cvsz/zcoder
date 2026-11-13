@@ -21,7 +21,7 @@ ZCoder CLI / API
 | Area | Local implementation | Notes |
 |---|---|---|
 | Inference | llama.cpp with GGUF | Loopback endpoint at `127.0.0.1:8080/v1` by default |
-| Model selection | `ZCODER_MODEL` | Defaults to `zqwen2.5-coder-7b-instruct-q4_k_m` |
+| Model selection | `ZCODER_MODEL` | Defaults to `zcoder-7b-q4km` |
 | Single-user persistence | SQLite | Default for the local installation |
 | Shared PostgreSQL | Docker container `zpostgresql` | Applications use separate databases and roles |
 | ZCoder PostgreSQL database | `zcoder_db` | Provisioned by `make postgres-setup` |
@@ -32,7 +32,7 @@ ZCoder CLI / API
 
 ```bash
 llama-server \
-  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
+  --model /zdata/models/zcoder-7b-q4km.gguf \
   --host 127.0.0.1 \
   --port 8080 \
   --ctx-size 4096
