@@ -99,6 +99,10 @@ python scripts/local_postgres.py run -- python -m pytest tests/integration -q
 python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
 ```
 
+**ตัวแปรสภาพแวดล้อมสำหรับการทดสอบ:**
+- `TEST_DATABASE_URL` — ตั้งค่าผ่าน `python scripts/local_postgres.py run -- <command>` หรือดึงจาก `DATABASE_URL` โดยอัตโนมัติ
+- ค่าจริงสร้างโดย `make postgres-setup` และเก็บใน `~/.config/zcoder/postgresql.password`
+
 คำสั่งบน host ที่ต้องใช้ฐานข้อมูลควรใช้ helper ซึ่งจะ inject DSN เฉพาะลงใน child process โดยไม่พิมพ์รหัสผ่าน:
 
 ```bash

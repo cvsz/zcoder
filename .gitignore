@@ -82,6 +82,11 @@ deploy/supabase/
 *.patch
 *:Zone.Identifier
 /setup
+review_body.md
+review_body2.md
+
+# External submodules
+external/
 
 # Editors / OS
 .vscode/
