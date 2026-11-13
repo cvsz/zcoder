@@ -1,5 +1,5 @@
 {
-  "active_default_model": "zcoder-1.5b",
+  "active_default_model": "zcoder-7b",
   "models": {
     "zcoder-1.5b": {
       "file_path": "zcoder-1.5b-q4km.gguf",
@@ -11,7 +11,7 @@
       "vocab_size": 512,
       "max_seq_len": 128,
       "mmap_enabled": true,
-      "description": "ZCoder 1.5B Q4_K_M - Fast local coding and script generation"
+      "description": "ZCoder 1.5B Q4_K_M local GGUF model"
     },
     "zcoder-7b": {
       "file_path": "zcoder-7b-q4km.gguf",
@@ -23,9 +23,8 @@
       "vocab_size": 512,
       "max_seq_len": 256,
       "mmap_enabled": true,
-      "description": "ZCoder 7B Q4_K_M - Top-tier code intelligence and advanced media scripting"
-    }
-  },
+      "description": "ZCoder 7B Q4_K_M local GGUF model"
+    },
     "zcoder-32b": {
       "file_path": "zcoder-32b-q4km.gguf",
       "quantization": "Q4_K_M",
@@ -34,3 +33,4 @@
       "description": "ZCoder 32B Q4_K_M local GGUF model"
     }
   }
+}
