@@ -41,9 +41,10 @@ The default settings are:
 - `ZCODER_CTX_SIZE=4096`
 
 To use the smaller model, set `ZCODER_GGUF_FILE=zcoder-1.5b-q4km.gguf` and
-`ZCODER_MODEL=zcoder-1.5b-q4km` in `.env`. The selected GGUF is mounted
-read-only at `/models` from the host directory `/zdata/models`; weights are not copied into the ZCoder image or
-committed to Git. The model service listens on loopback and publishes no host
+`ZCODER_MODEL=zcoder-1.5b-q4km` in `.env`. To select the 32B model, set
+`ZCODER_GGUF_FILE=zcoder-32b-q4km.gguf` and
+`ZCODER_MODEL=zcoder-32b-q4km`. The selected GGUF is mounted read-only at
+`/models` from `/zdata/models`; weights are not copied into the image or committed to Git. The model service listens on loopback and publishes no host
 port. ZCoder shares that service's network namespace, preserving the client's
 loopback-only URL validation without allowing arbitrary Compose hostnames.
 
