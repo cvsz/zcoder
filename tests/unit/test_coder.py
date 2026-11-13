@@ -50,7 +50,7 @@ def test_generate_uses_local_chat_completions_without_api_key():
     ]
 
 
-def test_default_client_uses_qwen_gguf_alias_and_local_provider(monkeypatch):
+def test_default_client_uses_zcoder_gguf_alias_and_local_provider(monkeypatch):
     monkeypatch.delenv("ZCODER_MODEL", raising=False)
     coder = Coder()
     assert coder.model == "zcoder-7b-q4km"
