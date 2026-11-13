@@ -29,7 +29,7 @@ def _fake_response(text: str):
 
 
 def test_generate_uses_local_chat_completions_without_api_key():
-    coder = Coder(model="qwen-7b-q4km")
+    coder = Coder(model="zcoder-7b-q4km")
     captured = {}
 
     def fake_urlopen(request, timeout=None):
@@ -43,7 +43,7 @@ def test_generate_uses_local_chat_completions_without_api_key():
     assert result == "local response"
     assert captured["request"].full_url == "http://127.0.0.1:8080/v1/chat/completions"
     assert captured["request"].get_header("Authorization") is None
-    assert captured["payload"]["model"] == "qwen-7b-q4km"
+    assert captured["payload"]["model"] == "zcoder-7b-q4km"
     assert captured["payload"]["messages"] == [
         {"role": "system", "content": "Be concise"},
         {"role": "user", "content": "hello"},
@@ -53,7 +53,7 @@ def test_generate_uses_local_chat_completions_without_api_key():
 def test_default_client_uses_qwen_gguf_alias_and_local_provider(monkeypatch):
     monkeypatch.delenv("ZCODER_MODEL", raising=False)
     coder = Coder()
-    assert coder.model == "qwen-7b-q4km"
+    assert coder.model == "zcoder-7b-q4km"
     assert coder.provider == "local"
 
 
