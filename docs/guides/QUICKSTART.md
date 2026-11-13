@@ -6,7 +6,7 @@ Start llama.cpp in a separate terminal:
 
 ```bash
 llama-server \
-  --model /home/cvsz/zcoder/models/qwen-7b-q4km.gguf \
+  --model /zdata/models/zcoder-7b-q4km.gguf \
   --host 127.0.0.1 \
   --port 8080 \
   --ctx-size 4096
@@ -17,20 +17,20 @@ Then install and run ZCoder:
 ```bash
 make setup
 export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-export ZCODER_MODEL=qwen-7b-q4km
+export ZCODER_MODEL=zcoder-7b-q4km
 zcoder -p "Write a function to reverse a string"
 ```
 
-For lower memory use, load `/home/cvsz/zcoder/models/qwen-1.5b-q4km.gguf` instead.
+For lower memory use, load `/zdata/models/zcoder-1.5b-q4km.gguf` instead.
 See [Local inference configuration](docs/guides/LOCAL-INFERENCE.md) for
 details and endpoint checks.
 
 ## Run with Docker Compose (local GGUF, no Anthropic API key)
 
-Place the model files in the repository's `models/` directory. The expected
-default path is `models/qwen-7b-q4km.gguf`; Docker Compose mounts this
-directory read-only into the inference container. Model weights are excluded
-from Git and the Docker build context.
+Place the model files in `/zdata/models/` on the host. The expected default
+file is `/zdata/models/zcoder-7b-q4km.gguf`; Docker Compose mounts this
+directory read-only at `/models` in the inference container. Model weights
+are excluded from Git and the Docker build context.
 
 ```bash
 cp -n .env.example .env
@@ -48,12 +48,12 @@ the inference service's network namespace and uses its loopback endpoint.
 To use the smaller model, edit `.env`:
 
 ```dotenv
-ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf
-ZCODER_MODEL=qwen-1.5b-q4km
+ZCODER_GGUF_FILE=zcoder-1.5b-q4km.gguf
+ZCODER_MODEL=zcoder-1.5b-q4km
 ```
 
 Then run the same `docker compose run` command. Ensure the selected GGUF
-exists in the configured `ZCODER_MODELS_DIR` (default: `./models`).
+exists in the configured `ZCODER_MODELS_DIR` (default: `/zdata/models`).
 
 Stop the inference service and remove the Compose network when finished:
 
