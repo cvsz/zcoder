@@ -8,21 +8,21 @@ GGUF model through llama.cpp. It does not require a hosted model credential.
 - Python 3.12 or later and the ZCoder development dependencies.
 - `llama-server` built with support for the target hardware.
 - A local GGUF file, for example:
-  - `/home/cvsz/zgpu/qwen-7b-q4km.gguf`
-  - `/home/cvsz/zgpu/qwen-1.5b-q4km.gguf`
+  - `/zdata/models/zcoder-7b-q4km.gguf`
+  - `/zdata/models/zcoder-1.5b-q4km.gguf`
 
 ## Start the model server
 
 ```bash
 llama-server \
-  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
+  --model /zdata/models/zcoder-7b-q4km.gguf \
   --host 127.0.0.1 \
   --port 8080 \
   --ctx-size 4096
 ```
 
 Keep the server bound to loopback. To use the smaller model, change the model
-path to `qwen-1.5b-q4km.gguf`.
+path to `zcoder-1.5b-q4km.gguf`.
 
 ## Configure and run ZCoder
 
@@ -30,7 +30,7 @@ path to `qwen-1.5b-q4km.gguf`.
 cd ~/zcoder
 make setup
 export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-export ZCODER_MODEL=qwen-7b-q4km
+export ZCODER_MODEL=zcoder-7b-q4km
 zcoder -p "Review this source file" --file src/example.py
 ```
 
