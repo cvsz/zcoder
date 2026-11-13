@@ -53,7 +53,9 @@ ZCODER_MODEL=zcoder-1.5b-q4km
 ```
 
 Then run the same `docker compose run` command. Ensure the selected GGUF
-exists in the configured `ZCODER_MODELS_DIR` (default: `/zdata/models`).
+exists in `/zdata/models`. The available model files are `zcoder-1.5b-q4km.gguf`,
+`zcoder-7b-q4km.gguf`, and `zcoder-32b-q4km.gguf`; use the matching filename
+and request alias when switching models.
 
 Stop the inference service and remove the Compose network when finished:
 
