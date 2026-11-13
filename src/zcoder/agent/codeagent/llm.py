@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8080"
-DEFAULT_MODEL = "zqwen2.5-coder-7b-instruct-q4_k_m"
+DEFAULT_MODEL = "zcoder-7b-q4km"
 
 
 class LLMError(RuntimeError):
