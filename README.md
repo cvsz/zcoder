@@ -10,7 +10,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgresql-blue.svg)](docs/operations/deployment.md)
 [![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
-[![Final Report](https://img.shields.io/badge/Report-Final--Report.md-blue)](Final-Report.md)
+[![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md)
 
 ![ZCoder Social Preview](https://repository-images.githubusercontent.com/1298675090/168568c9-a175-4d82-9733-955d6d7bf7b4)
 
@@ -31,7 +31,7 @@
 | License | [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) | MIT |
 | Python | [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/) | 3.12+ |
 | Docker | [![Docker ghcr.io](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder) | Available |
-| Final Report | [![Final Report](https://img.shields.io/badge/Report-Final--Report.md-blue)](Final-Report.md) | Complete |
+| Final Report | [![Final Report](https://img.shields.io/badge/Report-Final-Report.md-blue)](Final-Report.md) | Complete |
 
 ---
 
@@ -98,6 +98,10 @@ python scripts/local_postgres.py run -- python -m pytest tests/integration -q
 # รัน E2E tests กับ shared PostgreSQL
 python scripts/local_postgres.py run -- python -m pytest tests/e2e -q
 ```
+
+**ตัวแปรสภาพแวดล้อมสำหรับการทดสอบ:**
+- `TEST_DATABASE_URL` — ตั้งค่าผ่าน `python scripts/local_postgres.py run -- <command>` หรือดึงจาก `DATABASE_URL` โดยอัตโนมัติ
+- ค่าจริงสร้างโดย `make postgres-setup` และเก็บใน `~/.config/zcoder/postgresql.password`
 
 คำสั่งบน host ที่ต้องใช้ฐานข้อมูลควรใช้ helper ซึ่งจะ inject DSN เฉพาะลงใน child process โดยไม่พิมพ์รหัสผ่าน:
 

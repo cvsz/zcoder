@@ -7,6 +7,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from zcoder.core.security import SecurityError, safe_resolve
+
 IGNORED_DIRS = frozenset(
     {
         ".git",
@@ -60,18 +62,27 @@ class Workspace:
         return (self.root, *self.extra_dirs)
 
     def resolve(self, raw: str) -> Path:
-        """Resolve ``raw`` (relative to root) and refuse anything outside the workspace."""
+        """Resolve ``raw`` (relative to root) and refuse anything outside the workspace.
+
+        This method enforces strict path containment using safe_resolve which:
+        - Resolves symlinks to prevent symlink escape attacks
+        - Rejects path traversal attempts (../)
+        - Rejects absolute paths outside the workspace
+        - Uses realpath to resolve symlinks before containment check
+        """
         if not isinstance(raw, str) or not raw.strip():
             raise ToolError("path is required")
         if "\x00" in raw:
             raise ToolError("invalid path")
-        candidate = Path(raw).expanduser()
-        if not candidate.is_absolute():
-            candidate = self.root / candidate
-        resolved = candidate.resolve()  # follows symlinks, so links cannot escape
-        if not any(resolved == r or r in resolved.parents for r in self._allowed_roots()):
-            raise ToolError(f"path is outside the workspace: {raw}")
-        return resolved
+
+        try:
+            # Use safe_resolve from security module for robust path containment
+            # This handles symlink resolution, path traversal, and containment
+            resolved = safe_resolve(raw, self.root)
+        except SecurityError as e:
+            raise ToolError(f"path is outside the workspace: {raw}") from e
+
+        return Path(resolved)
 
     def rel(self, path: Path) -> str:
         try:

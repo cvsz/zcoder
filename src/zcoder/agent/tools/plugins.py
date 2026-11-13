@@ -40,9 +40,11 @@ CLI flags:
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -377,8 +379,18 @@ def marketplace_remove(name: str) -> bool:
 # ══════════════════════════════════════════════════════════════════════════
 
 
+def _is_git_url(url: str) -> bool:
+    """Check if a string is a git repository URL."""
+    parsed = urllib.parse.urlparse(url)
+    return parsed.scheme in ("git", "http", "https", "ssh") or url.endswith(".git")
+
+
 def plugin_install(spec: str) -> dict:
-    """spec is 'name' or 'name@marketplace'."""
+    """spec is 'name' or 'name@marketplace' or a git URL."""
+    # Check if it's a git URL
+    if _is_git_url(spec):
+        return plugin_install_from_git(spec)
+
     reg = _load_registry()
     if "@" in spec:
         name, mp_name = spec.split("@", 1)
@@ -420,6 +432,54 @@ def plugin_install(spec: str) -> dict:
     }
     _save_registry(reg)
     return reg["installed"][name]
+
+
+def plugin_install_from_git(url: str, branch: str | None = None, depth: int = 1) -> dict:
+    """Install a plugin from a git repository URL."""
+    if not _is_git_url(url):
+        raise ValueError(f"Not a valid git URL: {url}")
+
+    # Clone to temporary directory
+    with tempfile.TemporaryDirectory(prefix="zcoder-plugin-") as tmpdir:
+        plugin_path = Path(tmpdir) / "plugin"
+
+        # Clone the repository
+        clone_cmd = ["git", "clone", "--depth", str(depth)]
+        if branch:
+            clone_cmd.extend(["--branch", branch])
+        clone_cmd.extend([url, str(plugin_path)])
+
+        try:
+            subprocess.run(clone_cmd, check=True, capture_output=True, timeout=120)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"Failed to clone git repository: {e.stderr.decode() if e.stderr else e}"
+            ) from e
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError("Git clone timed out") from e
+
+        # Read manifest
+        manifest = read_manifest(plugin_path)
+        name = manifest["name"]
+
+        # Install to plugins directory
+        dest = INSTALLED_DIR / name
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(plugin_path, dest)
+
+        reg = _load_registry()
+        reg["installed"][name] = {
+            "marketplace": "git",
+            "version": manifest.get("version", "0.0.0"),
+            "path": str(dest),
+            "enabled": True,
+            "source": "git",
+            "git_url": url,
+            "git_branch": branch,
+        }
+        _save_registry(reg)
+        return reg["installed"][name]
 
 
 def plugin_install_from_dir(path: str) -> dict:

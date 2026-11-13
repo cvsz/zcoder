@@ -4,6 +4,10 @@ import sys
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
+
+# Load .env file for test environment variables (e.g., DATABASE_URL)
+load_dotenv()
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"

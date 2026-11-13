@@ -85,6 +85,7 @@ class MCPCapability:
     tools: list[MCPTool] = field(default_factory=list)
     prompts: list[dict[str, Any]] = field(default_factory=list)
     resources: list[dict[str, Any]] = field(default_factory=list)
+    resource_templates: list[dict[str, Any]] = field(default_factory=list)
 
 
 class MCPError(Exception):
@@ -616,8 +617,25 @@ class MCPClient:
 
     async def discover(self, name: str) -> MCPCapability:
         transport = await self._ensure_connected(name)
-        result = await transport.send(_rpc_request("tools/list"))
-        tools_raw = result.get("tools", []) if isinstance(result, dict) else []
+
+        # Discover tools
+        tools_result = await transport.send(_rpc_request("tools/list"))
+        tools_raw = tools_result.get("tools", []) if isinstance(tools_result, dict) else []
+
+        # Discover prompts
+        prompts_result = await transport.send(_rpc_request("prompts/list"))
+        prompts_raw = prompts_result.get("prompts", []) if isinstance(prompts_result, dict) else []
+
+        # Discover resources
+        resources_result = await transport.send(_rpc_request("resources/list"))
+        resources_raw = resources_result.get("resources", []) if isinstance(resources_result, dict) else []
+
+        # Discover resource templates
+        templates_result = await transport.send(_rpc_request("resources/templates/list"))
+        templates_raw = (
+            templates_result.get("resourceTemplates", []) if isinstance(templates_result, dict) else []
+        )
+
         tools = [
             MCPTool(
                 name=t.get("name", ""),
@@ -628,7 +646,13 @@ class MCPClient:
             )
             for t in tools_raw
         ]
-        caps = MCPCapability(tools=tools)
+
+        caps = MCPCapability(
+            tools=tools,
+            prompts=prompts_raw,
+            resources=resources_raw,
+            resource_templates=templates_raw,
+        )
         self._capabilities[name] = caps
         return caps
 
@@ -671,6 +695,100 @@ class MCPClient:
             raise MCPError(f"Unknown MCP tool: {full_name}")
         server, tool = resolved
         return await self.call_tool(server, tool.name, arguments)
+
+    # -- resources -----------------------------------------------------------
+
+    async def list_resources(self, server: str) -> list[dict[str, Any]]:
+        """List resources from an MCP server."""
+        transport = await self._ensure_connected(server)
+        result = await transport.send(_rpc_request("resources/list"))
+        return result.get("resources", []) if isinstance(result, dict) else []
+
+    async def read_resource(self, server: str, uri: str) -> dict[str, Any]:
+        """Read a resource from an MCP server."""
+        transport = await self._ensure_connected(server)
+        params = {"uri": uri}
+        result = await transport.send(_rpc_request("resources/read", params))
+        return _rpc_result(result)
+
+    async def list_resource_templates(self, server: str) -> list[dict[str, Any]]:
+        """List resource templates from an MCP server."""
+        transport = await self._ensure_connected(server)
+        result = await transport.send(_rpc_request("resources/templates/list"))
+        return result.get("resourceTemplates", []) if isinstance(result, dict) else []
+
+    # -- prompts -------------------------------------------------------------
+
+    async def list_prompts(self, server: str) -> list[dict[str, Any]]:
+        """List prompts from an MCP server."""
+        transport = await self._ensure_connected(server)
+        result = await transport.send(_rpc_request("prompts/list"))
+        return result.get("prompts", []) if isinstance(result, dict) else []
+
+    async def get_prompt(
+        self, server: str, name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Get a prompt from an MCP server."""
+        transport = await self._ensure_connected(server)
+        params = {"name": name, "arguments": arguments or {}}
+        result = await transport.send(_rpc_request("prompts/get", params))
+        return _rpc_result(result)
+
+    # -- sampling ------------------------------------------------------------
+
+    async def create_message(
+        self,
+        server: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+        stop_sequences: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a message via sampling (F13-10)."""
+        transport = await self._ensure_connected(server)
+        params = {
+            "messages": messages,
+            "maxTokens": max_tokens,
+        }
+        if system_prompt is not None:
+            params["systemPrompt"] = system_prompt
+        if temperature is not None:
+            params["temperature"] = temperature
+        if stop_sequences is not None:
+            params["stopSequences"] = stop_sequences
+        if metadata is not None:
+            params["metadata"] = metadata
+        result = await transport.send(_rpc_request("sampling/createMessage", params))
+        return _rpc_result(result)
+
+    # -- roots ---------------------------------------------------------------
+
+    async def list_roots(self, server: str) -> list[dict[str, Any]]:
+        """List roots from an MCP server (F13-14)."""
+        transport = await self._ensure_connected(server)
+        result = await transport.send(_rpc_request("roots/list"))
+        return result.get("roots", []) if isinstance(result, dict) else []
+
+    # -- logging -------------------------------------------------------------
+
+    async def set_logging_level(self, server: str, level: str) -> None:
+        """Set logging level on an MCP server (F13-15)."""
+        transport = await self._ensure_connected(server)
+        params = {"level": level}
+        await transport.send(_rpc_request("logging/setLevel", params))
+
+    # -- cancellation --------------------------------------------------------
+
+    async def cancel_notification(self, server: str, request_id: str, reason: str | None = None) -> None:
+        """Send a cancellation notification (F13-13)."""
+        transport = await self._ensure_connected(server)
+        params = {"requestId": request_id}
+        if reason is not None:
+            params["reason"] = reason
+        # Cancellation is a notification, no response expected
+        await transport.send({"jsonrpc": "2.0", "method": "notifications/cancelled", "params": params})
 
     # -- lifecycle ---------------------------------------------------------
 

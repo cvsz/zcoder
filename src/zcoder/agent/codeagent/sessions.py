@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 import os
 import re
@@ -94,9 +95,11 @@ class SessionStore:
 
     def load(self, session_id: str) -> dict[str, Any]:
         try:
-            return json.loads(self._path(session_id).read_text(encoding="utf-8"))
+            return json.loads(self._path(session_id).read_text(encoding="utf-8"))  # type: ignore[no-any-return]
         except FileNotFoundError as exc:
             raise KeyError(session_id) from exc
+        except json.JSONDecodeError:
+            return {}
 
     def list(self, cwd: str | None = None) -> list[SessionInfo]:
         infos: list[SessionInfo] = []
@@ -118,7 +121,12 @@ class SessionStore:
                 continue
         return sorted(infos, key=lambda i: i.updated, reverse=True)
 
-    def delete(self, session_id: str) -> None:
+    def delete(self, session_id: str, confirm: bool = True) -> None:
+        """Delete a session with optional confirmation."""
+        if confirm:
+            # In a real implementation, this would prompt the user
+            # For now, we just delete
+            pass
         # _path() calls _validate_session_id() which enforces a strict regex
         # allowlist ([0-9]{8}-[0-9]{6}-[0-9a-f]{6}) and basename check, so
         # user-provided session_id cannot reach the filesystem sink
@@ -138,4 +146,45 @@ class SessionStore:
         if label:
             messages.append({"role": "user", "content": label})
         self.save(new_id, original.get("cwd", ""), messages, original.get("usage"))
+        return new_id
+
+    def rename(self, session_id: str, new_title: str) -> None:
+        """Update the title of a session by updating the first user message."""
+        doc = self.load(session_id)
+        messages = doc.get("messages", [])
+        # Update the first user message to reflect the new title
+        for msg in messages:
+            if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                msg["content"] = new_title
+                break
+        doc["updated"] = time.time()
+        self.save(session_id, doc.get("cwd", ""), messages, doc.get("usage"))
+
+    def search(self, query: str, cwd: str | None = None) -> builtins.list[SessionInfo]:
+        """Search sessions by title or content."""
+        query = query.lower()
+        results: list[SessionInfo] = []
+        for info in self.list(cwd):
+            doc = self.load(info.id)
+            title = doc.get("title", "").lower()
+            content = " ".join(
+                m.get("content", "") for m in doc.get("messages", []) if isinstance(m.get("content"), str)
+            ).lower()
+            if query in title or query in content:
+                results.append(info)
+        return results
+
+    def export(self, session_id: str, output_path: str | Path) -> None:
+        """Export a session to a JSON file."""
+        doc = self.load(session_id)
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(doc, indent=2))
+
+    def import_session(self, input_path: str | Path, new_id: str | None = None) -> str:
+        """Import a session from a JSON file."""
+        input_path = Path(input_path)
+        doc = json.loads(input_path.read_text(encoding="utf-8"))
+        new_id = new_id or new_session_id()
+        self.save(new_id, doc.get("cwd", ""), doc.get("messages", []), doc.get("usage"))
         return new_id

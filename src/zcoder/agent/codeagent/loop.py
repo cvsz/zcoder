@@ -17,6 +17,9 @@ from zcoder.agent.codeagent.events import (
     ModeChanged,
     Notice,
     PermissionRequest,
+    PostToolBatch,
+    PostToolUseFailure,
+    StopFailure,
     TextDelta,
     TodoUpdate,
     ToolEnd,
@@ -24,6 +27,7 @@ from zcoder.agent.codeagent.events import (
     TurnDone,
     Usage,
     UsageUpdate,
+    UserPromptExpansion,
 )
 from zcoder.agent.codeagent.hooks import Hooks
 from zcoder.agent.codeagent.llm import LLM, LLMChunk, LLMError, ToolCallRequest
@@ -195,10 +199,13 @@ class CodeAgent:
         )
         return TurnDone(reason)
 
-    async def _stop(self, reason: str) -> TurnDone:
+    async def _stop(self, reason: str) -> AsyncGenerator[Any, None]:
         if self.hooks:
-            await self.hooks.stop(reason)
-        return self._done(reason)
+            try:
+                await self.hooks.stop(reason)
+            except Exception as exc:
+                yield StopFailure(reason=f"Stop hook failed: {exc}")
+        yield self._done(reason)
 
     def undo(self) -> list[str]:
         return self.ws.undo_last_turn()
@@ -325,7 +332,8 @@ class CodeAgent:
             hook_result = await self.hooks.user_prompt_submit(text)
             if hook_result.blocked:
                 yield Notice(hook_result.message or "Blocked by UserPromptSubmit hook.", "error")
-                yield await self._stop("error")
+                async for event in self._stop("error"):
+                    yield event
                 return
             for warning in hook_result.warnings:
                 yield Notice(warning, "warn")
@@ -346,22 +354,58 @@ class CodeAgent:
                 for r in run.results:
                     if r.output:
                         yield Notice(f"[{r.label or 'agent'}] {r.output[:500]}", "info")
-                yield await self._stop("end")
+                async for event in self._stop("end"):
+                    yield event
                 return
             except Exception as exc:
                 yield Notice(f"Workflow failed: {exc}", "error")
-                yield await self._stop("error")
+                async for event in self._stop("error"):
+                    yield event
                 return
         try:
             prompt, attached = expand_mentions(text, self.ws)
             if attached:
                 yield Notice("Attached: " + ", ".join(attached))
+            # Emit UserPromptExpansion event if the prompt was expanded
+            if prompt != text:
+                yield UserPromptExpansion(
+                    original_prompt=text, expanded_prompt=prompt, added_context=attached if attached else []
+                )
+
+            # Handle slash commands before processing as user prompt
+            if text.strip().startswith("/"):
+                from zcoder.agent.codeagent.slash_commands import get_slash_registry
+
+                registry = get_slash_registry()
+                parsed = registry.parse(text)
+                if parsed:
+                    command_name, args = parsed
+                    command = registry.get(command_name)
+                    if command:
+                        # Execute slash command
+                        try:
+                            await command.handler(self, args)
+                            async for event in self._stop("end"):
+                                yield event
+                            return
+                        except SystemExit:
+                            async for event in self._stop("end"):
+                                yield event
+                            return
+                        except Exception as e:
+                            yield Notice(f"Command failed: {e}", "error")
+                            async for event in self._stop("error"):
+                                yield event
+                            return
+                    # If not a known command, fall through to normal processing
+
             self.messages.append({"role": "user", "content": prompt})
             recent: list[str] = []
             overflow_retried = False
             for _ in range(self.max_steps):
                 if self._interrupted:
-                    yield await self._stop("interrupted")
+                    async for event in self._stop("interrupted"):
+                        yield event
                     return
                 if self.estimate_tokens() > int(self.context_window * 0.8) and len(self.messages) > 4:
                     try:
@@ -408,7 +452,8 @@ class CodeAgent:
                             pass
                     self.audit.record("llm_error", message=str(exc)[:300])
                     yield Notice(str(exc), "error")
-                    yield await self._stop("error")
+                    async for event in self._stop("error"):
+                        yield event
                     return
                 overflow_retried = False
                 tail = filt.flush()
@@ -420,7 +465,8 @@ class CodeAgent:
                 if self._interrupted:
                     if visible:
                         self.messages.append({"role": "assistant", "content": visible})
-                    yield await self._stop("interrupted")
+                    async for event in self._stop("interrupted"):
+                        yield event
                     return
                 assistant: dict[str, Any] = {"role": "assistant", "content": visible or None}
                 if calls:
@@ -434,17 +480,23 @@ class CodeAgent:
                     ]
                 self.messages.append(assistant)
                 if not calls:
-                    yield await self._stop("end")
+                    async for event in self._stop("end"):
+                        yield event
                     return
+                # Track tool calls and results for PostToolBatch event
+                tool_calls_batch: list[dict[str, Any]] = []
+                tool_results_batch: list[dict[str, Any]] = []
                 for idx, call in enumerate(calls):
                     if self._interrupted:
                         for rest in calls[idx:]:
                             self.messages.append(
                                 {"role": "tool", "tool_call_id": rest.id, "content": "Interrupted by user."}
                             )
-                        yield await self._stop("interrupted")
+                        async for event in self._stop("interrupted"):
+                            yield event
                         return
                     yield ToolStart(call.id, call.name, call.args)
+                    tool_calls_batch.append({"id": call.id, "name": call.name, "args": call.args})
                     sig = call.name + json.dumps(call.args, sort_keys=True, default=str)
                     recent = (recent + [sig])[-3:]
                     if len(recent) == 3 and len(set(recent)) == 1:
@@ -455,24 +507,43 @@ class CodeAgent:
                             "Try a different approach or ask the user.",
                             True,
                         )
+                        exec_events: list[Any] = []
                     else:
                         before = self.policy.mode
-                        end = await self._execute(call)
+                        end, exec_events = await self._execute(call)
+                        # Emit any events from tool execution
+                        for event in exec_events:
+                            yield event
                         if self.policy.mode != before:
                             yield ModeChanged(self.policy.mode.value)
                     yield end
+                    tool_results_batch.append(
+                        {
+                            "id": call.id,
+                            "name": call.name,
+                            "output": end.output,
+                            "is_error": end.is_error,
+                            "diff": end.diff,
+                        }
+                    )
                     self.messages.append({"role": "tool", "tool_call_id": call.id, "content": end.output})
                     if call.name == "TodoWrite" and not end.is_error:
                         yield TodoUpdate(list(self.ctx.todos))
+                # Emit PostToolBatch event after all tool calls in this turn
+                if tool_calls_batch:
+                    yield PostToolBatch(tool_calls=tool_calls_batch, results=tool_results_batch)
             yield Notice(f"Stopped after {self.max_steps} steps. Send a message to continue.", "warn")
-            yield await self._stop("max_turns")
+            async for event in self._stop("max_turns"):
+                yield event
         finally:
             self.running = False
             self._save()
 
-    async def _execute(self, call: ToolCallRequest) -> ToolEnd:
+    async def _execute(self, call: ToolCallRequest) -> tuple[ToolEnd, list[Any]]:
+        """Execute a tool call and return the result along with any events to emit."""
         started = time.monotonic()
         raw_args = call.args if isinstance(call.args, dict) else {}
+        events: list[Any] = []
 
         def done(end: ToolEnd, decision: str) -> ToolEnd:
             self.audit.record(
@@ -491,22 +562,28 @@ class CodeAgent:
 
         tool = self.tools.get(call.name)
         if tool is None:
-            return fail(f"Unknown tool '{call.name}'. Available: {', '.join(self.tools)}", "unknown_tool")
+            return (
+                fail(f"Unknown tool '{call.name}'. Available: {', '.join(self.tools)}", "unknown_tool"),
+                events,
+            )
         try:
             args = validate_args(tool, call.args)
         except ToolError as exc:
-            return fail(str(exc), "invalid_args")
+            return fail(str(exc), "invalid_args"), events
         pre = await self.hooks.pre_tool(tool.name, args)
         if pre.blocked:
-            return fail(f"Blocked by a PreToolUse hook: {pre.message}", "hook_block")
+            return fail(f"Blocked by a PreToolUse hook: {pre.message}", "hook_block"), events
         verdict = self.policy.check(tool, args)
         if verdict.action == "deny":
-            return fail(verdict.reason, "policy_deny")
+            return fail(verdict.reason, "policy_deny"), events
         decision = "auto"
         if verdict.action == "ask":
             if self.ask is None:
-                return fail(
-                    "This action needs user approval but no interactive prompt is available.", "no_prompt"
+                return (
+                    fail(
+                        "This action needs user approval but no interactive prompt is available.", "no_prompt"
+                    ),
+                    events,
                 )
             summary, diff = preview(self.ctx, tool, args)
             try:
@@ -514,14 +591,17 @@ class CodeAgent:
                     PermissionRequest(call.id, tool.name, args, summary, diff, verdict.reason)
                 )
             except Exception as exc:  # a broken prompt (closed socket, crashed UI) must fail closed
-                return fail(
-                    f"Approval prompt failed ({type(exc).__name__}); the call was not run.", "ask_failed"
+                return (
+                    fail(
+                        f"Approval prompt failed ({type(exc).__name__}); the call was not run.", "ask_failed"
+                    ),
+                    events,
                 )
             if self._interrupted:
-                return fail("Interrupted by user.", "interrupted")
+                return fail("Interrupted by user.", "interrupted"), events
             if answer.behavior == "deny":
                 fb = f" User feedback: {answer.feedback}" if answer.feedback else ""
-                return fail("The user denied this tool call." + fb, "user_deny")
+                return fail("The user denied this tool call." + fb, "user_deny"), events
             decision = "user_allow_session" if answer.behavior == "allow_session" else "user_allow"
             if tool.category == "plan":
                 self.policy.mode = Mode.ACCEPT_EDITS if answer.behavior == "allow_session" else Mode.DEFAULT
@@ -530,14 +610,16 @@ class CodeAgent:
         try:
             out = await asyncio.to_thread(tool.func, self.ctx, args)
         except ToolError as exc:
-            return fail(str(exc), decision)
+            events.append(PostToolUseFailure(tool=call.name, args=args, error=str(exc)))
+            return fail(str(exc), decision), events
         except Exception as exc:  # unexpected tool bug: report to the model, keep the loop alive
-            return fail(f"{type(exc).__name__}: {exc}", decision)
+            events.append(PostToolUseFailure(tool=call.name, args=args, error=f"{type(exc).__name__}: {exc}"))
+            return fail(f"{type(exc).__name__}: {exc}", decision), events
         text = truncate(out.text)
         post = await self.hooks.post_tool(tool.name, args, text, False)
         if post.blocked:
             text += f"\n[PostToolUse hook feedback] {post.message}"
-        return done(ToolEnd(call.id, call.name, text, False, out.diff), decision)
+        return done(ToolEnd(call.id, call.name, text, False, out.diff), decision), events
 
 
 def workspace_for(path: str | Path | None = None) -> Workspace:
