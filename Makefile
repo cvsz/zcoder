@@ -415,7 +415,7 @@ docker-build:
 	docker compose build zcoder
 
 docker-up:
-	ZCODER_GGUF_FILE=qwen-7b-q4km.gguf ZCODER_MODEL=qwen-7b-q4km ZCODER_CTX_SIZE=4096 docker compose --env-file .env up -d
+	docker compose --env-file .env up -d
 
 docker-run:
 	docker compose run --build --rm zcoder $(ARGS)
