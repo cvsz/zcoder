@@ -1,8 +1,8 @@
 {
-  "active_default_model": "qwen2.5-coder-1.5b",
+  "active_default_model": "zcoder-1.5b",
   "models": {
-    "qwen2.5-coder-1.5b": {
-      "file_path": "qwen-1.5b-q4km.gguf",
+    "zcoder-1.5b": {
+      "file_path": "zcoder-1.5b-q4km.gguf",
       "quantization": "Q4_K_M",
       "parameters": "1.5B",
       "d_model": 32,
@@ -11,10 +11,10 @@
       "vocab_size": 512,
       "max_seq_len": 128,
       "mmap_enabled": true,
-      "description": "Qwen 2.5 Coder 1.5B Instruct - Fast local coding and script generation"
+      "description": "ZCoder 1.5B Q4_K_M - Fast local coding and script generation"
     },
-    "qwen2.5-coder-7b": {
-      "file_path": "qwen-7b-q4km.gguf",
+    "zcoder-7b": {
+      "file_path": "zcoder-7b-q4km.gguf",
       "quantization": "Q4_K_M",
       "parameters": "7B",
       "d_model": 64,
@@ -23,7 +23,14 @@
       "vocab_size": 512,
       "max_seq_len": 256,
       "mmap_enabled": true,
-      "description": "Qwen 2.5 Coder 7B Instruct - Top-tier code intelligence and advanced media scripting"
+      "description": "ZCoder 7B Q4_K_M - Top-tier code intelligence and advanced media scripting"
+    }
+  },
+    "zcoder-32b": {
+      "file_path": "zcoder-32b-q4km.gguf",
+      "quantization": "Q4_K_M",
+      "parameters": "32B",
+      "mmap_enabled": true,
+      "description": "ZCoder 32B Q4_K_M local GGUF model"
     }
   }
-}
