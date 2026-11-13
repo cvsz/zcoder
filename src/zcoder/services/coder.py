@@ -54,7 +54,7 @@ class Coder:
         inference_geo=None,
         fast_mode=False,
     ):
-        self.model = model or os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
+        self.model = model or os.getenv("ZCODER_MODEL", "zcoder-7b-q4km")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.provider = (provider or "local").strip().lower()
