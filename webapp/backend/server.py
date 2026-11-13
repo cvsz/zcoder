@@ -130,7 +130,7 @@ _SESSION_LIMIT = 200  # oldest session dropped past this to bound memory
 class ChatRequest(BaseModel):
     prompt: str
     session_id: str | None = None
-    model: str = os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
+    model: str = os.getenv("ZCODER_MODEL", "zcoder-7b-q4km")
     temperature: float = 0.3
     max_tokens: int = 4096
     system: str | None = None
@@ -279,7 +279,7 @@ def get_health(deep: bool = False):
 
 @app.get("/api/models")
 def get_models():
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+    model_id = os.getenv("ZCODER_MODEL", "zcoder-7b-q4km").strip()
     return [{"id": model_id, "display_name": model_id, "tier": "local"}]
 
 
@@ -477,7 +477,7 @@ def _admin_metrics() -> dict:
     """Executive dashboard KPIs and telemetry — computed from runtime state,
     not hardcoded placeholder values."""
     health = run_health_check(deep=False)
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+    model_id = os.getenv("ZCODER_MODEL", "zcoder-7b-q4km").strip()
     return {
         "total_tasks": 0,
         "active_agents": len(AGENT_SYSTEM_PROMPTS),
@@ -536,7 +536,7 @@ def admin_models_catalog(request: Request):
 
 def _admin_models_catalog() -> list[dict]:
     """Model catalog with lifecycle states."""
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+    model_id = os.getenv("ZCODER_MODEL", "zcoder-7b-q4km").strip()
     return [
         {
             "id": model_id,
@@ -600,7 +600,7 @@ def get_health_v2(deep: bool = False):
 
 @app.get("/api/v2/models")
 def get_models_v2():
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+    model_id = os.getenv("ZCODER_MODEL", "zcoder-7b-q4km").strip()
     return {
         "api_version": "v2",
         "models": [
