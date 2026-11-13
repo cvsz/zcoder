@@ -6,6 +6,9 @@
 |---|---|---|---|
 | `ZCODER_BASE_URL` | No | `http://127.0.0.1:8080/v1` | Loopback llama.cpp chat endpoint |
 | `ZCODER_MODEL` | No | `zcoder-7b-q4km` | Local request label |
+| `ZCODER_MODELS_DIR` | Compose | `/zdata/models` | Host directory bind-mounted read-only at `/models` in llama-server |
+| `ZCODER_GGUF_FILE` | Compose | `zcoder-7b-q4km.gguf` | GGUF filename selected from the mounted model directory |
+| `ZGPU_MODEL_DIRS` | No | `/zdata/models` | Host-side directories scanned by the zGPU local GGUF catalog |
 | `DATABASE_URL` | No | SQLite | PostgreSQL DSN for API and worker processes; Docker entrypoint derives it from the mounted ZCoder password secret when configured |
 | `ZCODER_POSTGRES_SECRET_SOURCE` | Compose only | `${HOME}/.config/zcoder/postgresql.password` | Host path to the password file created by `make postgres-setup`; mounted read-only into the ZCoder container |
 | `ZCODER_AUTH_ENABLED` | Production API | `false` | Require verified OIDC bearer-token authentication |
