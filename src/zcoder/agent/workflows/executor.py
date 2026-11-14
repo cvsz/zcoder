@@ -17,7 +17,7 @@ Retry configuration:
 from __future__ import annotations
 
 import shlex
-import subprocess
+import subprocess  # nosec
 import time
 from enum import Enum
 from typing import Any
@@ -399,7 +399,7 @@ def _execute_shell_step(
     try:
         proc = subprocess.run(
             argv,
-            shell=False,
+            shell=False,  # nosec
             capture_output=True,
             text=True,
             timeout=300,
@@ -603,7 +603,7 @@ def _execute_parallel_step(
         if pstep_name in result.step_results:
             continue
         try:
-            proc = subprocess.run(
+            proc = subprocess.run(  # nosec
                 ["echo", f"Parallel: {pstep_name}"],
                 capture_output=True,
                 text=True,

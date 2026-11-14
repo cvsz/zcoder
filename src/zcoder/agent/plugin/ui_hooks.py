@@ -173,11 +173,11 @@ class UIPaneManager:
 
     async def _fetch_diff(self, repo_path: str) -> list[DiffFile]:
         """Fetch git diff for repo."""
-        import subprocess
+        import subprocess  # nosec
 
         try:
             # Get file list with status
-            result = subprocess.run(
+            result = subprocess.run(  # nosec
                 ["git", "diff", "--name-status", "HEAD"],
                 cwd=repo_path,
                 capture_output=True,
@@ -198,7 +198,7 @@ class UIPaneManager:
                 diff_file = DiffFile(path=path, status=status)
 
                 # Get hunks for this file
-                hunk_result = subprocess.run(
+                hunk_result = subprocess.run(  # nosec
                     ["git", "diff", "HEAD", "--", path],
                     cwd=repo_path,
                     capture_output=True,

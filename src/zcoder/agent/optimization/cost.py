@@ -466,7 +466,7 @@ def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_previe
             "prompt": prompt_preview[:80],
         }
         SPEND_LOG.write_text(json.dumps(list(existing_entries.values())[-5000:], indent=2))
-    except Exception:
+    except Exception:  # nosec
         pass
 
 

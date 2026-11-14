@@ -26,6 +26,10 @@ def _make_git_repo(tmp_path: Path, branch: str = "main") -> Path:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "a@b"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    # Temp repo fixture is not about git signing; disable gpgsign so commits
+    # succeed non-interactively in environments where commit.gpgsign is
+    # globally enabled (e.g. with a passphrase-protected key and no tty).
+    subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
     subprocess.run(
         ["git", "commit", "--allow-empty", "-qm", "init"],
         cwd=tmp_path,

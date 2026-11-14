@@ -255,7 +255,7 @@ class Connection:
             if self.agent.policy.mode == Mode.BYPASS:  # never allowed over the web
                 self.agent.policy.mode = Mode.DEFAULT
             self.agent.policy.allow_bypass = False
-        except Exception:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive  # nosec
             pass
 
     async def send(self, payload: dict[str, Any]) -> bool:

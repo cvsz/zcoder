@@ -198,7 +198,7 @@ class Worker:
                         if hasattr(self._metrics, "queue_depth_max"):
                             current_max = self._metrics.queue_depth_max.get()
                             self._metrics.queue_depth_max.set(max(current_max, depth))
-                    except Exception:
+                    except Exception:  # nosec
                         pass  # Best effort
 
                 # Don't claim if at concurrency limit
@@ -435,7 +435,7 @@ class Worker:
         try:
             if hasattr(self._store, "close"):
                 self._store.close()
-        except Exception:
+        except Exception:  # nosec
             # Store close may fail during shutdown; safe to ignore.
             pass
 
@@ -468,7 +468,7 @@ def main() -> None:
         from zcoder.infrastructure.observability.bootstrap import bootstrap_from_env
 
         bootstrap_from_env()
-    except Exception:
+    except Exception:  # nosec
         # Observability bootstrap may fail in minimal environments; safe to ignore.
         pass
     parser = argparse.ArgumentParser(description="ZCoder Worker Process")

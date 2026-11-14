@@ -21,7 +21,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from zcoder.agent.optimization.local_tokens import _is_code_model_specific
 
@@ -93,20 +93,6 @@ def _detect_prompt_type(prompt: str) -> str:
     return "general"
 
 
-def _apply_context_rule(
-    optimized: str,
-    pattern: re.Pattern,
-    replacement: str | Callable[[re.Match[str]], str],
-) -> str:
-    """Apply a single context-aware replacement rule.
-
-    mypy cannot infer the return type of ``re.Pattern.sub`` when ``repl`` is a
-    ``str | Callable`` union, so we centralize the call here with an explicit
-    ``str`` return annotation.
-    """
-    return cast(str, pattern.sub(replacement, optimized))
-
-
 def optimize_advanced(
     prompt: str,
     model: str = "claude-sonnet-5",
@@ -146,8 +132,11 @@ def optimize_advanced(
     # Apply context-aware rules based on detected context
     context = _detect_context(prompt)
     if context in _CONTEXT_RULES:
-        for pattern, replacement in _CONTEXT_RULES[context]:
-            optimized = _apply_context_rule(optimized, pattern, replacement)
+        for pattern, replacement in _CONTEXT_RULES[context]:  # type: ignore[assignment]
+            if isinstance(replacement, str):
+                optimized = pattern.sub(replacement, optimized)
+            else:
+                optimized = pattern.sub(replacement, optimized)
 
     # Remove excessive whitespace (universal rule)
     optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))

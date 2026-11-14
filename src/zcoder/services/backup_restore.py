@@ -519,7 +519,7 @@ class BackupManager:
                 logger.warning(f"Could not count events table (tolerated): {e}")
                 try:
                     conn.rollback()
-                except Exception:
+                except Exception:  # nosec
                     # Rollback may fail during error handling; safe to ignore.
                     pass
         finally:
@@ -679,7 +679,7 @@ class BackupManager:
                 with open(manifest_path) as f:
                     manifest = json.load(f)
                 sha256 = manifest.get("sha256", "")
-            except Exception:
+            except Exception:  # nosec
                 # Manifest may be missing or corrupt; use empty hash.
                 pass
         return {

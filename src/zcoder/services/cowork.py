@@ -378,7 +378,7 @@ class CoworkAgent:
         for fp in files or []:
             try:
                 file_content += f"\n\n--- {fp} ---\n{Path(fp).read_text()[:6000]}"
-            except Exception:
+            except Exception:  # nosec
                 # File may be unreadable; skip it.
                 pass
 

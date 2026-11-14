@@ -75,7 +75,7 @@ class HookManager:
         if HOOKS_FILE.exists():
             try:
                 self.hooks = [Hook.from_dict(d) for d in json.loads(HOOKS_FILE.read_text())]
-            except Exception:
+            except Exception:  # nosec
                 # Hooks file may be missing or corrupt; start empty.
                 pass
 

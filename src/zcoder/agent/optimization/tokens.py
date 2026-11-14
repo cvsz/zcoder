@@ -1,5 +1,4 @@
 """claude_tokens.py — Token Counting
-ZCoder CLI v1.8.0
 
 Count tokens BEFORE sending a request (no API cost incurred).
 Uses the /v1/messages/count_tokens endpoint for precise counting,
@@ -16,8 +15,8 @@ CLI flags:
 import json
 import re
 import urllib.request
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
@@ -33,254 +32,6 @@ _OPTIM_PATTERNS: list[tuple[re.Pattern, str]] = [
 
 # Prompt optimization cache: (prompt, model) -> optimized_prompt
 _optimization_cache: dict[tuple[str, str], str] = {}
-
-# Historical usage tracking for predictive model selection
-_usage_history: dict[str, list[dict]] = {}
-
-
-def predict_best_model(
-    usage_history: dict[str, list[dict]] | None = None,
-    budget: float | None = None,
-    current_task_type: str = "general",
-) -> str:
-    """Predict the best model based on historical usage patterns and budget.
-
-    Args:
-        usage_history: Historical token usage per model. If None, uses global _usage_history.
-        budget: Maximum budget in USD for the task (optional).
-        current_task_type: Type of task ("general", "code", "creative", "analysis").
-
-    Returns:
-        Recommended model ID.
-    """
-    history = usage_history or _usage_history
-
-    # Model pricing per MTok (input)
-    model_prices = {
-        "claude-opus-5": 5.0,
-        "claude-opus-4-8": 5.0,
-        "claude-sonnet-5": 2.0,
-        "claude-sonnet-4-6": 3.0,
-        "claude-sonnet-4-5": 3.0,
-        "claude-haiku-4-5-20251001": 1.0,
-        "claude-fable-5": 10.0,
-        "claude-mythos-5": 10.0,
-    }
-
-    # Task-type multiplier for historical adjusted costs
-    task_multiplier = {
-        "code": 1.2,
-        "creative": 1.0,
-        "analysis": 1.1,
-        "general": 1.0,
-    }.get(current_task_type, 1.0)
-
-    # Calculate adjusted cost per model based on history
-    model_metrics: dict[str, dict] = {}
-    for model, entries in history.items():
-        if not entries:
-            model_metrics[model] = {
-                "avg_tokens": 0,
-                "avg_cost_usd": model_prices.get(model, 3.0),
-                "count": 0,
-            }
-            continue
-
-        total_tokens = sum(e.get("tokens", 0) for e in entries)
-        total_cost = sum(e.get("cost_usd", 0) for e in entries)
-        count = len(entries)
-        avg_tokens = total_tokens / count if count > 0 else 0
-        avg_cost_usd = total_cost / count if count > 0 else 0
-
-        # Apply task type multiplier
-        adjusted_cost = avg_cost_usd * task_multiplier
-
-        model_metrics[model] = {
-            "avg_tokens": avg_tokens,
-            "avg_cost_usd": adjusted_cost,
-            "count": count,
-        }
-
-    # If budget is provided, filter models that fit within budget
-    if budget:
-        feasible_models = []
-        for model, metrics in model_metrics.items():
-            # Estimate per-request cost and check if within budget
-            # Use a conservative estimate of 1 request for feasibility
-            if metrics["avg_cost_usd"] <= budget:
-                feasible_models.append((model, metrics))
-
-        if feasible_models:
-            # Return the most cost-effective model
-            feasible_models.sort(key=lambda x: x[1]["avg_cost_usd"])
-            return feasible_models[0][0]
-
-    # Return the model with lowest adjusted cost per token
-    # Handle empty model_metrics case
-    if not model_metrics:
-        # No history available, return default model
-        return "claude-sonnet-5"
-
-    best_model = min(
-        model_metrics.keys(),
-        key=lambda m: model_metrics[m]["avg_cost_usd"] / max(model_metrics[m]["avg_tokens"], 1),
-    )
-
-    return best_model
-
-
-def route_by_cost(
-    prompt: str,
-    budget: float,
-    current_usage: float = 0.0,
-    task_type: str = "general",
-) -> dict:
-    """Route a prompt to the most cost-effective model within budget.
-
-    Args:
-        prompt: The prompt to analyze
-        budget: Available budget in USD
-        current_usage: Current spending in this session/dialog
-        task_type: Type of task for model selection
-
-    Returns:
-        Dict with recommended model and remaining budget
-    """
-    from zcoder.agent.optimization.local_tokens import _is_code_model_specific
-
-    # Estimate token count for the prompt
-    estimator = LocalTokenEstimator()
-    estimated_tokens = estimator.estimate(prompt)
-
-    # Predict best model for this task type
-    recommended_model = predict_best_model(
-        usage_history=None,
-        budget=budget - current_usage,
-        current_task_type=task_type,
-    )
-
-    # Re-estimate cost with recommended model
-    price_per_mtok = {
-        "claude-opus-5": 5.0,
-        "claude-opus-4-8": 5.0,
-        "claude-sonnet-5": 2.0,
-        "claude-sonnet-4-6": 3.0,
-        "claude-sonnet-4-5": 3.0,
-        "claude-haiku-4-5-20251001": 1.0,
-    }.get(recommended_model, 3.0)
-
-    estimated_cost = (estimated_tokens / 1_000_000) * price_per_mtok
-    remaining_budget = budget - current_usage - estimated_cost
-
-    # Check if within budget
-    within_budget = estimated_cost + current_usage <= budget
-
-    return {
-        "recommended_model": recommended_model,
-        "estimated_tokens": estimated_tokens,
-        "estimated_cost_usd": round(estimated_cost, 6),
-        "remaining_budget_usd": round(remaining_budget, 6),
-        "within_budget": within_budget,
-        "task_type": task_type,
-    }
-
-
-def forecast_spend(
-    days: int = 30,
-    daily_prompts: int | None = None,
-    historical_usage: dict[str, list[dict]] | None = None,
-) -> dict:
-    """Forecast future spending based on historical usage patterns.
-
-    Args:
-        days: Number of days to forecast
-        daily_prompts: Estimated prompts per day (uses historical avg if None)
-        historical_usage: Historical usage per model. If None, uses global _usage_history.
-
-    Returns:
-        Dict with spend forecast details
-    """
-    history = historical_usage or _usage_history
-
-    if not history:
-        return {
-            "total_forecast_usd": 0.0,
-            "daily_average_usd": 0.0,
-            "model_breakdown": {},
-            "confidence": "no_data",
-        }
-
-    # Model pricing
-    model_prices = {
-        "claude-opus-5": 5.0,
-        "claude-opus-4-8": 5.0,
-        "claude-sonnet-5": 2.0,
-        "claude-sonnet-4-6": 3.0,
-        "claude-sonnet-4-5": 3.0,
-        "claude-haiku-4-5-20251001": 1.0,
-        "claude-fable-5": 10.0,
-        "claude-mythos-5": 10.0,
-    }
-
-    # Calculate daily average per model
-    model_daily: dict[str, dict] = {}
-    for model, entries in history.items():
-        if not entries:
-            model_daily[model] = {"daily_avg_tokens": 0, "daily_avg_cost": 0.0}
-            continue
-
-        total_tokens = sum(e.get("tokens", 0) for e in entries)
-        total_cost = sum(e.get("cost_usd", 0) for e in entries)
-        count = len(entries)
-
-        # Estimate days from history
-        # Assuming entries are spread over the tracking period
-        days_covered = max(1, count / 30)  # approx 30 entries per month
-        daily_avg_tokens = total_tokens / max(days_covered, 1)
-        daily_avg_cost = (total_cost / max(days_covered, 1)) * model_prices.get(model, 3.0)
-
-        model_daily[model] = {
-            "daily_avg_tokens": round(daily_avg_tokens, 1),
-            "daily_avg_cost": round(daily_avg_cost, 6),
-        }
-
-    # Calculate total forecast
-    total_daily_cost = sum(m.get("daily_avg_cost", 0) for m in model_daily.values())
-
-    # Apply daily_prompts if specified
-    if daily_prompts is not None:
-        # Scale forecast based on estimated prompts
-        # This is a simplified approach - in production would use more sophisticated scaling
-        scale_factor = daily_prompts / max(sum(len(v.get("entries", [])) for v in history.values()), 1)
-        total_daily_cost *= scale_factor
-        daily_average_usd = total_daily_cost / days
-    else:
-        daily_average_usd = total_daily_cost / days if days > 0 else 0.0
-
-    total_forecast_usd = daily_average_usd * days
-
-    return {
-        "total_forecast_usd": round(total_forecast_usd, 6),
-        "daily_average_usd": round(daily_average_usd, 6),
-        "model_breakdown": model_daily,
-        "confidence": "high" if len(history) > 10 else "medium",
-    }
-
-
-def _track_usage(self, tokens: int, cost_usd: float, model: str) -> None:
-    """Track usage history for predictive model selection."""
-    entry = {
-        "tokens": tokens,
-        "cost_usd": cost_usd,
-        "model": model,
-    }
-    if model not in _usage_history:
-        _usage_history[model] = []
-    _usage_history[model].append(entry)
-
-    # Keep history manageable (last 100 entries per model)
-    if len(_usage_history[model]) > 100:
-        _usage_history[model] = _usage_history[model][-100:]
 
 
 @lru_cache(maxsize=128)
@@ -382,21 +133,7 @@ class TokenCounter:
             method="POST",
         )
         try:
-            result = self._call(req)
-            # Track API usage for predictive model selection
-            tokens = result.get("input_tokens", 0)
-            # Estimate cost based on the model's pricing
-            model = self.model
-            prices_per_mtok = {
-                "claude-opus-5": 5.0,
-                "claude-opus-4-8": 5.0,
-                "claude-sonnet-5": 2.0,
-                "claude-haiku-4-5-20251001": 1.0,
-            }
-            price = prices_per_mtok.get(model, 3.0)
-            cost_usd = (tokens / 1_000_000) * price
-            self._track_usage(tokens, cost_usd, model)
-            return result
+            return self._call(req)
         except ZCoderError as e:
             raise RuntimeError(f"Token count failed: {e.message}") from e
 
@@ -407,7 +144,9 @@ class TokenCounter:
         :class:`ZCoderError` and never exposed as raw urllib exceptions.
         """
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(
+                req, timeout=30
+            ) as resp:  # nosec B310 — controlled internal count_tokens endpoint
                 body = resp.read()
             return json.loads(body)
         except Exception as exc:
@@ -450,10 +189,6 @@ class TokenCounter:
         """
         m = model or self.model
         tokens = self._local_estimator.estimate(prompt, m, system, tools, history)
-        # Estimate cost for tracking
-        cost_est = self.estimate_cost(tokens, m)
-        # Track usage history for predictive model selection
-        self._track_usage(tokens, cost_est["estimated_cost_usd"], m)
         return {"input_tokens": tokens, "method": "local"}
 
     def estimate_local(
