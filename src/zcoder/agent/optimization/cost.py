@@ -31,10 +31,10 @@ from pathlib import Path
 
 import requests
 
-from zcoder.core.provider_policy import create_anthropic_client
-from zcoder.core.utils import sampling_kwargs
 from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
 from zcoder.agent.optimization.tokens import optimize_prompt
+from zcoder.core.provider_policy import create_anthropic_client
+from zcoder.core.utils import sampling_kwargs
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 
@@ -278,32 +278,40 @@ def classify_complexity(prompt: str) -> str:
     prompt_lower = prompt.lower()
 
     # Code markers for general programming
-    code_markers = _count_markers(prompt, [
-        "def ", "class ", "function ", "CREATE ", "INSERT ", "UPDATE ",
-        "DELETE ",
-        "async ",
-        "await ",
-        "try:",
-        "except:",
-        "for ",
-        "while ",
-        "if ",
-        "elif ",
-        "else:",
-        "lambda ",
-        "yield ",
-        "with ",
-        "import ",
-        "from ",
-        "return ",
-        "raise ",
-        "=>",
-        "->",
-        "{}",
-        "[]",
-        "::",
-        "@@",
-    ])
+    code_markers = _count_markers(
+        prompt,
+        [
+            "def ",
+            "class ",
+            "function ",
+            "CREATE ",
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "async ",
+            "await ",
+            "try:",
+            "except:",
+            "for ",
+            "while ",
+            "if ",
+            "elif ",
+            "else:",
+            "lambda ",
+            "yield ",
+            "with ",
+            "import ",
+            "from ",
+            "return ",
+            "raise ",
+            "=>",
+            "->",
+            "{}",
+            "[]",
+            "::",
+            "@@",
+        ],
+    )
 
     # SQL-specific markers (SELECT is a strong indicator of DB operations)
     sql_markers = prompt.count("SELECT ")
