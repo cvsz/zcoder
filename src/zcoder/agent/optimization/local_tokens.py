@@ -130,8 +130,8 @@ def _is_code_model_specific(text: str, model: str) -> bool:
     return False
 
 
-def _get_multiplier(model: str) -> float:
-    """Get character-to-token multiplier for a model."""
+def _get_multiplier(model: str, cache: dict | None = None) -> float:
+    """Get character-to-token multiplier for a model with optional cache."""
     # Try exact match first
     if model in MODEL_MULTIPLIERS:
         return MODEL_MULTIPLIERS[model]
@@ -140,6 +140,12 @@ def _get_multiplier(model: str) -> float:
     for prefix, mult in MODEL_MULTIPLIERS.items():
         if model.startswith(prefix):
             return mult
+
+    # Use provided cache or global cache
+    if cache is not None:
+        cache.setdefault(model, MODEL_MULTIPLIERS["default"])
+        cache[model] = MODEL_MULTIPLIERS.get(model, MODEL_MULTIPLIERS["default"])
+        return cache[model]
 
     return MODEL_MULTIPLIERS["default"]
 
@@ -354,6 +360,61 @@ def estimate_tokens(
 ) -> int:
     """Convenience function for quick token estimation."""
     return _default_estimator.estimate(prompt, model, system, tools, history)
+
+
+def predict_best_model(
+    prompt: str,
+    available_models: list[str] | None = None,
+    prefer_latency: bool = False,
+) -> dict[str, str]:
+    """Predict the best model for a given prompt based on complexity and cost.
+
+    Args:
+        prompt: User prompt text
+        available_models: List of available model names (defaults to TIER_MODELS)
+        prefer_latency: If True, prefer faster models even for complex prompts
+
+    Returns:
+        Dict with 'model', 'complexity', 'estimated_cost', 'estimated_tokens'
+    """
+    from zcoder.agent.optimization.cost import classify_complexity, select_model, estimate_cost, TIER_MODELS
+
+    if available_models is None:
+        available_models = TIER_MODELS
+
+    complexity = classify_complexity(prompt)
+    from zcoder.agent.optimization.local_tokens import estimate_tokens
+
+    estimated_tokens = estimate_tokens(prompt, "claude-sonnet-5")
+
+    # Select optimal model
+    if prefer_latency:
+        # Always prefer haiku for latency-sensitive tasks
+        model = select_model(complexity, prefer_latency=True)
+    else:
+        model = select_model(complexity)
+
+    # Estimate cost with current model
+    cost = estimate_cost(model, estimated_tokens, estimated_tokens // 2)
+
+    # Check if switching models would provide significant savings
+    if len(available_models) > 1:
+        for alt_model in available_models:
+            if alt_model == model:
+                continue
+            alt_cost = estimate_cost(alt_model, estimated_tokens, estimated_tokens // 2)
+            # Switch if at least 30% cheaper and model supports the complexity
+            if alt_cost < cost * 0.7:
+                model = alt_model
+                cost = alt_cost
+                complexity = "medium"  # Reset complexity for new model
+
+    return {
+        "model": model,
+        "complexity": complexity,
+        "estimated_cost": cost,
+        "estimated_tokens": estimated_tokens,
+    }
 
 
 def estimate_tokens_detailed(

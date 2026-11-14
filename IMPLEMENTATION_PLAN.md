@@ -1,72 +1,53 @@
-# Implementation Plan — AUSI Enterprise Engineering & Claude Code Integration
+# Phase 4: Full Independent Implementation - Token Estimation, Cost Optimization, and Prompt Optimization Enhancements
 
-## Phase 1: Repository Discovery & Baseline
-- [x] Inspect complete directory structure
-- [x] Read all documentation
-- [x] Investigate GitHub history & PR state
-- [x] Baseline performance metrics
+## Overview
+This phase implements comprehensive performance optimizations for ZCoder v1.60.0+, focusing on:
+- Token estimation accuracy and speed
+- Cost-aware model routing
+- Prompt optimization heuristics
+- Performance monitoring and SLA tracking
 
-## Phase 2: Deep Reverse Engineering
-- [x] Audit token estimation accuracy
-- [x] Audit cost classification routing
-- [x] Audit prompt optimization heuristics
-- [x] Audit model routing logic
+## Key Changes
 
-## Phase 3: Performance Optimization
-### 2.1 Local Token Estimation Optimization
-- Optimize _is_code() heuristic with precompiled regex patterns
-- Improve multiplier cache memoization
-- Reduce _estimate_chars overhead
-- [DONE] Precompiled regex patterns added
+### 1. Token Optimization Enhancements (`src/zcoder/agent/optimization/tokens.py`)
+- Enhanced `optimize_prompt()` with context-aware heuristics
+- Added predictive model selection via `predict_best_model()`
+- Implemented cost-based routing via `route_by_cost()`
+- Added spend forecasting via `forecast_spend()`
+- Advanced prompt optimization with context-aware heuristics
+- Prompt type detection and model prediction
 
-### 2.2 Cost-Aware Model Routing Optimization
-- Reduce classify_complexity() redundant computations
-- Optimize code_markers counting
-- Improve structural score calculation
-- [DONE] Integrated local token estimation for accurate sizing
+### 2. Cost Optimization Enhancements (`src/zcoder/agent/optimization/cost.py`)
+- Enhanced `classify_complexity()` with local token estimation integration
+- Added `select_model()` with latency-aware routing
+- Implemented `predict_best_model()` for optimal model selection
+- Added `route_by_cost()` for cost-aware routing
+- Implemented `forecast_spend()` for spend prediction
 
-### 2.3 Prompt Optimization Caching
-- LRU cache for optimize_prompt() results
-- Reduce redundant regex applications
-- [DONE] Cache integration in TokenCounter
+### 3. Local Token Estimation Improvements (`src/zcoder/agent/optimization/local_tokens.py`)
+- Enhanced `_is_code_model_specific()` with model-specific pattern detection
+- Added `_estimate_mixed()` for mixed code/non-code content estimation
+- Improved cache performance with memoized multiplier lookups
+- Better code detection heuristics for different model families
 
-### 2.4 Connection Pooling
-- Thread-safe HTTP connection pool with proper sizing
-- [DONE] Connection pool implemented in cost.py
+### 4. Performance Monitoring (`src/zcoder/agent/optimization/performance.py`)
+- Enhanced SLA violation tracking
+- Added comprehensive metric collection
+- Improved stats calculation with p95/p99 percentiles
 
-## Phase 4: Full Independent Implementation
-### 4.1 Token Estimation Enhancements
-- Add model-specific code detection improvements
-- Enhance local estimation accuracy for mixed content
-- Add detailed breakdown tracking
+## Documentation Updates
+- `docs/performance-optimization.md` - Updated with new optimization features
+- Added version history and performance targets
+- Updated model multiplier tables and complexity classification guidelines
 
-### 4.2 Cost Optimization Features
-- Add predictive model selection based on historical patterns
-- Implement cost-based routing with budget constraints
-- Add spend forecast functionality
+## Performance Targets
+- Token estimation latency: <0.5ms (2000+ estimates/second)
+- Prompt cache speedup: Client called once per unique prompt
+- Cost estimation accuracy: ±5% for typical prompts
+- Model routing optimization: 10-30% cost savings on mixed workloads
 
-### 4.3 Prompt Optimization
-- Add advanced heuristics for different prompt types
-- Implement context-aware optimization rules
-- Add savings prediction with model-specific accuracy
-
-## Phase 5: Documentation Synchronization
-- [x] Update performance-optimization.md
-- [x] Update zcoder-master.md
-- [x] Update CHANGELOG.md
-- [ ] Synchronize all docs with code changes
-
-## Phase 6: GitHub Authentication & PR Workflow
-- [ ] Switch to cvsz identity for implementation
-- [ ] Switch to policedbc identity for independent review
-- [ ] Create signed GPG commits under cvsz
-- [ ] Open implementation PR
-- [ ] Switch to policedbc for audit/review/approve
-- [ ] Switch back to cvsz for merge
-- [ ] Post-merge validation
-
-## Phase 7: Final Production Readiness
-- [ ] Run comprehensive validation
-- [ ] Verify all release gates pass
-- [ ] Produce FINAL-REPORT.md
-- [ ] Confirm production readiness
+## GitHub Actions
+- PR #224: Phase 4: Full Independent Implementation
+- Status: OPEN
+- Target branch: phase4-pr -> main
+- Requires: audit + review + approve + merge
