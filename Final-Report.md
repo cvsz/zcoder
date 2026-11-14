@@ -227,12 +227,17 @@ PostgreSQL-backed tests use a `_pg_reachable()` connectivity check (2s timeout) 
 
 ## 9. Phase 5 — Role-Separated Git Workflow (Results)
 
-**Step 1 — Author (cvsz):** Committed, pushed, and created PR  
-**Step 2 — Reviewer (policedbc):** Reviewed and approved  
-**Step 3 — Integrator (cvsz):** Merged to `main`, synced local branch
+| Step | Role | Account | Status | Detail |
+|------|------|---------|--------|--------|
+| 1 | Author | `cvsz` | ✅ Complete | `gh auth switch -u cvsz`; branch `feat/quality-and-config-hardening`; 6 verified files committed with `git commit -S`; pushed to origin; PR #221 created via `gh pr create --title "..." --body "..."` |
+| 2 | Reviewer | `policedbc` | ❌ Blocked | `gh auth switch -u policedbc` succeeded; `gh pr diff 221` reviewed (changes limited to verified files, no secrets); however `gh pr review --approve` returns HTTP 403 "Resource not accessible by personal access token" on all repo write endpoints — policedbc's PAT lacks `pull_requests:write` scope in this environment |
+| 3 | Integrator | `cvsz` | ❌ Blocked | Cannot merge without an approving review from a reviewer with write access (branch protection: "At least 1 approving review is required by reviewers with write access"); self-approval by cvsz is prohibited by governance policy |
 
-Final commit SHA: *(to be filled after merge)*  
-PR URL: *(to be filled after PR creation)*
+**PR:** https://github.com/cvsz/zcoder/pull/221 (OPEN, awaiting policedbc review)  
+**Final commit SHA:** 63de1be5759d88e50394b756aec5a785491eae0b (on branch `feat/quality-and-config-hardening`)  
+**Blocker:** policedbc personal access token cannot create PR reviews (HTTP 403 on `addPullRequestReview`, `updatePullRequest`, and collaborator endpoints). Token permissions must be expanded or policedbc must be added as a repository collaborator with accepted invitation before the PR can be approved and merged.
+
+All local quality gates (ruff, black, mypy, bandit, shellcheck, pytest) pass with zero errors and zero warnings. The code is ready for merge once the review gate is cleared.
 
 ---
 
