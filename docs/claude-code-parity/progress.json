@@ -169,18 +169,18 @@
     ]
   },
   "test_status": {
-    "unit_tests_passed": 2152,
+    "unit_tests_passed": 2241,
     "integration_tests_passed": 100,
-    "e2e_tests_passed": 16,
-    "total_passed": 2268,
-    "skipped": 1,
+    "e2e_tests_passed": 145,
+    "total_passed": 2486,
+    "skipped": 0,
     "quality_gates": {
       "ruff": "PASS",
       "black": "PASS",
-      "mypy": "PASS",
+      "mypy": "PASS (258 files, 0 issues)",
       "bandit": "PASS (0 High, 0 Medium)",
-      "shellcheck": "PASS",
-      "coverage": "66%",
+      "shellcheck": "PASS (17 tracked scripts)",
+      "coverage": "79.47%",
       "coverage_threshold": "70%"
     }
   },
@@ -188,10 +188,10 @@
     "BASELINE.md",
     "FEATURE-PARITY-MATRIX.md",
     "ARCHITECTURE.md",
-    "FEATURE-PARITY-MATRIX.md",
-    "pytest output (2252 passed, 1 skipped)",
-    "make check output (all gates passing)",
-    "make standalone-force + health check (PASS)"
+    "pytest output via scripts/local_postgres.py (2486 passed, 0 failed, exit 0)",
+    "coverage 79.47% (gate fail_under=70) — pytest tests/ --cov",
+    "mypy src/zcoder webapp --ignore-missing-imports (258 files, Success)",
+    "make standalone-force (exit 0) + ./dist/zcoder --health-check (exit 0)"
   ],
   "blockers": [],
   "next_execution_phase": "Phase 14: Documentation and Release Readiness",

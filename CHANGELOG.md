@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+- Phase 17 agent communication module (`zcoder.agent.communication`): JSON-RPC 2.0 protocol (`create_request`/`create_response`/`create_notification`/`create_error`, strict `parse_message` validation raising `ProtocolError`), thread-safe `AgentRegistry` with atomic write-to-temp persistence and corrupt-file quarantine, and `TaskOffloader` with task lifecycle (`mark_in_progress`, `complete_task`, `fail_task`, `cancel_task`, `expire_stale`), consensus message builders (PROPOSE/VOTE/ACCEPT/REJECT + `await_approval` quorum evaluation), and session/state-sync helpers (`share_session`, `sync_state`).
+- TUI collaboration rewrite (`zcoder.agent.tui`): presence tracking with stale-cursor pruning and cancellation-safe sync loop, wired to the real protocol/registry API.
+- CLI: `--multi-modal`, `--batch-count`, `--cost-clear-cache`, and `--plugin <cmd>` subcommands wired in `main.py`; `--plugin update` honours `--all` for non-interactive (headless-safe) execution.
+- `README.md` rebuilt (real quick start, layout, quality gates, governance); planning documents reconciled with verified evidence.
+
+### Fixed
+- Registry capability semantics: `find_agents_by_capability` now performs exact-match lookup instead of returning every registered agent; legacy list-capabilities/dict-tags payloads are normalized on load; `heartbeat` added for liveness tracking.
+- `parse_message` now validates the JSON-RPC 2.0 envelope and returns the correct RPC subclass instead of half-populated messages with `type=None`.
+- Offloader: atomic persistence, bounded task store (`max_tasks` oldest-terminal eviction), timeout enforcement via `expire_stale`.
+- Tests for the communication module are hermetic (tmp_path storage) and no longer touch `~/.zcoder`; developer home directories are not polluted by test runs.
+- Shell scripts: shebang moved to line 1 (SC1128) in `fix-zpitr.sh`, `pitr-basebackup-verify.sh`, `pitr-preflight.sh`, `pitr-restore-smoke-test.sh`; removed unused `BACKUP_DIR` (SC2034).
+- `.env.example`: documented PostgreSQL (`DATABASE_URL`, `TEST_DATABASE_URL`, `ZCODER_POSTGRES_HOST/PORT/PASSWORD_FILE`) and Redis (`ZCODER_REDIS_HOST/PORT/PASSWORD_FILE`) provisioning variables — no inline credentials.
+
+### Security
+- RAG cache-key hashing migrated from MD5 to SHA-256 (Bandit B324).
+- Workflow `SHELL` steps execute via `shlex.split` argv lists without `shell=True` (Bandit B602/B603).
+- No High or Medium Bandit findings under `bandit -r src -ll`.
+
 ### API
 - Reject malformed JSON request bodies with HTTP 400 and non-object JSON bodies with HTTP 422 before dispatching public API requests. Include the request ID in both error envelopes.
 
