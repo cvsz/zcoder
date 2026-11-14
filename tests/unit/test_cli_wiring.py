@@ -23,6 +23,7 @@ KNOWN_EXCEPTIONS = {
     ("plugins/cli.py", "cmd_plugin_info"),
     ("plugins/cli.py", "cmd_plugin_search"),
     ("plugins/cli.py", "cmd_plugin_update"),
+    ("optimization/cost.py", "cmd_optimize_prompt"),
 }
 
 

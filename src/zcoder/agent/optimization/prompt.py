@@ -11,14 +11,269 @@ CLI flags:
   --prompt-lib-add          Save current --prompt to the library (use --tag for a label)
   --prompt-lib-list         List saved prompts
   --prompt-lib-get TAG      Retrieve a saved prompt by tag
+  --optimize-advanced       Advanced optimization with context-aware heuristics
+  --predict-model         Predict best model for the prompt based on task type
 """
 
 import json
+import re
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
+
+from zcoder.agent.optimization.local_tokens import _is_code_model_specific
 
 PROMPT_LIB_PATH = Path.home() / ".zcoder" / "prompt_library.json"
+
+# Advanced optimization heuristics by prompt type
+_PROMPT_TYPE_HEURISTICS = {
+    "code": {
+        "patterns_to_expand": [
+            (r"\bdef\s+(\w+)\b", r"def \1(\n    \"\"\"\"\"\"\"\"\n    \n)\1:"),
+            (r"\bclass\s+(\w+)\b", r"class \1:\n    pass  # \1 class"),
+        ],
+        "patterns_to_trim": [
+            (r"^\s+$", ""),  # Remove empty lines
+            (r"\n+$", "\n"),  # Trim trailing newlines,
+        ],
+    },
+    "creative": {
+        "patterns_to_expand": [
+            (r"\{% expand %\}", ""),  # Remove placeholder markers
+        ],
+        "patterns_to_trim": [
+            (r"\bvery\s+\w+", r"\1"),  # Remove "very" as intensifier (often vague)
+            (r"\breally\s+\w+", r"\1"),  # Remove "really" as intensifier,
+        ],
+    },
+    "analysis": {
+        "patterns_to_expand": [
+            (r"\b(?:what|how|why)\s+(?:should|can|must)\b", r"\1 consider:\n- \2"),
+        ],
+        "patterns_to_trim": [
+            (r"\b(?:just|really|very)\s+", ""),  # Remove filler adjectives,
+        ],
+    },
+}
+
+# Context-aware optimization rules
+_CONTEXT_RULES: dict[str, list[tuple[re.Pattern, str | Callable[[re.Match[str]], str]]]] = {
+    "technical": [
+        (re.compile(r"\n{3,}", re.MULTILINE), "\n\n"),  # Collapse triple+ newlines
+        (re.compile(r" {2,}", re.MULTILINE), " "),  # Collapse multiple spaces,
+    ],
+    "documentation": [
+        (re.compile(r"^## .+", re.MULTILINE), lambda m: m.group(0) + "\n"),  # Ensure heading has newline,
+        (re.compile(r"^\* .+", re.MULTILINE), lambda m: m.group(0).rstrip("*")),  # Clean bullet lists,
+    ],
+}
+
+# Prompt type detection heuristics
+_TYPE_INDICATORS = {
+    "code": ["def ", "class ", "function ", "import ", "return ", "=>"],
+    "creative": ["imagine", " suppose", " dream", " fantasy"],
+    "analysis": ["analyze", " examine", " evaluate", " compare"],
+}
+
+
+def _detect_prompt_type(prompt: str) -> str:
+    """Detect the type of prompt for context-aware optimization."""
+    prompt_lower = prompt.lower()
+    type_scores: dict[str, int] = {}
+
+    for ptype, indicators in _TYPE_INDICATORS.items():
+        score = sum(1 for ind in indicators if ind.lower() in prompt_lower)
+        type_scores[ptype] = score
+
+    # Return the type with the highest score, or "general" if none match
+    if max(type_scores.values(), default=0) > 0:
+        return max(type_scores, key=lambda k: type_scores[k])
+    return "general"
+
+
+def _apply_context_rule(
+    optimized: str,
+    pattern: re.Pattern,
+    replacement: str | Callable[[re.Match[str]], str],
+) -> str:
+    """Apply a single context-aware replacement rule.
+
+    mypy cannot infer the return type of ``re.Pattern.sub`` when ``repl`` is a
+    ``str | Callable`` union, so we centralize the call here with an explicit
+    ``str`` return annotation.
+    """
+    return cast(str, pattern.sub(replacement, optimized))
+
+
+def optimize_advanced(
+    prompt: str,
+    model: str = "claude-sonnet-5",
+) -> str:
+    """Apply advanced context-aware prompt optimization heuristics.
+
+    Uses model-specific and context-aware rules to optimize prompts
+    without changing their semantic meaning.
+
+    Args:
+        prompt: The prompt to optimize
+        model: Target model for model-specific heuristics
+
+    Returns:
+        Optimized prompt
+    """
+    prompt_type = _detect_prompt_type(prompt)
+    optimized = prompt
+
+    # Apply type-specific heuristics
+    if prompt_type in _PROMPT_TYPE_HEURISTICS:
+        heuristics = _PROMPT_TYPE_HEURISTICS[prompt_type]
+
+        # Expand patterns (add useful structure)
+        for pattern_str, replacement in heuristics.get("patterns_to_expand", []):
+            import re
+
+            optimized = re.sub(pattern_str, replacement, optimized)
+
+        # Trim patterns (remove inefficiencies)
+        for pattern_str, replacement in heuristics.get("patterns_to_trim", []):
+            if callable(replacement):
+                optimized = re.sub(pattern_str, replacement, optimized)
+            else:
+                optimized = re.sub(pattern_str, replacement, optimized)
+
+    # Apply context-aware rules based on detected context
+    context = _detect_context(prompt)
+    if context in _CONTEXT_RULES:
+        for pattern, replacement in _CONTEXT_RULES[context]:
+            optimized = _apply_context_rule(optimized, pattern, replacement)
+
+    # Remove excessive whitespace (universal rule)
+    optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))
+    optimized = re.sub(r"\n\n+", "\n\n", optimized)
+
+    return optimized
+
+
+def _detect_context(prompt: str) -> str:
+    """Detect the context type of a prompt for rule application."""
+    prompt_lower = prompt.lower()
+
+    # Check for documentation patterns
+    if any(k in prompt_lower for k in ["README", "docs", "documentation", "api reference"]):
+        return "documentation"
+
+    # Check for technical code patterns
+    if any(k in prompt_lower for k in ["function", "method", "class", "api", "endpoint"]):
+        return "technical"
+
+    return "general"
+
+
+def predict_best_model_for_prompt(
+    prompt: str,
+    available_models: list[str] | None = None,
+) -> dict:
+    """Predict the best model for a given prompt based on content analysis.
+
+    Args:
+        prompt: The prompt to analyze
+        available_models: List of available models. If None, uses defaults.
+
+    Returns:
+        Dict with recommended model and rationale
+    """
+    if available_models is None:
+        available_models = [
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-haiku-4-5-20251001",
+        ]
+
+    # Detect prompt type and task characteristics
+    prompt_type = _detect_prompt_type(prompt)
+
+    # Analyze prompt features
+    features: dict[str, Any] = {
+        "type": prompt_type,
+        "has_code": _is_code_model_specific(
+            prompt, available_models[0] if available_models else "claude-sonnet-5"
+        ),
+        "word_count": len(prompt.split()),
+        "has_complex_constraints": any(
+            k in prompt.lower() for k in ["must", "should", "without", "ensure", "guarantee"]
+        ),
+    }
+
+    # Model recommendations based on prompt characteristics
+    recommendations: list[dict] = []
+
+    for model in available_models:
+        model_rec: dict = {"model": model, "rationale": "", "score": 0.0}
+
+        if model == "claude-opus-5":
+            model_rec["rationale"] = (
+                "Best for complex reasoning, difficult problems, " "when quality trumps speed"
+            )
+            model_rec["score"] = 0.8 if features["has_complex_constraints"] else 0.5
+
+        elif model == "claude-sonnet-5":
+            model_rec["rationale"] = (
+                "Best for general-purpose tasks, good balance of "
+                " intelligence and speed, especially for code"
+            )
+            model_rec["score"] = 0.9 if features["has_code"] else 0.7
+
+        elif model == "claude-haiku-4-5-20251001":
+            model_rec["rationale"] = (
+                "Best for simple tasks, high speed, cost-effective " "for straightforward prompts"
+            )
+            model_rec["score"] = 0.6 if features["has_code"] else 0.8
+
+        recommendations.append(model_rec)
+
+    # Sort by score (descending)
+    recommendations.sort(key=lambda x: x["score"], reverse=True)
+
+    return {
+        "prompt_type": prompt_type,
+        "features": features,
+        "recommendations": recommendations,
+    }
+
+
+def cmd_optimize_advanced(
+    prompt: str,
+    model: str,
+    api_key: str,
+) -> str:
+    """CLI command for advanced prompt optimization.
+
+    Args:
+        prompt: The prompt to optimize
+        model: Target model name
+        api_key: Anthropic API key
+    """
+    # Apply advanced optimization
+    optimized = optimize_advanced(prompt, model)
+
+    # Predict best model
+    prediction = predict_best_model_for_prompt(prompt, [model])
+
+    print(f"\n\033[94mOriginal Prompt Type:\033[0m {prediction['prompt_type']}")
+    print(
+        f"\033[94mFeatures:\033[0m code={prediction['features']['has_code']}, "
+        f"words={prediction['features']['word_count']}"
+    )
+
+    print("\n\033[94mOptimized Prompt:\033[0m")
+    print(optimized)
+
+    print(f"\n\033[94mModel Prediction:\033[0m {prediction['recommendations'][0]['model']}")
+    print(f"  Rationale: {prediction['recommendations'][0]['rationale']}")
+
+    return optimized
 
 
 class OptimizeCache:
