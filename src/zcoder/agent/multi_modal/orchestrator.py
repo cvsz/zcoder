@@ -27,6 +27,11 @@ from zcoder.core.exceptions import ZCoderError
 logger = logging.getLogger(__name__)
 
 
+def _content_path(data: bytes | str) -> Path:
+    """Convert raw content data (bytes or path string) into a Path."""
+    return Path(data.decode() if isinstance(data, bytes) else data)
+
+
 def orchestrate_multi_modal(
     request: MultiModalRequest,
     api_key: str = "",
@@ -96,21 +101,21 @@ def orchestrate_multi_modal(
             elif modality == ModalityType.AUDIO:
                 audio_content = next((c for c in request.content if c.modality == modality), None)
                 if audio_content and audio_content.data:
-                    result = process_audio_for_ml(Path(audio_content.data))
+                    result = process_audio_for_ml(_content_path(audio_content.data))
                 else:
                     logger.warning(f"No audio data provided for modality {modality}")
 
             elif modality == ModalityType.VIDEO:
                 video_content = next((c for c in request.content if c.modality == modality), None)
                 if video_content and video_content.data:
-                    result = process_video_for_ml(Path(video_content.data))
+                    result = process_video_for_ml(_content_path(video_content.data))
                 else:
                     logger.warning(f"No video data provided for modality {modality}")
 
             elif modality == ModalityType.PDF:
                 pdf_content = next((c for c in request.content if c.modality == modality), None)
                 if pdf_content and pdf_content.data:
-                    result = process_pdf_for_ml(Path(pdf_content.data))
+                    result = process_pdf_for_ml(_content_path(pdf_content.data))
                 else:
                     logger.warning(f"No PDF data provided for modality {modality}")
 
@@ -174,7 +179,8 @@ def orchestrate_multi_modal(
             if result.error is None and result.success:
                 if modality == ModalityType.PDF:
                     # PDF structure can provide heading citations
-                    citations.append(f"[PDF: {result.source or 'unknown'}]")
+                    pdf_source = result.content.source if result.content else None
+                    citations.append(f"[PDF: {pdf_source or 'unknown'}]")
 
         else:
             modality_breakdown[modality] = False
@@ -185,7 +191,7 @@ def orchestrate_multi_modal(
     # Build the final response
     response = MultiModalResponse(
         text=combined_text or "[No extractable content from specified modalities]",
-        citations=citations if citations else None,
+        citations=citations,
         modality_breakdown=modality_breakdown,
         token_usage={},
         cost_usd=0.0,
@@ -223,7 +229,7 @@ def cmd_multi_modal(
     Returns:
         MultiModalResponse with combined results
     """
-    modality_list = [ModalityType(m.strip()) for m in modalities.split(",") if m.strip()]
+    modality_list = [ModalityType[m.strip().upper()] for m in modalities.split(",") if m.strip()]
 
     # Build content from files if provided
     content: list[MultiModalContent] = []
@@ -313,7 +319,7 @@ def main_cli() -> None:
             print(f"\nCitations: {response.citations}")
         print(f"\nExtracted text:\n{response.text}")
         if response.cost_usd > 0:
-            print(f"\nCost: \${response.cost_usd:.4f}")
+            print(f"\nCost: ${response.cost_usd:.4f}")
 
     except Exception as e:
         print(f"\nError: {e}")

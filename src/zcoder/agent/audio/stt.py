@@ -80,6 +80,7 @@ class WhisperSTT(STTAdapter):
 
         # Try to import faster-whisper or whisper
         self._whisper = None
+        self._backend: str | None = None
         try:
             from faster_whisper import WhisperModel
 
@@ -140,6 +141,8 @@ class WhisperSTT(STTAdapter):
 
     def transcribe_file(self, file_path: str, **kwargs) -> STTResult:
         self._load_model()
+        if self._model is None:
+            raise RuntimeError("Whisper model failed to load")
 
         language = kwargs.get("language")
         beam_size = kwargs.get("beam_size", 5)

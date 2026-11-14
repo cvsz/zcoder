@@ -54,6 +54,7 @@ class VectorConfig:
     metric: str = "cosine"  # cosine, l2, ip
     connection_string: str | None = None  # For pgvector
     index_path: str | None = None  # For FAISS disk-based index
+    index_config: dict[str, Any] = field(default_factory=dict)  # Backend-specific index options
 
 
 @dataclass
@@ -132,6 +133,7 @@ class PGVectorStore(BaseVectorStore):
     """
 
     def __init__(self, config: VectorConfig | None = None) -> None:
+        config = config or VectorConfig()
         super().__init__(config)
         if not HAS_PSYCOPG2:
             raise ImportError("psycopg2 is required for pgvector backend")
@@ -261,6 +263,7 @@ class FAISSVectorStore(BaseVectorStore):
     """
 
     def __init__(self, config: VectorConfig | None = None) -> None:
+        config = config or VectorConfig()
         super().__init__(config)
         if HAS_FAISS:
             # Use the configured index type
@@ -316,7 +319,7 @@ class FAISSVectorStore(BaseVectorStore):
                     # For cosine: similarity = 1 - (dist^2 / 2) approximately
                     # For IP: similarity = dist (already inner product)
                     score = float(-dist) if self.config.metric == "l2" else float(dist)
-                    results.append(SearchResult(score=score))
+                    results.append(SearchResult(chunk_id=str(idx), source="", content="", score=score))
             return results
         else:
             # Fallback: numpy-based brute force
@@ -429,7 +432,7 @@ class OfflineVectorStore(BaseVectorStore):
                     score = float(cosine_sim)
                 else:
                     score = 0.0
-            results.append(SearchResult(chunk_id=chunk_id, score=score))
+            results.append(SearchResult(chunk_id=chunk_id, source="unknown", content="", score=score))
         return results
 
     def insert(

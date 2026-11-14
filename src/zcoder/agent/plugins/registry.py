@@ -6,7 +6,6 @@ management of ZCoder plugins with auto-update support.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -111,7 +110,7 @@ class PluginRegistry:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self._update_url}/plugins",
-                    timeout=asyncio.Timeout(10),
+                    timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()

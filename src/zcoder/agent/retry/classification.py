@@ -285,12 +285,12 @@ class RetryEngine:
     def record_success(self) -> None:
         """Record a successful retry."""
         self.metrics.successful_retries += 1
-        self._circuit_breaker.record_success()
+        self._circuit_breaker.on_success()
 
     def record_failure(self) -> None:
         """Record a failed retry."""
         self.metrics.failed_retries += 1
-        self._circuit_breaker.record_failure()
+        self._circuit_breaker.on_failure()
 
     def get_metrics(self) -> RetryMetrics:
         return self.metrics

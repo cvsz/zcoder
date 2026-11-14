@@ -250,26 +250,17 @@ def _parse_fps(rate_str: str) -> float:
         return 0.0
 
 
-class MultiModalResult:
-    """Result of multimodal video processing."""
-
-    success: bool
-    extracted_text: str
-    confidence: float
-    error: str | None = None
-
-
 def process_video_for_ml(
     video_path: str | Path,
     output_dir: str | Path | None = None,
-) -> MultiModalResult:
+) -> ModalityResult:
     """
     Full video processing pipeline for machine learning workflows.
 
     Extracts frames, generates metadata, and returns content suitable
     for multimodal model ingestion.
 
-    Returns MultiModalResult with:
+    Returns ModalityResult with:
     - success: Whether processing succeeded
     - extracted_text: Combined text from any OCR'd frames (currently empty)
     - confidence: Overall processing confidence

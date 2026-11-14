@@ -208,7 +208,7 @@ class SearchCache:
         """Retrieve cached search results if not expired."""
         import hashlib
 
-        query_hash = hashlib.md5(query.encode()).hexdigest()[:16]
+        query_hash = hashlib.sha256(query.encode()).hexdigest()[:16]
         key = self._make_key(vector_store_backend, index_name, tenant_id, query_hash)
 
         with self._lock:
@@ -232,7 +232,7 @@ class SearchCache:
         """Store search results with timestamp."""
         import hashlib
 
-        query_hash = hashlib.md5(query.encode()).hexdigest()[:16]
+        query_hash = hashlib.sha256(query.encode()).hexdigest()[:16]
         key = self._make_key(vector_store_backend, index_name, tenant_id, query_hash)
 
         with self._lock:
@@ -268,7 +268,7 @@ def _hash_query(query: str) -> str:
     """Hash a query string for cache key generation."""
     import hashlib
 
-    return hashlib.md5(query.encode()).hexdigest()
+    return hashlib.sha256(query.encode()).hexdigest()
 
 
 # ── Vector-Enhanced Retrieval ───────────────────────────────────────────
@@ -334,11 +334,12 @@ def _vector_search(
 
         # Query vector (hash-based fallback)
         query_vec = np.array([hash(query) % (2**31) for _ in range(768)], dtype=np.float32)
+        query_vec_list = [float(x) for x in query_vec.tolist()]
 
         # Search using offline vector store approach
         results: list[SearchResult] = []
         for chunk_id, vector in chunk_vectors.items():
-            similarity = _compute_cosine_similarity(query_vec, vector.tolist())
+            similarity = _compute_cosine_similarity(query_vec_list, [float(x) for x in vector.tolist()])
             # Find chunk info from index
             chunk = next((c for c in idx.chunks if c.cid == chunk_id), None)
             if chunk:
@@ -386,11 +387,12 @@ def retrieve(
         vector_results = _vector_search(idx, query, k=k, vector_store_backend=vector_store_backend)
         if vector_results:
             # Return vector results directly
-            return [
+            chunks = [
                 next((c for c in idx.chunks if c.cid == r.chunk_id), None)
                 for r in vector_results
                 if r.chunk_id
             ]
+            return [chunk for chunk in chunks if chunk is not None]
 
     # Fall back to BM25-style scoring
     qt = _tokenize(query)

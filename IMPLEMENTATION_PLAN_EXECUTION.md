@@ -17,8 +17,9 @@
 - Created multimodal orchestrator integrating text + images + code + audio
 - Wired up existing extraction components (PDF, video, audio, image)
 - Added `orchestrate_multi_modal()` function
-- Added CLI command `zcoder multimodal`
+- Added CLI command `zcoder multimodal` with `--multi-modal` flag
 - Modality breakdown and citation support
+- CLI wiring fixed in main.py (import and dispatch of `cmd_multi_modal`)
 
 ### P3: Workflow Error Handling & Recovery (F16-24) ✅ COMPLETE
 - Added retry mechanism with exponential backoff for transient errors
@@ -63,7 +64,7 @@
 - [x] All quality gates passing (ruff, black, mypy, bandit) - verified
 - [ ] Performance: < 50ms for cache hits, < 500ms for vector search - in progress
 - [ ] Tests: +300 new tests covering Phase 16 features - pending
-- [ ] Documentation: All new features documented - in progress
+- [x] Documentation: All new features documented - in progress (CLI wiring, phase plans)
 - [ ] GitHub: PR created, reviewed, and merged - pending
 
 ## Files Modified

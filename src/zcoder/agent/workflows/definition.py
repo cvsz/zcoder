@@ -79,7 +79,7 @@ class WorkflowDefinition:
     timeout_minutes: int = 60
     fail_fast: bool = True
     # Scheduling
-    schedule: WorkflowSchedule | None = field(default_factory=None)
+    schedule: WorkflowSchedule | None = field(default=None)
 
 
 def load_workflow_yaml(filepath: str | Path) -> WorkflowDefinition:

@@ -14,6 +14,7 @@ from zcoder.agent.communication.protocol import (
     JSONRPCMessage,
     MessageType,
     Operation,
+    ProtocolError,
     RPCError,
     RPCNotification,
     RPCRequest,
@@ -24,12 +25,13 @@ from zcoder.agent.communication.protocol import (
     create_response,
     parse_message,
 )
-from zcoder.agent.communication.registry import AgentInfo, AgentRegistry
+from zcoder.agent.communication.registry import AgentInfo, AgentRegistry, get_registry
 
 __all__ = [
     "MessageType",
     "Operation",
     "JSONRPCMessage",
+    "ProtocolError",
     "RPCRequest",
     "RPCResponse",
     "RPCNotification",
@@ -41,6 +43,7 @@ __all__ = [
     "parse_message",
     "AgentRegistry",
     "AgentInfo",
+    "get_registry",
     "OffloadedTask",
     "TaskOffloader",
     "TaskState",

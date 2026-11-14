@@ -1,11 +1,17 @@
-"""tests/unit/test_postgres_pool_optimization.py — Performance tests for PostgreSQL connection pool optimization."""
+"""tests/unit/test_postgres_pool_optimization.py — Performance tests for PostgreSQL connection pool optimization.
+
+Skips gracefully when no PostgreSQL is reachable (e.g. local development
+without Docker).
+"""
 
 from __future__ import annotations
 
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 
+import psycopg2
 import pytest
 
 from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
@@ -14,11 +20,27 @@ from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 TEST_DSN = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 
 
+def _pg_reachable() -> bool:
+    """Return True only when a PostgreSQL instance accepts connections."""
+    if not TEST_DSN or not TEST_DSN.startswith("postgresql"):
+        return False
+    with suppress(psycopg2.OperationalError, psycopg2.Error, OSError):
+        with psycopg2.connect(TEST_DSN, connect_timeout=2):
+            return True
+    return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _pg_reachable(),
+    reason="PostgreSQL instance not reachable",
+)
+
+
 @pytest.fixture(scope="session")
 def pg_store():
     """Create a store with test DSN."""
-    if not TEST_DSN:
-        pytest.skip("TEST_DATABASE_URL not set")
+    if not _pg_reachable():
+        pytest.skip("PostgreSQL instance not reachable")
     store = PostgresControlPlaneStore(dsn=TEST_DSN, min_conn=5, max_conn=20)
     store.init_schema()
     yield store
@@ -30,8 +52,8 @@ class TestPoolConfiguration:
 
     def test_pool_size_configurable(self):
         """Test that pool_size (min_conn) and max_overflow (max_conn - min_conn) are configurable."""
-        if not TEST_DSN:
-            pytest.skip("TEST_DATABASE_URL not set")
+        if not _pg_reachable():
+            pytest.skip("PostgreSQL instance not reachable")
         store = PostgresControlPlaneStore(dsn=TEST_DSN, min_conn=5, max_conn=15)
         # Access internal pool to verify configuration
         pool = store._pool
@@ -47,8 +69,8 @@ class TestPoolConfiguration:
 
     def test_pool_stats_available(self):
         """Test that pool_stats() method returns pool statistics."""
-        if not TEST_DSN:
-            pytest.skip("TEST_DATABASE_URL not set")
+        if not _pg_reachable():
+            pytest.skip("PostgreSQL instance not reachable")
         store = PostgresControlPlaneStore(dsn=TEST_DSN, min_conn=5, max_conn=15)
         stats = store.pool_stats()
         assert "size" in stats

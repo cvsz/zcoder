@@ -241,7 +241,7 @@ class AudioStreamMixer:
 
             if chunks:
                 # Simple mixing: sum all chunks
-                mixed_data = np.zeros_like(chunks[0].data, dtype=np.float32)
+                mixed_data: np.ndarray = np.zeros_like(chunks[0].data, dtype=np.float32)
                 for chunk in chunks:
                     if chunk.data.shape == mixed_data.shape:
                         mixed_data += chunk.data.astype(np.float32)
@@ -260,7 +260,7 @@ class AudioStreamMixer:
         await self.stop()
 
 
-def create_audio_stream(stream_type: str = "memory", **kwargs) -> AudioStream:
+def create_audio_stream(stream_type: str = "memory", **kwargs) -> AudioStream | AudioStreamMixer:
     """Factory function to create audio stream.
 
     Args:
@@ -268,7 +268,7 @@ def create_audio_stream(stream_type: str = "memory", **kwargs) -> AudioStream:
         **kwargs: Stream-specific arguments
 
     Returns:
-        AudioStream instance
+        AudioStream or AudioStreamMixer instance
     """
     if stream_type == "memory":
         return MemoryAudioStream(**kwargs)

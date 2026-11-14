@@ -12,6 +12,7 @@ from enum import StrEnum
 
 from zcoder.agent.plugin.events import HookEvent
 from zcoder.agent.plugin.hook_bus import HookBus, HookContext, HookResult
+from zcoder.agent.plugin.tier import PluginTier
 
 
 class ModelLifecycleEvent(StrEnum):
@@ -303,7 +304,7 @@ def register_model_lifecycle_hooks(hook_bus: HookBus) -> None:
     hook_bus.register(
         HookEvent.PRE_MODEL_SWITCH,
         lambda ctx: default_pre_selection_hook(ModelSelectionContext(**ctx.args)),
-        tier="builtin",
+        tier=PluginTier.BUILTIN,
     )
 
     hook_bus.register(
@@ -311,13 +312,13 @@ def register_model_lifecycle_hooks(hook_bus: HookBus) -> None:
         lambda ctx: capability_negotiation_hook(
             ctx.args["model_id"], ctx.args.get("required_capabilities", [])
         ),
-        tier="builtin",
+        tier=PluginTier.BUILTIN,
     )
 
     hook_bus.register(
         HookEvent.MODEL_CALL,
         lambda ctx: model_validation_hook(ctx.args["model_id"]),
-        tier="builtin",
+        tier=PluginTier.BUILTIN,
     )
 
     hook_bus.register(
@@ -325,5 +326,5 @@ def register_model_lifecycle_hooks(hook_bus: HookBus) -> None:
         lambda ctx: capability_negotiation_hook(
             ctx.args["model_id"], ctx.args.get("required_capabilities", [])
         ),
-        tier="builtin",
+        tier=PluginTier.BUILTIN,
     )

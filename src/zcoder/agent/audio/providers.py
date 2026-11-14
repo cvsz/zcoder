@@ -92,7 +92,7 @@ class MicrophoneProvider(AudioInputProvider):
         super().__init__(config)
         self.device = device
         self._stream = None
-        self._buffer = []
+        self._buffer: list[np.ndarray] = []
         self._buffer_lock = None
 
         # Try to import sounddevice
@@ -143,7 +143,8 @@ class MicrophoneProvider(AudioInputProvider):
             callback=callback,
             blocksize=self.config.chunk_size,
         )
-        self._stream.start()
+        if self._stream is not None:
+            self._stream.start()
         self._is_recording = True
 
     def stop(self) -> None:
@@ -192,8 +193,8 @@ class FileProvider(AudioInputProvider):
         self.file_path = Path(file_path)
         self._file: BinaryIO | None = None
         self._wave_file: wave.Wave_read | None = None
-        self._sample_rate = config.sample_rate
-        self._channels = config.channels
+        self._sample_rate = self.config.sample_rate
+        self._channels = self.config.channels
         self._position = 0
 
     @property
@@ -234,7 +235,7 @@ class FileProvider(AudioInputProvider):
 
         # Convert to numpy array
         dtype = np.int16  # Assume 16-bit for now
-        audio_data = np.frombuffer(data, dtype=dtype)
+        audio_data: np.ndarray = np.frombuffer(data, dtype=dtype)
 
         # Handle stereo
         if self._channels > 1:

@@ -95,7 +95,7 @@ class SessionStore:
 
     def load(self, session_id: str) -> dict[str, Any]:
         try:
-            return json.loads(self._path(session_id).read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+            return json.loads(self._path(session_id).read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
             raise KeyError(session_id) from exc
         except json.JSONDecodeError:

@@ -7,11 +7,12 @@ install, uninstall, list, and search.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 from pathlib import Path
 
-from zcoder.agent.plugins.manifest import load_manifest
-from zcoder.agent.plugins.registry import PluginInfo, PluginRegistry
+from zcoder.agent.plugins.manifest import PluginManifest, load_manifest
+from zcoder.agent.plugins.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,8 @@ def cmd_plugin(args: argparse.Namespace) -> int:
     elif command == "update":
         return cmd_plugin_update(args, registry)
     else:
-        plugin_parser.print_help()
+        if plugin_parser is not None:
+            plugin_parser.print_help()
         return 1
 
 
@@ -194,10 +196,8 @@ def cmd_plugin_search(args: argparse.Namespace, registry: PluginRegistry) -> int
     # Scan local plugins
     plugins = registry.scan()
 
-    results: list[PluginInfo] = []
-    for p in plugins:
-        manifest = p.manifest
-
+    results: list[PluginManifest] = []
+    for manifest in plugins:
         # Filter by type
         if plugin_type_filter and manifest.plugin_type.value != plugin_type_filter:
             continue
@@ -206,7 +206,7 @@ def cmd_plugin_search(args: argparse.Namespace, registry: PluginRegistry) -> int
         if query and query not in manifest.name.lower() and query not in manifest.description.lower():
             continue
 
-        results.append(p)
+        results.append(manifest)
 
     if not results:
         print(f"No plugins found matching '{query}'")
@@ -214,9 +214,10 @@ def cmd_plugin_search(args: argparse.Namespace, registry: PluginRegistry) -> int
 
     print(f"\nSearch Results for '{query}' ({len(results)}):")
     print("=" * 60)
-    for p in results:
-        loaded_str = "✓" if p.loaded else "✗"
-        print(f"  [{loaded_str}] {p.manifest.name} v{p.manifest.version} - {manifest.plugin_type.value}")
+    for manifest in results:
+        info = registry.get(manifest.name)
+        loaded_str = "✓" if info and info.loaded else "✗"
+        print(f"  [{loaded_str}] {manifest.name} v{manifest.version} - {manifest.plugin_type.value}")
         if manifest.description:
             # Truncate description
             desc = manifest.description[:80]
@@ -230,7 +231,7 @@ def cmd_plugin_search(args: argparse.Namespace, registry: PluginRegistry) -> int
 def cmd_plugin_update(args: argparse.Namespace, registry: PluginRegistry) -> int:
     """Update plugins command."""
     # Check for updates on all plugins
-    remote_plugins = registry.check_updates()
+    remote_plugins = asyncio.run(registry.check_updates())
 
     if not remote_plugins:
         print("No updates available.")
@@ -241,8 +242,11 @@ def cmd_plugin_update(args: argparse.Namespace, registry: PluginRegistry) -> int
     for manifest in remote_plugins:
         print(f"  {manifest.name} v{manifest.version}")
 
-    # Ask if user wants to install updates
-    install = input("\nInstall available updates? (y/N): ").lower().strip()
+    # Ask if user wants to install updates (skipped when --all is given,
+    # which keeps automated/headless callers non-interactive).
+    install = (
+        "y" if getattr(args, "all", False) else input("\nInstall available updates? (y/N): ").lower().strip()
+    )
     if install == "y":
         for manifest in remote_plugins:
             success = registry.install_plugin(manifest)

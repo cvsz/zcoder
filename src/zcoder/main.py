@@ -738,6 +738,33 @@ def build_parser():
     tc = p.add_argument_group("Token Counting")
     tc.add_argument("--count-tokens", action="store_true", dest="count_tokens")
     tc.add_argument("--count-budget", type=int, default=0, dest="count_budget")
+    tc.add_argument(
+        "--batch-count",
+        metavar="FILE",
+        dest="batch_count",
+        help="Batch count tokens from a file (one prompt per line)",
+    )
+
+    mm = p.add_argument_group("Multi-Modal")
+    mm.add_argument(
+        "--multi-modal",
+        metavar="MODALITIES",
+        dest="multi_modal",
+        help="Comma-separated modalities (text,image,audio,video,pdf,code)",
+    )
+    mm.add_argument(
+        "--multi-modal-prompt",
+        metavar="PROMPT",
+        dest="multi_modal_prompt",
+        help="Prompt for multi-modal processing",
+    )
+    mm.add_argument(
+        "--multi-modal-files",
+        nargs="*",
+        metavar="FILE",
+        dest="multi_modal_files",
+        help="File paths for multi-modal processing",
+    )
 
     ci = p.add_argument_group("Citations & RAG")
     ci.add_argument("--cite", nargs="+", metavar="FILE")
@@ -2184,6 +2211,14 @@ def build_parser():
     pl.add_argument("--plugin-info", metavar="NAME", dest="plugin_info")
     pl.add_argument("--plugin-enable", metavar="NAME", dest="plugin_enable")
     pl.add_argument("--plugin-disable", metavar="NAME", dest="plugin_disable")
+    # Plugin CLI subcommands (Phase 17)
+    pl.add_argument(
+        "--plugin",
+        nargs="*",
+        metavar="CMD",
+        dest="plugin_cmd",
+        help="Plugin marketplace commands: list, install, uninstall, info, search, update",
+    )
 
     mem = p.add_argument_group("Memory")
     mem.add_argument("--memory-add", metavar="TEXT", dest="memory_add")
@@ -2421,6 +2456,7 @@ def build_parser():
     co.add_argument("--force-model", default=None, dest="force_model")
     co.add_argument("--cost-summary", action="store_true", dest="cost_summary")
     co.add_argument("--cost-reset", action="store_true", dest="cost_reset")
+    co.add_argument("--cost-clear-cache", action="store_true", dest="cost_clear_cache")
     co.add_argument(
         "--cost-estimate",
         nargs=3,
@@ -2639,6 +2675,31 @@ def main():
         from zcoder.agent.tools.plugins import cmd_plugin_disable
 
         cmd_plugin_disable(args.plugin_disable)
+        return
+    if args.plugin_cmd:
+        import argparse
+
+        from zcoder.agent.plugins.cli import cmd_plugin
+
+        # Build a namespace for the plugin CLI
+        plugin_args = argparse.Namespace()
+        plugin_args.plugin_command = args.plugin_cmd[0] if args.plugin_cmd else None
+        if len(args.plugin_cmd) > 1:
+            # Map subcommand arguments
+            if plugin_args.plugin_command == "install":
+                plugin_args.source = args.plugin_cmd[1]
+                plugin_args.name = getattr(args, "plugin_name", None)
+                plugin_args.version = getattr(args, "plugin_version", None)
+            elif plugin_args.plugin_command == "uninstall":
+                plugin_args.name = args.plugin_cmd[1]
+            elif plugin_args.plugin_command == "info":
+                plugin_args.name = args.plugin_cmd[1]
+            elif plugin_args.plugin_command == "search":
+                plugin_args.query = args.plugin_cmd[1]
+                plugin_args.type = getattr(args, "plugin_type", None)
+            elif plugin_args.plugin_command == "update":
+                plugin_args.all = "--all" in args.plugin_cmd
+        cmd_plugin(plugin_args)
         return
 
     # ── Settings (no API key required) ──
@@ -3395,6 +3456,11 @@ def main():
 
         cmd_cost_reset()
         return
+    if args.cost_clear_cache:
+        from zcoder.agent.optimization.cost import cmd_cost_clear_cache
+
+        cmd_cost_clear_cache()
+        return
     if args.cost_estimate:
         from zcoder.agent.models.registry import cmd_cost_estimate
 
@@ -4112,6 +4178,32 @@ def main():
         from zcoder.agent.optimization.tokens import cmd_count_tokens
 
         cmd_count_tokens(args.prompt or "", key, model, file_path=args.file, budget=args.count_budget or None)
+        return
+    if args.batch_count:
+        from zcoder.agent.optimization.tokens import cmd_batch_count
+
+        cmd_batch_count(args.batch_count, model=model)
+        return
+    if args.multi_modal:
+        from zcoder.agent.multi_modal.orchestrator import cmd_multi_modal
+
+        if not args.multi_modal_prompt:
+            print("[ERROR] --multi-modal-prompt is required with --multi-modal", file=sys.stderr)
+            sys.exit(1)
+        response = cmd_multi_modal(
+            modalities=args.multi_modal,
+            prompt=args.multi_modal_prompt,
+            files=args.multi_modal_files,
+            api_key=key,
+            model=model,
+        )
+        print("\n=== Multi-Modal Reasoning Result ===\n")
+        print(f"Modality breakdown: {response.modality_breakdown}")
+        if response.citations:
+            print(f"\nCitations: {response.citations}")
+        print(f"\nExtracted text:\n{response.text}")
+        if response.cost_usd > 0:
+            print(f"\nCost: ${response.cost_usd:.4f}")
         return
     if args.cite:
         from zcoder.agent.capabilities.citations import cmd_cite

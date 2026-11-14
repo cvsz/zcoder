@@ -16,6 +16,7 @@ Retry configuration:
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import time
 from enum import Enum
@@ -385,9 +386,20 @@ def _execute_shell_step(
         return result
 
     try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        result.error = f"Step '{step_name}': unparsable command: {exc}"
+        result.status = ExecutionStatus.FAILED
+        return result
+    if not argv:
+        result.error = f"Step '{step_name}' has no command"
+        result.status = ExecutionStatus.FAILED
+        return result
+
+    try:
         proc = subprocess.run(
-            command,
-            shell=True,
+            argv,
+            shell=False,
             capture_output=True,
             text=True,
             timeout=300,

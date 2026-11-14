@@ -46,7 +46,7 @@ class WorkflowSchedule:
 
     name: str
     description: str = ""
-    trigger: Trigger = field(default_factory=Trigger)
+    trigger: Trigger = field(default_factory=lambda: Trigger(type=TriggerType.NONE))
     max_runs: int = -1  # -1 = unlimited
     concurrent_runs: bool = False  # Allow concurrent executions
     timeout_minutes: int = 60
@@ -298,9 +298,9 @@ def _match_day_of_month(pattern: str, current_day: int) -> bool:
     try:
         if "/" in pattern:
             base, step = pattern.split("/")
-            step = int(step)
+            step_n = int(step)
             base_matches = base == "*" or int(base) == current_day
-            if base_matches and current_day % step != 0:
+            if base_matches and current_day % step_n != 0:
                 return False
             return base_matches
         else:
@@ -325,9 +325,9 @@ def _match_day_of_week(pattern: str, current_weekday: int) -> bool:
         # Handle steps
         if "/" in pattern:
             base, step = pattern.split("/")
-            step = int(step)
+            step_n = int(step)
             base_matches = _cron_weekday_matches(base, cron_weekday)
-            if base_matches and cron_weekday % step != 0:
+            if base_matches and cron_weekday % step_n != 0:
                 return False
             return base_matches
         else:

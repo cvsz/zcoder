@@ -98,9 +98,12 @@ class AuditLogger:
     """Logger that writes immutable audit events to disk."""
 
     def __init__(self, log_dir: str | None = None) -> None:
-        self.log_dir = log_dir or os.getenv("ZCODER_AUDIT_DIR", "~/.zcoder/audit")
+        if log_dir is not None:
+            self.log_dir: str = log_dir
+        else:
+            self.log_dir = os.getenv("ZCODER_AUDIT_DIR", "~/.zcoder/audit")
         self._lock = threading.Lock()
-        self._log_file: str | None = None
+        self._log_file: str = ""
         self._ensure_log_dir()
 
     def _ensure_log_dir(self) -> None:

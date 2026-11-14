@@ -209,6 +209,8 @@ class WebRTCVAD(VAD):
 
     def process(self, audio_data: np.ndarray, sample_rate: int = 16000) -> VADResult:
         self._load_vad()
+        if self._vad is None:
+            raise RuntimeError("WebRTC VAD failed to load")
 
         # WebRTC VAD requires 16kHz, 16-bit PCM, 10/20/30ms frames
         if sample_rate != 16000:
@@ -226,7 +228,7 @@ class WebRTCVAD(VAD):
 
         segments = []
         in_speech = False
-        segment_start = 0
+        segment_start = 0.0
 
         for i in range(0, len(audio_data) - frame_size, frame_size):
             frame = audio_data[i : i + frame_size]
