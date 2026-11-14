@@ -22,7 +22,7 @@ their support is verified for each model. See
 ZCoder is moving to local-first inference. The default prompt and routing
 commands use the loopback llama.cpp server and a GGUF model. The local
 database setup uses the shared Docker PostgreSQL container named
-`zpostgresql`, with an isolated `zcoder_db` database and role.
+`zpostgressql`, with an isolated `zcoder_db` database and role.
 
 ## Completed in the current worktree
 
@@ -37,7 +37,7 @@ database setup uses the shared Docker PostgreSQL container named
   client.
 - The local client rejects non-loopback URLs and HTTP redirects.
 - PostgreSQL-backed API, worker, and integration-test commands use the
-  shared `zpostgresql` container and the `zPostgreSQL_network` bridge.
+  shared `zpostgressql` container and the `zPostgreSQL_network` bridge.
 
 ## Remaining implementation
 

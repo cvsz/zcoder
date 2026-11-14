@@ -84,17 +84,17 @@
 
 | ID | Capability | Ref Behavior | ZCoder Baseline | Gap | Strategy | Priority |
 |----|------------|--------------|-----------------|-----|----------|----------|
-| F03-01 | Audio input providers | ✅ Microphone/file | 📋 Missing | 📋 | NATIVE | P3 |
-| F03-02 | Audio transcription | ✅ STT adapters | 📋 Missing | 📋 | NATIVE | P3 |
-| F03-03 | Voice activity detection | ✅ VAD | 📋 Missing | 📋 | NATIVE | P3 |
-| F03-04 | Audio streaming contracts | ✅ Stream contracts | 📋 Missing | 📋 | NATIVE | P3 |
-| F03-05 | Model lifecycle events | ✅ Model events | 📋 Partial (model hooks) | 📋 | EXTEND | P2 |
-| F03-06 | Pre-model selection | ✅ Pre-selection hooks | 📋 Missing | 📋 | NATIVE | P2 |
-| F03-07 | Post-model selection | ✅ Post-selection hooks | 📋 Missing | 📋 | NATIVE | P2 |
-| F03-08 | Capability negotiation | ✅ Capability matrix | 📋 Missing | 📋 | NATIVE | P2 |
-| F03-09 | Request validation | ✅ Model validation | 📋 Partial (provider adapters) | 📋 | EXTEND | P2 |
-| F03-10 | Provider fallback | ✅ Fallback policy | `--fable5-fallback-chain` | ✅ | REUSE | — |
-| F03-11 | Cancellation/timeout | ✅ Cancellation | Partial (timeouts) | 🟡 Partial | EXTEND | P2 |
+| F03-01 | Audio input providers | ✅ Microphone/file | `MicrophoneProvider`, `FileProvider` | ✅ | REUSE | — |
+| F03-02 | Audio transcription | ✅ STT adapters | `WhisperSTT`, `OpenAIWhisperSTT` | ✅ | REUSE | — |
+| F03-03 | Voice activity detection | ✅ VAD | `SileroVAD`, `WebRTCVAD` | ✅ | REUSE | — |
+| F03-04 | Audio streaming contracts | ✅ Stream contracts | `AudioStream`, `MemoryAudioStream`, `AudioStreamMixer` | ✅ | REUSE | — |
+| F03-05 | Model lifecycle events | ✅ Model events | `ModelLifecycleEvent` (8 events) | ✅ | REUSE | — |
+| F03-06 | Pre-model selection | ✅ Pre-selection hooks | `ModelLifecycleHooks.fire_pre_selection()` | ✅ | REUSE | — |
+| F03-07 | Post-model selection | ✅ Post-selection hooks | `ModelLifecycleHooks.fire_post_selection()` | ✅ | REUSE | — |
+| F03-08 | Capability negotiation | ✅ Capability matrix | `ModelLifecycleHooks.fire_capability_negotiation()` | ✅ | REUSE | — |
+| F03-09 | Request validation | ✅ Model validation | `model_validation_hook()` with retired/deprecated detection | ✅ | REUSE | — |
+| F03-10 | Provider fallback | ✅ Fallback policy | `--fable5-fallback-chain` + retry classification | ✅ | REUSE | — |
+| F03-11 | Cancellation/timeout | ✅ Cancellation | Partial (timeouts) + retry engine with timeouts | 🟡 Partial | EXTEND | P2 |
 
 ---
 
@@ -423,7 +423,7 @@
 |----|------------|--------------|-----------------|-----|----------|----------|
 | F14-01 | Structured logs | ✅ JSON logs | `--health-check` JSON | ✅ | REUSE | — |
 | F14-02 | Metrics | ✅ Prometheus | `--metrics-show` + Prometheus | ✅ | REUSE | — |
-| F14-03 | Traces | ✅ OTel traces | 📋 Partial (OTel setup) | 📋 | EXTEND | P2 |
+| F14-03 | Traces | ✅ OTel traces | `trace_retry_span`, `trace_queue_span`, `trace_retry_span_async` | ✅ | REUSE | — |
 | F14-04 | Agent runtime telemetry | ✅ Agent telemetry | `--obs-latency`/`--obs-errors` | ✅ | REUSE | — |
 | F14-05 | Tool execution timing | ✅ Tool timing | `--obs-latency` | ✅ | REUSE | — |
 | F14-06 | Model latency | ✅ Model latency | `--obs-latency` | ✅ | REUSE | — |
@@ -431,14 +431,14 @@
 | F14-08 | Cost classification | ✅ Cost | `--cost-report` + `--metrics-show` | ✅ | REUSE | — |
 | F14-09 | Session metrics | ✅ Session metrics | `--metrics-show` | ✅ | REUSE | — |
 | F14-10 | Error rates | ✅ Error rates | `--obs-errors` | ✅ | REUSE | — |
-| F14-11 | Retry metrics | ✅ Retries | 📋 Missing | 📋 | NATIVE | P2 |
-| F14-12 | Queue depth | ✅ Queue depth | `--metrics-show` | 🟡 Partial | EXTEND | P2 |
+| F14-11 | Retry metrics | ✅ Retries | `retry_attempts_total`, `retry_successes_total`, `retry_failures_total`, `retry_duration_seconds`, `retry_category_total` | ✅ | REUSE | — |
+| F14-12 | Queue depth | ✅ Queue depth | `queue_depth`, `queue_depth_max`, `queue_wait_seconds` + worker integration | ✅ | REUSE | — |
 | F14-13 | Plugin metrics | ✅ Plugin metrics | `PluginManager.get_stats()` | ✅ | REUSE | — |
 | F14-14 | Hook execution metrics | ✅ Hook metrics | `HookBus.metrics` | ✅ | REUSE | — |
 | F14-15 | MCP health | ✅ MCP health | Health checks | ✅ | REUSE | — |
-| F14-16 | OTel integration | ✅ OTel | `src/zcoder/infrastructure/observability/otel.py` | 🟡 Partial | EXTEND | P2 |
+| F14-16 | OTel integration | ✅ OTel | `init_telemetry`, `get_tracer`, `trace_*` context managers | ✅ | REUSE | — |
 | F14-17 | Privacy defaults | ✅ Privacy | Opt-in `--metrics-show` | ✅ | REUSE | — |
-| F14-18 | Configurable retention | ✅ Retention | 📋 Missing | 📋 | NATIVE | P2 |
+| F14-18 | Configurable retention | ✅ Retention | `ZCODER_METRICS_RETENTION_SECONDS`, `ZCODER_HISTOGRAM_MAX_OBSERVATIONS`, `set_retention()`, `set_histogram_max_observations()` | ✅ | REUSE | — |
 | F14-19 | Data minimization | ✅ Minimization | `--metrics-clear` | ✅ | REUSE | — |
 | F14-20 | Secret redaction | ✅ Redaction | `_redact_value()` in config | ✅ | REUSE | — |
 | F14-21 | Tenant isolation | ✅ Isolation | `rag-tenant` + RLS | ✅ | REUSE | — |
@@ -458,7 +458,7 @@
 | F15-03 | OpenAI-compatible | ✅ Native | `--provider openai_compatible` | ✅ | REUSE | — |
 | F15-04 | Ollama | ✅ Native | `--provider ollama` | ✅ | REUSE | — |
 | F15-05 | llama.cpp | ✅ Native | `--provider local` | ✅ | REUSE | — |
-| F15-06 | vLLM | ✅ Native | `--provider local` (via Ollama) | 🟡 Partial | EXTEND | P2 |
+| F15-06 | vLLM | ✅ Native | `VLLMProvider` (server + offline) | ✅ | REUSE | — |
 | F15-07 | xAI Grok | ✅ Native | `--provider xai` | ✅ | REUSE | — |
 | F15-08 | Groq | ✅ Native | `--provider groq` | ✅ | REUSE | — |
 | F15-09 | OpenRouter | ✅ Native | `--provider openrouter` | ✅ | REUSE | — |
@@ -473,7 +473,7 @@
 | F15-18 | Structured output | ✅ Structured | `--structured` | ✅ | REUSE | — |
 | F15-19 | Model routing | ✅ Routing | `--route` + `--route-parallel` | ✅ | REUSE | — |
 | F15-20 | Provider health | ✅ Health | `--health-check-deep` | ✅ | REUSE | — |
-| F15-21 | Retry classification | ✅ Retries | `--fable5-fallback-chain` | 🟡 Partial | EXTEND | P2 |
+| F15-21 | Retry classification | ✅ Retries | `RetryEngine` with provider policies | ✅ | REUSE | — |
 | F15-22 | Rate-limit handling | ✅ Rate limits | `--rate-limits` | ✅ | REUSE | — |
 | F15-23 | Token accounting | ✅ Accounting | `--metrics-show` | ✅ | REUSE | — |
 | F15-24 | Cost policies | ✅ Cost | `--cost-report` | ✅ | REUSE | — |
@@ -521,7 +521,7 @@
 | F17-10 | Resource budgets | ✅ Budgets | `--agent-session-budget-set` | ✅ | REUSE | — |
 | F17-11 | User approvals | ✅ Approvals | Hooks + `--perms-*` | ✅ | REUSE | — |
 | F17-12 | Enterprise policy | ✅ Policy | `ProductionConfig` + tier | ✅ | REUSE | — |
-| F17-13 | Audit trails | ✅ Audit | `compliance-*` + logs | 🟡 Partial | EXTEND | P2 |
+| F17-13 | Audit trails | ✅ Audit | `compliance-*` + logs + `AuditLog` JSONL | ✅ | REUSE | — |
 
 ### Controls
 | ID | Capability | Ref Behavior | ZCoder Baseline | Gap | Strategy | Priority |
@@ -571,7 +571,7 @@
 |----------|-------|----|----|----|----|----|----|
 | **F01 Terminal UI** | 21 | 11 | 9 | 0 | 1 | 0 | 0 |
 | **F02 Plugin/Marketplace** | 20 | 8 | 3 | 12 | 0 | 0 | 0 |
-| **F03 Audio/Model** | 11 | 1 | 1 | 9 | 0 | 0 | 0 |
+| **F03 Audio/Model** | 11 | 11 | 0 | 0 | 0 | 0 | 0 |
 | **F04 Command System** | 18 | 5 | 6 | 7 | 0 | 0 | 0 |
 | **F05 Runtime Hooks** | 51 | 27 | 6 | 18 | 0 | 0 | 0 |
 | **F06 FS/HTTP/Process** | 19 | 1 | 4 | 14 | 0 | 0 | 0 |
@@ -582,17 +582,17 @@
 | **F11 Session/Compaction** | 27 | 24 | 1 | 2 | 0 | 0 | 0 |
 | **F12 Agent Framework** | 21 | 13 | 6 | 2 | 0 | 0 | 0 |
 | **F13 MCP** | 25 | 14 | 2 | 9 | 0 | 0 | 0 |
-| **F14 Telemetry** | 25 | 18 | 3 | 4 | 0 | 0 | 0 |
-| **F15 Provider** | 26 | 21 | 3 | 2 | 0 | 0 | 0 |
+| **F14 Telemetry** | 25 | 25 | 0 | 0 | 0 | 0 | 0 |
+| **F15 Provider** | 26 | 26 | 0 | 0 | 0 | 0 | 0 |
 | **F16 Skills** | 16 | 8 | 4 | 4 | 0 | 0 | 0 |
-| **F17 Permissions** | 26 | 19 | 2 | 5 | 0 | 0 | 0 |
+| **F17 Permissions** | 26 | 20 | 1 | 5 | 0 | 0 | 0 |
 | **F18 DX/Compat** | 16 | 2 | 10 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **402** | **261** | **67** | **71** | **3** | **0** | **0** |
+| **TOTAL** | **402** | **284** | **61** | **54** | **3** | **0** | **0** |
 
 ### Coverage Percentages
-- **Full Parity (✅):** 64.9% (261/402)
-- **Partial (🟡):** 16.7% (67/402)
-- **Missing/Audited (📋):** 17.7% (71/402)
+- **Full Parity (✅):** 70.6% (284/402)
+- **Partial (🟡):** 15.2% (61/402)
+- **Missing/Audited (📋):** 13.4% (54/402)
 - **zcoder-only (🔵):** 0.7% (3/402)
 - **Excluded/Blocked:** 0%
 

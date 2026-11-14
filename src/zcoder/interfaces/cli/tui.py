@@ -388,8 +388,8 @@ class ZCoderTUI(App):
         self._panes_visible = True
         self._tool_progress: dict[str, dict] = {}
         self._token_usage = {"prompt": 0, "completion": 0, "total": 0}
-        self._model_info = {}
-        self._status_info = {}
+        self._model_info: dict[str, Any] = {}
+        self._status_info: dict[str, Any] = {}
         self._error_display: ErrorDisplay | None = None
         self._ui_hooks: dict[str, list[Callable]] = {
             "view_render": [],
@@ -598,6 +598,12 @@ class ZCoderTUI(App):
         # rather than relying on the removed attribute.
         self.theme = "textual-light" if self.theme == "textual-dark" else "textual-dark"
         self._fire_ui_hook("state_change", {"theme": self.theme})
+
+    def action_toggle_settings(self) -> None:
+        """Toggle the collapsible session settings panel (Ctrl+O)."""
+        settings_panel = self.query_one("#settings_panel", Collapsible)
+        settings_panel.collapsed = not settings_panel.collapsed
+        self._fire_ui_hook("state_change", {"settings_collapsed": settings_panel.collapsed})
 
     # ========== UI Hook System ==========
 

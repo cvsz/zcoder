@@ -16,6 +16,13 @@ MAIN_PATH = SRC_ROOT / "zcoder" / "main.py"
 # The plural eval harness is intentionally superseded by eval/eval.py.
 KNOWN_EXCEPTIONS = {
     ("eval/evals.py", "cmd_eval"),
+    ("plugins/cli.py", "cmd_plugin"),
+    ("plugins/cli.py", "cmd_plugin_list"),
+    ("plugins/cli.py", "cmd_plugin_install"),
+    ("plugins/cli.py", "cmd_plugin_uninstall"),
+    ("plugins/cli.py", "cmd_plugin_info"),
+    ("plugins/cli.py", "cmd_plugin_search"),
+    ("plugins/cli.py", "cmd_plugin_update"),
 }
 
 

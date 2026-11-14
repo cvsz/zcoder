@@ -13,7 +13,7 @@ Managed via `uv.lock` and `requirements.txt` / `requirements-dev.txt`.
 
 ### Docker Base Images
 - `python:3.14-slim` → `python:3.15-slim` was proposed (Dependabot PR #158) but **closed without merge** — not adopted
-- `postgres:15-alpine` for zpostgresql service
+- `postgres:15-alpine` for zpostgressql service
 - `ghcr.io/ggml-org/llama.cpp:server` for local inference
 
 ### GitHub Actions

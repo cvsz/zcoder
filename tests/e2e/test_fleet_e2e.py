@@ -1,38 +1,39 @@
-import os
 import unittest
+from pathlib import Path
 
-import psycopg2
 import pytest
 
 from zcoder.domain.models.portfolio import EngineeringCampaign, ManagedRepository
 from zcoder.infrastructure.stores.portfolio import PortfolioStore
-from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineeringStore
+from zcoder.infrastructure.stores.sqlite_engineering import SQLiteEngineeringStore
 from zcoder.services.engineering_worker import EngineeringWorker
 from zcoder.services.portfolio_scheduler import PortfolioScheduler
 
 
-def _pg_available() -> bool:
-    dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
+def _sqlite_available() -> bool:
     try:
-        conn = psycopg2.connect(dsn, connect_timeout=2)
+        import sqlite3
+        from pathlib import Path
+
+        db_path = Path("./data/test_engineering.db")
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path))
         conn.close()
         return True
     except Exception:
         return False
 
 
-pytestmark = pytest.mark.skipif(not _pg_available(), reason="PostgreSQL instance not reachable")
+pytestmark = pytest.mark.skipif(not _sqlite_available(), reason="SQLite not available")
 
 
 class TestFleetE2E(unittest.TestCase):
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
-        self.eng_store = PostgresEngineeringStore(dsn=self.dsn)
-        self.eng_store.init_schema()
+        self.db_path = Path("./data/test_engineering.db")
+        self.eng_store = SQLiteEngineeringStore(db_path=self.db_path)
         # Clean tasks
-        with self.eng_store._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM engineering_tasks")
+        with self.eng_store._connection() as conn:
+            conn.execute("DELETE FROM tasks")
 
         self.port_store = PortfolioStore()
 

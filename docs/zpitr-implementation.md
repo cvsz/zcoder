@@ -8,9 +8,9 @@
 
 ## สถาปัตยกรรม
 
-`zPITR` รันเป็น sidecar container บนเครือข่าย Docker `zPostgreSQL_network` ร่วมกับ `zpostgresql` (บริการ PostgreSQL เฉพาะของ ZCoder, ฐานข้อมูล `zcoder_db`, role `zcoder`) ประกอบด้วย:
+`zPITR` รันเป็น sidecar container บนเครือข่าย Docker `zPostgreSQL_network` ร่วมกับ `zpostgressql` (บริการ PostgreSQL เฉพาะของ ZCoder, ฐานข้อมูล `zcoder_db`, role `zcoder`) ประกอบด้วย:
 
-- **`pg_receivewal` daemon** — สตรีม WAL อย่างต่อเนื่องจาก `zpostgresql` เข้า volume `zpitr_wal_archive` (RPO < 5 นาที)
+- **`pg_receivewal` daemon** — สตรีม WAL อย่างต่อเนื่องจาก `zpostgressql` เข้า volume `zpitr_wal_archive` (RPO < 5 นาที)
 - **`pg_basebackup` scheduler** — สำรองฐานข้อมูลทั้งก้อนเป็นระยะด้วย manifest SHA-256 เข้า volume `zpitr_base_backups`
 - **Restore drill** — กู้คืนอย่างโดดเด่นใน isolated sandbox (`/tmp/pg_drill_data`) โดยใช้ `recovery.signal` + `restore_command` ตรวจสอบความต่อเนื่องของ WAL archive และออกหลักฐาน Release Gate
 

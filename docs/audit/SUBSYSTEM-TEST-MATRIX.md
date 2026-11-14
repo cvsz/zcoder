@@ -4,7 +4,7 @@
 **Branch:** `main`  
 **Audit date:** 2026-11-08  
 **Auditor:** cvsz  
-**Execution:** Local, against `main` at initial HEAD, Python 3.12.15 (`.venv`), local PostgreSQL container (`zpostgresql`) provisioned via `scripts/local_postgres.py`. No production data, no external provider calls.
+**Execution:** Local, against `main` at initial HEAD, Python 3.12.15 (`.venv`), local PostgreSQL container (`zpostgressql`) provisioned via `scripts/local_postgres.py`. No production data, no external provider calls.
 
 Legend: Implemented = code exists; Tested = covered by executed tests; Operational = CI gate / real integration verified; Planned = described but not verified.
 
@@ -15,7 +15,7 @@ Legend: Implemented = code exists; Tested = covered by executed tests; Operation
 | API server (FastAPI, auth, public v1) | Implemented / Tested | unit tests pass; `src/zcoder/api/` reviewed | External provider calls not live-tested |
 | CLI / TUI / maintenance campaign | Implemented / Tested | unit tests pass | Desktop GUI not exercised on Linux headless |
 | Services (workers, orchestrator, backup/restore, release gate, maintenance, messaging) | Implemented / Tested | integration tests pass (with Postgres) | Production multi-tenant not tested |
-| Database (SQLite default, PostgreSQL enterprise, stores, migrations, outbox, leases, fencing) | Implemented / Tested / Operational | integration tests pass against local `zpostgresql`; `scripts/local_postgres.py status` ready | Production DB not tested |
+| Database (SQLite default, PostgreSQL enterprise, stores, migrations, outbox, leases, fencing) | Implemented / Tested / Operational | integration tests pass against local `zpostgressql`; `scripts/local_postgres.py status` ready | Production DB not tested |
 | zGPU (simulator, compiler, runtime, kernels, cluster, LLM, dashboard, benchmarks) | Implemented / Tested | `pytest src/zgpu/tests` PASS (2 pypdf skips) | Not in CI `testpaths` (observation GZ-01); GPU not available |
 | Agent / CodeAgent / orchestration / sessions / RAG / tools | Implemented / Tested | unit tests pass | None open |
 | CI / workflows (lint, security, test, docker-build, release, helm, sdk, reproducibility) | Implemented / Operational | workflows inspected; actions pinned to SHAs | Production release gate is manual |

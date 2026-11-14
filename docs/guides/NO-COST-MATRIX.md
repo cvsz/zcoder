@@ -13,7 +13,7 @@ ZCoder CLI / API
       |
       +---- SQLite (single-user default)
       |
-      +---- PostgreSQL container zpostgresql (shared local service)
+      +---- PostgreSQL container zpostgressql (shared local service)
 ```
 
 ## Runtime and persistence
@@ -23,7 +23,7 @@ ZCoder CLI / API
 | Inference | llama.cpp with GGUF | Loopback endpoint at `127.0.0.1:8080/v1` by default |
 | Model selection | `ZCODER_MODEL` | Defaults to `zqwen2.5-coder-7b-instruct-q4_k_m` |
 | Single-user persistence | SQLite | Default for the local installation |
-| Shared PostgreSQL | Docker container `zpostgresql` | Applications use separate databases and roles |
+| Shared PostgreSQL | Docker container `zpostgressql` | Applications use separate databases and roles |
 | ZCoder PostgreSQL database | `zcoder_db` | Provisioned by `make postgres-setup` |
 | Artifacts | Local filesystem | Subject to filesystem permissions and available disk space |
 | Telemetry | Configured local collector or local storage | Configure endpoints and retention explicitly |

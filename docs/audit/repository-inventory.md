@@ -70,7 +70,7 @@ skills/               # Skill definitions
 ## Database Layers
 
 - SQLite (default, single-user)
-- PostgreSQL (enterprise mode, via `zpostgresql` Docker container)
+- PostgreSQL (enterprise mode, via `zpostgressql` Docker container)
 - `EngineeringStore`, `PortfolioStore` abstractions
 
 ## External Integrations

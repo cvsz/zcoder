@@ -9,7 +9,7 @@ from zcoder.infrastructure.stores.postgres_engineering import PostgresEngineerin
 
 
 def _pg_available() -> bool:
-    dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
+    dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db")
     try:
         conn = psycopg2.connect(dsn, connect_timeout=2)
         conn.close()
@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(not _pg_available(), reason="PostgreSQL instance
 
 class TestPostgresEngineeringStore(unittest.TestCase):
     def setUp(self):
-        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgresql:5432/zcoder_db")
+        self.dsn = os.environ.get("DATABASE_URL", "postgresql://zcoder:zcoder@zpostgressql:5432/zcoder_db")
         self.store = PostgresEngineeringStore(dsn=self.dsn)
         self.store.init_schema()
 

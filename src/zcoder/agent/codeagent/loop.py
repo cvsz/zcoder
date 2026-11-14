@@ -311,7 +311,16 @@ class CodeAgent:
                 yield LLMChunk(
                     "retry", text=f"Model server not ready ({exc}); retrying in {wait:g}s ({attempt})…"
                 )
-                await asyncio.sleep(wait)
+                # Trace the retry
+                from zcoder.infrastructure.observability.otel import trace_retry_span_async
+
+                async with trace_retry_span_async(
+                    attempt=attempt,
+                    max_attempts=len(self.retry_delays) + 1,
+                    category="transient",
+                    operation="llm_retry",
+                ):
+                    await asyncio.sleep(wait)
 
     # --- the loop --------------------------------------------------------
     async def run(self, text: str) -> AsyncGenerator[Any, None]:

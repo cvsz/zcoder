@@ -90,3 +90,4 @@ deploy/supabase/
 *.swo
 .DS_Store
 Thumbs.db
+external/cloudflare-os

@@ -19,7 +19,7 @@
 | pytest coverage | `pytest --cov=src/zcoder` | PASS | 77.49% >= 70% |
 | GPG signing | `git verify-commit HEAD` | PASS | Good signature, key 515DB3BD...869DE49D872 |
 | GitHub identity | `gh api user --jq .login` | PASS | cvsz (active); policedbc verified then switched back |
-| Docker + Postgres | `docker ps` | PASS | zpostgresql:15 healthy |
+| Docker + Postgres | `docker ps` | PASS | zpostgressql:15 healthy |
 | GitHub CI (PR #177) | `gh pr checks 177` | PASS | lint, test 3.12, test 3.13, CodeQL, security, docker-build all PASS |
 
 ## Findings (severity / owner / subsystem / evidence / remediation / status)

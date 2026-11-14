@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zpitr:
     container_name: zPITR
@@ -8,7 +6,7 @@ services:
       dockerfile: Dockerfile
     command: ["daemon"]
     environment:
-      PGHOST: zpostgresql
+      PGHOST: zpostgressql
       PGPORT: "5432"
       PGUSER: zcoder
       PGDATABASE: zcoder_db

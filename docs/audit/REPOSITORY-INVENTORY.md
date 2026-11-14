@@ -94,7 +94,7 @@ main.py       CLI entry point (`zcoder` command)
 ## Database layers
 
 - SQLite (default, single-user)
-- PostgreSQL (enterprise mode, via `zpostgresql` Docker container)
+- PostgreSQL (enterprise mode, via `zpostgressql` Docker container)
 - `EngineeringStore`, `PortfolioStore` abstractions; `upgrade_postgres_*` lease/fence/runtime services; outbox and upgrade store ledger
 
 ## External integrations

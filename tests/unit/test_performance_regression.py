@@ -20,6 +20,25 @@ from zcoder.infrastructure.stores.postgres import PostgresControlPlaneStore
 TEST_DSN = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
 
 
+def _pg_reachable() -> bool:
+    """Return True only when a PostgreSQL instance accepts connections."""
+    if not TEST_DSN or not TEST_DSN.startswith("postgresql"):
+        return False
+    from contextlib import suppress
+
+    import psycopg2
+
+    with suppress(psycopg2.OperationalError, psycopg2.Error, OSError):
+        with psycopg2.connect(TEST_DSN, connect_timeout=2):
+            return True
+    return False
+
+
+# Skip PostgreSQL-backed tests when no database is available (CI has no Postgres).
+_pg_available = _pg_reachable()
+pytestmark = pytest.mark.skipif(not _pg_available, reason="PostgreSQL instance not reachable")
+
+
 class MockClient:
     """Mock client for prompt optimization testing."""
 
@@ -36,8 +55,8 @@ class MockClient:
 @pytest.fixture(scope="session")
 def pg_store():
     """Create a store with test DSN."""
-    if not TEST_DSN:
-        pytest.skip("TEST_DATABASE_URL not set")
+    if not _pg_reachable():
+        pytest.skip("PostgreSQL instance not reachable")
     store = PostgresControlPlaneStore(dsn=TEST_DSN, min_conn=5, max_conn=20)
     store.init_schema()
     yield store

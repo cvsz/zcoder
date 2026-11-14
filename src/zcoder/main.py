@@ -738,11 +738,44 @@ def build_parser():
     tc = p.add_argument_group("Token Counting")
     tc.add_argument("--count-tokens", action="store_true", dest="count_tokens")
     tc.add_argument("--count-budget", type=int, default=0, dest="count_budget")
+    tc.add_argument(
+        "--batch-count",
+        metavar="FILE",
+        dest="batch_count",
+        help="Batch count tokens from a file (one prompt per line)",
+    )
+
+    mm = p.add_argument_group("Multi-Modal")
+    mm.add_argument(
+        "--multi-modal",
+        metavar="MODALITIES",
+        dest="multi_modal",
+        help="Comma-separated modalities (text,image,audio,video,pdf,code)",
+    )
+    mm.add_argument(
+        "--multi-modal-prompt",
+        metavar="PROMPT",
+        dest="multi_modal_prompt",
+        help="Prompt for multi-modal processing",
+    )
+    mm.add_argument(
+        "--multi-modal-files",
+        nargs="*",
+        metavar="FILE",
+        dest="multi_modal_files",
+        help="File paths for multi-modal processing",
+    )
 
     ci = p.add_argument_group("Citations & RAG")
     ci.add_argument("--cite", nargs="+", metavar="FILE")
     ci.add_argument("--rag", metavar="DIR")
     ci.add_argument("--rag-pattern", default="*.md", dest="rag_pattern")
+    ci.add_argument(
+        "--rag-cache-query",
+        metavar="QUERY",
+        dest="rag_cache_query",
+        help="Execute a cached RAG query using vector similarity with result caching (TTL 5m)",
+    )
 
     mo = p.add_argument_group("Models API")
     mo.add_argument("--list-models", action="store_true", dest="list_models")
@@ -751,6 +784,12 @@ def build_parser():
         action="store_true",
         dest="list_models_legacy",
         help="Include superseded (still-callable) models in --list-models' offline view",
+    )
+    mo.add_argument(
+        "--list-providers",
+        action="store_true",
+        dest="list_providers",
+        help="List all known AI providers with their capabilities",
     )
     mo.add_argument("--model-info", metavar="ID", dest="model_info")
     mo.add_argument(
@@ -2172,6 +2211,14 @@ def build_parser():
     pl.add_argument("--plugin-info", metavar="NAME", dest="plugin_info")
     pl.add_argument("--plugin-enable", metavar="NAME", dest="plugin_enable")
     pl.add_argument("--plugin-disable", metavar="NAME", dest="plugin_disable")
+    # Plugin CLI subcommands (Phase 17)
+    pl.add_argument(
+        "--plugin",
+        nargs="*",
+        metavar="CMD",
+        dest="plugin_cmd",
+        help="Plugin marketplace commands: list, install, uninstall, info, search, update",
+    )
 
     mem = p.add_argument_group("Memory")
     mem.add_argument("--memory-add", metavar="TEXT", dest="memory_add")
@@ -2218,6 +2265,108 @@ def build_parser():
         dest="rag_tenant",
         default="",
         help="Tenant boundary for RAG indexes (SEC-007; required for index/query)",
+    )
+
+    # Phase 16: Vector Store
+    rag.add_argument(
+        "--vector-store-backend",
+        metavar="BACKEND",
+        dest="vector_store_backend",
+        default="pgvector",
+        help="Vector store backend: pgvector, faiss, or offline",
+    )
+    rag.add_argument(
+        "--vector-store-config",
+        metavar="JSON",
+        dest="vector_store_config",
+        default="",
+        help="JSON string for vector store configuration (dimension, index_type, metric)",
+    )
+    rag.add_argument(
+        "--rag-embed",
+        metavar="TEXT",
+        dest="rag_embed",
+        default="",
+        help="Generate embeddings for given text (shows vector info)",
+    )
+
+    # Phase 16: Multi-Modal
+    mm = p.add_argument_group("Multi-Modal")
+    mm.add_argument(
+        "--extract-frames",
+        metavar="SECONDS",
+        dest="extract_frames",
+        default="",
+        help="Extract frames at specified seconds from video for analysis",
+    )
+    mm.add_argument(
+        "--transcribe",
+        metavar="FILE",
+        dest="transcribe_file",
+        default="",
+        help="Transcribe audio/video file using Whisper",
+    )
+    mm.add_argument(
+        "--describe-image",
+        metavar="FILE",
+        dest="describe_image",
+        default="",
+        help="Generate description of an image using local model",
+    )
+
+    # Phase 16: Workflow Automation
+    wf = p.add_argument_group("Workflow")
+    wf.add_argument(
+        "--workflow-run",
+        metavar="PATH",
+        dest="workflow_run",
+        default="",
+        help="Run a workflow definition YAML file",
+    )
+    wf.add_argument(
+        "--workflow-scaffold",
+        metavar="PATH",
+        dest="workflow_scaffold",
+        default="",
+        help="Scaffold a new workflow definition from a template",
+    )
+    wf.add_argument(
+        "--workflow-list",
+        action="store_true",
+        dest="workflow_list",
+        default=False,
+        help="List existing workflow definitions",
+    )
+    wf.add_argument(
+        "--workflow-validate",
+        metavar="PATH",
+        dest="workflow_validate",
+        default="",
+        help="Validate a workflow YAML file",
+    )
+
+    # Phase 16: Performance Optimization
+    po = p.add_argument_group("Performance")
+    po.add_argument(
+        "--lazy-load",
+        action="store_true",
+        dest="lazy_load",
+        default=False,
+        help="Use lazy model loading with prewarm",
+    )
+    po.add_argument(
+        "--pool-connections",
+        action="store_true",
+        dest="pool_connections",
+        default=False,
+        help="Use connection pooling for model API requests",
+    )
+    po.add_argument(
+        "--optimize-tokens",
+        action="store_true",
+        dest="optimize_tokens",
+        default=False,
+        help="Apply token optimization heuristics to prompts",
     )
 
     ev = p.add_argument_group("Evaluation")
@@ -2307,6 +2456,14 @@ def build_parser():
     co.add_argument("--force-model", default=None, dest="force_model")
     co.add_argument("--cost-summary", action="store_true", dest="cost_summary")
     co.add_argument("--cost-reset", action="store_true", dest="cost_reset")
+    co.add_argument("--cost-clear-cache", action="store_true", dest="cost_clear_cache")
+    co.add_argument(
+        "--cost-estimate",
+        nargs=3,
+        metavar=("PROVIDER", "INPUT_TOKENS", "OUTPUT_TOKENS"),
+        dest="cost_estimate",
+        help="Estimate cost for a provider given input and output token counts",
+    )
 
     po = p.add_argument_group("Prompt Optimizer")
     po.add_argument(
@@ -2391,9 +2548,7 @@ def build_parser():
     )
 
     wf = p.add_argument_group("Workflows")
-    wf.add_argument("--workflow-run", metavar="PATH", dest="workflow_run")
     wf.add_argument("--workflow-input", default="", dest="workflow_input")
-    wf.add_argument("--workflow-scaffold", metavar="PATH", dest="workflow_scaffold")
 
     hk = p.add_argument_group("Hooks")
     hk.add_argument("--hooks-add", nargs=2, metavar=("EVENT", "COMMAND"), dest="hooks_add")
@@ -2520,6 +2675,31 @@ def main():
         from zcoder.agent.tools.plugins import cmd_plugin_disable
 
         cmd_plugin_disable(args.plugin_disable)
+        return
+    if args.plugin_cmd:
+        import argparse
+
+        from zcoder.agent.plugins.cli import cmd_plugin
+
+        # Build a namespace for the plugin CLI
+        plugin_args = argparse.Namespace()
+        plugin_args.plugin_command = args.plugin_cmd[0] if args.plugin_cmd else None
+        if len(args.plugin_cmd) > 1:
+            # Map subcommand arguments
+            if plugin_args.plugin_command == "install":
+                plugin_args.source = args.plugin_cmd[1]
+                plugin_args.name = getattr(args, "plugin_name", None)
+                plugin_args.version = getattr(args, "plugin_version", None)
+            elif plugin_args.plugin_command == "uninstall":
+                plugin_args.name = args.plugin_cmd[1]
+            elif plugin_args.plugin_command == "info":
+                plugin_args.name = args.plugin_cmd[1]
+            elif plugin_args.plugin_command == "search":
+                plugin_args.query = args.plugin_cmd[1]
+                plugin_args.type = getattr(args, "plugin_type", None)
+            elif plugin_args.plugin_command == "update":
+                plugin_args.all = "--all" in args.plugin_cmd
+        cmd_plugin(plugin_args)
         return
 
     # ── Settings (no API key required) ──
@@ -3276,6 +3456,17 @@ def main():
 
         cmd_cost_reset()
         return
+    if args.cost_clear_cache:
+        from zcoder.agent.optimization.cost import cmd_cost_clear_cache
+
+        cmd_cost_clear_cache()
+        return
+    if args.cost_estimate:
+        from zcoder.agent.models.registry import cmd_cost_estimate
+
+        provider, input_tokens, output_tokens = args.cost_estimate
+        cmd_cost_estimate(provider, int(input_tokens), int(output_tokens))
+        return
     if args.metrics_show:
         from zcoder.agent.enterprise.metrics import cmd_metrics_show
 
@@ -3443,6 +3634,11 @@ def main():
 
         cmd_list_models(key, include_legacy=getattr(args, "list_models_legacy", False))
         return
+    if args.list_providers:
+        from zcoder.agent.models.registry import cmd_list_providers
+
+        cmd_list_providers()
+        return
     if args.model_info:
         from zcoder.agent.models.registry import cmd_model_info
 
@@ -3520,6 +3716,18 @@ def main():
 
         cmd_rag_query(
             args.rag_index_name, args.rag_query, key, model, k=args.rag_k, tenant_id=args.rag_tenant
+        )
+        return
+    if args.rag_cache_query:
+        from zcoder.agent.rag.engine import cmd_rag_cache_query
+
+        cmd_rag_cache_query(
+            args.rag_index_name,
+            args.rag_cache_query,
+            key,
+            model,
+            k=args.rag_k,
+            tenant_id=args.rag_tenant,
         )
         return
 
@@ -3970,6 +4178,32 @@ def main():
         from zcoder.agent.optimization.tokens import cmd_count_tokens
 
         cmd_count_tokens(args.prompt or "", key, model, file_path=args.file, budget=args.count_budget or None)
+        return
+    if args.batch_count:
+        from zcoder.agent.optimization.tokens import cmd_batch_count
+
+        cmd_batch_count(args.batch_count, model=model)
+        return
+    if args.multi_modal:
+        from zcoder.agent.multi_modal.orchestrator import cmd_multi_modal
+
+        if not args.multi_modal_prompt:
+            print("[ERROR] --multi-modal-prompt is required with --multi-modal", file=sys.stderr)
+            sys.exit(1)
+        response = cmd_multi_modal(
+            modalities=args.multi_modal,
+            prompt=args.multi_modal_prompt,
+            files=args.multi_modal_files,
+            api_key=key,
+            model=model,
+        )
+        print("\n=== Multi-Modal Reasoning Result ===\n")
+        print(f"Modality breakdown: {response.modality_breakdown}")
+        if response.citations:
+            print(f"\nCitations: {response.citations}")
+        print(f"\nExtracted text:\n{response.text}")
+        if response.cost_usd > 0:
+            print(f"\nCost: ${response.cost_usd:.4f}")
         return
     if args.cite:
         from zcoder.agent.capabilities.citations import cmd_cite

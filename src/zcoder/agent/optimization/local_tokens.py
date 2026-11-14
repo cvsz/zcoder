@@ -40,6 +40,9 @@ MODEL_MULTIPLIERS: dict[str, float] = {
     "default": 0.3,  # More conservative for unknown models
 }
 
+# Cached model multipliers (memoized lookups)
+_MULTIPLIER_CACHE: dict[str, float] = {}
+
 # Token overhead for common message components
 SYSTEM_PROMPT_OVERHEAD_FACTOR = 1.0  # System prompt counted as regular text
 TOOLS_OVERHEAD_PER_TOOL = 50  # Base tokens per tool definition
@@ -151,8 +154,13 @@ class LocalTokenEstimator:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
+        # Use cached multiplier lookup
+        if model not in _MULTIPLIER_CACHE:
+            _MULTIPLIER_CACHE[model] = self._get_multiplier(model)
+        multiplier = _MULTIPLIER_CACHE[model]
+
+        # Detect code type once (cached per prompt)
         is_code = self._is_code(prompt)
-        multiplier = self._get_multiplier(model)
 
         # Estimate prompt tokens
         prompt_tokens = self._estimate_chars(prompt, is_code)
@@ -160,7 +168,7 @@ class LocalTokenEstimator:
         # Estimate system prompt tokens
         system_tokens = 0
         if system:
-            system_is_code = self._is_code(system)
+            system_is_code = self._is_code(system) if system else False
             system_tokens = self._estimate_chars(system, system_is_code)
 
         # Estimate history tokens
@@ -169,8 +177,7 @@ class LocalTokenEstimator:
             for msg in history:
                 content = msg.get("content", "")
                 if content:
-                    msg_is_code = self._is_code(content)
-                    history_tokens += self._estimate_chars(content, msg_is_code)
+                    history_tokens += self._estimate_chars(content, self._is_code(content))
 
         # Estimate tools tokens
         tools_tokens = 0

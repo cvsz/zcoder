@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
-CONTAINER = os.environ.get("ZCODER_POSTGRES_CONTAINER", "zpostgresql")
-CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zpostgresql",)
+CONTAINER = os.environ.get("ZCODER_POSTGRES_CONTAINER", "zpostgressql")
+CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("zpostgressql",)
 ROLE = "zcoder"
 DATABASE = "zcoder_db"
 PREVIOUS_DATABASE = "zcoder_db"
@@ -74,7 +74,7 @@ def _ensure_global_network(name: str) -> None:
         ]
     )
     if inspect.stdout.strip() != "connected":
-        _run(["docker", "network", "connect", "--alias", "zpostgresql", POSTGRES_NETWORK, name])
+        _run(["docker", "network", "connect", "--alias", "zpostgressql", POSTGRES_NETWORK, name])
 
 
 def _container_ip() -> str:

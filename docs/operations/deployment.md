@@ -32,7 +32,7 @@ zcoder -p "Explain this repository"
 
 ## Shared PostgreSQL
 
-The shared Docker PostgreSQL container is named `zpostgresql`. ZCoder uses
+The shared Docker PostgreSQL container is named `zpostgressql`. ZCoder uses
 database `zcoder_db` and role `zcoder` on the `zPostgreSQL_network` bridge.
 Provision and check it with:
 
@@ -122,7 +122,7 @@ production migration.
 |---|---|
 | Local inference fails | Check `llama-server` health, GGUF path, and loopback URL |
 | Model URL validation fails | Set `ZCODER_BASE_URL` to an HTTP loopback URL without credentials or query parameters |
-| PostgreSQL connection fails | Check container `zpostgresql`, network membership, role, database, and secret-file permissions |
+| PostgreSQL connection fails | Check container `zpostgressql`, network membership, role, database, and secret-file permissions |
 | API readiness returns 503 | Check database health and API configuration before adding traffic |
 | Circuit breaker opens | Inspect the local service logs and dependency health; avoid repeated retries while the dependency is unavailable |
 
@@ -133,7 +133,7 @@ ZCoder includes a dedicated `zPITR` Docker service for automated Point-in-Time R
 ### Architecture
 
 `zPITR` runs as a sidecar container on `zPostgreSQL_network` with:
-- **`pg_receivewal` daemon** — continuous WAL streaming from `zpostgresql` into `zpitr_wal_archive` Docker volume.
+- **`pg_receivewal` daemon** — continuous WAL streaming from `zpostgressql` into `zpitr_wal_archive` Docker volume.
 - **`pg_basebackup` scheduler** — periodic full physical snapshots into `zpitr_base_backups` Docker volume.
 - **Restore drill** — isolated recovery into `/tmp/pg_drill_data` with `recovery.signal` + `restore_command`, WAL archive continuity check, and Release Gate evidence emission.
 
