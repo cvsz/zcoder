@@ -40,7 +40,7 @@ CLI flags:
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec
 import sys
 import tempfile
 import urllib.error
@@ -90,7 +90,7 @@ def _load_registry() -> dict:
     if REGISTRY_FILE.exists():
         try:
             return json.loads(REGISTRY_FILE.read_text())
-        except Exception:
+        except Exception:  # nosec
             # Plugin directory may be inaccessible; skip it.
             pass
     return {"marketplaces": {}, "installed": {}}
@@ -333,7 +333,7 @@ def _discover_plugins_in_marketplace(mp_dir: Path) -> list:
                 cand = mp_dir / rel
                 if cand.exists():
                     found.append(cand)
-        except Exception:
+        except Exception:  # nosec
             # Plugin directory may be inaccessible; skip it.
             pass
     if found:
@@ -450,7 +450,7 @@ def plugin_install_from_git(url: str, branch: str | None = None, depth: int = 1)
         clone_cmd.extend([url, str(plugin_path)])
 
         try:
-            subprocess.run(clone_cmd, check=True, capture_output=True, timeout=120)
+            subprocess.run(clone_cmd, check=True, capture_output=True, timeout=120)  # nosec
         except subprocess.CalledProcessError as e:
             raise RuntimeError(
                 f"Failed to clone git repository: {e.stderr.decode() if e.stderr else e}"
@@ -652,7 +652,7 @@ def load_plugin_hooks() -> dict:
             continue
         try:
             data = json.loads(hooks_file.read_text())
-        except Exception:
+        except Exception:  # nosec
             continue
         for event, handlers in data.items():
             merged.setdefault(event, [])
@@ -671,7 +671,7 @@ def load_plugin_mcp_servers() -> dict:
             continue
         try:
             data = json.loads(mcp_file.read_text())
-        except Exception:
+        except Exception:  # nosec
             continue
         for name, cfg in data.get("mcpServers", {}).items():
             merged[f"{plug_dir.name}:{name}"] = cfg

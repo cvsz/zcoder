@@ -1,5 +1,4 @@
 """claude_tokens.py — Token Counting
-ZCoder CLI v1.8.0
 
 Count tokens BEFORE sending a request (no API cost incurred).
 Uses the /v1/messages/count_tokens endpoint for precise counting,
@@ -15,23 +14,20 @@ CLI flags:
 
 import json
 import re
-import urllib.error
 import urllib.request
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
-_breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 # Precompiled regex patterns for optimization rules (compiled once at import)
 _OPTIM_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\n\n+", re.DOTALL), "\n\n"),  # Collapse multiple blank lines
     (re.compile(r" $", re.MULTILINE), "$"),  # Remove trailing spaces
-    (re.compile(r" \n", re.MULTILINE), "\n"),  # Remove trailing spaces before newlines,
+    (re.compile(r" \n", re.MULTILINE), "\n"),  # Remove trailing spaces before newlines
 ]
 
 # Prompt optimization cache: (prompt, model) -> optimized_prompt
@@ -69,27 +65,6 @@ def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
 
     optimized = _cached_optimize_prompt_core(prompt, model)
     _optimization_cache[cache_key] = optimized
-
-    return optimized
-
-
-def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
-    """Apply token optimization heuristics to reduce prompt size.
-
-    Applies simple transformations to reduce token count without
-    changing the semantic meaning of the prompt.
-    """
-    optimized = prompt
-    for pattern, replacement in OPTIMIZATION_RULES:
-        import re
-
-        optimized = re.sub(re.escape(pattern), replacement, optimized)
-
-    # Remove excessive whitespace
-    optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))
-
-    # Collapse multiple consecutive blank lines to a single one
-    optimized = re.sub(r"\n\n+", "\n\n", optimized)
 
     return optimized
 
@@ -161,6 +136,39 @@ class TokenCounter:
             return self._call(req)
         except ZCoderError as e:
             raise RuntimeError(f"Token count failed: {e.message}") from e
+
+    def _call(self, req: urllib.request.Request) -> dict:
+        """Execute the count_tokens API request and return parsed JSON.
+
+        Network/HTTP failures are operational errors, so they are wrapped in
+        :class:`ZCoderError` and never exposed as raw urllib exceptions.
+        """
+        try:
+            with urllib.request.urlopen(
+                req, timeout=30
+            ) as resp:  # nosec B310 — controlled internal count_tokens endpoint
+                body = resp.read()
+            return json.loads(body)
+        except Exception as exc:
+            raise ZCoderError(f"count_tokens request failed: {exc}") from exc
+
+    def count_file(
+        self,
+        file_path: str,
+        prompt: str | None = None,
+        system: str | None = None,
+        use_local: bool = False,
+    ) -> dict:
+        """Count tokens for a file's contents, optionally prefixed by a prompt.
+
+        Reads the file once (bounded I/O) and delegates to :meth:`count`.
+        """
+        try:
+            content = Path(file_path).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ZCoderError(f"Cannot read {file_path}: {exc}") from exc
+        text = content if prompt is None else f"{prompt}\n{content}"
+        return self.count(text, system=system, use_local=use_local)
 
     def count_local(
         self,

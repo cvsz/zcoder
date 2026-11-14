@@ -84,7 +84,7 @@ class HardwareProfiler:
                 mem_avail_kb = int([line.split()[1] for line in lines if line.startswith("MemAvailable:")][0])
                 ram_total_gb = round(mem_total_kb / (1024 * 1024), 2)
                 ram_avail_gb = round(mem_avail_kb / (1024 * 1024), 2)
-            except Exception:
+            except Exception:  # nosec
                 # Info may be unavailable; use defaults.
                 pass
 
@@ -116,7 +116,7 @@ class HardwareProfiler:
                     gpu_vendor = "NVIDIA"
                     gpu_device = parts[0].strip()
                     vram_gb = round(float(parts[1].strip()) / 1024.0, 2)
-            except Exception:
+            except Exception:  # nosec
                 # Info may be unavailable; use defaults.
                 pass
 

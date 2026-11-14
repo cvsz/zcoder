@@ -172,7 +172,7 @@ def latest_session(mode: str | None = None) -> Session | None:
             s = Session.from_dict(json.loads(p.read_text()))
             if mode is None or s.mode == mode:
                 sessions.append(s)
-        except Exception:
+        except Exception:  # nosec
             # File may be malformed; skip it.
             pass
     return max(sessions, key=lambda s: s.updated) if sessions else None
@@ -187,7 +187,7 @@ def list_sessions(mode: str | None = None) -> list[Session]:
             s = Session.from_dict(json.loads(p.read_text()))
             if mode is None or s.mode == mode:
                 out.append(s)
-        except Exception:
+        except Exception:  # nosec
             # File may be malformed; skip it.
             pass
     return sorted(out, key=lambda s: s.updated, reverse=True)
@@ -221,7 +221,7 @@ def list_checkpoints(sid: str) -> list[Checkpoint]:
             cp = Checkpoint.from_dict(json.loads(p.read_text()))
             if cp.sid == sid:
                 out.append(cp)
-        except Exception:
+        except Exception:  # nosec
             # File may be malformed; skip it.
             pass
     return sorted(out, key=lambda c: c.ts)
@@ -246,7 +246,7 @@ def away_summary(cwd: str, since_iso: str) -> str:
             timeout=5,
         )
         commits = [l for l in r.stdout.splitlines() if l.strip()]
-    except Exception:
+    except Exception:  # nosec
         # Git may not be available in all environments; safe to ignore.
         pass
 

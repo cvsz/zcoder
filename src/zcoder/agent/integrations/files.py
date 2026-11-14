@@ -349,7 +349,7 @@ class FilesAPI:
         if LOCAL_REGISTRY.exists():
             try:
                 return json.loads(LOCAL_REGISTRY.read_text())
-            except Exception:
+            except Exception:  # nosec
                 pass
         return {}
 

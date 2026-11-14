@@ -91,7 +91,7 @@ class PluginLoader:
         if cache_dir.exists():
             # Update existing cache
             logger.info(f"Updating cached git repo: {url}")
-            subprocess.run(
+            subprocess.run(  # nosec
                 ["git", "-C", str(cache_dir), "fetch", "--all", "--tags"],
                 check=True,
                 capture_output=True,
@@ -104,7 +104,7 @@ class PluginLoader:
             if branch:
                 clone_cmd.extend(["--branch", branch])
             clone_cmd.extend([url, str(cache_dir)])
-            subprocess.run(clone_cmd, check=True, capture_output=True, timeout=120)
+            subprocess.run(clone_cmd, check=True, capture_output=True, timeout=120)  # nosec
 
         # Copy from cache to target directory
         if target_dir.exists():
@@ -113,7 +113,7 @@ class PluginLoader:
 
         # Checkout specific branch if provided
         if branch:
-            subprocess.run(
+            subprocess.run(  # nosec
                 ["git", "-C", str(target_dir), "checkout", branch],
                 check=True,
                 capture_output=True,

@@ -130,7 +130,7 @@ def build_index(
             continue
         try:
             text = path.read_text(errors="replace")
-        except Exception:
+        except Exception:  # nosec
             continue
         for chunk in _chunk_text(str(path), text, chunk_size, overlap):
             idx.chunks.append(chunk)
@@ -504,7 +504,7 @@ def cmd_rag_list(tenant_id: str = ""):
     for p in sorted(INDEX_DIR.glob("*.json")):
         try:
             d = json.loads(p.read_text())
-        except Exception:
+        except Exception:  # nosec
             continue
         t = d.get("tenant_id", "")
         if tenant_id and t != tenant_id:

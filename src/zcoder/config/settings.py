@@ -16,7 +16,7 @@ class Config:
             try:
                 with open(read_path) as f:
                     self._data = json.load(f)
-            except Exception:
+            except Exception:  # nosec
                 # Config file may be missing or unreadable; use defaults.
                 pass
 

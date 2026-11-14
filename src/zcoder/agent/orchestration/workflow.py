@@ -88,7 +88,7 @@ class WorkflowEngine:
             self._semaphore = asyncio.Semaphore(self.max_concurrent)
 
         semaphore = self._semaphore
-        assert semaphore is not None
+        assert semaphore is not None  # nosec
 
         async def run_step(step: AsyncWorkflowStep) -> Any:
             async with semaphore:

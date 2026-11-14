@@ -12,6 +12,7 @@ Estimation strategy:
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -51,23 +52,79 @@ TOOLS_SCHEMA_CHAR_FACTOR = 0.15  # Additional tokens per schema character
 # Precompiled regex patterns for code detection (module-level, compiled once)
 _CODE_PATTERNS_COMPILED: list[re.Pattern] = []
 _CODE_PATTERN_STRINGS = [
-    r"\bdef\b", r"\bclass\b", r"\bfunction\b", r"\bimport\b", r"\bfrom\b",
-    r"\breturn\b", r"\bif\b.*:", r"\bfor\b.*:", r"\bwhile\b.*:",
-    r"\{", r"\}", r"\[", r"\]", r"\(\)", r"->", r"=>",
-    r"SELECT\b", r"INSERT\b", r"UPDATE\b", r"DELETE\b",
-    r"CREATE\b", r"TABLE\b", r"INDEX\b",
+    r"\bdef\b",
+    r"\bclass\b",
+    r"\bfunction\b",
+    r"\bimport\b",
+    r"\bfrom\b",
+    r"\breturn\b",
+    r"\bif\b.*:",
+    r"\bfor\b.*:",
+    r"\bwhile\b.*:",
+    r"\{",
+    r"\}",
+    r"\[",
+    r"\]",
+    r"\(\)",
+    r"->",
+    r"=>",
+    r"SELECT\b",
+    r"INSERT\b",
+    r"UPDATE\b",
+    r"DELETE\b",
+    r"CREATE\b",
+    r"TABLE\b",
+    r"INDEX\b",
 ]
-for i, pattern in enumerate(_CODE_PATTERN_STRINGS):
+for pattern in _CODE_PATTERN_STRINGS:
     _CODE_PATTERNS_COMPILED.append(re.compile(pattern, re.IGNORECASE))
 
+# Model-specific code detection patterns
+# Each model family has different keyword patterns and tokenizer behaviors
+_MODEL_CODE_PATTERNS: dict[str, list[re.Pattern]] = {
+    "claude": [
+        re.compile(r"\bdef\b", re.IGNORECASE),
+        re.compile(r"\bclass\b", re.IGNORECASE),
+        re.compile(r"\bawait\b", re.IGNORECASE),
+        re.compile(r"\btry:\b", re.IGNORECASE),
+        re.compile(r"\bcatch\b", re.IGNORECASE),
+    ],
+    "gpt": [
+        re.compile(r"\bfunction\b", re.IGNORECASE),
+        re.compile(r"\bclass\b", re.IGNORECASE),
+        re.compile(r"\breturn\b", re.IGNORECASE),
+        re.compile(r"\b=>\b", re.IGNORECASE),
+    ],
+    "default": [
+        re.compile(r"\bdef\b", re.IGNORECASE),
+        re.compile(r"\bclass\b", re.IGNORECASE),
+        re.compile(r"\bimport\b", re.IGNORECASE),
+        re.compile(r"\bfor\b.*:", re.IGNORECASE),
+        re.compile(r"\bwhile\b.*:", re.IGNORECASE),
+    ],
+}
 
-def _is_code(text: str) -> bool:
-    """Heuristic to detect if text is code."""
+
+def _detect_model(text: str, model: str) -> str:
+    """Detect the model family from model name."""
+    model_lower = model.lower()
+    if "claude" in model_lower:
+        return "claude"
+    elif "gpt" in model_lower or "openai" in model_lower:
+        return "gpt"
+    return "default"
+
+
+def _is_code_model_specific(text: str, model: str) -> bool:
+    """Heuristic to detect if text is code using model-specific patterns."""
     if not text:
         return False
 
+    model_family = _detect_model("", model)
+    patterns = _MODEL_CODE_PATTERNS.get(model_family, _MODEL_CODE_PATTERNS["default"])
+
     text_lower = text.lower()
-    for pattern in _CODE_PATTERNS_COMPILED:
+    for pattern in patterns:
         if pattern.search(text_lower):
             return True
     return False
@@ -87,43 +144,6 @@ def _get_multiplier(model: str) -> float:
     return MODEL_MULTIPLIERS["default"]
 
 
-def _is_code(text: str) -> bool:
-    """Heuristic to detect if text is code."""
-    if not text:
-        return False
-
-    code_indicators = [
-        r"\bdef\b",
-        r"\bclass\b",
-        r"\bfunction\b",
-        r"\bimport\b",
-        r"\bfrom\b",
-        r"\breturn\b",
-        r"\bif\b.*:",
-        r"\bfor\b.*:",
-        r"\bwhile\b.*:",
-        r"\{",
-        r"\}",
-        r"\[",
-        r"\]",
-        r"\(\)",
-        r"->",
-        r"=>",
-        r"SELECT\b",
-        r"INSERT\b",
-        r"UPDATE\b",
-        r"DELETE\b",
-        r"CREATE\b",
-        r"TABLE\b",
-        r"INDEX\b",
-    ]
-    text_lower = text.lower()
-    for pattern in code_indicators:
-        if re.search(pattern, text_lower):
-            return True
-    return False
-
-
 def _estimate_chars(text: str, is_code: bool) -> int:
     """Estimate tokens from character count."""
     if not text:
@@ -136,6 +156,31 @@ def _estimate_chars(text: str, is_code: bool) -> int:
     else:
         # Natural language: ~4 chars per token
         return max(1, int(char_count / 4))
+
+
+def _estimate_mixed(text: str, code_ratio: float = 0.5) -> int:
+    """Estimate tokens for mixed code/non-code content.
+
+    Args:
+        text: The text to estimate
+        code_ratio: Estimated proportion of code content (0.0 to 1.0)
+            Default 0.5 assumes balanced mix
+
+    Returns:
+        Estimated token count accounting for mixed content
+    """
+    if not text:
+        return 0
+
+    char_count = len(text)
+    # Split estimation based on code ratio
+    code_chars = int(char_count * code_ratio)
+    non_code_chars = char_count - code_chars
+
+    code_tokens = max(1, int(code_chars / 3))
+    non_code_tokens = max(1, int(non_code_chars / 4))
+
+    return code_tokens + non_code_tokens
 
 
 def _estimate_words(text: str) -> int:
@@ -193,17 +238,17 @@ class LocalTokenEstimator:
             _MULTIPLIER_CACHE[model] = _get_multiplier(model)
         multiplier = _MULTIPLIER_CACHE[model]
 
-        # Detect code type once (cached per prompt)
-        is_code = _is_code(prompt)
+        # Detect code type using model-specific heuristics
+        is_code = _is_code_model_specific(prompt, model)
 
-        # Estimate prompt tokens
-        prompt_tokens = _estimate_chars(prompt, is_code)
+        # Estimate prompt tokens with mixed content support
+        prompt_tokens = _estimate_mixed(prompt, code_ratio=0.5 if is_code else 0.0)
 
         # Estimate system prompt tokens
         system_tokens = 0
         if system:
-            system_is_code = _is_code(system) if system else False
-            system_tokens = _estimate_chars(system, system_is_code)
+            system_is_code = _is_code_model_specific(system, model) if system else False
+            system_tokens = _estimate_mixed(system, code_ratio=0.5 if system_is_code else 0.0)
 
         # Estimate history tokens
         history_tokens = 0
@@ -211,7 +256,9 @@ class LocalTokenEstimator:
             for msg in history:
                 content = msg.get("content", "")
                 if content:
-                    history_tokens += _estimate_chars(content, _is_code(content))
+                    history_tokens += _estimate_mixed(
+                        content, code_ratio=0.5 if _is_code_model_specific(content, model) else 0.0
+                    )
 
         # Estimate tools tokens
         tools_tokens = 0
@@ -219,8 +266,6 @@ class LocalTokenEstimator:
             for tool in tools:
                 tools_tokens += TOOLS_OVERHEAD_PER_TOOL
                 # Add schema tokens
-                import json
-
                 schema_str = json.dumps(tool.get("input_schema", {}))
                 tools_tokens += int(len(schema_str) * TOOLS_SCHEMA_CHAR_FACTOR)
 
@@ -244,27 +289,27 @@ class LocalTokenEstimator:
         history: list[dict[str, Any]] | None = None,
     ) -> TokenEstimate:
         """Estimate with detailed breakdown."""
-        is_code = _is_code(prompt)
+        is_code = _is_code_model_specific(prompt, model)
 
-        prompt_tokens = _estimate_chars(prompt, is_code)
+        prompt_tokens = _estimate_mixed(prompt, code_ratio=0.5 if is_code else 0.0)
         system_tokens = 0
         if system:
-            system_is_code = _is_code(system) if system else False
-            system_tokens = _estimate_chars(system, system_is_code)
+            system_is_code = _is_code_model_specific(system, model) if system else False
+            system_tokens = _estimate_mixed(system, code_ratio=0.5 if system_is_code else 0.0)
 
         history_tokens = 0
         if history:
             for msg in history:
                 content = msg.get("content", "")
                 if content:
-                    history_tokens += _estimate_chars(content, _is_code(content))
+                    history_tokens += _estimate_mixed(
+                        content, code_ratio=0.5 if _is_code_model_specific(content, model) else 0.0
+                    )
 
         tools_tokens = 0
         if tools:
             for tool in tools:
                 tools_tokens += TOOLS_OVERHEAD_PER_TOOL
-                import json
-
                 schema_str = json.dumps(tool.get("input_schema", {}))
                 tools_tokens += int(len(schema_str) * TOOLS_SCHEMA_CHAR_FACTOR)
 
@@ -272,16 +317,23 @@ class LocalTokenEstimator:
         multiplier = _get_multiplier(model)
         total = int(total * (multiplier / 0.25))
 
+        # Build detailed breakdown with code/non-code analysis
+        breakdown: dict[str, int] = {
+            "prompt": prompt_tokens,
+            "system": system_tokens,
+            "history": history_tokens,
+            "tools": tools_tokens,
+        }
+
+        # Add model-specific code detection info
+        breakdown["is_code"] = 1 if is_code else 0
+        breakdown["model"] = hash(model) % 1000  # Identifier, not actual model name
+
         return TokenEstimate(
             input_tokens=total,
             model=model,
             method="local",
-            breakdown={
-                "prompt": prompt_tokens,
-                "system": system_tokens,
-                "history": history_tokens,
-                "tools": tools_tokens,
-            },
+            breakdown=breakdown,
         )
 
     def clear_cache(self):
@@ -313,3 +365,22 @@ def estimate_tokens_detailed(
 ) -> TokenEstimate:
     """Convenience function for detailed token estimation."""
     return _default_estimator.estimate_detailed(prompt, model, system, tools, history)
+
+
+def detect_code_patterns(text: str, model: str = "claude-sonnet-5") -> dict:
+    """Detect code patterns in text using model-specific heuristics.
+
+    Args:
+        text: Text to analyze
+        model: Model name for pattern detection
+
+    Returns:
+        Dict with code detection results
+    """
+    is_code = _is_code_model_specific(text, model)
+    model_family = _detect_model("", model)
+    return {
+        "is_code": is_code,
+        "model_family": model_family,
+        "text_length": len(text),
+    }

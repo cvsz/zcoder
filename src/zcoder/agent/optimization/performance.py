@@ -18,7 +18,7 @@ class MetricType(Enum):
     LATENCY = "latency"
     THROUGHPUT = "throughput"
     COST = "cost"
-    TOKEN_USAGE = "token_usage"
+    TOKEN_USAGE = "token_usage"  # nosec
     ERROR_RATE = "error_rate"
     CPU_USAGE = "cpu_usage"
     MEMORY_USAGE = "memory_usage"

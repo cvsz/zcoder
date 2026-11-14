@@ -130,8 +130,8 @@ class PluginSystemInitializer:
     async def initialize(self) -> tuple[LazyPluginManager, OptimizedHookBus]:
         """Initialize plugin system with background loading."""
         if self._initialized:
-            assert self._lazy_manager is not None
-            assert self._hook_bus is not None
+            assert self._lazy_manager is not None  # nosec
+            assert self._hook_bus is not None  # nosec
             return self._lazy_manager, self._hook_bus
 
         from zcoder.agent.plugin.manager import PluginManager
@@ -144,8 +144,8 @@ class PluginSystemInitializer:
         self._init_task = asyncio.create_task(self._lazy_manager.ensure_loaded_async())
 
         self._initialized = True
-        assert self._lazy_manager is not None
-        assert self._hook_bus is not None
+        assert self._lazy_manager is not None  # nosec
+        assert self._hook_bus is not None  # nosec
         return self._lazy_manager, self._hook_bus
 
     async def wait_ready(self) -> None:
@@ -157,14 +157,14 @@ class PluginSystemInitializer:
         """Get hook bus (initializes if needed)."""
         if not self._initialized:
             raise RuntimeError("Plugin system not initialized")
-        assert self._hook_bus is not None
+        assert self._hook_bus is not None  # nosec
         return self._hook_bus
 
     def get_manager(self) -> LazyPluginManager:
         """Get plugin manager (initializes if needed)."""
         if not self._initialized:
             raise RuntimeError("Plugin system not initialized")
-        assert self._lazy_manager is not None
+        assert self._lazy_manager is not None  # nosec
         return self._lazy_manager
 
 

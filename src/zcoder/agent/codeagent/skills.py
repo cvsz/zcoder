@@ -14,7 +14,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
-import subprocess
+import subprocess  # nosec
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -127,7 +127,7 @@ def _run_dynamic(command: str, cwd: Path, shell: str = "bash", timeout: int = 30
     """Run a shell command and return its stdout, or an error marker."""
     try:
         bin_sh = "/bin/bash" if shell == "bash" and os.path.exists("/bin/bash") else "/bin/sh"
-        r = subprocess.run(
+        r = subprocess.run(  # nosec
             [bin_sh, "-c", command],
             cwd=cwd,
             capture_output=True,

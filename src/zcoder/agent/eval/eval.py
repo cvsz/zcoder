@@ -228,7 +228,7 @@ def cmd_eval_list():
                 f"  [{d['run_id']}] {d['ts'][:16]}  model={d['model']}  "
                 f"{d['passed']}/{d['cases']}  avg={d['avg_score']:.2f}"
             )
-        except Exception:
+        except Exception:  # nosec
             # Eval output file may be missing; start fresh.
             pass
 

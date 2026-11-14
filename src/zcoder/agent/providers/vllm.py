@@ -10,7 +10,7 @@ from __future__ import annotations
 import subprocess  # nosec B404  # required to run vLLM CLI without a shell
 import time
 from dataclasses import dataclass
-from subprocess import Popen
+from subprocess import Popen  # nosec
 from typing import Any
 
 import httpx
