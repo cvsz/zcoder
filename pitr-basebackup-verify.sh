@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
@@ -6,7 +5,6 @@ cd "$HOME/zcoder"
 
 COMPOSE=(-f docker-compose.zpitr.yml)
 CONTAINER="zPITR"
-BACKUP_DIR="/var/backups/base_backups"
 
 log() {
   printf '\n[%s] %s\n' "$(date -u +%FT%TZ)" "$*"
