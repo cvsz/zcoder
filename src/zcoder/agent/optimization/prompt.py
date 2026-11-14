@@ -132,7 +132,10 @@ def optimize_advanced(
     context = _detect_context(prompt)
     if context in _CONTEXT_RULES:
         for pattern, replacement in _CONTEXT_RULES[context]:
-            optimized = pattern.sub(replacement, optimized)  # type: ignore[assignment]
+            if isinstance(replacement, str):
+                optimized = pattern.sub(replacement, optimized)
+            else:
+                optimized = pattern.sub(replacement, optimized)
 
     # Remove excessive whitespace (universal rule)
     optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))
