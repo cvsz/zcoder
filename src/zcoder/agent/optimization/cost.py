@@ -33,6 +33,8 @@ import requests
 
 from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
+from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
+from zcoder.agent.optimization.tokens import optimize_prompt
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 
@@ -191,7 +193,7 @@ LONG_CONTEXT_SURCHARGE: dict[str, dict[str, float]] = {
 # 4.7 / 4.6, Sonnet 5 / 4.6, Fable 5 and Mythos 5 run a full 1M-token
 # window at flat pricing; claude-sonnet-4-5 reaches 1M through the
 # (retiring 2026-04-30) context-1m beta. Anything not mapped here falls
-# back to the conservative legacy 200K window — assuming too small a
+# back to the legacy 200K window — assuming too small a
 # window makes /context warn early, never late (Upgrade-56, parity W1).
 MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "claude-opus-5": 1_000_000,
@@ -255,6 +257,11 @@ def estimate_cost(
     return in_tok / 1e6 * in_price + out_tok / 1e6 * out_price
 
 
+def _count_markers(prompt: str, markers: list[str]) -> int:
+    """Count occurrences of each marker in prompt."""
+    return sum(prompt.count(k) for k in markers)
+
+
 def classify_complexity(prompt: str) -> str:
     """Enhanced heuristic: short simple → haiku; long/complex → sonnet; very long or code-heavy → opus.
 
@@ -267,49 +274,39 @@ def classify_complexity(prompt: str) -> str:
     - SQL-specific markers (indicates database operations)
     - Estimated token count via local estimator
     """
-    from zcoder.agent.optimization.local_tokens import estimate_tokens
-
     words = len(prompt.split())
     prompt_lower = prompt.lower()
 
     # Code markers for general programming
-    code_markers = sum(
-        prompt.count(k)
-        for k in [
-            "def ",
-            "class ",
-            "function ",
-            "CREATE ",
-            "INSERT ",
-            "UPDATE ",
-            "DELETE ",
-            "async ",
-            "await ",
-            "try:",
-            "except:",
-            "for ",
-            "while ",
-            "if ",
-            "elif ",
-            "else:",
-            "lambda ",
-            "yield ",
-            "with ",
-            "import ",
-            "from ",
-            "return ",
-            "raise ",
-            "=>",
-            "->",
-            "{}",
-            "[]",
-            "::",
-            "@@",
-        ]
-    )
+    code_markers = _count_markers(prompt, [
+        "def ", "class ", "function ", "CREATE ", "INSERT ", "UPDATE ",
+        "DELETE ",
+        "async ",
+        "await ",
+        "try:",
+        "except:",
+        "for ",
+        "while ",
+        "if ",
+        "elif ",
+        "else:",
+        "lambda ",
+        "yield ",
+        "with ",
+        "import ",
+        "from ",
+        "return ",
+        "raise ",
+        "=>",
+        "->",
+        "{}",
+        "[]",
+        "::",
+        "@@",
+    ])
 
     # SQL-specific markers (SELECT is a strong indicator of DB operations)
-    sql_markers = sum(prompt.count(k) for k in ["SELECT "])
+    sql_markers = prompt.count("SELECT ")
 
     # Task complexity keywords that indicate higher complexity
     complexity_keywords = [
@@ -374,8 +371,8 @@ def classify_complexity(prompt: str) -> str:
         if indent > 4:
             structural_score += indent // 4
 
-    # Use local token estimation for more accurate sizing
-    estimated_tokens = estimate_tokens(prompt, "claude-sonnet-5")
+    # Use local token estimation for more accurate sizing (cached)
+    estimated_tokens = local_estimate_tokens(prompt, "claude-sonnet-5")
 
     # Simple code snippets (short, minimal structure, no task/SQL keywords) should be low complexity
     is_simple_snippet = (
@@ -383,8 +380,8 @@ def classify_complexity(prompt: str) -> str:
         and code_markers <= 1
         and sql_markers == 0
         and structural_score == 0
-        and task_score == 0
         and complexity_score == 0
+        and task_score == 0
         and estimated_tokens < 50
     )
 
@@ -487,6 +484,8 @@ def optimized_call(
 ) -> OptimizedResponse:
     complexity = classify_complexity(prompt)
     model = select_model(complexity, force_model)
+    # Apply prompt optimization to reduce token count before sending
+    optimized_prompt = optimize_prompt(prompt)
     client = create_anthropic_client(api_key)
     t0 = time.time()
     # NOTE: was hardcoded temperature=0.5, which 400s (invalid_request_error)
@@ -496,7 +495,7 @@ def optimized_call(
     kwargs: dict = dict(
         model=model,
         max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": optimized_prompt}],
         **sampling_kwargs(model, temperature=0.5),
     )
     if system:
@@ -527,7 +526,7 @@ def optimized_call(
         cost = 0.0
     else:
         cost = estimate_cost(model, in_tok, out_tok, inference_geo=inference_geo or "global")
-        _log_spend(model, in_tok, out_tok, cost, prompt)
+        _log_spend(model, in_tok, out_tok, cost, optimized_prompt)
     return OptimizedResponse(
         text=text,
         model_used=model,
@@ -595,3 +594,15 @@ def cmd_cost_clear_cache():
     with _cost_lock:
         _cost_cache.clear()
     print("✓ Cost cache cleared.")
+
+
+def cmd_optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
+    """Optimize a prompt using token heuristics and return the optimized version."""
+    optimized = optimize_prompt(prompt, model)
+    original_tokens = local_estimate_tokens(prompt, model)
+    optimized_tokens = local_estimate_tokens(optimized, model)
+    savings = original_tokens - optimized_tokens
+    print(f"Original tokens: {original_tokens:,}")
+    print(f"Optimized tokens: {optimized_tokens:,}")
+    print(f"Savings: {savings:,} tokens ({round(savings/original_tokens*100,2)}%)")
+    return optimized

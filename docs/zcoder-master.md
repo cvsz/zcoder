@@ -817,6 +817,10 @@ Implement appropriate:
 - Graceful shutdown.
 - Failure isolation.
 
+- **Local token estimation**: Zero-API-cost token counting with <1ms latency using character/word heuristics and model-specific character-to-token multipliers
+- **Cost-aware model routing**: Complexity classification (low/medium/high) intelligent routing to haiku/sonnet/opus models
+- **Prompt optimization heuristics**: Rule-based token reduction (collapse blank lines, remove trailing whitespace) with savings calculation
+
 Optimize using measurable evidence.
 
 # 11. DOCUMENTATION SYNCHRONIZATION
