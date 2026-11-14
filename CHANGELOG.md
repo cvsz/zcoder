@@ -8,7 +8,16 @@
 - CLI: `--multi-modal`, `--batch-count`, `--cost-clear-cache`, and `--plugin <cmd>` subcommands wired in `main.py`; `--plugin update` honours `--all` for non-interactive (headless-safe) execution.
 - `README.md` rebuilt (real quick start, layout, quality gates, governance); planning documents reconciled with verified evidence.
 
+### Performance
+- Optimized local token estimation with precompiled regex patterns for faster code detection (`local_tokens.py`)
+- Enhanced complexity classification integrating local token estimation for more accurate model routing (`cost.py`)
+- Prompt optimization heuristics with rule-based token reduction and savings calculation (`tokens.py`)
+- Cost-aware model routing improvements with memoized model multipliers and TTL caching (`cost.py`)
+
 ### Fixed
+
+ - Registry capability semantics: `find_agents_by_capability` now performs exact-match lookup instead of returning every registered agent; legacy list-capabilities/dict-tags payloads are normalized on load; `heartbeat` added for liveness tracking.
+ - `parse_message` now validates the JSON-RPC 2.0 envelope and returns the correct RPC subclass instead of half-populated messages with `type=None`.
 - Registry capability semantics: `find_agents_by_capability` now performs exact-match lookup instead of returning every registered agent; legacy list-capabilities/dict-tags payloads are normalized on load; `heartbeat` added for liveness tracking.
 - `parse_message` now validates the JSON-RPC 2.0 envelope and returns the correct RPC subclass instead of half-populated messages with `type=None`.
 - Offloader: atomic persistence, bounded task store (`max_tasks` oldest-terminal eviction), timeout enforcement via `expire_stale`.

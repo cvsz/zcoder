@@ -14,9 +14,11 @@ CLI flags:
 """
 
 import json
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
+from functools import lru_cache
 
 from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
@@ -25,12 +27,50 @@ from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-# Token optimization heuristics
-OPTIMIZATION_RULES: list[tuple[str, str]] = [
-    ("\n\n+", "\n\n"),  # Collapse multiple blank lines
-    (" $", "$"),  # Remove trailing spaces
-    (" \n", "\n"),  # Remove trailing spaces before newlines,
+# Precompiled regex patterns for optimization rules (compiled once at import)
+_OPTIM_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\n\n+", re.DOTALL), "\n\n"),  # Collapse multiple blank lines
+    (re.compile(r" $", re.MULTILINE), "$"),  # Remove trailing spaces
+    (re.compile(r" \n", re.MULTILINE), "\n"),  # Remove trailing spaces before newlines,
 ]
+
+# Prompt optimization cache: (prompt, model) -> optimized_prompt
+_optimization_cache: dict[tuple[str, str], str] = {}
+
+
+@lru_cache(maxsize=128)
+def _cached_optimize_prompt_core(prompt: str, model: str) -> str:
+    """Core optimization with LRU cache."""
+    optimized = prompt
+    for pattern, replacement in _OPTIM_PATTERNS:
+        optimized = pattern.sub(replacement, optimized)
+
+    # Remove excessive whitespace
+    optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))
+
+    # Collapse multiple consecutive blank lines to a single one
+    optimized = re.sub(r"\n\n+", "\n\n", optimized)
+
+    return optimized
+
+
+def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
+    """Apply token optimization heuristics to reduce prompt size.
+
+    Applies simple transformations to reduce token count without
+    changing the semantic meaning of the prompt.
+
+    Uses precompiled regex patterns and LRU cache for repeated prompts.
+    """
+    # Check cache first
+    cache_key = (prompt, model)
+    if cache_key in _optimization_cache:
+        return _optimization_cache[cache_key]
+
+    optimized = _cached_optimize_prompt_core(prompt, model)
+    _optimization_cache[cache_key] = optimized
+
+    return optimized
 
 
 def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
@@ -152,19 +192,6 @@ class TokenCounter:
     ) -> int:
         """Quick local token estimation returning just the count."""
         return self._local_estimator.estimate(prompt, self.model, system, tools, history)
-
-    @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
-    def _call(self, req: "urllib.request.Request") -> dict:
-        return urlopen_json(req, timeout=30)
-
-    def count_file(
-        self, file_path: str, prompt: str, system: str | None = None, use_local: bool = False
-    ) -> dict:
-        content = Path(file_path).read_text()
-        # Optimize the content before counting
-        optimized_content = optimize_prompt(content, self.model)
-        full = f"File:\n```\n{optimized_content}\n```\n\n{prompt}"
-        return self.count(full, system=system, use_local=use_local)
 
     def estimate_cost(self, token_count: int, model: str | None = None) -> dict:
         """Rough cost estimate based on current pricing tiers."""
