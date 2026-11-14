@@ -9,7 +9,6 @@ All traffic stays on loopback (127.0.0.1); no hosted model API is used.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import signal
 import subprocess
@@ -65,7 +64,7 @@ class Sector:
 
 
 def load_config(path: str) -> dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     if not isinstance(data, dict):
         raise ModelServerError(f"Invalid config {path}: expected a mapping")
@@ -127,7 +126,7 @@ def is_process_alive(pid: int) -> bool:
 
 def read_pid(pidfile: str) -> int | None:
     try:
-        with open(pidfile, "r", encoding="utf-8") as fh:
+        with open(pidfile, encoding="utf-8") as fh:
             return int(fh.read().strip() or "0")
     except (OSError, ValueError):
         return None
@@ -215,9 +214,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
     while time.monotonic() < deadline:
         alive, _pid = sector_running(sector)
         if not alive:
-            raise ModelServerError(
-                f"{sector.name}: llama-server exited during startup; see {sector.logfile}"
-            )
+            raise ModelServerError(f"{sector.name}: llama-server exited during startup; see {sector.logfile}")
         if health_ok(sector, timeout=2.0):
             print(
                 f"[start] {sector.name}: running on {sector.base_url} "
@@ -340,8 +337,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "health":
                 ok = health_ok(sector, timeout=3.0)
                 print(
-                    f"[health] {sector.name}: {'OK' if ok else 'FAIL'} "
-                    f"({sector.base_url}{HEALTH_PATH})"
+                    f"[health] {sector.name}: {'OK' if ok else 'FAIL'} " f"({sector.base_url}{HEALTH_PATH})"
                 )
                 if not ok:
                     failures += 1
