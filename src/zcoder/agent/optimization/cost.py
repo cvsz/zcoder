@@ -432,6 +432,168 @@ def select_model(complexity: str, force: str | None = None, prefer_latency: bool
     return {"low": TIER_MODELS[0], "medium": TIER_MODELS[1], "high": TIER_MODELS[2]}[complexity]
 
 
+def predict_best_model(
+    complexity_or_prompt: str | None = None,
+    complexity: str | None = None,
+    available_models: list[str] | None = None,
+    prefer_latency: bool = False,
+) -> dict[str, str]:
+    """Predict the best model for a given complexity or prompt.
+
+    Args:
+        complexity_or_prompt: Prompt text (if complexity not specified)
+        complexity: "low", "medium", or "high" (if prompt not specified)
+        available_models: List of available model names (defaults to TIER_MODELS)
+        prefer_latency: If True, prefer faster models even for complex prompts
+
+    Returns:
+        Dict with 'model', 'complexity', 'estimated_cost', 'estimated_tokens'
+    """
+    from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
+    from zcoder.agent.optimization.cost import classify_complexity, select_model, estimate_cost as base_estimate_cost
+
+    # Determine complexity: auto-classify if prompt provided, otherwise use given complexity
+    if complexity_or_prompt is not None and complexity is None:
+        complexity = classify_complexity(complexity_or_prompt)
+    
+    if available_models is None:
+        available_models = TIER_MODELS
+
+    # Estimate token count for standard complexity assessment
+    estimated_tokens = local_estimate_tokens("sample prompt", "claude-sonnet-5")
+
+    # Select optimal model
+    if prefer_latency:
+        model = select_model(complexity, prefer_latency=True)
+    else:
+        model = select_model(complexity)
+
+    # Estimate cost with current model
+    cost = base_estimate_cost(model, estimated_tokens, estimated_tokens // 2)
+
+    # Check if switching models would provide significant savings
+    if len(available_models) > 1:
+        for alt_model in available_models:
+            if alt_model == model:
+                continue
+            alt_cost = base_estimate_cost(alt_model, estimated_tokens, estimated_tokens // 2)
+            # Switch if at least 30% cheaper
+            if alt_cost < cost * 0.7:
+                model = alt_model
+                cost = alt_cost
+
+    return {
+        "model": model,
+        "complexity": complexity,
+        "estimated_cost": cost,
+        "estimated_tokens": estimated_tokens,
+    }
+
+
+def route_by_cost(
+    prompt: str,
+    available_models: list[str] | None = None,
+    prefer_latency: bool = False,
+) -> dict[str, str]:
+    """Route a prompt to the best model based on cost optimization.
+
+    Args:
+        prompt: User prompt text to analyze
+        available_models: List of available model names (defaults to TIER_MODELS)
+        prefer_latency: If True, prefer faster models
+
+    Returns:
+        Dict with 'model', 'complexity', 'in_tokens', 'out_tokens', 'cost_usd'
+    """
+    from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
+    from zcoder.agent.optimization.cost import classify_complexity, select_model, estimate_cost
+
+    if available_models is None:
+        available_models = TIER_MODELS
+
+    # Classify prompt complexity
+    complexity = classify_complexity(prompt)
+
+    # Predict best model
+    prediction = predict_best_model(
+        complexity_or_prompt=None, complexity=complexity, available_models=available_models, prefer_latency=prefer_latency
+    )
+
+    # Estimate token counts
+    in_tokens = local_estimate_tokens(prompt, prediction["model"])
+    out_tokens = in_tokens // 2  # Rough estimate for output
+
+    # Calculate final cost
+    cost = estimate_cost(prediction["model"], in_tokens, out_tokens)
+
+    return {
+        "model": prediction["model"],
+        "complexity": complexity,
+        "in_tokens": in_tokens,
+        "out_tokens": out_tokens,
+        "cost_usd": cost,
+    }
+
+
+def forecast_spend(
+    num_prompts: int,
+    complexity_distribution: dict[str, int] | None = None,
+    model: str = "claude-sonnet-5",
+) -> dict[str, float]:
+    """Forecast spend for a given number of prompts.
+
+    Args:
+        num_prompts: Number of prompts to forecast
+        complexity_distribution: Dict mapping complexity to count
+            e.g., {"low": 50, "medium": 30, "high": 20}
+        model: Default model for cost estimation
+
+    Returns:
+        Dict with cost breakdown and totals
+    """
+    from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
+    from zcoder.agent.optimization.cost import estimate_cost, MODEL_CONTEXT_WINDOWS
+
+    if complexity_distribution is None:
+        # Default: distribute evenly across complexity levels
+        complexity_distribution = {
+            "low": num_prompts // 3,
+            "medium": num_prompts // 3,
+            "high": num_prompts - (num_prompts // 3) * 2,
+        }
+
+    # Default token counts per complexity
+    token_estimates = {
+        "low": 100,
+        "medium": 500,
+        "high": 2000,
+    }
+
+    total_cost = 0.0
+    breakdown = {}
+
+    for complexity, count in complexity_distribution.items():
+        if count <= 0:
+            continue
+        tokens = token_estimates.get(complexity, 500)
+        cost = estimate_cost(model, tokens, tokens // 2)
+        total_cost += cost * count
+        breakdown[complexity] = {
+            "count": count,
+            "tokens_per_prompt": tokens,
+            "cost_per_prompt": cost,
+            "total": cost * count,
+        }
+
+    return {
+        "total_forecasted_cost": round(total_cost, 6),
+        "total_prompts": num_prompts,
+        "model": model,
+        "breakdown": breakdown,
+        "average_cost_per_prompt": round(total_cost / num_prompts, 6) if num_prompts > 0 else 0.0,
+    }
+
+
 def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_preview: str):
     SPEND_LOG.parent.mkdir(parents=True, exist_ok=True)
 

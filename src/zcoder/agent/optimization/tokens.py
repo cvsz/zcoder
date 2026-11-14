@@ -365,3 +365,103 @@ def cmd_batch_count(
         print(f"    {tokens:,} {preview}")
     if len(results) > 10:
         print(f"    ... and {len(results) - 10} more")
+
+
+def predict_best_model_for_prompt(
+    prompt: str,
+    available_models: list[str] | None = None,
+    prefer_latency: bool = False,
+) -> dict[str, str]:
+    """Predict the best model and optimization strategy for a prompt.
+
+    Args:
+        prompt: User prompt text
+        available_models: List of available model names
+        prefer_latency: If True, prefer faster models
+
+    Returns:
+        Dict with 'model', 'complexity', 'estimated_tokens', 'optimized_prompt',
+        'estimated_cost', 'savings_percent'
+    """
+    from zcoder.agent.optimization.cost import classify_complexity, select_model, route_by_cost, estimate_cost
+    from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
+
+    # Classify complexity
+    complexity = classify_complexity(prompt)
+
+    # Select optimal model
+    if available_models is None:
+        from zcoder.agent.optimization.cost import TIER_MODELS
+        available_models = TIER_MODELS
+
+    model = select_model(complexity, prefer_latency=prefer_latency)
+
+    # Estimate tokens
+    estimated_tokens = local_estimate_tokens(prompt, model)
+
+    # Optimize prompt
+    optimized = optimize_prompt(prompt, model)
+    optimized_tokens = local_estimate_tokens(optimized, model)
+
+    # Calculate savings
+    savings = estimated_tokens - optimized_tokens
+    savings_percent = round(savings / estimated_tokens * 100, 2) if estimated_tokens > 0 else 0
+
+    # Estimate cost
+    in_tokens = estimated_tokens
+    out_tokens = in_tokens // 2
+    from zcoder.agent.optimization.cost import estimate_cost
+
+    cost = estimate_cost(model, in_tokens, out_tokens)
+
+    # Route by cost if multiple models available
+    if available_models and len(available_models) > 1:
+        route = route_by_cost(prompt, available_models, prefer_latency)
+        if route["cost_usd"] < cost:
+            model = route["model"]
+            cost = route["cost_usd"]
+            # Re-estimate tokens with new model
+            estimated_tokens = local_estimate_tokens(prompt, model)
+            optimized = optimize_prompt(prompt, model)
+            optimized_tokens = local_estimate_tokens(optimized, model)
+            savings = estimated_tokens - optimized_tokens
+            savings_percent = round(savings / estimated_tokens * 100, 2) if estimated_tokens > 0 else 0
+
+    return {
+        "model": model,
+        "complexity": complexity,
+        "estimated_tokens": estimated_tokens,
+        "optimized_prompt": optimized,
+        "estimated_cost": cost,
+        "savings_tokens": savings,
+        "savings_percent": savings_percent,
+    }
+
+
+def batch_predict_and_optimize(
+    prompts: list[str],
+    available_models: list[str] | None = None,
+    prefer_latency: bool = False,
+) -> list[dict[str, str]]:
+    """Batch predict optimal models and optimize multiple prompts.
+
+    Args:
+        prompts: List of prompt texts
+        available_models: List of available model names
+        prefer_latency: If True, prefer faster models
+
+    Returns:
+        List of dicts with prediction results for each prompt
+    """
+    if available_models is None:
+        from zcoder.agent.optimization.cost import TIER_MODELS
+        available_models = TIER_MODELS
+
+    results = []
+    for prompt in prompts:
+        result = predict_best_model_for_prompt(
+            prompt, available_models, prefer_latency
+        )
+        results.append(result)
+
+    return results
