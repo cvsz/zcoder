@@ -132,8 +132,6 @@ def optimize_advanced(
 
         # Expand patterns (add useful structure)
         for pattern_str, replacement in heuristics.get("patterns_to_expand", []):
-            import re
-
             optimized = re.sub(pattern_str, replacement, optimized)
 
         # Trim patterns (remove inefficiencies)
