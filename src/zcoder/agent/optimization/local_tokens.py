@@ -136,6 +136,7 @@ def _is_code_model_specific(text: str, model: str) -> bool:
 
 def _get_multiplier(model: str, cache: dict | None = None) -> float:
     """Get character-to-token multiplier for a model with optional cache."""
+    global _MULTIPLIER_CACHE_VERSION
     # Try exact match first
     if model in MODEL_MULTIPLIERS:
         if cache is not None and model not in cache:
@@ -244,6 +245,7 @@ class LocalTokenEstimator:
         Returns:
             Estimated input token count
         """
+        global _MULTIPLIER_CACHE_VERSION
         # Create cache key
         cache_key = f"{model}:{prompt}:{system}:{tools}:{history}"
         if cache_key in self._cache:
@@ -360,7 +362,7 @@ class LocalTokenEstimator:
         total = int(total * (multiplier / 0.25))
 
         # Build detailed breakdown with code/non-code analysis
-        breakdown: dict[str, int] = {
+        breakdown: dict[str, Any] = {
             "prompt": prompt_tokens,
             "system": system_tokens,
             "history": history_tokens,
@@ -403,7 +405,7 @@ def predict_best_model(
     prompt: str,
     available_models: list[str] | None = None,
     prefer_latency: bool = False,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Predict the best model for a given prompt based on complexity and cost.
 
     Args:
@@ -414,7 +416,7 @@ def predict_best_model(
     Returns:
         Dict with 'model', 'complexity', 'estimated_cost', 'estimated_tokens'
     """
-    from zcoder.agent.optimization.cost import classify_complexity, select_model, estimate_cost
+    from zcoder.agent.optimization.cost import classify_complexity, estimate_cost, select_model
 
     if available_models is None:
         available_models = TIER_MODELS

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .adapter import ProviderAdapter, ProviderResult
+from .adapter import ProviderAdapter
 
 
 class AnthropicAdapter(ProviderAdapter):

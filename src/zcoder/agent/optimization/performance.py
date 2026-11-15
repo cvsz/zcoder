@@ -7,11 +7,11 @@ model calls, RAG operations, workflow execution, and system resources.
 from __future__ import annotations
 
 import warnings
-
 from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 
 class MetricType(Enum):
@@ -83,7 +83,6 @@ class PerformanceMonitor:
 
     def _record_sla_violation(self, record: MetricRecord) -> None:
         """Record an SLA violation (can be extended to alerting)."""
-        import sys
         # Emit a warning for SLA violations (can be extended to alerting/webhook)
         warnings.warn(
             f"SLA violation: {record.metric_type.value} {record.value:.2f} "

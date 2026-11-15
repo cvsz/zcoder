@@ -12,14 +12,12 @@ CLI flags:
   --batch-count FILE       Batch count tokens from file with prompts
 """
 
-import json
+from __future__ import annotations
+
 import re
-from pathlib import Path
 
-from zcoder.agent.optimization.config import TIER_MODELS
-
-from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
 from zcoder.agent.optimization.local_tokens import _detect_model
+from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 

@@ -26,18 +26,17 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.request
 
 from zcoder.agent.orchestration import providers
-from zcoder.agent.orchestration.adapter import ProviderAdapter, ProviderResult
-from zcoder.agent.orchestration.registry import AdapterRegistry
-from zcoder.agent.orchestration.openai_compatible import OpenAICompatibleAdapter
+from zcoder.agent.orchestration.adapter import ProviderAdapter
 from zcoder.agent.orchestration.anthropic import AnthropicAdapter
 from zcoder.agent.orchestration.gemini import GeminiAdapter
-from zcoder.agent.orchestration.ollama import OllamaAdapter
 from zcoder.agent.orchestration.local import LocalAdapter
+from zcoder.agent.orchestration.ollama import OllamaAdapter
+from zcoder.agent.orchestration.openai_compatible import OpenAICompatibleAdapter
+from zcoder.agent.orchestration.registry import AdapterRegistry
 from zcoder.core.exceptions import APIError, RateLimitError, TransientAPIError, ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.resilience import CircuitBreaker, retry
 from zcoder.core.utils import sampling_kwargs
 
 # ── Adapter registry ---------------------------------------------------------
