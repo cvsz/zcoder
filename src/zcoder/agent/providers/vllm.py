@@ -22,6 +22,11 @@ from zcoder.agent.ausi.adapters import (
     ProviderStatus,
 )
 
+# In-memory background task store for execute_background() — replaces the
+# previous approach of returning a raw threading.Thread object (which was not
+# serializable and could not be queried/cancelled).
+_background_tasks: dict[str, dict] = {}
+
 
 @dataclass
 class VLLMConfig:
@@ -261,21 +266,35 @@ class VLLMProvider(BaseProviderAdapter):
             Tuple of (task_id, metadata) where metadata may contain
             initial status, estimated completion, etc.
         """
+        import threading
+        import uuid
+
+        task_id = f"vllm-{uuid.uuid4().hex[:12]}"
+        _background_tasks[task_id] = {
+            "status": "running",
+            "result": None,
+            "error": None,
+            "model": model or self.config.model,
+            "provider": self.provider,
+            "start_time": time.time(),
+        }
 
         def _run():
-            result = self.execute(prompt, model, **options)
-            return result
+            try:
+                result = self.execute(prompt, model, **options)
+                _background_tasks[task_id]["status"] = "completed"
+                _background_tasks[task_id]["result"] = result
+            except Exception as exc:  # noqa: BLE001
+                _background_tasks[task_id]["status"] = "failed"
+                _background_tasks[task_id]["error"] = str(exc)
 
-        import threading
-
-        task_id = f"vllm-{id(_run)}"
-        thread = threading.Thread(target=_run)
+        thread = threading.Thread(target=_run, daemon=True)
         thread.start()
 
         return (
             task_id,
             {
-                "task": thread,
+                "task_id": task_id,
                 "model": model or self.config.model,
                 "provider": self.provider,
                 "start_time": time.time(),
@@ -291,14 +310,41 @@ class VLLMProvider(BaseProviderAdapter):
         Returns:
             AdapterResult with current status and optionally partial results
         """
-        # Extract task from task_id if possible
-        # This is a simplified implementation
+        task = _background_tasks.get(task_id)
+        if not task:
+            return AdapterResult(
+                success=False,
+                text="",
+                model="",
+                provider=self.provider,
+                error="task not found",
+            )
+
+        if task["status"] == "completed":
+            result = task["result"]
+            text = result.text if result else ""
+            return AdapterResult(
+                success=result.success if result else False,
+                text=text,
+                model=task["model"],
+                provider=self.provider,
+                error=result.error if result and not result.success else None,
+            )
+        if task["status"] == "failed":
+            return AdapterResult(
+                success=False,
+                text="",
+                model=task["model"],
+                provider=self.provider,
+                error=task["error"] or "task failed",
+            )
+        # still running
         return AdapterResult(
             success=True,
             text="",
-            model="",
+            model=task["model"],
             provider=self.provider,
-            task_id=task_id,
+            error=None,
         )
 
     def cancel_task(self, task_id: str) -> bool:
@@ -308,8 +354,15 @@ class VLLMProvider(BaseProviderAdapter):
             task_id: The task identifier from execute_background()
 
         Returns:
-            True if cancellation was successful, False otherwise
+            True if cancellation was requested, False if task not found
+            or already finished.
         """
+        task = _background_tasks.get(task_id)
+        if not task:
+            return False
+        if task["status"] == "running":
+            task["status"] = "cancelled"
+            return True
         return False
 
     def get_capabilities(self) -> ProviderCapabilities:

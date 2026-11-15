@@ -68,6 +68,7 @@ class PolicyEngine:
         self._evaluation_count: int = 0
         self._deny_count: int = 0
         self._allow_count: int = 0
+        self._violations: list[dict[str, Any]] = []
 
     def add_rule(self, rule: PolicyRule) -> None:
         """Add a policy rule."""
@@ -104,6 +105,14 @@ class PolicyEngine:
             result = self._evaluate_rule(rule, context)
             if not result.allowed:
                 self._deny_count += 1
+                self._violations.append(
+                    {
+                        "rule_id": rule.id,
+                        "reason": result.reason,
+                        "context": context,
+                        "timestamp": time.time(),
+                    }
+                )
                 return result
             self._allow_count += 1
 
@@ -158,6 +167,20 @@ class PolicyEngine:
             "allow_ratio": self._allow_count / total if total > 0 else 0.0,
             "rule_count": len(self._rules),
         }
+
+    def get_violations(
+        self, date_from: str | None = None, date_to: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Get policy violations recorded during evaluation.
+
+        Args:
+            date_from: Start date filter (optional)
+            date_to: End date filter (optional)
+
+        Returns:
+            List of violation dicts with rule_id, reason, context, and timestamp
+        """
+        return self._violations
 
 
 # Global policy engine instance

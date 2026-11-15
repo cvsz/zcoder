@@ -29,9 +29,32 @@ import os
 import urllib.request
 
 from zcoder.agent.orchestration import providers
+from zcoder.agent.orchestration.adapter import ProviderAdapter, ProviderResult
+from zcoder.agent.orchestration.registry import AdapterRegistry
+from zcoder.agent.orchestration.openai_compatible import OpenAICompatibleAdapter
+from zcoder.agent.orchestration.anthropic import AnthropicAdapter
+from zcoder.agent.orchestration.gemini import GeminiAdapter
+from zcoder.agent.orchestration.ollama import OllamaAdapter
+from zcoder.agent.orchestration.local import LocalAdapter
 from zcoder.core.exceptions import APIError, RateLimitError, TransientAPIError, ZCoderError
 from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 from zcoder.core.utils import sampling_kwargs
+
+# ── Adapter registry ---------------------------------------------------------
+# Built once at import time; each provider adapter is registered by its
+# provider id. The router delegates to this registry instead of calling
+# providers.build_payload / providers.parse_response directly.
+_ADAPTER_REGISTRY = AdapterRegistry()
+_ADAPTER_REGISTRY.register("openai_compatible", OpenAICompatibleAdapter())
+_ADAPTER_REGISTRY.register("anthropic", AnthropicAdapter())
+_ADAPTER_REGISTRY.register("gemini", GeminiAdapter())
+_ADAPTER_REGISTRY.register("ollama", OllamaAdapter())
+_ADAPTER_REGISTRY.register("local", LocalAdapter())
+
+
+def _get_adapter(provider: str) -> ProviderAdapter:
+    """Return the registered adapter for *provider*, or raise ``KeyError``."""
+    return _ADAPTER_REGISTRY.get(provider)
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
@@ -115,37 +138,36 @@ def _call(
     if prov in {"groq", "openrouter", "cerebras"} and not key:
         raise ValueError(f"{prov} requires an API key; check the provider-specific environment variable")
     mdl = model or "zqwen2.5-coder-7b-instruct-q4_k_m"
-    # Build provider-specific request
     # Decompose the router payload into normalized fields for the adapter.
     messages: list[dict] = list(payload.get("messages") or [])
     system: str | None = payload.get("system")
     max_tokens: int = int(payload.get("max_tokens", 4096))
     sampling = {k: payload[k] for k in ("temperature", "top_p", "top_k") if k in payload}
-    headers = providers.headers_for(prov, key)
+    adapter = _get_adapter(prov)
     model_chain = _nvidia_model_chain(mdl) if prov == "nvidia" else [mdl]
     last_error: ZCoderError | None = None
     for candidate in model_chain:
-        prov_payload = providers.build_payload(prov, candidate, messages, system, max_tokens, sampling)
-        endpoint = providers.endpoint_for(prov, url, candidate)
-        req = urllib.request.Request(
-            endpoint,
-            data=json.dumps(prov_payload).encode(),
-            headers=headers,
-            method="POST",
-        )
         try:
-            raw = urlopen_json(req, timeout=60)
+            result = adapter.execute(
+                base_url=url,
+                model=candidate,
+                messages=messages,
+                system=system,
+                max_tokens=max_tokens,
+                sampling=sampling,
+                api_key=key,
+            )
         except ZCoderError as exc:
             if prov != "nvidia" or not _is_model_fallback_error(exc):
                 raise
             last_error = exc
             continue
         # Normalize provider responses for downstream router parsing.
-        text = providers.parse_response(prov, raw)
+        text = result.content
         return {
             "content": [{"type": "text", "text": text}],
             "_provider": prov,
-            "_raw": raw,
+            "_raw": result.raw,
             "_model": candidate,
         }
     if last_error is not None:

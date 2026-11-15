@@ -179,9 +179,29 @@ class Coder:
             return f"[ERROR] {e}"
 
         try:
-            text = data["choices"][0]["message"]["content"] or ""
+            message = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError):
             logger.error("invalid_local_model_response")
             return "[ERROR] Local model returned an invalid chat completion response."
+
+        # Handle tool calls returned by the model. The web chat interface does
+        # not currently support executing tool calls, so report them back to
+        # the user instead of returning an empty/invalid response.
+        tool_calls = message.get("tool_calls") or []
+        if tool_calls:
+            names = ", ".join(
+                tc.get("function", {}).get("name", "unknown") for tc in tool_calls
+            )
+            logger.warning(
+                "tool_calls_ignored",
+                extra={"tool_count": len(tool_calls), "tool_names": names},
+            )
+            return (
+                f"[โมเดลต้องการเรียกเครื่องมือ: {names} "
+                f"แต่เว็บอินเทอร์เฟซยังไม่รองรับการเรียกเครื่องมือ "
+                f"กรุณาลองใหม่ด้วยคำสั่งทั่วไป]"
+            )
+
+        text = message.get("content") or ""
         logger.info("generate_ok", extra={"response_chars": len(text)})
         return text
