@@ -131,6 +131,11 @@ class CollaborativePane(Widget):
         )
         self.refresh()
 
+    def update_collaboration_state(self, state: CollaborationState) -> None:
+        """Update the collaboration state for this pane."""
+        self.state = state
+        self.refresh()
+
     # ------------------------------------------------------------------
     # Selection tracking
     # ------------------------------------------------------------------

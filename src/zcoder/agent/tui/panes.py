@@ -10,7 +10,7 @@ ZCoder CLI v1.60.3
 from __future__ import annotations
 
 import logging
-from typing import Any, cast, Optional
+from typing import Any, cast
 
 from textual.containers import Vertical
 from textual.widget import Widget

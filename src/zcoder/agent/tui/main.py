@@ -13,12 +13,10 @@ from enum import Enum
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
-from textual.widgets import Footer, Header, Input, Label, Log, Static
+from textual.widgets import Footer, Header, Input, Log, Static
 
 from zcoder.agent.communication import create_notification, get_registry
-from zcoder.agent.tui.panes import PaneManager, TUILayout
-from zcoder.agent.tui.collab import CollaborationState
+from zcoder.agent.tui.panes import TUILayout
 
 logger = logging.getLogger(__name__)
 

@@ -21,8 +21,9 @@ OpenAI-compatible hosts use bearer tokens; local runtimes may omit keys.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 import urllib.parse
+from dataclasses import dataclass
+from typing import Any
 
 from zcoder.core.exceptions import ZCoderError
 
@@ -262,6 +263,99 @@ def headers_for(provider: str, api_key: str) -> dict:
     return headers
 
 
+def build_payload(
+    provider: str,
+    model: str,
+    messages: list[dict[str, str]],
+    system: str | None = None,
+    max_tokens: int = 4096,
+    sampling: dict[str, Any] | None = None,
+) -> dict:
+    """Build a provider-specific request payload.
+
+    Args:
+        provider: Provider name (gemini, ollama, openai_compatible, etc.)
+        model: Model identifier
+        messages: Chat messages list
+        system: System prompt
+        max_tokens: Maximum output tokens
+        sampling: Sampling parameters (temperature, top_p, etc.)
+
+    Returns:
+        Provider-specific payload dict
+    """
+    sampling = sampling or {}
+    if provider == "gemini":
+        contents = []
+        for msg in messages:
+            role = "model" if msg.get("role") == "assistant" else "user"
+            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+        payload: dict = {
+            "contents": contents,
+            "generationConfig": {
+                "maxOutputTokens": max_tokens,
+                "temperature": sampling.get("temperature", 0.7),
+                "topP": sampling.get("top_p", 1.0),
+            },
+        }
+        if system:
+            payload["systemInstruction"] = {"parts": [{"text": system}]}
+        return payload
+    if provider == "ollama":
+        return {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "num_predict": max_tokens,
+                "temperature": sampling.get("temperature", 0.7),
+                "top_p": sampling.get("top_p", 1.0),
+            },
+        }
+    # openai_compatible and others: OpenAI chat completions format
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": sampling.get("temperature", 0.7),
+        "top_p": sampling.get("top_p", 1.0),
+    }
+    if system:
+        payload["messages"].insert(0, {"role": "system", "content": system})
+    for key in ("top_k", "frequency_penalty", "presence_penalty", "stop"):
+        if key in sampling:
+            payload[key] = sampling[key]
+    return payload
+
+
+def parse_response(provider: str, data: dict) -> str:
+    """Parse a provider-specific response into plain text.
+
+    Args:
+        provider: Provider name
+        data: Parsed JSON response dict
+
+    Returns:
+        Extracted text content
+    """
+    if provider == "gemini":
+        candidates = data.get("candidates", [])
+        if candidates:
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+            if parts:
+                return parts[0].get("text", "")
+        return ""
+    if provider == "ollama":
+        return data.get("message", {}).get("content", "")
+    # openai_compatible and others: OpenAI chat completions format
+    choices = data.get("choices", [])
+    if choices:
+        message = choices[0].get("message", {})
+        return message.get("content", "")
+    return ""
+
+
 __all__ = [
     "PROVIDER_CHOICES",
     "OPENAI_COMPATIBLE_PROVIDERS",
@@ -273,4 +367,6 @@ __all__ = [
     "resolve_base_url",
     "endpoint_for",
     "headers_for",
+    "build_payload",
+    "parse_response",
 ]

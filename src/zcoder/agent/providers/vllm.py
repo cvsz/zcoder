@@ -328,7 +328,7 @@ class VLLMProvider(BaseProviderAdapter):
                 text=text,
                 model=task["model"],
                 provider=self.provider,
-                error=result.error if result and not result.success else None,
+                error=result.error if result and not result.success else "",
             )
         if task["status"] == "failed":
             return AdapterResult(
@@ -344,7 +344,7 @@ class VLLMProvider(BaseProviderAdapter):
             text="",
             model=task["model"],
             provider=self.provider,
-            error=None,
+            error="",
         )
 
     def cancel_task(self, task_id: str) -> bool:
