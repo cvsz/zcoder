@@ -97,6 +97,29 @@ class TestLocalTokenEstimation:
         tokens = estimator.estimate(prompt, "claude-sonnet-5", tools=tools)
         assert tokens > estimator.estimate(prompt, "claude-sonnet-5")
 
+    def test_estimate_mixed_non_code_no_spurious_code_token(self):
+        """Non-code text (code_ratio=0.0) must not add a spurious code token.
+
+        Regression test: _estimate_mixed previously applied max(1, ...) to the
+        code slice even when code_chars was 0, inflating every non-code
+        estimate by exactly one token. Token estimates feed cost calculations,
+        so this must not silently over-quote.
+        """
+        from zcoder.agent.optimization.local_tokens import _estimate_mixed
+
+        estimator = LocalTokenEstimator()
+        prompt = "Hello world " * 100  # purely natural language, no code markers
+
+        # Direct unit check: no code slice => zero code-token contribution.
+        assert _estimate_mixed(prompt, code_ratio=0.0) == len(prompt) // 4
+        # A short non-code string still estimates at least one token.
+        assert _estimate_mixed("abc", code_ratio=0.0) == 1
+
+        # Integration check via the public estimator.
+        tokens = estimator.estimate(prompt, "claude-sonnet-5")
+        expected = len(prompt) // 4  # natural language: ~4 chars/token, no +1
+        assert tokens == expected, f"Expected {expected} (no spurious code token), got {tokens}"
+
 
 class TestTokenCounterIntegration:
     """Tests for integration with existing TokenCounter."""
