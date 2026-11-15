@@ -1,0 +1,75 @@
+# cordis.yml — ZCoder production deployment configuration (Phase 9)
+# Reference architecture: deepseek-harness cordis.yml
+# All values are validated at load time; missing required values fail loud.
+
+version: 1
+
+service:
+  name: zcoder
+  environment: production
+  host: 0.0.0.0
+  port: 8420
+  workers: 1
+
+inference:
+  provider: local
+  base_url: http://127.0.0.1:9801/v1
+  model: zcoder-flash
+  max_tokens: 4096
+  temperature: 0.3
+  local_mode: true
+
+model_sectors:
+  - name: zcoder-flash
+    model: zcoder-1.5b-q4km.gguf
+    host: 127.0.0.1
+    port: 9801
+    enabled: true
+  - name: zcoder-pro
+    model: zcoder-7b-q4km.gguf
+    host: 127.0.0.1
+    port: 9802
+    enabled: true
+  - name: zcoder-max
+    model: zcoder-9b-bf16.gguf
+    host: 127.0.0.1
+    port: 9803
+    enabled: true
+  - name: zcoder-promax
+    model: zcoder-27b.gguf
+    host: 127.0.0.1
+    port: 9804
+    enabled: false
+
+web:
+  api_key_required: true
+  allowed_hosts:
+    - localhost
+    - 127.0.0.1
+    - 192.168.1.85
+    - zcoder.zeaz.dev
+  cors_origins: []
+  rate_limit_per_min: 30
+
+session:
+  db_path: data/sessions.db
+  session_limit: 200
+
+logging:
+  level: INFO
+  format: json
+  path: logs/zcoder.log
+
+health:
+  deep_check_interval_sec: 300
+  model_call_timeout_sec: 8
+
+observability:
+  metrics_path: logs/metrics.jsonl
+  alert_on_error: true
+  alert_on_rate_limit: true
+
+security:
+  local_only: true
+  block_hosted_apis: true
+  config_file_permissions: 0600

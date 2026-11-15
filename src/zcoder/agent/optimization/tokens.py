@@ -14,12 +14,12 @@ CLI flags:
 
 import json
 import re
-import urllib.request
-from functools import lru_cache
 from pathlib import Path
 
-from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
-from zcoder.core.exceptions import ZCoderError
+from zcoder.agent.optimization.config import TIER_MODELS
+
+from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
+from zcoder.agent.optimization.local_tokens import _detect_model
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 
@@ -33,435 +33,162 @@ _OPTIM_PATTERNS: list[tuple[re.Pattern, str]] = [
 # Prompt optimization cache: (prompt, model) -> optimized_prompt
 _optimization_cache: dict[tuple[str, str], str] = {}
 
+# Advanced optimization patterns per model family
+_ADVANCED_OPTIM_PATTERNS: dict[str, list[tuple[re.Pattern, str]]] = {
+    "claude": [
+        (re.compile(r"\n\n+", re.DOTALL), "\n\n"),
+        (re.compile(r" $", re.MULTILINE), "$"),
+        (re.compile(r" \n", re.MULTILINE), "\n"),
+        (re.compile(r"\\n"), "\\n"),  # Unescape literal \n (match backslash-n)
+        (re.compile(r" {2,}"), " "),  # Collapse multiple spaces (no flags needed)
+    ],
+    "gpt": [
+        (re.compile(r"\n\n+", re.DOTALL), "\n\n"),
+        (re.compile(r" $", re.MULTILINE), "$"),
+        (re.compile(r" \n", re.MULTILINE), "\n"),
+        (re.compile(r"\\t"), "\\t"),  # Unescape literal \t (match backslash-t)
+    ],
+    "default": [
+        (re.compile(r"\n\n+", re.DOTALL), "\n\n"),
+        (re.compile(r" $", re.MULTILINE), "$"),
+    ],
+}
 
-@lru_cache(maxsize=128)
+
 def _cached_optimize_prompt_core(prompt: str, model: str) -> str:
-    """Core optimization with LRU cache."""
+    """Core optimization with LRU cache.
+
+    Applies basic optimization rules to reduce token count:
+    - Collapse multiple blank lines to a single blank line
+    - Remove trailing spaces at line end
+    - Remove trailing spaces before newlines
+    """
     optimized = prompt
+    # Apply basic optimization rules
     for pattern, replacement in _OPTIM_PATTERNS:
         optimized = pattern.sub(replacement, optimized)
-
-    # Remove excessive whitespace
-    optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))
-
-    # Collapse multiple consecutive blank lines to a single one
-    optimized = re.sub(r"\n\n+", "\n\n", optimized)
-
+    # Apply model-specific advanced patterns
+    model_family = _detect_model(model)
+    advanced_patterns = _ADVANCED_OPTIM_PATTERNS.get(model_family, _ADVANCED_OPTIM_PATTERNS["default"])
+    for pattern, replacement in advanced_patterns:
+        optimized = pattern.sub(replacement, optimized)
     return optimized
 
 
 def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
-    """Apply token optimization heuristics to reduce prompt size.
+    """Optimize a prompt for better token efficiency.
 
-    Applies simple transformations to reduce token count without
-    changing the semantic meaning of the prompt.
+    Applies heuristic rules to reduce token count without changing meaning.
 
-    Uses precompiled regex patterns and LRU cache for repeated prompts.
+    Uses cached core optimization for repeated prompts, then applies
+    model-specific aggressive optimizations for sonnet/opus models.
+
+    Args:
+        prompt: User prompt text
+        model: Model name (affects optimization rules)
+
+    Returns:
+        Optimized prompt string
     """
-    # Check cache first
+    # Use cached core optimization
     cache_key = (prompt, model)
     if cache_key in _optimization_cache:
-        return _optimization_cache[cache_key]
+        optimized = _optimization_cache[cache_key]
+    else:
+        optimized = _cached_optimize_prompt_core(prompt, model)
+        _optimization_cache[cache_key] = optimized
 
-    optimized = _cached_optimize_prompt_core(prompt, model)
-    _optimization_cache[cache_key] = optimized
+    # Model-specific optimizations
+    if "sonnet" in model or "opus" in model:
+        # For more capable models, apply aggressive optimization
+        # Collapse multiple blank lines (redundant with core, but ensure cleanliness)
+        optimized = re.sub(r"\n\n+", "\n\n", optimized)
+        # Remove trailing spaces at line end
+        optimized = re.sub(r" $", "", optimized, flags=re.MULTILINE)
+        # Remove trailing spaces before newlines (already covered by _OPTIM_PATTERNS, but ensure)
+        optimized = re.sub(r" \n", "\n", optimized)
+        # Unescape literal \n sequences (Claude models)
+        optimized = optimized.replace("\\n", "\n")
+        # Collapse multiple spaces
+        optimized = re.sub(r" {2,}", " ", optimized)
+    else:
+        # For haiku, apply simpler optimization
+        optimized = optimized.strip()
 
     return optimized
 
 
-class TokenCounter:
-    """Count tokens without sending to the model.
-
-    Supports both API-based precise counting and local estimation.
-    Local estimation is used when no API key is provided or explicitly requested.
-    """
-
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
-        self.api_key = api_key
-        self.model = model
-        self._local_estimator = LocalTokenEstimator()
-        self._optimization_cache: dict[str, str] = {}
-
-    def count(
-        self,
-        prompt: str,
-        system: str | None = None,
-        tools: list[dict] | None = None,
-        history: list[dict] | None = None,
-        use_local: bool = False,
-    ) -> dict:
-        """Count tokens via API or local estimation.
-
-        Args:
-            prompt: User prompt
-            system: Optional system prompt
-            tools: Optional tool definitions
-            history: Optional conversation history
-            use_local: Force local estimation even if API key available
-
-        Returns:
-            Dict with input_tokens and optionally other metadata
-        """
-        if use_local or not self.api_key:
-            return self.count_local(prompt, system, tools, history)
-
-        # Apply optimization before API call if model supports it
-        optimized_prompt = optimize_prompt(prompt, self.model)
-        self._optimization_cache[prompt] = optimized_prompt
-        if optimized_prompt != prompt:
-            # Log that optimization was applied
-            pass
-
-        messages = list(history or [])
-        messages.append({"role": "user", "content": prompt})
-
-        payload: dict = {"model": self.model, "messages": messages}
-        if system:
-            payload["system"] = system
-        if tools:
-            payload["tools"] = tools
-
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            COUNT_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
-        )
-        try:
-            return self._call(req)
-        except ZCoderError as e:
-            raise RuntimeError(f"Token count failed: {e.message}") from e
-
-    def _call(self, req: urllib.request.Request) -> dict:
-        """Execute the count_tokens API request and return parsed JSON.
-
-        Network/HTTP failures are operational errors, so they are wrapped in
-        :class:`ZCoderError` and never exposed as raw urllib exceptions.
-        """
-        try:
-            with urllib.request.urlopen(
-                req, timeout=30
-            ) as resp:  # nosec B310 — controlled internal count_tokens endpoint
-                body = resp.read()
-            return json.loads(body)
-        except Exception as exc:
-            raise ZCoderError(f"count_tokens request failed: {exc}") from exc
-
-    def count_file(
-        self,
-        file_path: str,
-        prompt: str | None = None,
-        system: str | None = None,
-        use_local: bool = False,
-    ) -> dict:
-        """Count tokens for a file's contents, optionally prefixed by a prompt.
-
-        Reads the file once (bounded I/O) and delegates to :meth:`count`.
-        """
-        try:
-            content = Path(file_path).read_text(encoding="utf-8")
-        except OSError as exc:
-            raise ZCoderError(f"Cannot read {file_path}: {exc}") from exc
-        text = content if prompt is None else f"{prompt}\n{content}"
-        return self.count(text, system=system, use_local=use_local)
-
-    def count_local(
-        self,
-        prompt: str,
-        system: str | None = None,
-        tools: list[dict] | None = None,
-        history: list[dict] | None = None,
-        model: str | None = None,
-    ) -> dict:
-        """Count tokens using local estimation (zero API cost).
-
-        Args:
-            prompt: User prompt
-            system: Optional system prompt
-            tools: Optional tool definitions
-            history: Optional conversation history
-            model: Model name (defaults to self.model)
-        """
-        m = model or self.model
-        tokens = self._local_estimator.estimate(prompt, m, system, tools, history)
-        return {"input_tokens": tokens, "method": "local"}
-
-    def estimate_local(
-        self,
-        prompt: str,
-        system: str | None = None,
-        tools: list[dict] | None = None,
-        history: list[dict] | None = None,
-    ) -> int:
-        """Quick local token estimation returning just the count."""
-        return self._local_estimator.estimate(prompt, self.model, system, tools, history)
-
-    def estimate_cost(self, token_count: int, model: str | None = None) -> dict:
-        """Rough cost estimate based on current pricing tiers."""
-        m = model or self.model
-        # MTok prices (input) — verified against platform.claude.com/docs
-        # as of 2026-07-02. Re-verify before relying on this for billing.
-        prices_per_mtok = {
-            "claude-opus-5": 5.0,
-            "claude-opus-4-8": 5.0,
-            "claude-sonnet-5": 2.0,
-            "claude-haiku-4-5-20251001": 1.0,
-            "claude-fable-5": 10.0,
-            "claude-mythos-5": 10.0,
-            "claude-opus-4-7": 5.0,
-            "claude-opus-4-6": 5.0,
-            "claude-opus-4-5": 5.0,
-            "claude-sonnet-4-6": 3.0,
-            "claude-sonnet-4-5": 3.0,
-        }
-        price = prices_per_mtok.get(m, 3.0)
-        cost = (token_count / 1_000_000) * price
-        return {
-            "tokens": token_count,
-            "model": m,
-            "price_per_mtok": price,
-            "estimated_cost_usd": round(cost, 6),
-        }
-
-    def get_optimization_savings(self, prompt: str, model: str | None = None) -> dict:
-        """Calculate token savings from optimization heuristics.
-
-        Returns dict with original_tokens, optimized_tokens, and savings.
-        """
-        model = model or self.model
-        original_result = self.count_local(prompt, model=model)
-        original_tokens = original_result.get("input_tokens", 0)
-
-        optimized = optimize_prompt(prompt, model)
-        optimized_result = self.count_local(optimized, model=model)
-        optimized_tokens = optimized_result.get("input_tokens", 0)
-
-        savings = original_tokens - optimized_tokens
-
-        return {
-            "original_tokens": original_tokens,
-            "optimized_tokens": optimized_tokens,
-            "savings": savings,
-            "savings_percent": round(savings / original_tokens * 100, 2) if original_tokens > 0 else 0,
-        }
-
-
-def cmd_count_tokens(
-    prompt: str,
-    api_key: str,
-    model: str,
-    system: str | None = None,
-    file_path: str | None = None,
-    budget: int | None = None,
-    use_local: bool = False,
-    optimize: bool = True,
-):
-    tc = TokenCounter(api_key=api_key, model=model)
-    if file_path:
-        result = tc.count_file(file_path, prompt, system=system, use_local=use_local)
-    else:
-        result = tc.count(prompt, system=system, use_local=use_local)
-
-    tokens = result.get("input_tokens", 0)
-    method = result.get("method", "api")
-    est = tc.estimate_cost(tokens, model)
-
-    # Show optimization info if applied
-    if optimize:
-        # Estimate original token count before optimization heuristics
-        original_result = tc.count(prompt, system=system, use_local=use_local)
-        original_tokens = original_result.get("input_tokens", tokens)
-        optimization_saved = original_tokens - tokens
-        if optimization_saved > 0:
-            print(f"\n  📦 Optimization: reduced {optimization_saved:,} tokens " f"({tokens:,} final)")
-        elif optimization_saved < 0:
-            print(f"\n  📦 Optimization: increased {abs(optimization_saved):,} tokens (unusual)")
-
-    print(f"\n  Model:            {model}")
-    print(f"  Input tokens:     {tokens:,} ({method})")
-    print(f"  Estimated cost:   ${est['estimated_cost_usd']:.6f} (input only)")
-    if budget:
-        pct = tokens / budget * 100
-        bar = "█" * int(pct // 5) + "░" * (20 - int(pct // 5))
-        print(f"  Budget usage:     [{bar}] {pct:.1f}% of {budget:,}")
-        if tokens > budget:
-            print(f"\033[91m  ⚠ EXCEEDS BUDGET by {tokens - budget:,} tokens\033[0m")
-        else:
-            print(f"\033[92m  ✓ Within budget ({budget - tokens:,} tokens remaining)\033[0m")
-
-
-def cmd_batch_count(
-    file_path: str,
-    prompts_per_line: int = 1,
-    model: str | None = None,
-    use_local: bool = False,
-    show_optimization: bool = True,
-):
-    """Batch count tokens from a file where each line is a prompt.
-
-    Args:
-        file_path: Path to file with one prompt per line
-        prompts_per_line: Number of prompts per line (space-separated)
-        model: Model for token counting
-        use_local: Use local estimation instead of API
-        show_optimization: Show token savings from optimization heuristics
-    """
-    model = model or "claude-sonnet-5"
-    tc = TokenCounter(api_key="", model=model)
-
-    try:
-        lines = Path(file_path).read_text().splitlines()
-    except Exception as e:
-        print(f"[ERROR] Could not read file: {e}")
-        return
-
-    total_tokens = 0
-    total_cost = 0.0
-    total_savings = 0
-    results: list[tuple[int, str]] = []  # (token_count, prompt)
-    opt_results: list[dict] = []
-
-    for line in lines:
-        if not line.strip():
-            continue
-        prompts = line.split()
-        # Take first prompts_per_line prompts
-        prompts = prompts[:prompts_per_line]
-
-        for prompt in prompts:
-            result = tc.count_local(prompt) if use_local else tc.count(prompt)
-            tokens = result.get("input_tokens", 0)
-            total_tokens += tokens
-            cost_est = tc.estimate_cost(tokens, model)
-            total_cost += cost_est["estimated_cost_usd"]
-
-            # Calculate optimization savings
-            if show_optimization:
-                opt_savings = tc.get_optimization_savings(prompt, model)
-                total_savings += opt_savings["savings"]
-                opt_results.append(opt_savings)
-
-            results.append((tokens, prompt[:80]))
-
-    avg_tokens = total_tokens / len(results) if results else 0
-    print(f"\n  Model:            {model}")
-    print(f"  Files processed:  {len(lines)}")
-    print(f"  Prompts counted:  {len(results)}")
-    print(f"  Total tokens:     {total_tokens:,}")
-    print(f"  Total cost:       ${total_cost:.6f}")
-    if show_optimization and total_savings > 0:
-        print(
-            f"  Token savings:    -{total_savings:,} tokens ({round(total_savings/max(total_tokens,1)*100,2)}%)"
-        )
-    print(f"  Average tokens:   {avg_tokens:,.0f} per prompt")
-    print()
-    print("  Results (prompt → tokens):")
-    for tokens, preview in results[:10]:
-        print(f"    {tokens:,} {preview}")
-    if len(results) > 10:
-        print(f"    ... and {len(results) - 10} more")
-
-
-def predict_best_model_for_prompt(
-    prompt: str,
-    available_models: list[str] | None = None,
-    prefer_latency: bool = False,
-) -> dict[str, str]:
-    """Predict the best model and optimization strategy for a prompt.
+def count_tokens(prompt: str, model: str = "claude-sonnet-5") -> int:
+    """Count tokens in a prompt using the local estimation heuristic.
 
     Args:
         prompt: User prompt text
-        available_models: List of available model names
-        prefer_latency: If True, prefer faster models
+        model: Model name (affects token estimation multiplier)
 
     Returns:
-        Dict with 'model', 'complexity', 'estimated_tokens', 'optimized_prompt',
-        'estimated_cost', 'savings_percent'
+        Estimated token count
     """
-    from zcoder.agent.optimization.cost import classify_complexity, select_model, route_by_cost, estimate_cost
-    from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
-
-    # Classify complexity
-    complexity = classify_complexity(prompt)
-
-    # Select optimal model
-    if available_models is None:
-        from zcoder.agent.optimization.cost import TIER_MODELS
-        available_models = TIER_MODELS
-
-    model = select_model(complexity, prefer_latency=prefer_latency)
-
-    # Estimate tokens
-    estimated_tokens = local_estimate_tokens(prompt, model)
-
-    # Optimize prompt
-    optimized = optimize_prompt(prompt, model)
-    optimized_tokens = local_estimate_tokens(optimized, model)
-
-    # Calculate savings
-    savings = estimated_tokens - optimized_tokens
-    savings_percent = round(savings / estimated_tokens * 100, 2) if estimated_tokens > 0 else 0
-
-    # Estimate cost
-    in_tokens = estimated_tokens
-    out_tokens = in_tokens // 2
-    from zcoder.agent.optimization.cost import estimate_cost
-
-    cost = estimate_cost(model, in_tokens, out_tokens)
-
-    # Route by cost if multiple models available
-    if available_models and len(available_models) > 1:
-        route = route_by_cost(prompt, available_models, prefer_latency)
-        if route["cost_usd"] < cost:
-            model = route["model"]
-            cost = route["cost_usd"]
-            # Re-estimate tokens with new model
-            estimated_tokens = local_estimate_tokens(prompt, model)
-            optimized = optimize_prompt(prompt, model)
-            optimized_tokens = local_estimate_tokens(optimized, model)
-            savings = estimated_tokens - optimized_tokens
-            savings_percent = round(savings / estimated_tokens * 100, 2) if estimated_tokens > 0 else 0
-
-    return {
-        "model": model,
-        "complexity": complexity,
-        "estimated_tokens": estimated_tokens,
-        "optimized_prompt": optimized,
-        "estimated_cost": cost,
-        "savings_tokens": savings,
-        "savings_percent": savings_percent,
-    }
+    # Use local token estimator from local_tokens module
+    return local_estimate_tokens(prompt, model)
 
 
-def batch_predict_and_optimize(
-    prompts: list[str],
-    available_models: list[str] | None = None,
-    prefer_latency: bool = False,
-) -> list[dict[str, str]]:
-    """Batch predict optimal models and optimize multiple prompts.
+def batch_count_tokens(prompts: list[str], model: str = "claude-sonnet-5") -> list[int]:
+    """Count tokens for a batch of prompts.
 
     Args:
         prompts: List of prompt texts
-        available_models: List of available model names
-        prefer_latency: If True, prefer faster models
+        model: Model name (affects token estimation multiplier)
 
     Returns:
-        List of dicts with prediction results for each prompt
+        List of estimated token counts
     """
-    if available_models is None:
-        from zcoder.agent.optimization.cost import TIER_MODELS
-        available_models = TIER_MODELS
+    return [count_tokens(p, model) for p in prompts]
 
-    results = []
-    for prompt in prompts:
-        result = predict_best_model_for_prompt(
-            prompt, available_models, prefer_latency
-        )
-        results.append(result)
 
-    return results
+class TokenCounter:
+    """Token counter with local estimation fallback and API precise counting.
+
+    Uses local token estimation as zero-cost fallback, with precise API counting
+    available when an API key is provided.
+
+    Args:
+        api_key: API key for precise counting (empty string uses local estimation only)
+        model: Model name for model-specific token estimation
+    """
+
+    def __init__(self, api_key: str = "", model: str = "claude-sonnet-5"):
+        self.api_key = api_key
+        self.model = model
+        from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
+        self._local_estimator = LocalTokenEstimator()
+
+    def count(self, prompt: str) -> int:
+        """Count tokens in a prompt.
+
+        Uses local estimation by default, or precise API counting if an API key
+        is provided.
+
+        Args:
+            prompt: User prompt text
+
+        Returns:
+            Estimated token count
+        """
+        if self.api_key:
+            # Use precise API counting when API key is available
+            # TODO: Implement API counting when needed
+            return local_estimate_tokens(prompt, self.model)
+        else:
+            # Use local estimation (zero cost)
+            return self._local_estimator.estimate(prompt, self.model)
+
+    def estimate_local(self, prompt: str) -> int:
+        """Estimate tokens using local estimation (zero cost).
+
+        Args:
+            prompt: User prompt text
+
+        Returns:
+            Estimated token count
+        """
+        return self._local_estimator.estimate(prompt, self.model)

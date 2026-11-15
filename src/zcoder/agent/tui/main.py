@@ -17,6 +17,8 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Header, Input, Label, Log, Static
 
 from zcoder.agent.communication import create_notification, get_registry
+from zcoder.agent.tui.panes import PaneManager, TUILayout
+from zcoder.agent.tui.collab import CollaborationState
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +76,13 @@ class CollaborationApp(App):
     def compose(self) -> ComposeResult:
         """Compose the UI layout."""
         yield Header()
-        with Vertical():
-            yield Label("ZCoder TUI - Phase 17 Collaboration", id="title")
-            yield Log(id="log", classes="log")
-            with Horizontal():
-                yield Label("Agents:", id="agents-label")
-                yield Static("No agents connected", id="agents-display", classes="agents-display")
-            yield Input(placeholder="Enter prompt...", id="prompt-input")
+        # Use TUILayout with pane manager for split-pane interface
+        layout = TUILayout(panes_config=[
+            {"id": "transcript", "label": "Transcript", "size": "60%", "collapsible": False},
+            {"id": "tools", "label": "Tools", "size": "20%", "collapsible": True},
+            {"id": "status", "label": "Status", "size": "20%", "collapsible": True},
+        ])
+        yield layout
         yield Footer()
 
     def action_toggle_collab(self) -> None:

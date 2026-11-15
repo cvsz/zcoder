@@ -42,6 +42,9 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Path to the multi-sector GGUF model config (same file used by scripts/model-server).
+MODELS_CONFIG_PATH = os.getenv("ZCODER_MODELS_CONFIG", str(ROOT / "config" / "models.yaml"))
+
 from zcoder.agent.personalities import PersonalityManager  # noqa: E402
 from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
@@ -50,6 +53,21 @@ from zcoder.core.health import run_health_check  # noqa: E402
 from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
 from zcoder.services.coder import Coder  # noqa: E402
 from zcoder.services.skills import SkillManager  # noqa: E402
+from zcoder.core.sqlite import sqlite_connection  # noqa: E402
+
+# Import model-server controller (same module used by scripts/model-server).
+sys.path.insert(0, str(ROOT / "scripts"))
+from model_server import (  # noqa: E402
+    load_config,
+    build_sectors,
+    sector_by_name,
+    start_sector,
+    stop_sector,
+    restart_sector,
+    status_sector,
+    health_ok,
+    ModelServerError,
+)
 
 logger = get_logger("webapp.server")
 
@@ -120,11 +138,105 @@ _personality_mgr = PersonalityManager()
 _skill_mgr = SkillManager()
 
 # In-memory multi-turn session store: {session_id: [{"role", "content"}, ...]}.
-# Process-local and non-persistent by design, same lifetime as the CLI's
-# `--interactive` REPL history -- just reachable over HTTP instead of a
-# terminal. Restarting the server clears all sessions.
+# Process-local cache; SQLite is the durable store so sessions survive restart.
 _sessions: dict[str, list[dict]] = {}
 _SESSION_LIMIT = 200  # oldest session dropped past this to bound memory
+
+# --- Session persistence (phase 3) -----------------------------------------
+
+SESSION_DB_PATH = os.getenv(
+    "ZCODER_SESSION_DB", str(ROOT / "data" / "sessions.db")
+)
+
+
+def _init_sessions_db() -> None:
+    """Create the sessions table if it does not exist."""
+    os.makedirs(os.path.dirname(SESSION_DB_PATH), exist_ok=True)
+    with sqlite_connection(SESSION_DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                history TEXT NOT NULL,
+                updated_at REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_updated_at "
+            "ON sessions(updated_at)"
+        )
+
+
+def _save_session_to_db(session_id: str, history: list[dict]) -> None:
+    """Persist one session to SQLite."""
+    import json as _json
+    with sqlite_connection(SESSION_DB_PATH) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO sessions (session_id, history, updated_at) "
+            "VALUES (?, ?, ?)",
+            (session_id, _json.dumps(history, ensure_ascii=False), time.time()),
+        )
+
+
+def _load_session_from_db(session_id: str) -> list[dict] | None:
+    """Load one session from SQLite, or None if not found."""
+    import json as _json
+    with sqlite_connection(SESSION_DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT history FROM sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return _json.loads(row[0])
+
+
+def _list_sessions_from_db() -> list[dict]:
+    """List all sessions from SQLite (id, preview, turns, updated_at)."""
+    import json as _json
+    with sqlite_connection(SESSION_DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT session_id, history, updated_at FROM sessions "
+            "ORDER BY updated_at DESC LIMIT ?",
+            (_SESSION_LIMIT,),
+        ).fetchall()
+    out = []
+    for sid, history_json, updated_at in rows:
+        history = _json.loads(history_json)
+        first_user = next(
+            (m["content"] for m in history if m.get("role") == "user"), ""
+        )
+        preview = (first_user[:80] + "…") if len(first_user) > 80 else first_user
+        out.append(
+            {
+                "session_id": sid,
+                "turns": len(history) // 2,
+                "preview": preview,
+                "updated_at": updated_at,
+            }
+        )
+    return out
+
+
+def _delete_session_from_db(session_id: str) -> None:
+    """Delete one session from SQLite."""
+    with sqlite_connection(SESSION_DB_PATH) as conn:
+        conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+
+
+# Load existing sessions from SQLite at startup.
+_init_sessions_db()
+try:
+    _db_sessions = _list_sessions_from_db()
+    for row in _db_sessions:
+        sid = row["session_id"]
+        history = _load_session_from_db(sid)
+        if history is not None:
+            _sessions[sid] = history
+except Exception:
+    # If SQLite is unavailable, start with empty in-memory store.
+    pass
 
 
 class ChatRequest(BaseModel):
@@ -181,13 +293,20 @@ _RATE_WINDOW = 60.0  # seconds
 _rate_buckets: dict[str, list[float]] = {}
 
 
-def _check_rate_limit(ip: str) -> None:
+def _check_rate_limit(request: Request) -> None:
     now = time.time()
-    bucket = [t for t in _rate_buckets.get(ip, []) if now - t < _RATE_WINDOW]
+    # Identify client by authenticated API key (per-user limit), falling back
+    # to IP for unauthenticated/dev access.
+    key = ""
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        key = auth.removeprefix("Bearer ").strip()
+    client_id = key or (request.client.host if request.client else "unknown")
+    bucket = [t for t in _rate_buckets.get(client_id, []) if now - t < _RATE_WINDOW]
     if len(bucket) >= _RATE_LIMIT:
         raise HTTPException(429, f"Rate limit exceeded ({_RATE_LIMIT}/min). Try again shortly.")
     bucket.append(now)
-    _rate_buckets[ip] = bucket
+    _rate_buckets[client_id] = bucket
 
 
 class _RejectRedirects(urllib.request.HTTPRedirectHandler):
@@ -195,6 +314,30 @@ class _RejectRedirects(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, request, file_pointer, code, message, headers, new_url):
         return None
+
+
+def _load_sectors() -> list[dict]:
+    """Load sectors from config/models.yaml (same source used by scripts/model-server)."""
+    try:
+        import yaml  # type: ignore
+    except Exception:
+        return []
+    try:
+        with open(MODELS_CONFIG_PATH, encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+    except (OSError, FileNotFoundError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    return data.get("sectors", []) or []
+
+
+def _sector_for_model(model_id: str) -> dict | None:
+    """Find a sector by name or alias."""
+    for sector in _load_sectors():
+        if sector.get("name") == model_id or sector.get("alias") == model_id:
+            return sector
+    return None
 
 
 def _local_model_endpoint(path: str) -> str:
@@ -215,6 +358,30 @@ def _local_model_endpoint(path: str) -> str:
     return f"{urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, prefix, '', ''))}/{path.lstrip('/')}"
 
 
+def _local_model_endpoint_for_model(model_id: str, path: str) -> str:
+    """Return the loopback endpoint for a specific model.
+
+    If the model is defined in config/models.yaml, use that sector's host:port.
+    Otherwise fall back to the ZCODER_BASE_URL environment variable.
+    """
+    sector = _sector_for_model(model_id)
+    if sector:
+        base_url = f"http://{sector.get('host', '127.0.0.1')}:{sector.get('port', 8080)}"
+    else:
+        base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080").strip().rstrip("/")
+    parsed = urllib.parse.urlsplit(base_url)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise HTTPException(503, "model endpoint must point to a local llama-server on loopback")
+    return f"{base_url}/v1/{path.lstrip('/')}"
+
+
 def _local_model_request(req: ChatRequest, history: list[dict], system: str | None, *, stream: bool):
     messages = list(history)
     if system:
@@ -228,7 +395,7 @@ def _local_model_request(req: ChatRequest, history: list[dict], system: str | No
         "stream": stream,
     }
     request = urllib.request.Request(
-        _local_model_endpoint("chat/completions"),
+        _local_model_endpoint_for_model(req.model, "chat/completions"),
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json", "Accept": "text/event-stream, application/json"},
         method="POST",
@@ -278,9 +445,168 @@ def get_health(deep: bool = False):
 
 
 @app.get("/api/models")
-def get_models():
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
-    return [{"id": model_id, "display_name": model_id, "tier": "local"}]
+def get_models(request: Request):
+    _require_auth(request)
+    sectors = _load_sectors()
+    models = []
+    for s in sectors:
+        if s.get("enabled", False):
+            models.append(
+                {
+                    "id": s["name"],
+                    "display_name": s.get("alias", s["name"]),
+                    "tier": "local",
+                    "port": s.get("port"),
+                    "host": s.get("host", "127.0.0.1"),
+                }
+            )
+    if not models:
+        model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+        models = [{"id": model_id, "display_name": model_id, "tier": "local"}]
+    return models
+
+
+# --- Model sector control (phase 1) ----------------------------------------
+
+class SectorAction(BaseModel):
+    action: str  # start | stop | restart | status | health
+
+
+def _get_sector_object(name: str):
+    cfg = load_config(MODELS_CONFIG_PATH)
+    sectors = build_sectors(cfg)
+    return sector_by_name(sectors, name), cfg
+
+
+@app.get("/api/model-sectors")
+def list_model_sectors(request: Request):
+    _require_auth(request)
+    cfg = load_config(MODELS_CONFIG_PATH)
+    sectors = build_sectors(cfg)
+    out = []
+    for s in sectors:
+        status_text = status_sector(s)
+        out.append(
+            {
+                "name": s.name,
+                "model": s.model,
+                "alias": s.alias,
+                "host": s.host,
+                "port": s.port,
+                "enabled": s.enabled,
+                "status": status_text,
+            }
+        )
+    return out
+
+
+@app.post("/api/model-sectors/{sector_name}/control")
+def control_model_sector(sector_name: str, action: SectorAction, request: Request):
+    _require_auth(request)
+    cfg = load_config(MODELS_CONFIG_PATH)
+    sectors = build_sectors(cfg)
+    sector = sector_by_name(sectors, sector_name)
+    start_timeout = int(cfg.get("start_timeout", 120))
+    stop_timeout = int(cfg.get("stop_timeout", 15))
+
+    act = action.action.strip().lower()
+    if act == "start":
+        start_sector(sector, start_timeout)
+        return {"ok": True, "action": "start", "sector": sector_name}
+    if act == "stop":
+        stop_sector(sector, stop_timeout)
+        return {"ok": True, "action": "stop", "sector": sector_name}
+    if act == "restart":
+        restart_sector(sector, start_timeout, stop_timeout)
+        return {"ok": True, "action": "restart", "sector": sector_name}
+    if act == "status":
+        return {"ok": True, "action": "status", "sector": sector_name, "status": status_sector(sector)}
+    if act == "health":
+        ok = health_ok(sector, timeout=3.0)
+        return {
+            "ok": ok,
+            "action": "health",
+            "sector": sector_name,
+            "healthy": ok,
+        }
+    raise HTTPException(400, f"Unknown action '{act}'. Use start|stop|restart|status|health")
+
+
+@app.get("/api/model-sectors/{sector_name}/status")
+def model_sector_status(sector_name: str, request: Request):
+    _require_auth(request)
+    sector, _cfg = _get_sector_object(sector_name)
+    return {"ok": True, "sector": sector_name, "status": status_sector(sector)}
+
+
+@app.get("/api/model-sectors/{sector_name}/health")
+def model_sector_health(sector_name: str, request: Request):
+    _require_auth(request)
+    sector, _cfg = _get_sector_object(sector_name)
+    ok = health_ok(sector, timeout=3.0)
+    return {"ok": ok, "sector": sector_name, "healthy": ok}
+
+
+# --- Model download (phase 2) ----------------------------------------------
+
+class ModelDownloadRequest(BaseModel):
+    url: str
+    filename: str | None = None
+
+
+@app.post("/api/models/download")
+def download_model(req: ModelDownloadRequest, request: Request):
+    """Download a GGUF model file from a URL into models_dir."""
+    _require_auth(request)
+    from zcoder.core.outbound_security import validate_external_http_url, safe_external_urlopen
+    from zcoder.core.security import validate_name
+
+    # Validate URL is http/https and not private (SSRF protection)
+    validate_external_http_url(req.url)
+
+    # Determine target filename
+    filename = req.filename or req.url.rsplit("/", 1)[-1]
+    if not filename:
+        raise HTTPException(400, "Cannot determine filename from URL")
+    # Basic safety: no path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(400, "Invalid filename")
+
+    cfg = load_config(MODELS_CONFIG_PATH)
+    models_dir = cfg.get("models_dir", "/zdata/models")
+    import os as _os
+    target_path = _os.path.join(models_dir, filename)
+    if _os.path.exists(target_path):
+        raise HTTPException(409, f"Model file '{filename}' already exists")
+
+    try:
+        with safe_external_urlopen(
+            urllib.request.Request(req.url, headers={"User-Agent": "zcoder-model-downloader"}),
+            timeout=300,
+        ) as resp:
+            total = 0
+            with open(target_path, "wb") as out_fh:
+                while True:
+                    chunk = resp.read(1024 * 1024)  # 1 MiB chunks
+                    if not chunk:
+                        break
+                    out_fh.write(chunk)
+                    total += len(chunk)
+    except Exception as exc:
+        # Clean up partial file
+        try:
+            if _os.path.exists(target_path):
+                _os.remove(target_path)
+        except OSError:
+            pass
+        raise HTTPException(502, f"Download failed: {exc}")
+
+    return {
+        "ok": True,
+        "filename": filename,
+        "path": target_path,
+        "bytes": total,
+    }
 
 
 @app.get("/api/personalities")
@@ -299,7 +625,8 @@ def get_agents():
 
 
 @app.get("/api/config")
-def get_config():
+def get_config(request: Request):
+    _require_auth(request)
     cfg = Config().all()
     return {"model": cfg.get("model"), "temperature": cfg.get("temperature")}
 
@@ -323,24 +650,17 @@ def list_sessions():
     """Lightweight index for a sessions sidebar — id, turn count, and a
     preview of the first user message, not full transcripts (use
     GET /api/sessions/{id} for that)."""
-    out = []
-    for sid, history in _sessions.items():
-        first_user = next((m["content"] for m in history if m["role"] == "user"), "")
-        out.append(
-            {
-                "session_id": sid,
-                "turns": len(history) // 2,
-                "preview": (first_user[:80] + "…") if len(first_user) > 80 else first_user,
-            }
-        )
-    return out
+    return _list_sessions_from_db()
 
 
 @app.get("/api/sessions/{session_id}")
 def get_session(session_id: str):
-    if session_id not in _sessions:
+    history = _load_session_from_db(session_id)
+    if history is None:
         raise HTTPException(404, "Unknown session_id")
-    return {"session_id": session_id, "history": _sessions[session_id]}
+    # Also populate in-memory cache for faster subsequent access.
+    _sessions[session_id] = history
+    return {"session_id": session_id, "history": history}
 
 
 @app.delete("/api/sessions/{session_id}")
@@ -350,6 +670,7 @@ def delete_session(
 ):
     _require_auth(request)
     _sessions.pop(session_id, None)
+    _delete_session_from_db(session_id)
     return {"ok": True}
 
 
@@ -361,7 +682,7 @@ def chat(
     _require_auth(request)
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(400, "prompt must not be empty")
-    _check_rate_limit(request.client.host if request.client else "unknown")
+    _check_rate_limit(request)
 
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
@@ -384,6 +705,7 @@ def chat(
         {"role": "assistant", "content": reply},
     ]
     _sessions[session_id] = history
+    _save_session_to_db(session_id, history)
     if len(_sessions) > _SESSION_LIMIT:
         _sessions.pop(next(iter(_sessions)), None)
 
@@ -395,6 +717,7 @@ def chat_stream(
     req: ChatRequest,
     request: Request,
 ):
+    _require_auth(request)
     """Server-Sent Events variant of /api/chat. Same request body and same
     session-history semantics; the difference is purely transport — tokens
     arrive as they're generated instead of after the full response. Reuses
@@ -411,7 +734,7 @@ def chat_stream(
     _require_auth(request)
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(400, "prompt must not be empty")
-    _check_rate_limit(request.client.host if request.client else "unknown")
+    _check_rate_limit(request)
 
     session_id = req.session_id or str(uuid.uuid4())
     history = _sessions.get(session_id, [])
@@ -419,6 +742,7 @@ def chat_stream(
 
     def event_stream():
         full_text = ""
+        tool_call_names: list[str] = []
         try:
             with _local_model_request(req, history, system, stream=True) as response:
                 for raw_line in response:
@@ -435,10 +759,17 @@ def chat_stream(
                     choices = event.get("choices") or []
                     if not choices:
                         continue
-                    delta = (choices[0].get("delta") or {}).get("content", "")
-                    if isinstance(delta, str) and delta:
-                        full_text += delta
-                        yield f"data: {json.dumps({'type': 'token', 'text': delta})}\n\n"
+                    delta = choices[0].get("delta") or {}
+                    # Report tool calls instead of silently dropping them.
+                    tc = delta.get("tool_calls") or []
+                    for call in tc:
+                        name = call.get("function", {}).get("name", "unknown")
+                        if name and name not in tool_call_names:
+                            tool_call_names.append(name)
+                    content = delta.get("content", "")
+                    if isinstance(content, str) and content:
+                        full_text += content
+                        yield f"data: {json.dumps({'type': 'token', 'text': content})}\n\n"
         except HTTPException as exc:
             public_message = (
                 "ZCODER_BASE_URL must point to a local llama-server on loopback"
@@ -452,11 +783,18 @@ def chat_stream(
             yield f"data: {json.dumps({'type': 'error', 'message': 'Upstream provider request failed'})}\n\n"
             return
 
+        # If the model only asked for tool calls (no text), tell the user.
+        if tool_call_names and not full_text:
+            names = ", ".join(tool_call_names)
+            yield f"data: {json.dumps({'type': 'token', 'text': f'[โมเดลต้องการเรียกเครื่องมือ: {names} แต่เว็บอินเทอร์เฟซยังไม่รองรับการเรียกเครื่องมือ กรุณาลองใหม่ด้วยคำสั่งทั่วไป]'})}\n\n"
+            full_text = f"[โมเดลต้องการเรียกเครื่องมือ: {names} แต่เว็บอินเทอร์เฟซยังไม่รองรับการเรียกเครื่องมือ กรุณาลองใหม่ด้วยคำสั่งทั่วไป]"
+
         new_history = history + [
             {"role": "user", "content": req.prompt},
             {"role": "assistant", "content": full_text},
         ]
         _sessions[session_id] = new_history
+        _save_session_to_db(session_id, new_history)
         if len(_sessions) > _SESSION_LIMIT:
             _sessions.pop(next(iter(_sessions)), None)
         yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'model': req.model})}\n\n"
@@ -477,6 +815,8 @@ def _admin_metrics() -> dict:
     """Executive dashboard KPIs and telemetry — computed from runtime state,
     not hardcoded placeholder values."""
     health = run_health_check(deep=False)
+    sectors = _load_sectors()
+    enabled_models = [s for s in sectors if s.get("enabled")]
     model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
     return {
         "total_tasks": 0,
@@ -487,7 +827,7 @@ def _admin_metrics() -> dict:
         "completed_tasks": 0,
         "failed_tasks": 0,
         "pending_approvals": 0,
-        "local_models_available": 1,
+        "local_models_available": len(enabled_models),
         "configured_model": model_id,
         "provider_availability": "healthy" if health.healthy else "degraded",
         "api_health": "operational",
@@ -536,18 +876,39 @@ def admin_models_catalog(request: Request):
 
 def _admin_models_catalog() -> list[dict]:
     """Model catalog with lifecycle states."""
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
-    return [
-        {
-            "id": model_id,
-            "family": "Qwen 2.5 Coder",
-            "provider": "local",
-            "quantization": "Q4_K_M",
-            "context_length": 4096,
-            "status": "LOADED",
-            "lifecycle": "CATALOG → DISCOVERED → DOWNLOADED → VERIFIED → LOADABLE → LOADED",
-        }
-    ]
+    sectors = _load_sectors()
+    catalog = []
+    for s in sectors:
+        model_file = s.get("model", "")
+        quantization = model_file.split("-")[-1].replace(".gguf", "") if "-" in model_file else "unknown"
+        catalog.append(
+            {
+                "id": s["name"],
+                "family": "ZCoder GGUF",
+                "provider": "local",
+                "quantization": quantization,
+                "context_length": s.get("ctx_size", 4096),
+                "status": "LOADED" if s.get("enabled") else "STOPPED",
+                "lifecycle": "CATALOG → DISCOVERED → DOWNLOADED → VERIFIED → LOADABLE → LOADED",
+                "port": s.get("port"),
+                "host": s.get("host", "127.0.0.1"),
+                "enabled": s.get("enabled", False),
+            }
+        )
+    if not catalog:
+        model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+        catalog = [
+            {
+                "id": model_id,
+                "family": "Qwen 2.5 Coder",
+                "provider": "local",
+                "quantization": "Q4_K_M",
+                "context_length": 4096,
+                "status": "LOADED",
+                "lifecycle": "CATALOG → DISCOVERED → DOWNLOADED → VERIFIED → LOADABLE → LOADED",
+            }
+        ]
+    return catalog
 
 
 @app.get("/api/admin/tasks")
@@ -599,19 +960,31 @@ def get_health_v2(deep: bool = False):
 
 
 @app.get("/api/v2/models")
-def get_models_v2():
-    model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
-    return {
-        "api_version": "v2",
-        "models": [
+def get_models_v2(request: Request):
+    _require_auth(request)
+    sectors = _load_sectors()
+    models = []
+    for s in sectors:
+        if s.get("enabled", False):
+            models.append(
+                {
+                    "id": s["name"],
+                    "display_name": s.get("alias", s["name"]),
+                    "tier": "local",
+                    "context_window": s.get("ctx_size", 4096),
+                }
+            )
+    if not models:
+        model_id = os.getenv("ZCODER_MODEL", "qwen-7b-q4km").strip()
+        models = [
             {
                 "id": model_id,
                 "display_name": "Qwen 2.5 Coder 7B Q4_K_M",
                 "tier": "local",
                 "context_window": 4096,
             }
-        ],
-    }
+        ]
+    return {"api_version": "v2", "models": models}
 
 
 @app.get("/api/v2/admin/metrics")

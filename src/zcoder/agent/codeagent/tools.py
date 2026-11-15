@@ -845,6 +845,11 @@ def _exit_worktree(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     return ToolOutput(ws.exit_worktree())
 
 
+def _finish(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Signal that the current task is complete and no further tool calls are needed."""
+    return ToolOutput("Task finished. No further action required.")
+
+
 def _obj(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required}
 
@@ -1068,6 +1073,13 @@ def default_tools() -> dict[str, Tool]:
             _obj({}, []),
             "meta",
             _exit_worktree,
+        ),
+        Tool(
+            "finish",
+            "Signal that the current task is complete and no further tool calls are needed.",
+            _obj({}, []),
+            "meta",
+            _finish,
         ),
     ]
     return {t.name: t for t in tools}

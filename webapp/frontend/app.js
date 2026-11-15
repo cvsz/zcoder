@@ -1,6 +1,6 @@
 const el=(id)=>document.getElementById(id);
-const state={sessionId:null,busy:false,apiBase:"",online:false};
-const ids=["transcript","chatForm","promptInput","sendBtn","modelSelect","personalitySelect","agentSelect","skillSelect","tempRange","tempVal","systemPrompt","newSessionBtn","sessionIdTag","healthText","streamToggle","sessionList","sessionCount","connectionPill","connectionLabel","connectionDialog","apiBaseInput","openConnectionBtn","heroConnectBtn","connectionForm","clearApiBtn","themeToggle","modelMetric","agentMetric","skillMetric","versionMetric"];
+const state={sessionId:null,busy:false,apiBase:"",online:false,sectorStatus:{}};
+const ids=["transcript","chatForm","promptInput","sendBtn","modelSelect","personalitySelect","agentSelect","skillSelect","tempRange","tempVal","systemPrompt","newSessionBtn","sessionIdTag","healthText","streamToggle","sessionList","sessionCount","connectionPill","connectionLabel","connectionDialog","apiBaseInput","apiKeyInput","openConnectionBtn","heroConnectBtn","connectionForm","clearApiBtn","themeToggle","modelMetric","agentMetric","skillMetric","versionMetric"];
 const ui=Object.fromEntries(ids.map(id=>[id,el(id)]));
 
 function isPages(){return location.hostname.endsWith("github.io")}
@@ -24,12 +24,12 @@ applyTheme(localStorage.getItem("zcoder-theme")||"dark");
 ui.themeToggle.addEventListener("click",()=>applyTheme(document.documentElement.dataset.theme==="light"?"dark":"light"));
 
 function setConnection(online,message){state.online=online;ui.connectionPill.classList.toggle("online",online);ui.connectionLabel.textContent=message;ui.healthText.textContent=online?"backend healthy":"backend unavailable"}
-function openConnection(){ui.apiBaseInput.value=state.apiBase;$('#connectionDialog').modal('show')}
+function openConnection(){ui.apiBaseInput.value=state.apiBase;ui.apiKeyInput.value=localStorage.getItem("zcoder-web-api-key")||"";$('#connectionDialog').modal('show')}
 ui.openConnectionBtn.addEventListener("click",openConnection);ui.heroConnectBtn.addEventListener("click",openConnection);
 ui.clearApiBtn.addEventListener("click",()=>{state.apiBase="";localStorage.removeItem("zcoder-api-base");ui.apiBaseInput.value=""});
-ui.connectionForm.addEventListener("submit",async(e)=>{e.preventDefault();try{state.apiBase=normalizeApiBase(ui.apiBaseInput.value);if(state.apiBase)localStorage.setItem("zcoder-api-base",state.apiBase);else localStorage.removeItem("zcoder-api-base");$('#connectionDialog').modal('hide');await bootstrap()}catch(err){alert(err.message)}});
+ui.connectionForm.addEventListener("submit",async(e)=>{e.preventDefault();try{state.apiBase=normalizeApiBase(ui.apiBaseInput.value);if(state.apiBase)localStorage.setItem("zcoder-api-base",state.apiBase);else localStorage.removeItem("zcoder-api-base");const key=ui.apiKeyInput.value.trim();if(key)localStorage.setItem("zcoder-web-api-key",key);else localStorage.removeItem("zcoder-web-api-key");$('#connectionDialog').modal('hide');await bootstrap()}catch(err){alert(err.message)}});
 
-async function request(path,options={}){const res=await fetch(apiUrl(path),{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||`${path} → HTTP ${res.status}`);return data}
+async function request(path,options={}){const headers={"Content-Type":"application/json",...(options.headers||{})};const key=localStorage.getItem("zcoder-web-api-key");if(key)headers["Authorization"]=`Bearer ${key}`;const res=await fetch(apiUrl(path),{...options,headers});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||`${path} → HTTP ${res.status}`);return data}
 const getJSON=(path)=>request(path);
 const postJSON=(path,body)=>request(path,{method:"POST",body:JSON.stringify(body)});
 
@@ -46,7 +46,13 @@ function setBusy(v){state.busy=v;ui.sendBtn.disabled=v;ui.sendBtn.textContent=v?
 function fillSelect(select,items,valueKey="name",label=(x)=>x.name){const keep=select.querySelector('option[value=""]');select.innerHTML="";if(keep)select.appendChild(keep);items.forEach(item=>{const o=document.createElement("option");o.value=item[valueKey];o.textContent=label(item);select.appendChild(o)})}
 async function loadCapabilities(){
   const [version,models,agents,skills,personalities]=await Promise.all([getJSON("/version"),getJSON("/models"),getJSON("/agents"),getJSON("/skills"),getJSON("/personalities")]);
-  fillSelect(ui.modelSelect,models,"id",m=>`${m.display_name}${m.tier?` · ${m.tier}`:""}`);fillSelect(ui.agentSelect,agents);fillSelect(ui.skillSelect,skills);fillSelect(ui.personalitySelect,personalities);
+  // Fetch sector status and merge into models for badge display.
+  try{
+    const sectors=await getJSON("/api/model-sectors");
+    sectors.forEach(s=>{state.sectorStatus[s.name]=s.status.includes("running")?"running":"stopped";});
+  }catch{/* sectors endpoint may not exist on older backends */}
+  fillSelect(ui.modelSelect,models,"id",m=>{const st=state.sectorStatus[m.id]||"unknown";const badge=st==="running"?"🟢":st==="stopped"?"🔴":"⚪";return `${m.display_name}${m.tier?` · ${m.tier}`:""} ${badge}`});
+  fillSelect(ui.agentSelect,agents);fillSelect(ui.skillSelect,skills);fillSelect(ui.personalitySelect,personalities);
   ui.modelMetric.textContent=models.length;ui.agentMetric.textContent=agents.length;ui.skillMetric.textContent=skills.length;ui.versionMetric.textContent=`v${version.version}`;
 }
 async function refreshSessions(){try{const sessions=await getJSON("/sessions");ui.sessionCount.textContent=sessions.length;ui.sessionList.innerHTML="";if(!sessions.length){ui.sessionList.innerHTML='<div class="empty-state text-muted small p-2">No live sessions yet.</div>';return}sessions.forEach(s=>{const item=document.createElement("div");item.className=`session-item${s.session_id===state.sessionId?" active":""}`;item.innerHTML=`<b>${escapeHtml(s.preview||"Untitled session")}</b><small>${s.session_id.slice(0,8)} · ${s.turns} turns</small>`;item.onclick=()=>loadSession(s.session_id);ui.sessionList.appendChild(item)})}catch{}}
@@ -54,11 +60,12 @@ async function loadSession(id){try{const data=await getJSON(`/sessions/${id}`);s
 function newSession(){state.sessionId=null;ui.sessionIdTag.textContent="session:new";ui.transcript.innerHTML='<div class="welcome-card text-center" style="max-width:760px;margin:2rem auto;"><span class="mini-mark" style="width:52px;height:52px;border-radius:15px;background:var(--accent,#b8ff65);color:#07110d;font-weight:900;display:grid;place-items:center;margin:auto;font-size:24px;">Z</span><h3 class="mt-3 mb-2 text-light">New engineering session.</h3><p class="text-muted small line-height:1.65;font-size:14px;">Choose a configuration and describe the bounded task you want ZCoder to execute.</p></div>';refreshSessions()}
 
 function payload(){return{prompt:ui.promptInput.value.trim(),session_id:state.sessionId,model:ui.modelSelect.value,temperature:Number(ui.tempRange.value),system:ui.systemPrompt.value.trim()||null,personality:ui.personalitySelect.value||null,agent:ui.agentSelect.value||null,skill:ui.skillSelect.value||null}}
-async function runNonStreaming(body){const data=await postJSON("/chat",body);state.sessionId=data.session_id;ui.sessionIdTag.textContent=`session:${data.session_id.slice(0,8)}`;addMessage("assistant",data.response,`${data.model} · completed`)}
+async function runNonStreaming(body){const data=await postJSON("/chat",body);state.sessionId=data.session_id;ui.sessionIdTag.textContent=`session:${data.session_id.slice(0,8)}`;const text=data.response||"";if(!text.trim()){addMessage("assistant","[โมเดลไม่คืนคำตอบ กรุณาลองใหม่]","⚠");return}addMessage("assistant",text,`${data.model} · completed`)}
 async function runStreaming(body){
   const res=await fetch(apiUrl("/chat/stream"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});if(!res.ok){const data=await res.json().catch(()=>({}));throw new Error(data.detail||`stream → HTTP ${res.status}`)}
   const bubble=addMessage("assistant","");let full="",buffer="";const reader=res.body.getReader(),decoder=new TextDecoder();
   while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const frames=buffer.split("\n\n");buffer=frames.pop()||"";for(const frame of frames){for(const line of frame.split("\n")){if(!line.startsWith("data:"))continue;const event=JSON.parse(line.slice(5).trim());if(event.type==="token"){full+=event.text||"";renderLite(bubble,full)}else if(event.type==="done"){state.sessionId=event.session_id;ui.sessionIdTag.textContent=`session:${event.session_id.slice(0,8)}`}else if(event.type==="error")throw new Error(event.message||"stream failed")}}}
+  if(!full.trim()){renderLite(bubble,"[โมเดลไม่คืนคำตอบ กรุณาลองใหม่]");}
 }
 ui.chatForm.addEventListener("submit",async(e)=>{e.preventDefault();if(state.busy)return;if(!state.online){openConnection();return}const body=payload();if(!body.prompt)return;addMessage("user",body.prompt);ui.promptInput.value="";setBusy(true);try{ui.streamToggle.checked?await runStreaming(body):await runNonStreaming(body);await refreshSessions()}catch(err){addMessage("error",err.message||String(err))}finally{setBusy(false);ui.promptInput.focus()}});
 ui.promptInput.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ui.chatForm.requestSubmit()}});ui.tempRange.addEventListener("input",()=>ui.tempVal.textContent=Number(ui.tempRange.value).toFixed(2));
@@ -67,5 +74,7 @@ document.querySelectorAll(".starter").forEach(btn=>btn.addEventListener("click",
 async function bootstrap(){
   setConnection(false,"API offline");if(isPages()&&!state.apiBase){ui.connectionLabel.textContent="Connect backend";return}
   try{await getJSON("/health");setConnection(true,"API connected");await Promise.all([loadCapabilities(),refreshSessions()])}catch(err){setConnection(false,"API unreachable");console.warn("ZCoder backend connection failed",err)}
+  // Refresh model sector status every 30 seconds so badges stay accurate.
+  setInterval(async()=>{try{const sectors=await getJSON("/api/model-sectors");sectors.forEach(s=>{state.sectorStatus[s.name]=s.status.includes("running")?"running":"stopped";});}catch{}},30000);
 }
 bootstrap();

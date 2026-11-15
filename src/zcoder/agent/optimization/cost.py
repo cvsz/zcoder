@@ -22,53 +22,47 @@ module instead of folded into local estimation here.
 """
 
 import json
-import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import requests
-
 from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
 from zcoder.agent.optimization.tokens import optimize_prompt
+
+# Model context windows (tokens) - per platform.claude.com/docs/en/about-claude/
+# models/overview as of 2026-07-02, re-verified 2026-08-13.
+MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    "claude-haiku-4-5-20251001": 200_000,
+    "claude-sonnet-5": 1_000_000,
+    "claude-opus-5": 1_000_000,
+    "claude-sonnet-4-6": 1_000_000,
+    "claude-sonnet-4-5": 1_000_000,  # via context-1m beta
+    "claude-opus-4-8": 1_000_000,
+    "claude-opus-4-7": 1_000_000,
+    "claude-opus-4-6": 1_000_000,
+    "claude-opus-4-5": 1_000_000,
+    "claude-fable-5": 1_000_000,
+    "claude-mythos-5": 1_000_000,
+    # OpenAI models
+    "gpt-4": 8_192,
+    "gpt-4o": 128_000,
+    "gpt-4-turbo": 128_000,
+    "gpt-3.5-turbo": 16_000,
+    # Default for unmapped models
+    "default": 200_000,
+}
+LEGACY_CONTEXT_WINDOW = 200_000
+
+
+def context_window(model: str) -> int:
+    """Best-known context window (tokens) for ``model``; 200K when unmapped."""
+    return MODEL_CONTEXT_WINDOWS.get(model, LEGACY_CONTEXT_WINDOW)
 from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
-
-# Thread-safe cost log cache
-_cost_lock = threading.Lock()
-_cost_cache: dict = {}
-_cache_ttl = 300  # 5 minutes TTL for cost cache
-
-# Connection pool for HTTP API requests
-_connection_pool: requests.Session | None = None
-
-
-def get_connection_pool() -> requests.Session:
-    """Get or create a thread-safe HTTP connection pool."""
-    global _connection_pool
-    if _connection_pool is None:
-        _connection_pool = requests.Session()
-        # Configure connection pool settings
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=10,
-            pool_maxsize=10,
-            max_retries=3,
-        )
-        _connection_pool.mount("https://", adapter)
-        _connection_pool.mount("http://", adapter)
-    return _connection_pool
-
-
-def release_connection_pool() -> None:
-    """Release the connection pool resources."""
-    global _connection_pool
-    if _connection_pool is not None:
-        _connection_pool.close()
-        _connection_pool = None
 
 
 # ── Response Cache with TTL ──────────────────────────────────────────────
@@ -459,8 +453,12 @@ def predict_best_model(
     if available_models is None:
         available_models = TIER_MODELS
 
-    # Estimate token count for standard complexity assessment
-    estimated_tokens = local_estimate_tokens("sample prompt", "claude-sonnet-5")
+    # Estimate token count using the actual prompt if provided, otherwise use a standard sample
+    if complexity_or_prompt is not None:
+        estimated_tokens = local_estimate_tokens(complexity_or_prompt, "claude-sonnet-5")
+    else:
+        # Cached sample estimation for complexity assessment without prompt
+        estimated_tokens = local_estimate_tokens("sample prompt", "claude-sonnet-5")
 
     # Select optimal model
     if prefer_latency:
@@ -481,6 +479,8 @@ def predict_best_model(
             if alt_cost < cost * 0.7:
                 model = alt_model
                 cost = alt_cost
+                # Reset complexity for new model since pricing tiers differ
+                complexity = "medium"
 
     return {
         "model": model,
@@ -514,12 +514,12 @@ def route_by_cost(
     # Classify prompt complexity
     complexity = classify_complexity(prompt)
 
-    # Predict best model
+    # Predict best model with actual prompt for token estimation
     prediction = predict_best_model(
-        complexity_or_prompt=None, complexity=complexity, available_models=available_models, prefer_latency=prefer_latency
+        complexity_or_prompt=prompt, complexity=None, available_models=available_models, prefer_latency=prefer_latency
     )
 
-    # Estimate token counts
+    # Use predicted model's token estimation
     in_tokens = local_estimate_tokens(prompt, prediction["model"])
     out_tokens = in_tokens // 2  # Rough estimate for output
 
@@ -585,12 +585,16 @@ def forecast_spend(
             "total": cost * count,
         }
 
+    # Compute average after we know total prompts with valid entries
+    valid_count = sum(1 for c in complexity_distribution.values() if c > 0)
+    avg_cost = round(total_cost / num_prompts, 6) if num_prompts > 0 else 0.0
+
     return {
         "total_forecasted_cost": round(total_cost, 6),
         "total_prompts": num_prompts,
         "model": model,
         "breakdown": breakdown,
-        "average_cost_per_prompt": round(total_cost / num_prompts, 6) if num_prompts > 0 else 0.0,
+        "average_cost_per_prompt": avg_cost,
     }
 
 
