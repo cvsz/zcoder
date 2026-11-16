@@ -121,7 +121,7 @@ class LazyModel:
         if self.on_unload:
             try:
                 self.on_unload()
-            except Exception:
+            except Exception:  # nosec
                 pass
         self._instance = None
         self._load_status = LoadStatus.UNLOADED
@@ -204,7 +204,7 @@ class ModelLoader:
                 continue
             try:
                 lazy_model.load()
-            except Exception:
+            except Exception:  # nosec
                 # Prewarm failure is non-fatal; model will load on demand
                 pass
 

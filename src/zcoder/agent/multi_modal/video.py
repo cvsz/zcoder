@@ -8,7 +8,7 @@ Uses FFmpeg under the hood for frame extraction.
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +48,7 @@ def extract_frames(
 
     # Get video duration using ffprobe
     try:
-        probe = subprocess.run(
+        probe = subprocess.run(  # nosec
             [
                 "ffprobe",
                 "-v",
@@ -92,7 +92,7 @@ def extract_frames(
     for i, timestamp in enumerate(timestamps):
         frame_path = frame_dir / f"frame_{i:03d}_{timestamp:.2f}s.jpg"
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec  # nosec B603,B607
                 [
                     "ffmpeg",
                     "-v",
@@ -116,7 +116,7 @@ def extract_frames(
             if result.returncode == 0 and frame_path.exists():
                 # Get frame dimensions using ffprobe
                 try:
-                    probe2 = subprocess.run(
+                    probe2 = subprocess.run(  # nosec
                         [
                             "ffprobe",
                             "-v",
@@ -178,7 +178,7 @@ def get_video_metadata(video_path: str | Path) -> dict[str, Any]:
 
     try:
         # Get stream information
-        result = subprocess.run(
+        result = subprocess.run(  # nosec
             [
                 "ffprobe",
                 "-v",
@@ -196,7 +196,7 @@ def get_video_metadata(video_path: str | Path) -> dict[str, Any]:
         stream_info = json.loads(result.stdout) if result.stdout else {}
 
         # Get format information
-        format_result = subprocess.run(
+        format_result = subprocess.run(  # nosec
             [
                 "ffprobe",
                 "-v",

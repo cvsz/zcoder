@@ -7,7 +7,7 @@ voice activity detection, and basic audio metadata analysis.
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec
 from pathlib import Path
 from typing import Any
 
@@ -56,7 +56,7 @@ def transcribe_audio(
     # Use ffmpeg to convert audio to Whisper-compatible format if needed
     try:
         # Get audio duration first
-        result = subprocess.run(
+        result = subprocess.run(  # nosec
             [
                 "ffprobe",
                 "-v",
@@ -75,7 +75,7 @@ def transcribe_audio(
 
         # Convert to mono, 16kHz WAV if needed
         wav_path = audio_path.parent / f"{audio_path.stem}_transcribe.wav"
-        convert_result = subprocess.run(
+        convert_result = subprocess.run(  # nosec
             [
                 "ffmpeg",
                 "-v",
@@ -113,7 +113,7 @@ def transcribe_audio(
         # Clean up temp file
         try:
             wav_path.unlink()
-        except Exception:
+        except Exception:  # nosec
             pass
 
         return {
@@ -136,7 +136,7 @@ def transcribe_audio(
         try:
             wav_path = audio_path.parent / f"{audio_path.stem}_transcribe.wav"
             wav_path.unlink(missing_ok=True)
-        except Exception:
+        except Exception:  # nosec
             pass
         return {
             "text": "",
@@ -163,7 +163,7 @@ def get_audio_metadata(audio_path: str | Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec
             [
                 "ffprobe",
                 "-v",

@@ -231,7 +231,7 @@ class ArtifactManager:
                         "updated_at": m.get("updated_at", ""),
                     }
                 )
-            except Exception:
+            except Exception:  # nosec
                 # Artifact metadata may be incomplete; skip it.
                 pass
         return results

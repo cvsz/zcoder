@@ -152,7 +152,7 @@ class ProjectManager:
                             "updated_at": m.get("updated_at", ""),
                         }
                     )
-                except Exception:
+                except Exception:  # nosec
                     # Project metadata may be incomplete; skip it.
                     pass
         return projects

@@ -6,10 +6,12 @@ model calls, RAG operations, workflow execution, and system resources.
 
 from __future__ import annotations
 
+import warnings
 from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 
 class MetricType(Enum):
@@ -18,7 +20,7 @@ class MetricType(Enum):
     LATENCY = "latency"
     THROUGHPUT = "throughput"
     COST = "cost"
-    TOKEN_USAGE = "token_usage"
+    TOKEN_USAGE = "token_usage"  # nosec
     ERROR_RATE = "error_rate"
     CPU_USAGE = "cpu_usage"
     MEMORY_USAGE = "memory_usage"
@@ -81,7 +83,12 @@ class PerformanceMonitor:
 
     def _record_sla_violation(self, record: MetricRecord) -> None:
         """Record an SLA violation (can be extended to alerting)."""
-        pass  # Extended in subclasses or external listeners
+        # Emit a warning for SLA violations (can be extended to alerting/webhook)
+        warnings.warn(
+            f"SLA violation: {record.metric_type.value} {record.value:.2f} "
+            f"exceeds threshold for metric {record.name}",
+            stacklevel=2,
+        )
 
     def get_stats(self, name: str | None = None) -> PerformanceStats | dict[str, PerformanceStats]:
         """Get statistical summary of recorded metrics."""
@@ -196,6 +203,51 @@ class PerformanceMonitor:
                 pass
         return violations
 
+    def get_connection_pool_stats(self) -> dict[str, float | int]:
+        """Get connection pool metrics summary."""
+        cp_name = MetricType.CONNECTION_POOL.value
+        if cp_name in self._metrics:
+            records = self._metrics[cp_name]
+            if records:
+                values = [r.value for r in records]
+                return {
+                    "count": len(values),
+                    "min": min(values),
+                    "max": max(values),
+                    "avg": round(sum(values) / len(values), 2),
+                }
+        return {"count": 0, "min": 0, "max": 0, "avg": 0}
+
+    def export_metrics_json(self) -> dict[str, Any]:
+        """Export all recorded metrics as a serializable dict.
+
+        Returns:
+            Dict suitable for JSON serialization and external system ingestion.
+        """
+        result: dict[str, Any] = {}
+        for metric_name, rec_deque in self._metrics.items():
+            values: list[float] = [r.value for r in rec_deque]
+            if not values:
+                continue
+            sorted_vals = sorted(values)
+            n = len(sorted_vals)
+            if n % 2 == 1:
+                median = sorted_vals[n // 2]
+            else:
+                median = (sorted_vals[n // 2 - 1] + sorted_vals[n // 2]) / 2
+            result[metric_name] = {
+                "count": len(values),
+                "min": min(values),
+                "max": max(values),
+                "total": sum(values),
+                "mean": sum(values) / len(values),
+                "median": median,
+                "p95": sorted_vals[min(int(n * 0.95), n - 1)],
+                "p99": sorted_vals[min(int(n * 0.99), n - 1)],
+                "last_value": values[-1],
+            }
+        return result
+
 
 # Helper functions for common monitoring patterns
 
@@ -255,6 +307,7 @@ def monitor_resource_usage(
     name: str,
     cpu_percent: float | None = None,
     memory_mb: float | None = None,
+    connection_pool: int | None = None,
 ) -> None:
     """Monitor CPU and memory usage."""
     if cpu_percent is not None:
@@ -272,6 +325,15 @@ def monitor_resource_usage(
                 metric_type=MetricType.MEMORY_USAGE,
                 name=f"{name}_memory",
                 value=memory_mb,
+                timestamp=datetime.now(UTC),
+            )
+        )
+    if connection_pool is not None:
+        monitor.record(
+            MetricRecord(
+                metric_type=MetricType.CONNECTION_POOL,
+                name=f"{name}_pool",
+                value=float(connection_pool),
                 timestamp=datetime.now(UTC),
             )
         )

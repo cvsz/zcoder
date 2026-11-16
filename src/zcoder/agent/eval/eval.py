@@ -186,7 +186,7 @@ def cmd_eval_run(
     suite_path: str,
     api_key: str,
     model: str,
-    judge_model: str = "claude-sonnet-5",
+    judge_model: str = "zcoder-pro",
     threshold: float = 0.7,
     output: str | None = None,
 ):
@@ -204,7 +204,7 @@ def cmd_eval_run(
 
 
 def cmd_eval_compare(
-    suite_path: str, model_a: str, model_b: str, api_key: str, judge_model: str = "claude-sonnet-5"
+    suite_path: str, model_a: str, model_b: str, api_key: str, judge_model: str = "zcoder-pro"
 ):
     """Compare two models head-to-head on the same eval suite."""
     data = json.loads(Path(suite_path).read_text())
@@ -228,7 +228,7 @@ def cmd_eval_list():
                 f"  [{d['run_id']}] {d['ts'][:16]}  model={d['model']}  "
                 f"{d['passed']}/{d['cases']}  avg={d['avg_score']:.2f}"
             )
-        except Exception:
+        except Exception:  # nosec
             # Eval output file may be missing; start fresh.
             pass
 

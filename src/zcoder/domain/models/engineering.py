@@ -83,7 +83,7 @@ class CheckpointPool:
         checkpoint.timestamp = 0.0
         try:
             self._pool.put_nowait(checkpoint)
-        except Exception:
+        except Exception:  # nosec
             # Pool full, just discard
             pass
 

@@ -22,6 +22,10 @@ from __future__ import annotations
 
 import os
 import urllib.parse
+from dataclasses import dataclass
+from typing import Any
+
+from zcoder.core.exceptions import ZCoderError
 
 PROVIDER_CHOICES = (
     "gemini",
@@ -97,6 +101,38 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
 }
 
 
+@dataclass(frozen=True)
+class ProviderConnection:
+    """Immutable, type-checked representation of a provider connection.
+
+    Frozen so it cannot be mutated after construction, making it safe to
+    share across adapters and consumers.
+    """
+
+    provider: str
+    api_key: str
+    base_url: str
+    headers: dict[str, str]
+
+
+class MissingCredentialError(ZCoderError):
+    """Raised when a provider requires a credential but none can be resolved."""
+
+    error_code = "MISSING_CREDENTIAL"
+    RETRYABLE = False
+
+
+def _providers_requiring_credential() -> frozenset[str]:
+    """Providers that must have a non-empty API key to function."""
+    return frozenset(
+        {
+            provider
+            for provider, spec in PROVIDER_DEFAULTS.items()
+            if spec.get("env_keys") and provider not in {"local", "ollama"}
+        }
+    )
+
+
 def _validate_base_url(url: str) -> None:
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
@@ -129,6 +165,13 @@ def resolve_provider(cli_provider: str | None = None) -> str:
 
 
 def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
+    """Resolve the API key for *provider*.
+
+    Returns the resolved key string, or ``""`` for providers that do not
+    require a credential (``local``, ``ollama``). Raises
+    :class:`MissingCredentialError` when a credential-requiring provider has
+    no key available from CLI or environment — never silently returns ``""``.
+    """
     if provider == "local":
         return ""
     if cli_key and cli_key.strip():
@@ -138,10 +181,22 @@ def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
         v = os.getenv(env_name, "").strip()
         if v:
             return v
+    if provider in _providers_requiring_credential():
+        env_list = ", ".join(spec.get("env_keys", ())) or "<none configured>"
+        raise MissingCredentialError(
+            f"No API key configured for provider '{provider}'. " f"Set one of: {env_list} or pass --api-key.",
+            details={"provider": provider, "env_keys": list(spec.get("env_keys", ()))},
+        )
     return ""
 
 
 def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
+    """Resolve the base URL for *provider*.
+
+    Applies strict validation: scheme must be http/https, hostname must be
+    present, and no credentials/query/fragment are allowed. Raises
+    :class:`ValueError` on invalid input.
+    """
     if cli_base_url and cli_base_url.strip():
         url = cli_base_url.strip().rstrip("/")
         _validate_base_url(url)
@@ -209,104 +264,107 @@ def headers_for(provider: str, api_key: str) -> dict:
 def build_payload(
     provider: str,
     model: str,
-    messages: list[dict],
-    system: str | None,
-    max_tokens: int,
-    sampling: dict,
+    messages: list[dict[str, str]],
+    system: str | None = None,
+    max_tokens: int = 4096,
+    sampling: dict[str, Any] | None = None,
 ) -> dict:
-    if provider == "anthropic":
-        payload: dict = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": messages,
-        }
-        if system:
-            payload["system"] = system
-        payload.update(sampling)
-        return payload
-    if provider in OPENAI_COMPATIBLE_PROVIDERS:
-        xai_messages: list[dict] = []
-        if system:
-            xai_messages.append({"role": "system", "content": system})
-        xai_messages.extend(messages)
-        payload = {
-            "model": model,
-            "messages": xai_messages,
-            "max_tokens": max_tokens,
-        }
-        if sampling:
-            payload.update(sampling)
-        return payload
+    """Build a provider-specific request payload.
+
+    Args:
+        provider: Provider name (gemini, ollama, openai_compatible, etc.)
+        model: Model identifier
+        messages: Chat messages list
+        system: System prompt
+        max_tokens: Maximum output tokens
+        sampling: Sampling parameters (temperature, top_p, etc.)
+
+    Returns:
+        Provider-specific payload dict
+    """
+    sampling = sampling or {}
     if provider == "gemini":
-        # Gemini uses "contents" with "parts"
-        contents: list[dict] = []
-        for m in messages:
-            role = m.get("role", "user")
-            # Gemini uses "user" and "model" roles
-            if role == "assistant":
-                role = "model"
-            text = m.get("content", "")
-            contents.append({"role": role, "parts": [{"text": text}]})
-        payload = {
+        contents = []
+        for msg in messages:
+            role = "model" if msg.get("role") == "assistant" else "user"
+            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+        payload: dict = {
             "contents": contents,
-            "generationConfig": {"maxOutputTokens": max_tokens},
+            "generationConfig": {
+                "maxOutputTokens": max_tokens,
+                "temperature": sampling.get("temperature", 0.7),
+                "topP": sampling.get("top_p", 1.0),
+            },
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
-        if sampling.get("temperature") is not None:
-            payload["generationConfig"]["temperature"] = sampling["temperature"]
-        if sampling.get("top_p") is not None:
-            payload["generationConfig"]["topP"] = sampling["top_p"]
-        if sampling.get("top_k") is not None:
-            payload["generationConfig"]["topK"] = sampling["top_k"]
         return payload
     if provider == "ollama":
-        ollama_messages: list[dict] = []
-        if system:
-            ollama_messages.append({"role": "system", "content": system})
-        ollama_messages.extend(messages)
-        payload = {
+        return {
             "model": model,
-            "messages": ollama_messages,
+            "messages": messages,
             "stream": False,
-            "options": {"num_predict": max_tokens},
+            "options": {
+                "num_predict": max_tokens,
+                "temperature": sampling.get("temperature", 0.7),
+                "top_p": sampling.get("top_p", 1.0),
+            },
         }
-        if sampling.get("temperature") is not None:
-            payload["options"]["temperature"] = sampling["temperature"]
-        if sampling.get("top_p") is not None:
-            payload["options"]["top_p"] = sampling["top_p"]
-        return payload
-    # local
-    return {}
+    # openai_compatible and others: OpenAI chat completions format
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": sampling.get("temperature", 0.7),
+        "top_p": sampling.get("top_p", 1.0),
+    }
+    if system:
+        payload["messages"].insert(0, {"role": "system", "content": system})
+    for key in ("top_k", "frequency_penalty", "presence_penalty", "stop"):
+        if key in sampling:
+            payload[key] = sampling[key]
+    return payload
 
 
 def parse_response(provider: str, data: dict) -> str:
-    if provider == "anthropic":
-        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
-    if provider in OPENAI_COMPATIBLE_PROVIDERS:
-        choices = data.get("choices", [])
-        if choices:
-            msg = choices[0].get("message", {})
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                return content
-            if isinstance(content, list):
-                return "".join(p.get("text", "") for p in content if isinstance(p, dict))
-        return ""
+    """Parse a provider-specific response into plain text.
+
+    Args:
+        provider: Provider name
+        data: Parsed JSON response dict
+
+    Returns:
+        Extracted text content
+    """
     if provider == "gemini":
         candidates = data.get("candidates", [])
         if candidates:
             content = candidates[0].get("content", {})
             parts = content.get("parts", [])
-            return "".join(p.get("text", "") for p in parts)
+            if parts:
+                return parts[0].get("text", "")
         return ""
     if provider == "ollama":
-        # Ollama chat: {"message": {"role": "assistant", "content": "..."}}
-        msg = data.get("message", {})
-        if isinstance(msg, dict) and "content" in msg:
-            return msg.get("content", "") or ""
-        # streaming-aggregated fallback
-        return data.get("response", "") or ""
-    if provider == "local":
-        return data.get("text", "") or "[local mode] No upstream call — local stub response."
+        return data.get("message", {}).get("content", "")
+    # openai_compatible and others: OpenAI chat completions format
+    choices = data.get("choices", [])
+    if choices:
+        message = choices[0].get("message", {})
+        return message.get("content", "")
     return ""
+
+
+__all__ = [
+    "PROVIDER_CHOICES",
+    "OPENAI_COMPATIBLE_PROVIDERS",
+    "PROVIDER_DEFAULTS",
+    "ProviderConnection",
+    "MissingCredentialError",
+    "resolve_provider",
+    "resolve_api_key",
+    "resolve_base_url",
+    "endpoint_for",
+    "headers_for",
+    "build_payload",
+    "parse_response",
+]

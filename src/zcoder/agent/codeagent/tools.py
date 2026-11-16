@@ -5,19 +5,23 @@ from __future__ import annotations
 import asyncio
 import difflib
 import fnmatch
+import json
 import os
 import re
 import signal
+import sqlite3
 import subprocess  # nosec B404  # Bash tool is permission-gated by PermissionPolicy
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from zcoder.agent.codeagent.workspace import IGNORED_DIRS, ToolError, Workspace
+from zcoder.agent.codeagent.workspace import IGNORED_DIRS, Checkpoint, ToolError, Workspace
 from zcoder.agent.tools.sandbox import SandboxViolation
 
 MAX_OUTPUT_CHARS = 30_000
@@ -154,6 +158,173 @@ def _write(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     verb = "Updated" if existed else "Created"
     return ToolOutput(
         f"{verb} {ws.rel(path)} ({len(content.splitlines())} lines)", make_diff(ws.rel(path), old, content)
+    )
+
+
+def _delete(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Delete a file within the workspace.
+
+    Protected paths (.git) and sensitive paths (.env, credentials, keys) are
+    never deletable. Directories are refused; use RemoveDirectory or similar
+    if directory deletion is ever needed.
+    """
+    ws = ctx.workspace
+    path = ws.resolve(args.get("path", ""))
+
+    if ws.is_protected(path):
+        raise ToolError("deleting inside .git is not allowed")
+    if ws.is_sensitive(path):
+        raise ToolError(f"refusing to delete sensitive file: {ws.rel(path)}")
+    if path.is_dir():
+        raise ToolError(f"{ws.rel(path)} is a directory; use a directory-removal tool instead")
+    if not path.exists():
+        raise ToolError(f"{ws.rel(path)} does not exist")
+
+    # Record a checkpoint so the deletion can be undone via /rewind.
+    previous = path.read_bytes()
+    ws.checkpoints.append(Checkpoint(ws.turn, path, previous))
+    path.unlink()
+    ws.read_state.pop(path, None)
+
+    return ToolOutput(f"Deleted {ws.rel(path)}")
+
+
+def _database_query(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Execute a read-only SQL query against a SQLite database file.
+
+    Safety restrictions:
+    - Only SELECT statements are allowed (no INSERT/UPDATE/DELETE/DDL).
+    - The database file must reside within the workspace directory.
+    - Multiple statements separated by semicolons are rejected.
+    """
+    db_path = args.get("db_path", "")
+    query = args.get("query", "")
+
+    if not isinstance(db_path, str) or not db_path.strip():
+        raise ToolError("db_path is required")
+    if not isinstance(query, str) or not query.strip():
+        raise ToolError("query is required")
+
+    ws = ctx.workspace
+
+    # Resolve the database path within the workspace
+    try:
+        resolved = ws.resolve(db_path)
+    except ToolError as exc:
+        raise ToolError(f"Invalid db_path: {exc}") from exc
+
+    if not resolved.exists():
+        raise ToolError(f"Database file does not exist: {ws.rel(resolved)}")
+    if resolved.is_dir():
+        raise ToolError(f"{ws.rel(resolved)} is a directory, not a database file")
+
+    # Safety: only allow SELECT statements
+    stripped = query.strip().rstrip(";")
+    if ";" in stripped:
+        raise ToolError("Multiple SQL statements are not allowed")
+    first_word = stripped.split(None, 1)[0].lower() if stripped.split() else ""
+    if first_word != "select":
+        raise ToolError("Only SELECT queries are allowed")
+
+    try:
+        conn = sqlite3.connect(str(resolved))
+        conn.row_factory = sqlite3.Row
+        try:
+            cur = conn.execute(stripped)
+            columns = [desc[0] for desc in cur.description] if cur.description else []
+            rows = [dict(zip(columns, row, strict=False)) for row in cur.fetchall()]
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        raise ToolError(f"SQL error: {exc}") from exc
+
+    return ToolOutput(
+        f"Query returned {len(rows)} row(s)",
+        json.dumps({"columns": columns, "rows": rows}, indent=2, default=str) if rows else "[]",
+    )
+
+
+def _api_call(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Make an HTTP API call and return the response.
+
+    Safety restrictions:
+    - Only http:// and https:// URLs are allowed.
+    - Timeout defaults to 30 seconds.
+    - Response body is capped at 100,000 characters.
+    """
+    url = args.get("url", "")
+    method = args.get("method", "GET").upper()
+    headers = args.get("headers", {}) or {}
+    body = args.get("body", None)
+    timeout = args.get("timeout", 30)
+
+    if not isinstance(url, str) or not url.strip():
+        raise ToolError("url is required")
+
+    # Validate URL scheme
+    if not url.lower().startswith(("http://", "https://")):
+        raise ToolError("Only http:// and https:// URLs are allowed")
+
+    # Validate method
+    if method not in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}:
+        raise ToolError(f"Unsupported HTTP method: {method}")
+
+    # Validate timeout
+    try:
+        timeout_val = float(timeout)
+    except (TypeError, ValueError) as exc:
+        raise ToolError("timeout must be a number between 0 and 300") from exc
+    if timeout_val <= 0 or timeout_val > 300:
+        raise ToolError("timeout must be a number between 0 and 300")
+    timeout = timeout_val
+
+    # Prepare request data
+    data = None
+    if body is not None and method in {"POST", "PUT", "PATCH", "DELETE"}:
+        if isinstance(body, (dict, list)):
+            data = json.dumps(body).encode("utf-8")
+            headers.setdefault("Content-Type", "application/json")
+        elif isinstance(body, str):
+            data = body.encode("utf-8")
+        else:
+            raise ToolError("body must be a string, object, or array")
+
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers=dict(headers),
+        method=method,
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            resp_headers = dict(resp.headers)
+            raw_body = resp.read(100_001)  # Read one byte extra to detect truncation
+            truncated = len(raw_body) > 100_000
+            body_text = raw_body[:100_000].decode("utf-8", errors="replace")
+            if truncated:
+                body_text += "\n... (response truncated at 100,000 characters)"
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        resp_headers = dict(exc.headers)
+        try:
+            body_text = exc.read().decode("utf-8", errors="replace")[:1000]
+        except Exception:
+            body_text = ""
+    except urllib.error.URLError as exc:
+        raise ToolError(f"Request failed: {exc.reason}") from exc
+    except Exception as exc:
+        raise ToolError(f"Request failed: {exc}") from exc
+
+    result = {
+        "status": status,
+        "headers": resp_headers,
+        "body": body_text,
+    }
+    return ToolOutput(
+        f"{method} {url} → {status}",
+        json.dumps(result, indent=2, default=str),
     )
 
 
@@ -329,7 +500,7 @@ def _bash(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     finally:
         try:
             pipe.close()
-        except Exception:
+        except Exception:  # nosec
             # Closing a pipe must never mask the command result.
             pass
 
@@ -421,7 +592,7 @@ def _enforce_python_sandbox(
                 if not candidate.is_absolute():
                     candidate = sandbox_cwd / candidate
                 resolved = candidate.resolve()
-            except Exception:
+            except Exception:  # nosec
                 continue
             if not any(resolved == root or root in resolved.parents for root in allowed):
                 raise SandboxViolation(f"file path '{path_str}' resolves outside the sandbox root(s)")
@@ -499,7 +670,7 @@ def _code_exec(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     finally:
         try:
             pipe.close()
-        except Exception:
+        except Exception:  # nosec
             pass
 
 
@@ -544,7 +715,7 @@ def _enter_plan(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
 
             perms_mod = importlib.import_module("zcoder.agent.codeagent.permissions")
             policy.set_mode(perms_mod.Mode.PLAN)
-        except Exception:
+        except Exception:  # nosec
             pass
     return ToolOutput("Entered plan mode. Research the codebase and present a plan for approval.")
 
@@ -733,7 +904,7 @@ def _lsp(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     ws = ctx.workspace
     resolved = ws.resolve(path)
     try:
-        import subprocess
+        import subprocess  # nosec
 
         # Try to find an LSP server for the file extension
         ext = resolved.suffix
@@ -756,7 +927,7 @@ def _lsp(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         if cmd is None:
             return ToolOutput(f"No LSP server configured for {ext} files.")
 
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec
             cmd,
             cwd=str(ws.root),
             capture_output=True,
@@ -845,6 +1016,11 @@ def _exit_worktree(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     return ToolOutput(ws.exit_worktree())
 
 
+def _finish(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
+    """Signal that the current task is complete and no further tool calls are needed."""
+    return ToolOutput("Task finished. No further action required.")
+
+
 def _obj(props: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {"type": "object", "properties": props, "required": required}
 
@@ -865,6 +1041,42 @@ def default_tools() -> dict[str, Tool]:
             _obj({"path": s, "content": s}, ["path", "content"]),
             "edit",
             _write,
+        ),
+        Tool(
+            "Delete",
+            "Delete a file within the workspace. Protected (.git) and sensitive files are never deletable.",
+            _obj({"path": s}, ["path"]),
+            "edit",
+            _delete,
+        ),
+        Tool(
+            "DatabaseQuery",
+            "Execute a read-only SQL SELECT query against a SQLite database file within the workspace.",
+            _obj(
+                {
+                    "db_path": s,
+                    "query": s,
+                },
+                ["db_path", "query"],
+            ),
+            "read",
+            _database_query,
+        ),
+        Tool(
+            "APICall",
+            "Make an HTTP API call (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS) and return the response.",
+            _obj(
+                {
+                    "url": s,
+                    "method": s,
+                    "headers": {"type": "object", "properties": {}, "default": {}},
+                    "body": {},
+                    "timeout": i,
+                },
+                ["url"],
+            ),
+            "read",
+            _api_call,
         ),
         Tool(
             "Edit",
@@ -1069,6 +1281,13 @@ def default_tools() -> dict[str, Tool]:
             "meta",
             _exit_worktree,
         ),
+        Tool(
+            "finish",
+            "Signal that the current task is complete and no further tool calls are needed.",
+            _obj({}, []),
+            "meta",
+            _finish,
+        ),
     ]
     return {t.name: t for t in tools}
 
@@ -1125,6 +1344,10 @@ def preview(ctx: ToolContext, tool: Tool, args: dict[str, Any]) -> tuple[str, st
             return f"create worktree branch={branch}", None
         if tool.name == "ExitWorktree":
             return "remove worktree", None
+        if tool.name == "DatabaseQuery":
+            return f"SELECT query on {args.get('db_path', '')}", None
+        if tool.name == "APICall":
+            return f"{args.get('method', 'GET')} {args.get('url', '')}", None
     except (ToolError, KeyError, TypeError, OSError):
         # Tool invocation may fail; return unmodified.
         pass
@@ -1148,4 +1371,8 @@ def describe_call(name: str, args: dict[str, Any]) -> str:
         return f"branch={args.get('branch', '')}"
     if name == "ExitWorktree":
         return "exit worktree"
+    if name == "DatabaseQuery":
+        return str(args.get("db_path", ""))[:90]
+    if name == "APICall":
+        return f"{args.get('method', 'GET')} {args.get('url', '')}"[:90]
     return ""

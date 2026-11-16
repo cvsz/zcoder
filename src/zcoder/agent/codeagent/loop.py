@@ -9,7 +9,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from zcoder.agent.codeagent.audit import AuditLog, summarize_args
 from zcoder.agent.codeagent.events import (
@@ -42,6 +42,8 @@ from zcoder.agent.codeagent.workflows import (
     strip_ultracode_keyword,
 )
 from zcoder.agent.codeagent.workspace import ToolError, Workspace
+from zcoder.session.event import EventType
+from zcoder.session.logger import SessionEventStore
 
 AskFn = Callable[[PermissionRequest], Awaitable[Decision]]
 _TAG = "<tool_call>"
@@ -106,6 +108,7 @@ class CodeAgent:
         policy: PermissionPolicy | None = None,
         tools: dict[str, Tool] | None = None,
         store: SessionStore | None = None,
+        session_event_store: SessionEventStore | None = None,
         ask: AskFn | None = None,
         context_window: int = 32768,
         max_steps: int = 40,
@@ -132,9 +135,11 @@ class CodeAgent:
             agent_skills=getattr(self, "skills", None),
         )
         self.store, self.ask = store, ask
+        self.session_event_store = session_event_store or SessionEventStore()
         self.context_window, self.max_steps = context_window, max_steps
         self.memory = memory if memory is not None else load_project_memory(workspace.root)
         self.messages: list[dict[str, Any]] = []
+        self.state: dict[str, Any] = {}
         self.session_id = new_session_id()
         self.audit = audit or AuditLog(None, self.session_id)
         self.audit.session_id = self.session_id
@@ -152,6 +157,105 @@ class CodeAgent:
         self.ultracode: bool = False
         self.effort = "medium"
         self.workflow_runs: list[Any] = []
+
+    # ── Phase-based state machine (deepseek-harness ReactLoopAgent pattern) ──
+    # Phase: idle | running | maintenance
+    _Phase = Literal["idle", "running", "maintenance"]
+
+    @property
+    def phase(self) -> _Phase:
+        """Current agent phase: idle, running, or maintenance."""
+        if self._maintenance_active:
+            return "maintenance"
+        return "running" if self.running else "idle"
+
+    @property
+    def status(self) -> str:
+        """Externally visible agent status."""
+        return self.phase
+
+    _maintenance_active: bool = False
+    _maintenance_abort: Any = None
+    _wake_requested: bool = False
+    _inbox_next_turn: list[dict[str, Any]] = []
+    _inbox_next_step: list[dict[str, Any]] = []
+
+    def wake_driver(self, wake_after_abort: bool = False) -> None:
+        """Wake the agent driver, or latch wake behind maintenance/abort."""
+        if self._maintenance_active or wake_after_abort:
+            if not self._wake_requested:
+                self._wake_requested = True
+            return
+        if self.running:
+            return
+        # Start a new turn
+        self._wake_requested = False
+
+    async def when_idle(self) -> None:
+        """Wait until the agent reaches idle phase."""
+        while self.phase != "idle":
+            await asyncio.sleep(0.01)
+
+    async def run_maintenance(self, job: Any, signal: Any = None) -> Any:
+        """Run an abortable maintenance job while idle.
+
+        Mirrors deepseek-harness ReactLoopAgent.run_maintenance().
+        """
+        if self.phase != "idle":
+            raise RuntimeError("agent already has active work")
+
+        self._maintenance_active = True
+        self._maintenance_abort = signal
+        try:
+            return await job(signal)
+        finally:
+            self._maintenance_active = False
+            self._maintenance_abort = None
+            if self._wake_requested and self._has_pending_input():
+                self.wake_driver()
+
+    def _has_pending_input(self) -> bool:
+        """Check if there's pending inbox input."""
+        return len(self._inbox_next_turn) > 0 or len(self._inbox_next_step) > 0
+
+    def send(self, message: dict[str, Any], target: str = "next-turn", wakeup: bool = True) -> None:
+        """Send a message to the agent inbox.
+
+        Mirrors deepseek-harness ReactLoopAgent.send().
+        target: 'next-turn' or 'next-step'
+        """
+        if target == "next-turn":
+            self._inbox_next_turn.append(message)
+        else:
+            self._inbox_next_step.append(message)
+        if wakeup:
+            self.wake_driver()
+
+    def followup(self, message: dict[str, Any]) -> None:
+        """Send a followup message (next-turn, wake)."""
+        self.send(message, "next-turn", True)
+
+    def steer(self, message: dict[str, Any]) -> None:
+        """Send a steer message (next-step, wake)."""
+        self.send(message, "next-step", True)
+
+    def inject(self, message: dict[str, Any]) -> None:
+        """Send an inject message (next-step, no wake)."""
+        self.send(message, "next-step", False)
+
+    def cancel(self, cause: str = "user", keep_inbox: bool = False) -> None:
+        """Cancel active work.
+
+        Mirrors deepseek-harness ReactLoopAgent.cancel().
+        """
+        if not keep_inbox:
+            self._inbox_next_turn.clear()
+            self._inbox_next_step.clear()
+        if self.phase != "idle":
+            self._wake_requested = False
+            self._interrupted = True
+            if self.ctx.cancel:
+                self.ctx.cancel.set()
 
     # --- state -----------------------------------------------------------
     @property
@@ -205,6 +309,13 @@ class CodeAgent:
                 await self.hooks.stop(reason)
             except Exception as exc:
                 yield StopFailure(reason=f"Stop hook failed: {exc}")
+        # Log session event: turn/end
+        if self.session_event_store:
+            self.session_event_store.append_event(
+                str(self.session_id),
+                EventType.TURN_END,
+                {"turn": 1, "reason": reason},
+            )
         yield self._done(reason)
 
     def undo(self) -> list[str]:
@@ -336,6 +447,13 @@ class CodeAgent:
             self._session_started = True
             await self.hooks.session_start(str(self.ws.root))
         self.audit.record("turn_start", chars=len(text), mode=self.policy.mode.value, model=self.llm.model)
+        # Log session event: turn/start
+        if self.session_event_store:
+            self.session_event_store.append_event(
+                str(self.session_id),
+                EventType.TURN_START,
+                {"turn": 1, "chars": len(text), "mode": self.policy.mode.value, "model": self.llm.model},
+            )
         # Fire UserPromptSubmit hook (can block the prompt)
         if self.hooks:
             hook_result = await self.hooks.user_prompt_submit(text)
@@ -409,6 +527,13 @@ class CodeAgent:
                     # If not a known command, fall through to normal processing
 
             self.messages.append({"role": "user", "content": prompt})
+            # Log session event: user/message
+            if self.session_event_store:
+                self.session_event_store.append_event(
+                    str(self.session_id),
+                    EventType.USER_MESSAGE,
+                    {"turn": 1, "content": prompt},
+                )
             recent: list[str] = []
             overflow_retried = False
             for _ in range(self.max_steps):
@@ -425,6 +550,30 @@ class CodeAgent:
                         pass
                 visible, calls = "", []
                 filt = _TagFilter()
+                # Log session event: step/start at the beginning of each step
+                if self.session_event_store:
+                    self.session_event_store.append_event(
+                        str(self.session_id),
+                        EventType.STEP_START,
+                        {
+                            "turn": 1,
+                            "step": len(self.state.get("steps", [])) + 1,
+                        },
+                    )
+                # Log session event: request/header before calling the model
+                if self.session_event_store:
+                    self.session_event_store.append_event(
+                        str(self.session_id),
+                        EventType.REQUEST_HEADER,
+                        {
+                            "turn": 1,
+                            "model": self.llm.model,
+                            "provider": getattr(self.llm, "provider_name", "local"),
+                            "temperature": getattr(self.llm, "temperature", None),
+                            "max_tokens": getattr(self.llm, "max_tokens", None),
+                            "tools": [t.definition() for t in self.tools.values()],
+                        },
+                    )
                 try:
                     async with aclosing(self._chat()) as stream:
                         async for chunk in stream:
@@ -488,6 +637,13 @@ class CodeAgent:
                         for c in calls
                     ]
                 self.messages.append(assistant)
+                # Log session event: assistant/message
+                if self.session_event_store:
+                    self.session_event_store.append_event(
+                        str(self.session_id),
+                        EventType.ASSISTANT_MESSAGE,
+                        {"turn": 1, "content": visible or None},
+                    )
                 if not calls:
                     async for event in self._stop("end"):
                         yield event
@@ -506,6 +662,18 @@ class CodeAgent:
                         return
                     yield ToolStart(call.id, call.name, call.args)
                     tool_calls_batch.append({"id": call.id, "name": call.name, "args": call.args})
+                    # Log session event: tool/call
+                    if self.session_event_store:
+                        self.session_event_store.append_event(
+                            str(self.session_id),
+                            EventType.TOOL_CALL,
+                            {
+                                "turn": 1,
+                                "tool_call_id": call.id,
+                                "tool_name": call.name,
+                                "arguments": call.args,
+                            },
+                        )
                     sig = call.name + json.dumps(call.args, sort_keys=True, default=str)
                     recent = (recent + [sig])[-3:]
                     if len(recent) == 3 and len(set(recent)) == 1:
@@ -518,8 +686,31 @@ class CodeAgent:
                         )
                         exec_events: list[Any] = []
                     else:
+                        # Log session event: step/start before tool execution
+                        if self.session_event_store:
+                            self.session_event_store.append_event(
+                                str(self.session_id),
+                                EventType.STEP_START,
+                                {
+                                    "turn": 1,
+                                    "step": len(self.state.get("steps", [])) + 1,
+                                    "tool_name": call.name,
+                                },
+                            )
                         before = self.policy.mode
                         end, exec_events = await self._execute(call)
+                        # Log session event: step/end after tool execution
+                        if self.session_event_store:
+                            self.session_event_store.append_event(
+                                str(self.session_id),
+                                EventType.STEP_END,
+                                {
+                                    "turn": 1,
+                                    "step": len(self.state.get("steps", [])),
+                                    "tool_name": call.name,
+                                    "success": not end.is_error,
+                                },
+                            )
                         # Emit any events from tool execution
                         for event in exec_events:
                             yield event
@@ -536,6 +727,20 @@ class CodeAgent:
                         }
                     )
                     self.messages.append({"role": "tool", "tool_call_id": call.id, "content": end.output})
+                    # Log session event: tool/result
+                    if self.session_event_store:
+                        self.session_event_store.append_event(
+                            str(self.session_id),
+                            EventType.TOOL_RESULT,
+                            {
+                                "turn": 1,
+                                "tool_call_id": call.id,
+                                "tool_name": call.name,
+                                "result": end.output,
+                                "is_error": end.is_error,
+                                "diff": end.diff,
+                            },
+                        )
                     if call.name == "TodoWrite" and not end.is_error:
                         yield TodoUpdate(list(self.ctx.todos))
                 # Emit PostToolBatch event after all tool calls in this turn

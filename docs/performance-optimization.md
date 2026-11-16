@@ -333,13 +333,64 @@ if hit_rate < 0.5:
     print("WARNING: Low prompt cache hit rate")
 ```
 
-## Recent Improvements (v1.60.1)
+## Recent Improvements (v1.60.2)
 
 - **Optimized code detection**: Precompiled regex patterns for faster `_is_code()` heuristic
 - **Enhanced complexity classification**: Integrated local token estimation for more accurate sizing
 - **Prompt optimization heuristics**: New `optimize_prompt()` function with rule-based token reduction
 - **Cost-aware model routing**: Improved token counting integration for better savings estimates
 - **Memoized model multipliers**: Reduced redundant lookups in token estimation
+- **Predictive model selection**: New `predict_best_model()` and `predict_best_model_for_prompt()` functions
+  that analyze prompt complexity and recommend optimal models with cost savings forecasts
+- **Cost-based routing**: `route_by_cost()` function routes prompts to the most cost-effective model
+  based on complexity analysis and current pricing tiers
+- **Spend forecasting**: `forecast_spend()` function predicts cumulative spend for batch operations
+  enabling proactive cost management
+- **Batch optimization**: `batch_predict_and_optimize()` processes multiple prompts with
+  automated model selection and token optimization
+
+## New Performance Targets (v1.60.2)
+
+| Metric | Target | Notes |
+|--------|--------|-------|
+| Token estimation latency | <0.5ms | Per-estimation, 2000+/sec |
+| Prompt cache speedup | Client called once | LRU cache hit rate >80% |
+| Model routing decision | <5ms | Includes complexity analysis |
+| Cost savings from optimization | 10-30% | For verbose prompts |
+| Predictive model accuracy | >85% | Within one model tier of optimal |
+| Spend forecast error | <15% | Compared to actual spend |
+
+## Enhanced Model Routing
+
+### `predict_best_model()`
+Selects the optimal model based on prompt complexity and latency preferences.
+
+```python
+from zcoder.agent.optimization.cost import predict_best_model
+
+result = predict_best_model("Write a Python function to sort a list")
+# Returns: {"model": "claude-sonnet-5", "complexity": "medium", ...}
+```
+
+### `route_by_cost()`
+Routes a prompt to the most cost-effective model considering both complexity and pricing.
+
+```python
+from zcoder.agent.optimization.cost import route_by_cost
+
+result = route_by_cost("Design a microservice architecture with Kubernetes")
+# Returns: {"model": "claude-sonnet-5", "complexity": "high", "in_tokens": 857, ...}
+```
+
+### `forecast_spend()`
+Predicts cumulative spend for batch operations.
+
+```python
+from zcoder.agent.optimization.cost import forecast_spend
+
+result = forecast_spend(100, {"low": 50, "medium": 30, "high": 20})
+# Returns: {"total_forecasted_cost": 15.23, ...}
+```
 
 ## Version History
 

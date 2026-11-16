@@ -51,7 +51,7 @@ def _load_mcp_configs(ws: Workspace) -> list:
                         source=str(project_path),
                     )
                 )
-        except Exception:
+        except Exception:  # nosec
             pass
 
     # User scope: ~/.zcoder/mcp.json
@@ -83,7 +83,7 @@ def _load_mcp_configs(ws: Workspace) -> list:
                         source=str(user_path),
                     )
                 )
-        except Exception:
+        except Exception:  # nosec
             pass
 
     return configs

@@ -372,7 +372,7 @@ class ManagedAgent:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-5",
+        model: str = "zcoder-pro",
         max_tokens: int = 8192,
         system_prompt: str | None = None,
     ):
@@ -624,13 +624,9 @@ DREAMING_BETA = "dreaming-2026-04-21"
 # Dreaming-focused audit since the expansion shipped, so it's the first
 # one positioned to actually close it.
 DREAMING_SUPPORTED_MODELS = {
-    "claude-opus-5",
-    "claude-mythos-5",
-    "claude-opus-4-8",
+    "zcoder-pro",
     "claude-opus-4-7",
-    "claude-sonnet-4-6",
-    "claude-fable-5",
-    "claude-sonnet-5",
+    "zcoder-flash",
 }
 
 # Limits#instructions-length: 4,096 characters. Not re-enforced server-side
@@ -786,7 +782,7 @@ class ManagedAgentsClient:
     def create_agent(
         self,
         name: str,
-        model: str = "claude-opus-4-8",
+        model: str = "zcoder-pro",
         system: str = "You are a helpful coding assistant.",
         tools: list | None = None,
         multiagent: dict | None = None,
@@ -1535,7 +1531,7 @@ class ManagedAgentsClient:
         self,
         memory_store_id: str,
         session_ids: list | None = None,
-        model: str = "claude-opus-4-8",
+        model: str = "zcoder-pro",
         instructions: str | None = None,
     ) -> dict:
         """Start a dream: curate `memory_store_id` (optionally alongside past
@@ -1545,7 +1541,7 @@ class ManagedAgentsClient:
         status "pending"; poll get_dream() until status is a terminal state
         (completed/failed/canceled).
 
-        `model` is sent to the API as a plain string (e.g. "claude-opus-4-8"),
+        `model` is sent to the API as a plain string (e.g. "zcoder-pro"),
         matching the documented `client.beta.dreams.create(model=...)` shape
         — fixed in v1.35.0, previously sent as `{"id": model}`, which doesn't
         match any documented or tested request shape and would have been
@@ -1839,7 +1835,7 @@ class ManagedAgentsClient:
 def cmd_managed_agent_run(
     task: str,
     api_key: str,
-    model: str = "claude-opus-4-8",
+    model: str = "zcoder-pro",
     memory_store: str | None = None,
     outcome_description: str | None = None,
     outcome_rubric: str | None = None,
@@ -2128,7 +2124,7 @@ def cmd_agent_vault_list(api_key: str) -> list:
 def cmd_agent_dream(
     store_id: str,
     api_key: str,
-    model: str = "claude-opus-4-8",
+    model: str = "zcoder-pro",
     session_ids: list | None = None,
     instructions: str | None = None,
 ) -> dict:
@@ -2313,7 +2309,7 @@ def cmd_agent_webhook_register(url: str, api_key: str, events: list | None = Non
 def cmd_agent_create(
     name: str,
     api_key: str,
-    model: str = "claude-opus-4-8",
+    model: str = "zcoder-pro",
     system: str = "You are a helpful coding assistant.",
     effort: str | None = None,
     inference_geo: str | None = None,
@@ -2370,7 +2366,7 @@ def cmd_agent_update(
 
 
 def cmd_agent_review_multiagent(
-    path: str, specialists: list, api_key: str, model: str = "claude-opus-4-8"
+    path: str, specialists: list, api_key: str, model: str = "zcoder-pro"
 ) -> dict:
     """Native Multiagent orchestration (v1.21.0, un-deferred from
     v1.20.0): run named specialist code reviewers (see
@@ -2486,7 +2482,7 @@ def cmd_agent_list_sessions():
             d = json.loads(sf.read_text())
             turns = len(d.get("history", [])) // 2
             print(f"{d['id']:<16}{d.get('name', '')[:24]:<25}{turns:<8}{d.get('updated_at', '')[:10]}")
-        except Exception:
+        except Exception:  # nosec
             # Skip unreadable/corrupt session files while listing.
             pass
 

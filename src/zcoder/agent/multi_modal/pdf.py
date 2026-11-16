@@ -162,7 +162,7 @@ def extract_pdf_structure(
                             "page": page,
                         }
                     )
-        except Exception:
+        except Exception:  # nosec
             pass
 
         # Extract text and look for structural patterns

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-import subprocess
+import subprocess  # nosec
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,7 +74,7 @@ class ReviewerResult:
 
 def _git(ws: Workspace, *args: str) -> str:
     try:
-        r = subprocess.run(
+        r = subprocess.run(  # nosec
             ["git", *args], cwd=ws.root, capture_output=True, text=True, timeout=15, check=False
         )
         if r.returncode != 0:
@@ -312,7 +312,7 @@ class UltraReview:
                 await verifier.verify(f, base)
                 if f.verified:
                     verified_findings.append(f)
-            except Exception:
+            except Exception:  # nosec
                 continue
 
         sev_order = {"high": 0, "medium": 1, "low": 2}

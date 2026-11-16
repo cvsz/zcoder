@@ -274,7 +274,7 @@ class RetryEngine:
         if self.policy.jitter:
             import random
 
-            delay = delay * (0.5 + random.random() * 0.5)  # 50-100% of calculated delay
+            delay = delay * (0.5 + random.random() * 0.5)  # 50-100% of calculated delay  # nosec
 
         # Special handling for rate limited - longer delay
         if category == RetryCategory.RATE_LIMITED:

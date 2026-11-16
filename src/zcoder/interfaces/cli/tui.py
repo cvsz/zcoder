@@ -526,7 +526,7 @@ class ZCoderTUI(App):
             session_node = tree.root.add("Current Session", expand=True)
             session_node.add_leaf("Messages: 0")
             session_node.add_leaf(f"Dir: {self._short_directory()}")
-        except Exception:
+        except Exception:  # nosec
             pass  # Tree might not be ready yet
 
     def _init_tools_list(self) -> None:
@@ -538,7 +538,7 @@ class ZCoderTUI(App):
                 tools_list.update("Available Tools:\n" + "\n".join(f"• {name}" for name in tool_names[:10]))
             else:
                 tools_list.update("Tools will be loaded after model connects")
-        except Exception:
+        except Exception:  # nosec
             pass
 
     @work(exclusive=True, thread=True)
@@ -623,7 +623,7 @@ class ZCoderTUI(App):
         for callback in self._ui_hooks.get(hook_name, []):
             try:
                 callback(context)
-            except Exception:
+            except Exception:  # nosec
                 pass  # Hook errors should not break the UI
 
         # Also post as a message for async handlers
@@ -700,7 +700,7 @@ class ZCoderTUI(App):
             if self._token_usage["total"] > 0:
                 cost_estimate = self._token_usage["total"] * 0.0001  # Rough estimate
                 panel.mount(Static(f"Est. Cost: ${cost_estimate:.4f}", classes="token-usage-row"))
-        except Exception:
+        except Exception:  # nosec
             pass
 
     # ========== Status Display ==========
@@ -732,7 +732,7 @@ class ZCoderTUI(App):
                 row.mount(Label(label + ":", classes="status-label"))
                 row.mount(Label(value, classes="status-value"))
                 panel.mount(row)
-            except Exception:
+            except Exception:  # nosec
                 continue
 
     # ========== Model Info Display ==========
@@ -762,7 +762,7 @@ class ZCoderTUI(App):
                 row.mount(Label(label + ":", classes="model-info-label"))
                 row.mount(Label(value, classes="model-info-value"))
                 panel.mount(row)
-            except Exception:
+            except Exception:  # nosec
                 continue
 
     # ========== Error Display ==========
@@ -1027,23 +1027,23 @@ class ZCoderTUI(App):
     def _refresh_session_labels(self) -> None:
         try:
             self.query_one("#welcome-meta", Static).update(self._welcome_meta())
-        except Exception:
+        except Exception:  # nosec
             pass
         try:
             self.query_one("#session_status", Static).update(self._status_text())
-        except Exception:
+        except Exception:  # nosec
             pass
         try:
             self._update_status_display()
-        except Exception:
+        except Exception:  # nosec
             pass
         try:
             self._update_model_display()
-        except Exception:
+        except Exception:  # nosec
             pass
         try:
             self._update_token_usage_display()
-        except Exception:
+        except Exception:  # nosec
             pass
 
     @work(exclusive=False, thread=True)

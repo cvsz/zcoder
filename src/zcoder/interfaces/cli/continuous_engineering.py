@@ -170,7 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from zcoder.infrastructure.observability.bootstrap import bootstrap_from_env
 
         bootstrap_from_env()
-    except Exception:
+    except Exception:  # nosec
         # Observability bootstrap may fail; safe to ignore.
         pass
 

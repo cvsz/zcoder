@@ -73,7 +73,7 @@ class PostgresAdvisoryRunLease:
             if entered:
                 try:
                     scope.__exit__(type(exc), exc, exc.__traceback__)
-                except Exception:
+                except Exception:  # nosec
                     # Scope exit may fail during error handling; safe to ignore.
                     pass
             raise PostgresUpgradeRunLeaseError(

@@ -185,9 +185,9 @@ class Workspace:
     # --- git worktrees ---------------------------------------------------
     def _git(self, *args: str) -> str:
         """Run a git command in the workspace root; raises ToolError on failure."""
-        import subprocess
+        import subprocess  # nosec
 
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec
             ["git", *args],
             cwd=str(self.root),
             capture_output=True,

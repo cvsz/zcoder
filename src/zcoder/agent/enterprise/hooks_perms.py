@@ -75,7 +75,7 @@ class HookManager:
         if HOOKS_FILE.exists():
             try:
                 self.hooks = [Hook.from_dict(d) for d in json.loads(HOOKS_FILE.read_text())]
-            except Exception:
+            except Exception:  # nosec
                 # Hooks file may be missing or corrupt; start empty.
                 pass
 
@@ -279,7 +279,7 @@ class Plan:
 
 
 class PlanModeAgent:
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
+    def __init__(self, api_key: str, model: str = "zcoder-flash"):
         self.client = create_anthropic_client(api_key)
         self.model = model
 

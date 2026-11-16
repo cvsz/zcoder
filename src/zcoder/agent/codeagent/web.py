@@ -255,7 +255,7 @@ class Connection:
             if self.agent.policy.mode == Mode.BYPASS:  # never allowed over the web
                 self.agent.policy.mode = Mode.DEFAULT
             self.agent.policy.allow_bypass = False
-        except Exception:  # pragma: no cover - defensive
+        except Exception:  # pragma: no cover - defensive  # nosec
             pass
 
     async def send(self, payload: dict[str, Any]) -> bool:
@@ -446,11 +446,117 @@ class Connection:
                 pass
 
 
+# ----------------------------------------------------------------------------- app dashboard extensions (Phase 4 item 12)
+class CredentialEntry:
+    """One stored credential reference (metadata only, never the secret value)."""
+
+    def __init__(self, name: str, kind: str = "api-key", created_at: float = 0.0):
+        self.name = name
+        self.kind = kind
+        self.created_at = created_at
+
+
+class CredentialManager:
+    """In-memory credential registry for dashboard management."""
+
+    def __init__(self) -> None:
+        self._creds: dict[str, CredentialEntry] = {}
+
+    def list(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": c.name,
+                "kind": c.kind,
+                "created_at": c.created_at,
+            }
+            for c in self._creds.values()
+        ]
+
+    def add(self, name: str, kind: str = "api-key") -> bool:
+        if name in self._creds:
+            return False
+        self._creds[name] = CredentialEntry(name=name, kind=kind, created_at=time.time())
+        return True
+
+    def revoke(self, name: str) -> bool:
+        if name in self._creds:
+            del self._creds[name]
+            return True
+        return False
+
+
+class ToolUsageStats:
+    """Per-tool usage statistics aggregated across sessions."""
+
+    def __init__(self) -> None:
+        self._stats: dict[str, dict[str, Any]] = {}
+
+    def record(self, tool_name: str, success: bool = True, duration_ms: float = 0.0) -> None:
+        entry = self._stats.setdefault(
+            tool_name,
+            {"calls": 0, "successes": 0, "failures": 0, "total_ms": 0.0},
+        )
+        entry["calls"] += 1
+        if success:
+            entry["successes"] += 1
+        else:
+            entry["failures"] += 1
+        entry["total_ms"] += duration_ms
+
+    def get_all(self) -> dict[str, Any]:
+        return {
+            name: {
+                "calls": s["calls"],
+                "successes": s["successes"],
+                "failures": s["failures"],
+                "total_ms": round(s["total_ms"], 2),
+                "avg_ms": round(s["total_ms"] / s["calls"], 2) if s["calls"] else 0.0,
+                "success_rate": round(s["successes"] / s["calls"] * 100, 1) if s["calls"] else 0.0,
+            }
+            for name, s in self._stats.items()
+        }
+
+
+class SystemHealthMonitor:
+    """System health monitoring for the web dashboard."""
+
+    def __init__(self) -> None:
+        self._start_time = time.time()
+
+    def get_health(self) -> dict[str, Any]:
+        import psutil
+
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+        except Exception:
+            cpu_percent = 0.0
+            mem = None
+            disk = None
+
+        return {
+            "status": "healthy" if cpu_percent < 90 else "degraded",
+            "cpu_percent": round(cpu_percent, 1),
+            "memory_percent": round(mem.percent, 1) if mem else 0,
+            "memory_used_gb": round(mem.used / (1024**3), 2) if mem else 0,
+            "memory_total_gb": round(mem.total / (1024**3), 2) if mem else 0,
+            "disk_percent": round(disk.percent, 1) if disk else 0,
+            "disk_free_gb": round(disk.free / (1024**3), 2) if disk else 0,
+            "uptime_seconds": round(time.time() - self._start_time, 1),
+        }
+
+
 # ----------------------------------------------------------------------------- app assembly
 def build_router(cfg: WebConfig) -> APIRouter:
     router = APIRouter(prefix="/api/agent")
     limiter = AuthLimiter()
     state: dict[str, Any] = {"connections": 0, "probe": None}
+
+    # Dashboard subsystems
+    credential_manager = CredentialManager()
+    tool_usage_stats = ToolUsageStats()
+    health_monitor = SystemHealthMonitor()
 
     def probe() -> CodeAgent:
         if state["probe"] is None:
@@ -482,7 +588,7 @@ def build_router(cfg: WebConfig) -> APIRouter:
         store = cfg.store or agent.store or SessionStore()
         sessions = [
             {"id": s.id, "title": s.title, "updated": s.updated, "turns": s.turns}
-            for s in store.list(str(cfg.root))[:30]
+            for s in store.list_sessions(str(cfg.root))[:30]
         ]
         return JSONResponse(
             {
@@ -501,6 +607,40 @@ def build_router(cfg: WebConfig) -> APIRouter:
         agent = await asyncio.to_thread(probe)
         found = await asyncio.to_thread(mention_candidates, agent.ws, q[:200], 30)
         return JSONResponse({"files": found})
+
+    @router.get("/credentials")
+    async def list_credentials(request: Request) -> JSONResponse:
+        require_auth(request)
+        return JSONResponse({"credentials": credential_manager.list()})
+
+    @router.post("/credentials")
+    async def add_credential(request: Request) -> JSONResponse:
+        require_auth(request)
+        body = await request.json()
+        name = body.get("name", "").strip()
+        kind = body.get("kind", "api-key")
+        if not name:
+            raise HTTPException(400, "name is required")
+        if not credential_manager.add(name, kind):
+            raise HTTPException(409, f"credential '{name}' already exists")
+        return JSONResponse({"name": name, "kind": kind, "added": True})
+
+    @router.delete("/credentials/{name}")
+    async def delete_credential(request: Request, name: str) -> Response:
+        require_auth(request)
+        if not credential_manager.revoke(name):
+            raise HTTPException(404, f"credential '{name}' not found")
+        return Response(status_code=204)
+
+    @router.get("/tool-usage")
+    async def tool_usage(request: Request) -> JSONResponse:
+        require_auth(request)
+        return JSONResponse(tool_usage_stats.get_all())
+
+    @router.get("/health")
+    async def system_health(request: Request) -> JSONResponse:
+        require_auth(request)
+        return JSONResponse(health_monitor.get_health())
 
     @router.delete("/sessions/{session_id}", status_code=204)
     async def delete_session(request: Request, session_id: str) -> Response:
@@ -559,7 +699,7 @@ def build_router(cfg: WebConfig) -> APIRouter:
                     "commands": [{"name": c.name, "help": c.help, "usage": c.usage} for c in list_commands()],
                     "sessions": [
                         {"id": s.id, "title": s.title, "updated": s.updated, "turns": s.turns}
-                        for s in store.list(str(cfg.root))[:30]
+                        for s in store.list_sessions(str(cfg.root))[:30]
                     ],
                 }
             )

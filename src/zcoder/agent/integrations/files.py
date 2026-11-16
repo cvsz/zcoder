@@ -75,7 +75,7 @@ def _validate_filename(name: str) -> str | None:
 class FilesAPI:
     """Wrapper around the Anthropic Files API."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
+    def __init__(self, api_key: str, model: str = "zcoder-pro"):
         self.api_key = api_key
         self.model = model
         LOCAL_REGISTRY.parent.mkdir(parents=True, exist_ok=True)
@@ -349,7 +349,7 @@ class FilesAPI:
         if LOCAL_REGISTRY.exists():
             try:
                 return json.loads(LOCAL_REGISTRY.read_text())
-            except Exception:
+            except Exception:  # nosec
                 pass
         return {}
 

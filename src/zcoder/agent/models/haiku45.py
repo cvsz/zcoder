@@ -1,143 +1,105 @@
 """
-claude_haiku45.py — Claude Haiku 4.5 support (deep, model-specific module)
+zcoder_haiku45.py — ZCoder Max support via Ollama (refactored from Claude Haiku 4.5)
 ZCoder CLI v1.33.0
 
-Why this module exists: MODEL_CATALOG's claude-haiku-4-5-20251001 row is
-the one current-tier model whose thinking mode is "extended" rather than
-"adaptive" — meaning a caller has to supply an explicit budget_tokens and
-there is no model-decides-depth behavior to fall back on. Every generic
-code path in this project that builds a `thinking` block by branching on
-"is thinking supported" without also branching on *which kind* will send
-Haiku 4.5 a request shaped for adaptive thinking, which this model does
-not accept. This module makes that distinction load-bearing instead of a
-one-line note: build_thinking_param() below is the one place that decides
-the request shape for this model, so callers can't accidentally send the
-wrong kind.
+Refactored from claude_haiku45.py to work with ZCoder's own models running
+locally on Ollama instead of Claude Haiku 4.5 via Anthropic API.
 
-It also tracks the two other places Haiku 4.5 is the odd one out in the
-shared catalogs: it is absent from claude_models.FAST_MODE_SUPPORTED
-(fast mode is Opus-only) and absent from
-claude_models.INFERENCE_GEO_SUPPORTED (data residency is Opus/Sonnet-5/
-Mythos-class only, per the 2026-07-02 catalog check) — while it IS a
-normal, unremarkable case for service_tier (not in
-SERVICE_TIER_UNSUPPORTED, so Priority Tier works normally here, unlike
-on Sonnet 5). Checked against platform.claude.com/docs, 2026-07-26.
+--haiku45 now maps to zcoder-max (ZCoder's largest model, BF16 precision)
+via Ollama.
+No API key or internet required.
 
 CLI flags:
-  --haiku45-info                  Show Haiku 4.5's capability table
-  --haiku45 PROMPT                 Call Claude Haiku 4.5
-  --haiku45-thinking-budget N       Enable extended thinking with an explicit
-                                    budget_tokens=N (omit to call without thinking)
+  --haiku45-info           Show ZCoder Max capability table
+  --haiku45 PROMPT         Call zcoder-max via Ollama (replaces Claude Haiku 4.5)
+  --haiku45-effort LEVEL   Effort level (low/medium/high/max) — mapped to temperature
+  --haiku45-disable-thinking Accepted for compatibility, ignored (ZCoder models)
+  --haiku45-fast           Send faster inference (lower temperature)
+  --haiku45-thinking-budget Accepted for compatibility, ignored (ZCoder models)
 """
 
-import json
-import urllib.error
-import urllib.request
+from __future__ import annotations
+
 from typing import Any
 
-from zcoder.agent.models.registry import (
-    FAST_MODE_SUPPORTED,
-    INFERENCE_GEO_SUPPORTED,
-    SERVICE_TIER_UNSUPPORTED,
+from zcoder.agent.models.zcoder_model import (
+    DEFAULT_OLLAMA_BASE_URL,
+    ZCoderClient,
 )
 from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.resilience import CircuitBreaker, retry
 
-MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-HAIKU45_MODEL_ID = "claude-haiku-4-5-20251001"
-HAIKU45_ALIAS = "claude-haiku-4-5"  # dateless alias, per claude_models.MODEL_ID_ALIASES
+# ── Mapping ──
+# --haiku45 → zcoder-max (largest model, BF16 precision, highest quality)
+HAIKU45_MODEL_ID = "zcoder-max"
 
-# Minimum budget_tokens the API accepts for extended thinking. Anthropic's
-# docs specify 1024 as the floor for `thinking: {"type": "enabled", ...}`
-# across models that support it in this manual-budget form.
-MIN_THINKING_BUDGET = 1024
+HAIKU45_EFFORT_BUDGETS = {
+    "low": 0.3,
+    "medium": 0.5,
+    "high": 0.7,
+    "max": 0.9,
+}
+HAIKU45_EFFORT_LEVELS = list(HAIKU45_EFFORT_BUDGETS.keys())
+HAIKU45_THINKING_DISABLE_ALLOWED = {"low", "medium", "high", "max"}
 
 HAIKU45_INFO: dict[str, Any] = {
-    "display_name": "Claude Haiku 4.5",
+    "display_name": "ZCoder Max (via Ollama)",
+    "model_id": HAIKU45_MODEL_ID,
     "tier": "current",
-    "context_window": 200_000,
-    "max_output_tokens": 64_000,
-    "price_input_per_mtok_usd": 1.0,
-    "price_output_per_mtok_usd": 5.0,
-    "thinking": "extended (manual budget_tokens — NOT adaptive)",
-    "fast_mode_supported": HAIKU45_MODEL_ID in FAST_MODE_SUPPORTED,
-    "service_tier_supported": HAIKU45_MODEL_ID not in SERVICE_TIER_UNSUPPORTED,
-    "inference_geo_supported": HAIKU45_MODEL_ID in INFERENCE_GEO_SUPPORTED,
-    "alias": HAIKU45_ALIAS,
-    "notes": "Fastest, most cost-effective current-tier model. The only "
-    "current model using extended (not adaptive) thinking — always "
-    "pass an explicit budget_tokens, never type:'adaptive'.",
+    "context_window": 32_768,
+    "max_output_tokens": 8192,
+    "size_gb": 18.4,
+    "quant": "9B BF16",
+    "effort_levels": HAIKU45_EFFORT_LEVELS,
+    "fast_mode_supported": True,
+    "notes": "Refactored from Claude Haiku 4.5 module. Now calls zcoder-max "
+    "via Ollama (local provider). No API key or internet required.",
 }
 
 
-def resolve_model_id(model_id: str) -> str:
-    """Normalize the dateless alias to the full ID this module's info
-    table is keyed on, so callers can pass either form."""
-    return HAIKU45_MODEL_ID if model_id == HAIKU45_ALIAS else model_id
+def validate_effort_thinking(effort: str | None, disable_thinking: bool) -> str | None:
+    """Validate effort/thinking combination for ZCoder Max.
 
-
-def build_thinking_param(budget_tokens: int | None) -> dict | None:
-    """Build the `thinking` request block for Haiku 4.5, or None to omit
-    it entirely. Always returns the *extended* (manual-budget) shape —
-    {"type": "enabled", "budget_tokens": N} — never {"type": "adaptive"},
-    which this model does not support. Raises ValueError if budget_tokens
-    is below the documented floor."""
-    if budget_tokens is None:
-        return None
-    if budget_tokens < MIN_THINKING_BUDGET:
-        raise ValueError(
-            f"budget_tokens must be >= {MIN_THINKING_BUDGET} for extended thinking; got {budget_tokens}"
+    ZCoder models don't have the same thinking restrictions as Claude Haiku 4.5,
+    so this is a compatibility shim that accepts all combinations.
+    """
+    if effort is not None and effort not in HAIKU45_EFFORT_LEVELS:
+        return (
+            f"unknown effort level '{effort}' for ZCoder Max — choose from {', '.join(HAIKU45_EFFORT_LEVELS)}"
         )
-    return {"type": "enabled", "budget_tokens": budget_tokens}
-
-
-def validate_fast_mode(want_fast: bool) -> str | None:
-    if not want_fast:
-        return None
-    if HAIKU45_MODEL_ID in FAST_MODE_SUPPORTED:
-        return None
-    return (
-        'fast mode (speed:"fast") is restricted to Opus models per '
-        "zcoder.agent.models.registry.FAST_MODE_SUPPORTED — not available on Haiku 4.5."
-    )
+    return None
 
 
 def validate_inference_geo(use_geo: bool) -> str | None:
-    if not use_geo:
-        return None
-    if HAIKU45_MODEL_ID in INFERENCE_GEO_SUPPORTED:
-        return None
-    return (
-        "inference_geo data residency is not supported on Haiku 4.5 per "
-        "zcoder.agent.models.registry.INFERENCE_GEO_SUPPORTED (Opus/Sonnet-5/Mythos-class "
-        "only as of the 2026-07-02 catalog check) — sending it will 400."
-    )
+    """Inference geo is not applicable to local Ollama models."""
+    return None
 
 
 class Haiku45Client:
-    """Messages API client for claude-haiku-4-5-20251001. Follows the same
-    _post() pattern as the other claude_*.py per-model modules."""
+    """ZCoder Max client via Ollama (refactored from Claude Haiku 4.5 client).
 
-    def __init__(self, api_key: str, max_tokens: int = 4096):
-        self.api_key = api_key
+    Same interface as before but calls local Ollama instead of Anthropic API.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+        base_url: str = DEFAULT_OLLAMA_BASE_URL,
+        max_tokens: int = 8192,
+    ) -> None:
+        self.base_url = base_url
         self.max_tokens = max_tokens
+        self._client = ZCoderClient(
+            model=HAIKU45_MODEL_ID,
+            base_url=base_url,
+            max_tokens=max_tokens,
+        )
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            MESSAGES_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
-        )
-        return urlopen_json(req, timeout=300)
+        return self._client._call(payload)
 
     def _post(self, payload: dict) -> dict:
         try:
@@ -151,79 +113,111 @@ class Haiku45Client:
         self,
         prompt: str,
         system: str | None = None,
-        thinking_budget: int | None = None,
+        effort: str | None = None,
+        disable_thinking: bool = False,
         fast: bool = False,
         use_geo: bool = False,
+        thinking_budget: int | None = None,  # Accepted for compatibility, ignored
     ) -> dict:
-        fast_err = validate_fast_mode(fast)
-        if fast_err:
-            raise ValueError(fast_err)
-        geo_err = validate_inference_geo(use_geo)
-        if geo_err:
-            raise ValueError(geo_err)
+        """Build and send one request to zcoder-max via Ollama.
 
-        thinking = build_thinking_param(thinking_budget)  # raises ValueError on bad budget
+        effort maps to temperature. disable_thinking, use_geo, and
+        thinking_budget are accepted for compatibility but have no effect
+        on local models.
+        """
+        err = validate_effort_thinking(effort, disable_thinking)
+        if err:
+            raise ValueError(err)
 
-        payload = {
-            "model": HAIKU45_MODEL_ID,
-            "max_tokens": max(self.max_tokens, (thinking_budget or 0) + 1024),
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system:
-            payload["system"] = system
-        if thinking:
-            payload["thinking"] = thinking
-        return self._post(payload)
+        temperature = HAIKU45_EFFORT_BUDGETS.get(effort, 0.7) if effort else 0.7
+        if fast:
+            temperature = min(temperature, 0.3)
+
+        return self._client.call(
+            prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=self.max_tokens,
+        )
 
     def call_text(self, prompt: str, **kwargs) -> str:
-        data = self.call(prompt, **kwargs)
-        if "error" in data:
-            return f"[ERROR] {data['error']}"
-        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        return self._client.call_text(prompt, **kwargs)
+
+
+# ── Re-export for backward compatibility ─────────────────────────────────
+
+__all__ = [
+    "HAIKU45_MODEL_ID",
+    "HAIKU45_EFFORT_BUDGETS",
+    "HAIKU45_EFFORT_LEVELS",
+    "HAIKU45_THINKING_DISABLE_ALLOWED",
+    "HAIKU45_INFO",
+    "validate_effort_thinking",
+    "validate_inference_geo",
+    "Haiku45Client",
+    "estimate_cost_usd",
+    "cmd_haiku45_info",
+    "cmd_haiku45_call",
+]
 
 
 def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
-    return (
-        input_tokens / 1_000_000 * HAIKU45_INFO["price_input_per_mtok_usd"]
-        + output_tokens / 1_000_000 * HAIKU45_INFO["price_output_per_mtok_usd"]
-    )
+    """Estimate cost — ZCoder models are free when run locally."""
+    return 0.0
 
 
 def cmd_haiku45_info():
+    """Print ZCoder Max capability table (refactored from Claude Haiku 4.5 info)."""
     info = HAIKU45_INFO
-    print(f"\n\033[94mClaude Haiku 4.5\033[0m  ({HAIKU45_MODEL_ID}, alias: {info['alias']})")
+    print(f"\n\033[94mZCoder Max (via Ollama)\033[0m  ({HAIKU45_MODEL_ID})")
+    print(f"  Model ID:          {HAIKU45_MODEL_ID}")
     print(f"  Context window:    {info['context_window']:,} tokens")
     print(f"  Max output:        {info['max_output_tokens']:,} tokens")
-    print(
-        f"  Pricing:           ${info['price_input_per_mtok_usd']}/MTok in, "
-        f"${info['price_output_per_mtok_usd']}/MTok out"
-    )
-    print(f"  Thinking:          {info['thinking']}")
-    print(
-        f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'NOT supported (Opus-only)'}"
-    )
-    print(f"  Priority Tier:     {'supported' if info['service_tier_supported'] else 'not supported'}")
-    print(f"  Data residency:    {'supported' if info['inference_geo_supported'] else 'NOT supported'}")
-    print(f"\n  Notes: {info['notes']}\n")
+    print(f"  Size:              {info['size_gb']} GB ({info['quant']})")
+    print("  Pricing:           Free (local inference via Ollama)")
+    print(f"  Effort levels:     {', '.join(info['effort_levels'])}")
+    print(f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'not supported'}")
+    print("\n  \033[93mNote:\033[0m Refactored from Claude Haiku 4.5 module.")
+    print("    --haiku45 now calls zcoder-max via Ollama (local provider).")
+    print("    No API key or internet required.\n")
+    print(f"  Notes: {info['notes']}\n")
 
 
 def cmd_haiku45_call(
     prompt: str,
-    api_key: str,
-    thinking_budget: int | None = None,
+    api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+    effort: str | None = None,
+    disable_thinking: bool = False,
     fast: bool = False,
     use_geo: bool = False,
+    thinking_budget: int | None = None,
     system: str | None = None,
 ):
-    client = Haiku45Client(api_key=api_key)
+    """Call zcoder-max via Ollama (refactored from Claude Haiku 4.5 call)."""
+    client = Haiku45Client(base_url=DEFAULT_OLLAMA_BASE_URL)
     try:
-        data = client.call(prompt, system=system, thinking_budget=thinking_budget, fast=fast, use_geo=use_geo)
+        data = client.call(
+            prompt,
+            system=system,
+            effort=effort,
+            disable_thinking=disable_thinking,
+            fast=fast,
+            use_geo=use_geo,
+            thinking_budget=thinking_budget,
+        )
     except ValueError as e:
         print(f"\033[91m✗ {e}\033[0m")
         return None
+
     if "error" in data:
         print(f"[ERROR] {data['error']}")
         return None
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+
+    # Extract text from already-fetched data (avoid double API call)
+    msg = data.get("message", {})
+    if isinstance(msg, dict):
+        text = msg.get("content", "")
+    else:
+        text = data.get("response", "")
     print(text)
     return data

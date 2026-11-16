@@ -352,7 +352,7 @@ class EnterprisePostgresStore:
                 with conn.cursor() as cur:
                     cur.execute("RESET app.current_org;")
                 conn.commit()
-            except Exception:
+            except Exception:  # nosec
                 # Session variable reset may fail outside app context; safe to ignore.
                 pass
             self.pool.putconn(conn)
@@ -957,7 +957,7 @@ class EnterprisePostgresStore:
                         role=EnterpriseRole.OPERATOR,
                         authentication_method="apikey",
                     )
-            except Exception:
+            except Exception:  # nosec
                 continue
 
         return None

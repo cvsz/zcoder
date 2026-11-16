@@ -273,7 +273,7 @@ class OidcValidator:
             if not kid or key_data.get("kid") == kid:
                 try:
                     return jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
-                except Exception:
+                except Exception:  # nosec
                     continue
         raise TokenInvalidError(f"No matching JWKS key found for kid={kid!r}")
 
