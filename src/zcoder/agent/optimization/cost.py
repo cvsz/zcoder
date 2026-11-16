@@ -21,9 +21,6 @@ an Admin API key rather than a regular one, which is why it's a separate
 module instead of folded into local estimation here.
 """
 
-from __future__ import annotations
-
-import hashlib
 import json
 import threading
 import time
@@ -31,54 +28,60 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+import requests
 
 from zcoder.agent.optimization.local_tokens import estimate_tokens as local_estimate_tokens
 from zcoder.agent.optimization.tokens import optimize_prompt
 from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
 
-# Model context windows (tokens) - per platform.claude.com/docs/en/about-claude/
-# models/overview as of 2026-07-02, re-verified 2026-08-13.
-MODEL_CONTEXT_WINDOWS: dict[str, int] = {
-    "claude-haiku-4-5-20251001": 200_000,
-    "claude-sonnet-5": 1_000_000,
-    "claude-opus-5": 1_000_000,
-    "claude-sonnet-4-6": 1_000_000,
-    "claude-sonnet-4-5": 1_000_000,  # via context-1m beta
-    "claude-opus-4-8": 1_000_000,
-    "claude-opus-4-7": 1_000_000,
-    "claude-opus-4-6": 1_000_000,
-    "claude-opus-4-5": 1_000_000,
-    "claude-fable-5": 1_000_000,
-    "claude-mythos-5": 1_000_000,
-    # OpenAI models
-    "gpt-4": 8_192,
-    "gpt-4o": 128_000,
-    "gpt-4-turbo": 128_000,
-    "gpt-3.5-turbo": 16_000,
-    # Default for unmapped models
-    "default": 200_000,
-}
-LEGACY_CONTEXT_WINDOW = 200_000
-
-
-def context_window(model: str) -> int:
-    """Best-known context window (tokens) for ``model``; 200K when unmapped."""
-    return MODEL_CONTEXT_WINDOWS.get(model, LEGACY_CONTEXT_WINDOW)
-
-
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 
-# Thread-safe cache lock and TTL for response cache
+# Thread-safe cost log cache
 _cost_lock = threading.Lock()
-_cache_ttl = 300  # 5 minutes in seconds
+_cost_cache: dict = {}
+_cache_ttl = 300  # 5 minutes TTL for cost cache
+
+# Connection pool for HTTP API requests
+_connection_pool: requests.Session | None = None
+
+
+def get_connection_pool() -> requests.Session:
+    """Get or create a thread-safe HTTP connection pool."""
+    global _connection_pool
+    if _connection_pool is None:
+        _connection_pool = requests.Session()
+        # Configure connection pool settings
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=10,
+            max_retries=3,
+        )
+        _connection_pool.mount("https://", adapter)
+        _connection_pool.mount("http://", adapter)
+    return _connection_pool
+
+
+def release_connection_pool() -> None:
+    """Release the connection pool resources."""
+    global _connection_pool
+    if _connection_pool is not None:
+        _connection_pool.close()
+        _connection_pool = None
+
+
+# ── Response Cache with TTL ──────────────────────────────────────────────
+# Cache for API responses to avoid redundant calls.
+
+
 _response_cache: OrderedDict[str, dict] = OrderedDict()
-_cost_cache: dict[str, Any] = {"entries": []}
 
 
 def _cache_key(model: str, in_tok: int, out_tok: int, inference_geo: str) -> str:
     """Generate a cache key for cost estimation."""
+    import hashlib
+
     data = f"{model}:{in_tok}:{out_tok}:{inference_geo}"
     return hashlib.sha256(data.encode()).hexdigest()
 
@@ -90,9 +93,62 @@ def _evict_cache() -> None:
         _response_cache.popitem(last=False)
 
 
-# Model pricing tiers (USD per MTok) — per platform.claude.com pricing page
-# verified 2026-08-13.
+def estimate_cost_cached(
+    model: str,
+    in_tok: int,
+    out_tok: int,
+    use_intro_pricing: bool = False,
+    inference_geo: str = "global",
+) -> float:
+    """Estimate cost with caching to avoid redundant calculations.
+
+    Uses an OrderedDict-based TTL cache. If the same (model, tokens, geo)
+    combination has been computed within the TTL window, the cached result
+    is returned immediately.
+
+    Args:
+        model: Model identifier
+        in_tok: Input token count
+        out_tok: Output token count
+        use_intro_pricing: Whether to use Sonnet 5 intro pricing
+        inference_geo: Data residency ("us" or "global")
+
+    Returns:
+        Estimated cost in USD
+    """
+    key = _cache_key(model, in_tok, out_tok, inference_geo)
+
+    with _cost_lock:
+        # Check cache hit
+        if key in _response_cache:
+            entry = _response_cache[key]
+            # Check TTL
+            entry_time = entry["timestamp"]
+            now = time.time()
+            if now - entry_time < _cache_ttl:
+                # Cache hit — return cached cost
+                return entry["cost"]
+            else:
+                # Expired — remove and recompute
+                del _response_cache[key]
+
+        # Cache miss — compute cost
+        cost = estimate_cost(model, in_tok, out_tok, use_intro_pricing, inference_geo)
+
+        # Store in cache
+        _response_cache[key] = {
+            "cost": cost,
+            "timestamp": time.time(),
+        }
+
+        # Evict if over capacity
+        _evict_cache()
+
+        return cost
+
+
 PRICE: dict[str, dict[str, float]] = {
+    # Current
     "claude-haiku-4-5-20251001": {"in": 1.0, "out": 5.0},
     "claude-sonnet-5": {"in": 2.0, "out": 10.0},
     "claude-opus-5": {"in": 5.0, "out": 25.0},
@@ -100,7 +156,7 @@ PRICE: dict[str, dict[str, float]] = {
     "claude-fable-5": {"in": 10.0, "out": 50.0},
     "claude-mythos-5": {"in": 10.0, "out": 50.0},
     # Legacy — still callable, kept so cost estimates don't silently fall
-    # back to DEFAULT_PRICE guess for accounts still on these.
+    # back to the DEFAULT_PRICE guess for accounts still on these
     "claude-opus-4-7": {"in": 5.0, "out": 25.0},
     "claude-opus-4-6": {"in": 5.0, "out": 25.0},
     "claude-opus-4-5": {"in": 5.0, "out": 25.0},
@@ -108,20 +164,63 @@ PRICE: dict[str, dict[str, float]] = {
     "claude-sonnet-4-5": {"in": 3.0, "out": 15.0},
 }
 SONNET5_INTRO_PRICE = {"in": 2.0, "out": 10.0}  # permanent standard price
-
 TIER_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5"]
 
 # Long-context (>200K input) pricing surcharge. Previously missing entirely —
 # estimate_cost() applied flat per-model pricing regardless of input size,
 # which under-quoted cost for any model that has a long-context surcharge.
+#
+# Per platform.claude.com/docs/en/about-claude/pricing (checked 2026-07-02):
+# Claude Opus 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, and Sonnet 5 all get the
+# full 1M-token context window at FLAT standard pricing — no surcharge at
+# any input size. Those models are deliberately absent below. The surcharge
+# only still applies to models on the older 1M-context BETA
+# (context-1m-2025-08-07 header): confirmed for claude-sonnet-4-5 at 2x
+# input / 1.5x output above a 200K-token request — the *whole* request is
+# billed at the surcharge rate once it crosses the threshold, not just the
+# tokens above it. That beta is scheduled for retirement 2026-04-30 per the
+# API release notes, after which this entry stops mattering, but it's kept
+# since claude-sonnet-4-5 is still callable / still in PRICE. Add other
+# legacy models here only once their surcharge terms are confirmed —
+# guessing a multiplier is worse than omitting it, since PRICE already
+# falls back sanely for anything not in this table.
 LONG_CONTEXT_SURCHARGE: dict[str, dict[str, float]] = {
     "claude-sonnet-4-5": {"threshold": 200_000, "in_mult": 2.0, "out_mult": 1.5},
 }
 
-# Data residency (inference_geo) pricing. Per platform.claude.com/docs/en/about-claude/
+# ── Context windows ──────────────────────────────────────────────────────
+# Cross-checked against the pricing notes above: Claude Opus 5 / 4.8 /
+# 4.7 / 4.6, Sonnet 5 / 4.6, Fable 5 and Mythos 5 run a full 1M-token
+# window at flat pricing; claude-sonnet-4-5 reaches 1M through the
+# (retiring 2026-04-30) context-1m beta. Anything not mapped here falls
+# back to the legacy 200K window — assuming too small a
+# window makes /context warn early, never late (Upgrade-56, parity W1).
+MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    "claude-opus-5": 1_000_000,
+    "claude-opus-4-8": 1_000_000,
+    "claude-opus-4-7": 1_000_000,
+    "claude-opus-4-6": 1_000_000,
+    "claude-sonnet-5": 1_000_000,
+    "claude-sonnet-4-6": 1_000_000,
+    "claude-sonnet-4-5": 1_000_000,  # via context-1m beta
+    "claude-fable-5": 1_000_000,
+    "claude-mythos-5": 1_000_000,
+}
+LEGACY_CONTEXT_WINDOW = 200_000
+
+
+def context_window(model: str) -> int:
+    """Best-known context window (tokens) for ``model``; 200K when unmapped."""
+    return MODEL_CONTEXT_WINDOWS.get(model, LEGACY_CONTEXT_WINDOW)
+
+
+# Data residency (inference_geo) pricing. Per platform.claude.com/docs
 # (Service tiers / Data residency, checked 2026-07-02, re-verified 2026-08-13): requests with
 # inference_geo:"us" on Claude Opus 4.6, Sonnet 4.6, and later models (including Opus 5) are
 # billed at a flat 1.1x multiplier on both input and output tokens.
+# inference_geo:"global" (the default) is standard pricing. Requesting
+# inference_geo at all on models before Opus 4.6 / Sonnet 4.6 is a 400 —
+# INFERENCE_GEO_SUPPORTED gates that at the call site (see optimized_call).
 INFERENCE_GEO_MULTIPLIER = 1.1
 INFERENCE_GEO_SUPPORTED = {
     "claude-opus-5",
@@ -136,24 +235,8 @@ INFERENCE_GEO_SUPPORTED = {
 
 
 def estimate_cost(
-    model: str,
-    in_tok: int,
-    out_tok: int,
-    use_intro_pricing: bool = False,
-    inference_geo: str = "global",
+    model: str, in_tok: int, out_tok: int, use_intro_pricing: bool = False, inference_geo: str = "global"
 ) -> float:
-    """Estimate cost for a given model and token counts.
-
-    Args:
-        model: Model identifier
-        in_tok: Input token count
-        out_tok: Output token count
-        use_intro_pricing: Whether to use Sonnet 5 intro pricing
-        inference_geo: Data residency ("us" or "global")
-
-    Returns:
-        Estimated cost in USD
-    """
     if model == "claude-sonnet-5" and use_intro_pricing:
         p = SONNET5_INTRO_PRICE
     else:
@@ -189,6 +272,7 @@ def classify_complexity(prompt: str) -> str:
     - Task complexity keywords (refactor, comprehensive, legacy, etc.)
     - Task description keywords (write, create, build, implement)
     - SQL-specific markers (indicates database operations)
+    - Estimated token count via local estimator
     """
     words = len(prompt.split())
     prompt_lower = prompt.lower()
@@ -348,174 +432,6 @@ def select_model(complexity: str, force: str | None = None, prefer_latency: bool
     return {"low": TIER_MODELS[0], "medium": TIER_MODELS[1], "high": TIER_MODELS[2]}[complexity]
 
 
-def predict_best_model(
-    complexity_or_prompt: str | None = None,
-    complexity: str | None = None,
-    available_models: list[str] | None = None,
-    prefer_latency: bool = False,
-) -> dict[str, Any]:
-    """Predict the best model for a given complexity or prompt.
-
-    Args:
-        complexity_or_prompt: Prompt text (if complexity not specified)
-        complexity: "low", "medium", or "high" (if prompt not specified)
-        available_models: List of available model names (defaults to TIER_MODELS)
-        prefer_latency: If True, prefer faster models even for complex prompts
-
-    Returns:
-        Dict with 'model', 'complexity', 'estimated_cost', 'estimated_tokens'
-    """
-    # Determine complexity: auto-classify if prompt provided, otherwise use given complexity
-    if complexity_or_prompt is not None and complexity is None:
-        complexity = classify_complexity(complexity_or_prompt)
-
-    if complexity is None:
-        complexity = "medium"
-
-    if available_models is None:
-        available_models = TIER_MODELS
-
-    # Estimate token count using the actual prompt if provided, otherwise use a standard sample
-    if complexity_or_prompt is not None:
-        estimated_tokens = local_estimate_tokens(complexity_or_prompt, "claude-sonnet-5")
-    else:
-        # Cached sample estimation for complexity assessment without prompt
-        estimated_tokens = local_estimate_tokens("sample prompt", "claude-sonnet-5")
-
-    # Select optimal model
-    if prefer_latency:
-        model = select_model(complexity, prefer_latency=True)
-    else:
-        model = select_model(complexity)
-
-    # Estimate cost with current model
-    cost = estimate_cost(model, estimated_tokens, estimated_tokens // 2)
-
-    # Check if switching models would provide significant savings
-    if len(available_models) > 1:
-        for alt_model in available_models:
-            if alt_model == model:
-                continue
-            alt_cost = estimate_cost(alt_model, estimated_tokens, estimated_tokens // 2)
-            # Switch if at least 30% cheaper
-            if alt_cost < cost * 0.7:
-                model = alt_model
-                cost = alt_cost
-                # Reset complexity for new model since pricing tiers differ
-                complexity = "medium"
-
-    return {
-        "model": model,
-        "complexity": complexity,
-        "estimated_cost": cost,
-        "estimated_tokens": estimated_tokens,
-    }
-
-
-def route_by_cost(
-    prompt: str,
-    available_models: list[str] | None = None,
-    prefer_latency: bool = False,
-) -> dict[str, Any]:
-    """Route a prompt to the best model based on cost optimization.
-
-    Args:
-        prompt: User prompt text to analyze
-        available_models: List of available model names (defaults to TIER_MODELS)
-        prefer_latency: If True, prefer faster models
-
-    Returns:
-        Dict with 'model', 'complexity', 'in_tokens', 'out_tokens', 'cost_usd'
-    """
-    if available_models is None:
-        available_models = TIER_MODELS
-
-    # Classify prompt complexity
-    complexity = classify_complexity(prompt)
-
-    # Predict best model with actual prompt for token estimation
-    prediction = predict_best_model(
-        complexity_or_prompt=prompt,
-        complexity=None,
-        available_models=available_models,
-        prefer_latency=prefer_latency,
-    )
-
-    # Use predicted model's token estimation
-    in_tokens = local_estimate_tokens(prompt, prediction["model"])
-    out_tokens = in_tokens // 2  # Rough estimate for output
-
-    # Calculate final cost
-    cost = estimate_cost(prediction["model"], in_tokens, out_tokens)
-
-    return {
-        "model": prediction["model"],
-        "complexity": complexity,
-        "in_tokens": in_tokens,
-        "out_tokens": out_tokens,
-        "cost_usd": cost,
-    }
-
-
-def forecast_spend(
-    num_prompts: int,
-    complexity_distribution: dict[str, int] | None = None,
-    model: str = "zcoder-pro",
-) -> dict[str, Any]:
-    """Forecast spend for a given number of prompts.
-
-    Args:
-        num_prompts: Number of prompts to forecast
-        complexity_distribution: Dict mapping complexity to count
-            e.g., {"low": 50, "medium": 30, "high": 20}
-        model: Default model for cost estimation
-
-    Returns:
-        Dict with cost breakdown and totals
-    """
-    if complexity_distribution is None:
-        # Default: distribute evenly across complexity levels
-        complexity_distribution = {
-            "low": num_prompts // 3,
-            "medium": num_prompts // 3,
-            "high": num_prompts - (num_prompts // 3) * 2,
-        }
-
-    # Default token counts per complexity
-    token_estimates = {
-        "low": 100,
-        "medium": 500,
-        "high": 2000,
-    }
-
-    total_cost = 0.0
-    breakdown: dict[str, Any] = {}
-
-    for complexity, count in complexity_distribution.items():
-        if count <= 0:
-            continue
-        tokens = token_estimates.get(complexity, 500)
-        cost = estimate_cost(model, tokens, tokens // 2)
-        total_cost += cost * count
-        breakdown[complexity] = {
-            "count": count,
-            "tokens_per_prompt": tokens,
-            "cost_per_prompt": cost,
-            "total": cost * count,
-        }
-
-    # Compute average cost per prompt
-    avg_cost = round(total_cost / num_prompts, 6) if num_prompts > 0 else 0.0
-
-    return {
-        "total_forecasted_cost": round(total_cost, 6),
-        "total_prompts": num_prompts,
-        "model": model,
-        "breakdown": breakdown,
-        "average_cost_per_prompt": avg_cost,
-    }
-
-
 def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_preview: str):
     SPEND_LOG.parent.mkdir(parents=True, exist_ok=True)
 
@@ -550,7 +466,7 @@ def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_previe
             "prompt": prompt_preview[:80],
         }
         SPEND_LOG.write_text(json.dumps(list(existing_entries.values())[-5000:], indent=2))
-    except Exception:  # nosec
+    except Exception:
         pass
 
 
@@ -688,7 +604,7 @@ def cmd_cost_clear_cache():
     print("✓ Cost cache cleared.")
 
 
-def cmd_optimize_prompt(prompt: str, model: str = "zcoder-pro") -> str:
+def cmd_optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
     """Optimize a prompt using token heuristics and return the optimized version."""
     optimized = optimize_prompt(prompt, model)
     original_tokens = local_estimate_tokens(prompt, model)
@@ -696,5 +612,5 @@ def cmd_optimize_prompt(prompt: str, model: str = "zcoder-pro") -> str:
     savings = original_tokens - optimized_tokens
     print(f"Original tokens: {original_tokens:,}")
     print(f"Optimized tokens: {optimized_tokens:,}")
-    print(f"Savings: {savings:,} tokens ({round(savings / original_tokens * 100, 2)}%)")
+    print(f"Savings: {savings:,} tokens ({round(savings/original_tokens*100,2)}%)")
     return optimized

@@ -17,11 +17,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from zcoder.agent.optimization.config import TIER_MODELS
-
 # Model-specific character-to-token multipliers
 # Based on typical tokenizer behavior for each model family
-# (imported from config to avoid circular imports)
 MODEL_MULTIPLIERS: dict[str, float] = {
     # Anthropic models
     "claude-sonnet-5": 0.25,
@@ -46,7 +43,6 @@ MODEL_MULTIPLIERS: dict[str, float] = {
 
 # Cached model multipliers (memoized lookups)
 _MULTIPLIER_CACHE: dict[str, float] = {}
-_MULTIPLIER_CACHE_VERSION: int = 0  # Version bump for cache invalidation
 
 # Token overhead for common message components
 SYSTEM_PROMPT_OVERHEAD_FACTOR = 1.0  # System prompt counted as regular text
@@ -97,7 +93,7 @@ _MODEL_CODE_PATTERNS: dict[str, list[re.Pattern]] = {
         re.compile(r"\bfunction\b", re.IGNORECASE),
         re.compile(r"\bclass\b", re.IGNORECASE),
         re.compile(r"\breturn\b", re.IGNORECASE),
-        re.compile(r"=>\b", re.IGNORECASE),
+        re.compile(r"\b=>\b", re.IGNORECASE),
     ],
     "default": [
         re.compile(r"\bdef\b", re.IGNORECASE),
@@ -109,7 +105,7 @@ _MODEL_CODE_PATTERNS: dict[str, list[re.Pattern]] = {
 }
 
 
-def _detect_model(model: str) -> str:
+def _detect_model(text: str, model: str) -> str:
     """Detect the model family from model name."""
     model_lower = model.lower()
     if "claude" in model_lower:
@@ -124,7 +120,7 @@ def _is_code_model_specific(text: str, model: str) -> bool:
     if not text:
         return False
 
-    model_family = _detect_model(model)
+    model_family = _detect_model("", model)
     patterns = _MODEL_CODE_PATTERNS.get(model_family, _MODEL_CODE_PATTERNS["default"])
 
     text_lower = text.lower()
@@ -134,30 +130,17 @@ def _is_code_model_specific(text: str, model: str) -> bool:
     return False
 
 
-def _get_multiplier(model: str, cache: dict | None = None) -> float:
-    """Get character-to-token multiplier for a model with optional cache."""
-    global _MULTIPLIER_CACHE_VERSION
+def _get_multiplier(model: str) -> float:
+    """Get character-to-token multiplier for a model."""
     # Try exact match first
     if model in MODEL_MULTIPLIERS:
-        if cache is not None and model not in cache:
-            cache[model] = MODEL_MULTIPLIERS[model]
         return MODEL_MULTIPLIERS[model]
 
     # Try prefix match (e.g., "claude-sonnet-5-20260101")
     for prefix, mult in MODEL_MULTIPLIERS.items():
         if model.startswith(prefix):
-            if cache is not None and prefix not in cache:
-                cache[prefix] = mult
             return mult
 
-    # Use provided cache or global cache
-    if cache is not None:
-        if model not in cache:
-            cache[model] = MODEL_MULTIPLIERS.get(model, MODEL_MULTIPLIERS["default"])
-        return cache[model]
-
-    # Cache miss — bump version to invalidate stale cache entries
-    _MULTIPLIER_CACHE_VERSION += 1
     return MODEL_MULTIPLIERS["default"]
 
 
@@ -194,16 +177,10 @@ def _estimate_mixed(text: str, code_ratio: float = 0.5) -> int:
     code_chars = int(char_count * code_ratio)
     non_code_chars = char_count - code_chars
 
-    # Only award a minimum of one token when the slice actually contains
-    # characters; an empty slice (e.g. non-code text with code_ratio=0.0)
-    # must not contribute a spurious token to the estimate.
-    code_tokens = int(code_chars / 3) if code_chars > 0 else 0
-    non_code_tokens = int(non_code_chars / 4) if non_code_chars > 0 else 0
+    code_tokens = max(1, int(code_chars / 3))
+    non_code_tokens = max(1, int(non_code_chars / 4))
 
-    total = code_tokens + non_code_tokens
-    # Non-empty text always estimates at least one token (matches
-    # _estimate_chars), but never a spurious code token for non-code input.
-    return max(1, total)
+    return code_tokens + non_code_tokens
 
 
 def _estimate_words(text: str) -> int:
@@ -221,7 +198,7 @@ class TokenEstimate:
 
     input_tokens: int
     model: str
-    method: str = "local"
+    method: str  # "local" or "api"
     breakdown: dict[str, int] | None = None
 
 
@@ -234,7 +211,7 @@ class LocalTokenEstimator:
     def estimate(
         self,
         prompt: str,
-        model: str = "zcoder-pro",
+        model: str = "claude-sonnet-5",
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         history: list[dict[str, Any]] | None = None,
@@ -251,15 +228,14 @@ class LocalTokenEstimator:
         Returns:
             Estimated input token count
         """
-        global _MULTIPLIER_CACHE_VERSION
         # Create cache key
         cache_key = f"{model}:{prompt}:{system}:{tools}:{history}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # Use cached multiplier lookup (memoized at module level)
+        # Use cached multiplier lookup
         if model not in _MULTIPLIER_CACHE:
-            _MULTIPLIER_CACHE[model] = _get_multiplier(model, _MULTIPLIER_CACHE)
+            _MULTIPLIER_CACHE[model] = _get_multiplier(model)
         multiplier = _MULTIPLIER_CACHE[model]
 
         # Detect code type using model-specific heuristics
@@ -297,43 +273,17 @@ class LocalTokenEstimator:
         # Apply model multiplier
         total = int(total * (multiplier / 0.25))  # Normalize to base 0.25
 
-        # Cache result (limit cache size, bump version on cache clear)
+        # Cache result (limit cache size)
         if len(self._cache) > 1000:
             self._cache.clear()
-            _MULTIPLIER_CACHE_VERSION += 1
         self._cache[cache_key] = total
 
         return total
 
-    def estimate_batch(self, prompts: list[str], model: str = "zcoder-pro") -> list[int]:
-        """Estimate tokens for a batch of prompts efficiently.
-
-        Args:
-            prompts: List of prompt texts
-            model: Model name for estimation
-
-        Returns:
-            List of estimated token counts
-        """
-        # Use module-level cache key prefix to avoid re-computation
-        # Pre-compute multiplier for the model
-        if model not in _MULTIPLIER_CACHE:
-            _MULTIPLIER_CACHE[model] = _get_multiplier(model, _MULTIPLIER_CACHE)
-        multiplier = _MULTIPLIER_CACHE[model]
-
-        results: list[int] = []
-        for prompt in prompts:
-            # Re-use the same cache key logic as estimate()
-            is_code = _is_code_model_specific(prompt, model)
-            prompt_tokens = _estimate_mixed(prompt, code_ratio=0.5 if is_code else 0.0)
-            total = int(prompt_tokens * (multiplier / 0.25))
-            results.append(total)
-        return results
-
     def estimate_detailed(
         self,
         prompt: str,
-        model: str = "zcoder-pro",
+        model: str = "claude-sonnet-5",
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         history: list[dict[str, Any]] | None = None,
@@ -368,7 +318,7 @@ class LocalTokenEstimator:
         total = int(total * (multiplier / 0.25))
 
         # Build detailed breakdown with code/non-code analysis
-        breakdown: dict[str, Any] = {
+        breakdown: dict[str, int] = {
             "prompt": prompt_tokens,
             "system": system_tokens,
             "history": history_tokens,
@@ -377,8 +327,7 @@ class LocalTokenEstimator:
 
         # Add model-specific code detection info
         breakdown["is_code"] = 1 if is_code else 0
-        breakdown["model_family"] = _detect_model(model)
-        breakdown["model"] = model  # Actual model name, not hashed identifier
+        breakdown["model"] = hash(model) % 1000  # Identifier, not actual model name
 
         return TokenEstimate(
             input_tokens=total,
@@ -398,7 +347,7 @@ _default_estimator = LocalTokenEstimator()
 
 def estimate_tokens(
     prompt: str,
-    model: str = "zcoder-pro",
+    model: str = "claude-sonnet-5",
     system: str | None = None,
     tools: list[dict[str, Any]] | None = None,
     history: list[dict[str, Any]] | None = None,
@@ -407,62 +356,9 @@ def estimate_tokens(
     return _default_estimator.estimate(prompt, model, system, tools, history)
 
 
-def predict_best_model(
-    prompt: str,
-    available_models: list[str] | None = None,
-    prefer_latency: bool = False,
-) -> dict[str, Any]:
-    """Predict the best model for a given prompt based on complexity and cost.
-
-    Args:
-        prompt: User prompt text
-        available_models: List of available model names (defaults to TIER_MODELS)
-        prefer_latency: If True, prefer faster models even for complex prompts
-
-    Returns:
-        Dict with 'model', 'complexity', 'estimated_cost', 'estimated_tokens'
-    """
-    from zcoder.agent.optimization.cost import classify_complexity, estimate_cost, select_model
-
-    if available_models is None:
-        available_models = TIER_MODELS
-
-    complexity = classify_complexity(prompt)
-    estimated_tokens = estimate_tokens(prompt, "claude-sonnet-5")
-
-    # Select optimal model
-    if prefer_latency:
-        # Always prefer haiku for latency-sensitive tasks
-        model = select_model(complexity, prefer_latency=True)
-    else:
-        model = select_model(complexity)
-
-    # Estimate cost with current model
-    cost = estimate_cost(model, estimated_tokens, estimated_tokens // 2)
-
-    # Check if switching models would provide significant savings
-    if len(available_models) > 1:
-        for alt_model in available_models:
-            if alt_model == model:
-                continue
-            alt_cost = estimate_cost(alt_model, estimated_tokens, estimated_tokens // 2)
-            # Switch if at least 30% cheaper and model supports the complexity
-            if alt_cost < cost * 0.7:
-                model = alt_model
-                cost = alt_cost
-                complexity = "medium"  # Reset complexity for new model
-
-    return {
-        "model": model,
-        "complexity": complexity,
-        "estimated_cost": cost,
-        "estimated_tokens": estimated_tokens,
-    }
-
-
 def estimate_tokens_detailed(
     prompt: str,
-    model: str = "zcoder-pro",
+    model: str = "claude-sonnet-5",
     system: str | None = None,
     tools: list[dict[str, Any]] | None = None,
     history: list[dict[str, Any]] | None = None,
@@ -471,7 +367,7 @@ def estimate_tokens_detailed(
     return _default_estimator.estimate_detailed(prompt, model, system, tools, history)
 
 
-def detect_code_patterns(text: str, model: str = "zcoder-pro") -> dict:
+def detect_code_patterns(text: str, model: str = "claude-sonnet-5") -> dict:
     """Detect code patterns in text using model-specific heuristics.
 
     Args:
@@ -482,7 +378,7 @@ def detect_code_patterns(text: str, model: str = "zcoder-pro") -> dict:
         Dict with code detection results
     """
     is_code = _is_code_model_specific(text, model)
-    model_family = _detect_model(model)
+    model_family = _detect_model("", model)
     return {
         "is_code": is_code,
         "model_family": model_family,
