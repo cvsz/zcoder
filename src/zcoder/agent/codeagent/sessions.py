@@ -8,7 +8,9 @@ import re
 import secrets
 import tempfile
 import time
-from dataclasses import dataclass
+import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -285,6 +287,23 @@ class RequestHeader:
     header: dict[str, Any]
     reason: str  # 'initial' | 'resume' | 'change' | 'series'
     starts_series: bool = False
+
+
+@dataclass
+class ModelSelection:
+    """Complete provider, model, and optional reasoning effort chosen for one Session's model steps."""
+
+    provider: str
+    model: str
+    reasoning_effort: str | None = None
+
+
+@dataclass
+class ModelSelectionProjection:
+    """Client view of the durable model-selection fold."""
+
+    last_used: ModelSelection | None = None
+    next: ModelSelection | None = None
 
 
 class SessionSurface:
@@ -710,6 +729,226 @@ class SessionProjection:
         }
 
 
+# ── Session Title Management (deepseek-harness session-title) ─────────────────
+
+
+@dataclass
+class SessionTitle:
+    """Session title with LLM-based generation support."""
+
+    value: str
+    generated_by: str | None = None
+    generated_at: float | None = None
+    updated_at: float = field(default_factory=time.time)
+
+
+class SessionTitleProjection:
+    """Projects session title from events, with optional LLM-based generation.
+
+    Mirrors deepseek-harness session-title-llm package: automatic title
+    generation, rename support, and persistence.
+    """
+
+    def __init__(self) -> None:
+        self.title: SessionTitle | None = None
+        self._pending_generation: bool = False
+
+    def fold(self, event: SessionEvent) -> None:
+        """Fold one event into the title projection."""
+        if event.kind == "session/title":
+            data = event.data or {}
+            self.title = SessionTitle(
+                value=data.get("title", ""),
+                generated_by=data.get("generated_by"),
+                generated_at=data.get("generated_at"),
+                updated_at=event.timestamp,
+            )
+        elif event.kind == "user/message" and self.title is None:
+            # Auto-derive title from first user message
+            data = event.data or {}
+            content = data.get("message", "") or data.get("content", "")
+            if content:
+                self.title = SessionTitle(
+                    value=content[:100],
+                    generated_by="first-user-message",
+                    generated_at=event.timestamp,
+                    updated_at=event.timestamp,
+                )
+
+    def generate_title(
+        self,
+        messages: list[dict[str, Any]],
+        llm_call: Callable[[list[dict[str, Any]]], str] | None = None,
+    ) -> str:
+        """Generate a session title from messages, optionally via LLM."""
+        if llm_call is not None:
+            try:
+                generated = llm_call(messages)
+                if generated and generated.strip():
+                    title_value = generated.strip()[:200]
+                    self.title = SessionTitle(
+                        value=title_value,
+                        generated_by="llm",
+                        generated_at=time.time(),
+                        updated_at=time.time(),
+                    )
+                    return title_value
+            except Exception:
+                pass  # Fall through to heuristic
+
+        # Heuristic: use first user message
+        for msg in messages:
+            if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+                content = msg["content"]
+                title_value = content[:100]
+                self.title = SessionTitle(
+                    value=title_value,
+                    generated_by="heuristic",
+                    generated_at=time.time(),
+                    updated_at=time.time(),
+                )
+                return title_value
+
+        return "Untitled Session"
+
+    def get_title(self) -> str | None:
+        """Get the current session title."""
+        return self.title.value if self.title else None
+
+    def rename(self, new_title: str) -> None:
+        """Rename the session."""
+        self.title = SessionTitle(
+            value=new_title,
+            generated_by="user",
+            generated_at=time.time(),
+            updated_at=time.time(),
+        )
+
+    def get_state(self) -> dict[str, Any]:
+        """Get the projected title state."""
+        if self.title is None:
+            return {"title": "", "generated_by": None, "generated_at": None, "updated_at": None}
+        return {
+            "title": self.title.value,
+            "generated_by": self.title.generated_by,
+            "generated_at": self.title.generated_at,
+            "updated_at": self.title.updated_at,
+        }
+
+
+def log_session_title(
+    store: SessionStore,
+    session_id: str,
+    title: str,
+    *,
+    generated_by: str | None = None,
+) -> None:
+    """Log one session/title event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
+    event = SessionEvent(
+        kind="session/title",
+        data={
+            "title": title,
+            "generated_by": generated_by,
+            "generated_at": timestamp,
+            "event_id": event_id,
+            "timestamp": timestamp,
+        },
+    )
+    _log_session_event(store, session_id, event)
+
+
+# ── Working Directory Management (deepseek-harness working-directory) ─────────
+
+
+@dataclass
+class WorkingDirectory:
+    """Working directory with admission controls."""
+
+    path: str
+    changed_at: float = field(default_factory=time.time)
+    changed_by: str | None = None
+
+
+class WorkingDirectoryProjection:
+    """Projects working directory changes from session events.
+
+    Mirrors deepseek-harness working-directory package: cwd change events,
+    admission controls, and persistence across sessions.
+    """
+
+    def __init__(self) -> None:
+        self.cwd: str | None = None
+        self._history: list[WorkingDirectory] = []
+
+    def fold(self, event: SessionEvent) -> None:
+        """Fold one event into the working directory projection."""
+        if event.kind == "working-directory/change":
+            data = event.data or {}
+            new_cwd = data.get("cwd", "")
+            if new_cwd:
+                self.cwd = new_cwd
+                self._history.append(
+                    WorkingDirectory(
+                        path=new_cwd,
+                        changed_at=event.timestamp,
+                        changed_by=data.get("changed_by"),
+                    )
+                )
+
+    def change_directory(self, new_cwd: str, changed_by: str | None = None) -> WorkingDirectory:
+        """Change the working directory and record the change."""
+        wd = WorkingDirectory(
+            path=new_cwd,
+            changed_at=time.time(),
+            changed_by=changed_by,
+        )
+        self.cwd = new_cwd
+        self._history.append(wd)
+        return wd
+
+    def get_cwd(self) -> str | None:
+        """Get the current working directory."""
+        return self.cwd
+
+    def get_history(self) -> list[WorkingDirectory]:
+        """Get the working directory change history."""
+        return list(self._history)
+
+    def get_state(self) -> dict[str, Any]:
+        """Get the projected working directory state."""
+        return {
+            "cwd": self.cwd,
+            "history": [
+                {"path": wd.path, "changed_at": wd.changed_at, "changed_by": wd.changed_by}
+                for wd in self._history
+            ],
+        }
+
+
+def log_working_directory_change(
+    store: SessionStore,
+    session_id: str,
+    cwd: str,
+    *,
+    changed_by: str | None = None,
+) -> None:
+    """Log one working-directory/change event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
+    event = SessionEvent(
+        kind="working-directory/change",
+        data={
+            "cwd": cwd,
+            "changed_by": changed_by,
+            "event_id": event_id,
+            "timestamp": timestamp,
+        },
+    )
+    _log_session_event(store, session_id, event)
+
+
 __all__ = [
     "SessionEvent",
     "SessionSurface",
@@ -737,6 +976,14 @@ __all__ = [
     "SESSION_EVENT_TYPES",
     "DEFAULT_MODEL_PRICING",
     "estimate_cost",
+    "ModelSelection",
+    "ModelSelectionProjection",
+    "SessionTitle",
+    "SessionTitleProjection",
+    "log_session_title",
+    "WorkingDirectory",
+    "WorkingDirectoryProjection",
+    "log_working_directory_change",
 ]
 
 
@@ -826,9 +1073,17 @@ def log_request_header(
     starts_series: bool = False,
 ) -> None:
     """Log one request header envelope."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="request/header",
-        data={"header": header, "reason": reason, "starts_series": starts_series},
+        data={
+            "header": header,
+            "reason": reason,
+            "starts_series": starts_series,
+            "event_id": event_id,
+            "timestamp": timestamp,
+        },
     )
     _log_session_event(store, session_id, event)
 
@@ -924,9 +1179,11 @@ def log_cost_event(
 
 def log_turn_start(store: SessionStore, session_id: str, turn: int) -> None:
     """Log one turn/start event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="turn/start",
-        data={"turn": turn},
+        data={"turn": turn, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)
 
@@ -938,9 +1195,11 @@ def log_turn_end(
     reason: str,
 ) -> None:
     """Log one turn/end event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="turn/end",
-        data={"turn": turn, "reason": reason},
+        data={"turn": turn, "reason": reason, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)
 
@@ -952,9 +1211,11 @@ def log_step_start(
     step: int,
 ) -> None:
     """Log one step/start event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="step/start",
-        data={"turn": turn, "step": step},
+        data={"turn": turn, "step": step, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)
 
@@ -966,24 +1227,11 @@ def log_step_end(
     step: int,
 ) -> None:
     """Log one step/end event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="step/end",
-        data={"turn": turn, "step": step},
-    )
-    _log_session_event(store, session_id, event)
-
-
-def log_assistant_message(
-    store: SessionStore,
-    session_id: str,
-    turn: int,
-    step: int,
-    content: str,
-) -> None:
-    """Log one assistant/message event."""
-    event = SessionEvent(
-        kind="assistant/message",
-        data={"turn": turn, "step": step, "message": content},
+        data={"turn": turn, "step": step, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)
 
@@ -996,9 +1244,28 @@ def log_user_message(
     content: str,
 ) -> None:
     """Log one user/message event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="user/message",
-        data={"turn": turn, "step": step, "message": content},
+        data={"turn": turn, "step": step, "message": content, "event_id": event_id, "timestamp": timestamp},
+    )
+    _log_session_event(store, session_id, event)
+
+
+def log_assistant_message(
+    store: SessionStore,
+    session_id: str,
+    turn: int,
+    step: int,
+    content: str,
+) -> None:
+    """Log one assistant/message event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
+    event = SessionEvent(
+        kind="assistant/message",
+        data={"turn": turn, "step": step, "message": content, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)
 
@@ -1011,9 +1278,11 @@ def log_system_message(
     content: str,
 ) -> None:
     """Log one system/message event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="system/message",
-        data={"turn": turn, "step": step, "message": content},
+        data={"turn": turn, "step": step, "message": content, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)
 
@@ -1026,8 +1295,10 @@ def log_developer_message(
     content: str,
 ) -> None:
     """Log one developer/message event."""
+    event_id = str(uuid.uuid4())[:8]
+    timestamp = time.time()
     event = SessionEvent(
         kind="developer/message",
-        data={"turn": turn, "step": step, "message": content},
+        data={"turn": turn, "step": step, "message": content, "event_id": event_id, "timestamp": timestamp},
     )
     _log_session_event(store, session_id, event)

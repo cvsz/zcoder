@@ -9,7 +9,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from zcoder.agent.codeagent.audit import AuditLog, summarize_args
 from zcoder.agent.codeagent.events import (
@@ -157,6 +157,105 @@ class CodeAgent:
         self.ultracode: bool = False
         self.effort = "medium"
         self.workflow_runs: list[Any] = []
+
+    # ── Phase-based state machine (deepseek-harness ReactLoopAgent pattern) ──
+    # Phase: idle | running | maintenance
+    _Phase = Literal["idle", "running", "maintenance"]
+
+    @property
+    def phase(self) -> _Phase:
+        """Current agent phase: idle, running, or maintenance."""
+        if self._maintenance_active:
+            return "maintenance"
+        return "running" if self.running else "idle"
+
+    @property
+    def status(self) -> str:
+        """Externally visible agent status."""
+        return self.phase
+
+    _maintenance_active: bool = False
+    _maintenance_abort: Any = None
+    _wake_requested: bool = False
+    _inbox_next_turn: list[dict[str, Any]] = []
+    _inbox_next_step: list[dict[str, Any]] = []
+
+    def wake_driver(self, wake_after_abort: bool = False) -> None:
+        """Wake the agent driver, or latch wake behind maintenance/abort."""
+        if self._maintenance_active or wake_after_abort:
+            if not self._wake_requested:
+                self._wake_requested = True
+            return
+        if self.running:
+            return
+        # Start a new turn
+        self._wake_requested = False
+
+    async def when_idle(self) -> None:
+        """Wait until the agent reaches idle phase."""
+        while self.phase != "idle":
+            await asyncio.sleep(0.01)
+
+    async def run_maintenance(self, job: Any, signal: Any = None) -> Any:
+        """Run an abortable maintenance job while idle.
+
+        Mirrors deepseek-harness ReactLoopAgent.run_maintenance().
+        """
+        if self.phase != "idle":
+            raise RuntimeError("agent already has active work")
+
+        self._maintenance_active = True
+        self._maintenance_abort = signal
+        try:
+            return await job(signal)
+        finally:
+            self._maintenance_active = False
+            self._maintenance_abort = None
+            if self._wake_requested and self._has_pending_input():
+                self.wake_driver()
+
+    def _has_pending_input(self) -> bool:
+        """Check if there's pending inbox input."""
+        return len(self._inbox_next_turn) > 0 or len(self._inbox_next_step) > 0
+
+    def send(self, message: dict[str, Any], target: str = "next-turn", wakeup: bool = True) -> None:
+        """Send a message to the agent inbox.
+
+        Mirrors deepseek-harness ReactLoopAgent.send().
+        target: 'next-turn' or 'next-step'
+        """
+        if target == "next-turn":
+            self._inbox_next_turn.append(message)
+        else:
+            self._inbox_next_step.append(message)
+        if wakeup:
+            self.wake_driver()
+
+    def followup(self, message: dict[str, Any]) -> None:
+        """Send a followup message (next-turn, wake)."""
+        self.send(message, "next-turn", True)
+
+    def steer(self, message: dict[str, Any]) -> None:
+        """Send a steer message (next-step, wake)."""
+        self.send(message, "next-step", True)
+
+    def inject(self, message: dict[str, Any]) -> None:
+        """Send an inject message (next-step, no wake)."""
+        self.send(message, "next-step", False)
+
+    def cancel(self, cause: str = "user", keep_inbox: bool = False) -> None:
+        """Cancel active work.
+
+        Mirrors deepseek-harness ReactLoopAgent.cancel().
+        """
+        if not keep_inbox:
+            self._inbox_next_turn.clear()
+            self._inbox_next_step.clear()
+        if self.phase != "idle":
+            self._wake_requested = False
+            self._interrupted = True
+            if self.ctx.cancel:
+                self.ctx.cancel.set()
 
     # --- state -----------------------------------------------------------
     @property
