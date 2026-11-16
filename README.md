@@ -494,6 +494,7 @@ pytest --cov --cov-report=term-missing
 
 ---
 
+
 ## Docker
 
 ### Local GGUF inference (recommended)
@@ -536,6 +537,7 @@ The image pins its Python and uv builder images by digest and installs the
 runtime dependency set from `uv.lock`; Dependabot proposes digest updates.
 
 ---
+
 
 ## Operations
 
@@ -632,6 +634,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 
 ---
 
+
 ## Documentation
 
 | Document | Description |
@@ -664,6 +667,7 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 > **Important:** A model catalog entry is NOT proof of installed/runnable model. An adapter contract test is NOT proof of real inference. Evidence must match the claim tier.
 
 ---
+
 
 ## License
 
