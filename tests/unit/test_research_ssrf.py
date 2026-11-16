@@ -16,11 +16,13 @@ Evidence tier: UNIT_TESTED (these tests) + SOURCE_VERIFIED (code trace below)
 """
 
 import socket
+import zcoder.core.outbound_security
+
+from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url, _ExternalRedirectHandler
 
 import pytest
 
 from zcoder.agent.rag.research import DeepResearchAgent
-from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url
 
 
 class TestSEC001DeepResearchSSRF:
@@ -145,8 +147,6 @@ class TestSEC001DeepResearchSSRF:
         """Environment proxies are disabled; explicit empty ProxyHandler used."""
         import urllib.request
 
-        from zcoder.core import outbound_security
-
         captured_handlers: list = []
 
         class FakeOpener:
@@ -174,7 +174,7 @@ class TestSEC001DeepResearchSSRF:
 
         monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
         monkeypatch.setenv("HTTPS_PROXY", "http://evil-proxy:8888")
-        monkeypatch.setattr(outbound_security, "validate_external_http_url", lambda _url: None)
+        monkeypatch.setattr(zcoder.core.outbound_security, "validate_external_http_url", lambda _url: None)
         monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
 
         req = urllib.request.Request("https://public.example/data")
@@ -186,8 +186,6 @@ class TestSEC001DeepResearchSSRF:
 
     def test_transport_redirect_revalidation(self):
         """Redirect target re-validated via _ExternalRedirectHandler."""
-        from zcoder.core.outbound_security import _ExternalRedirectHandler
-
         handler = _ExternalRedirectHandler()
         req = __import__("urllib.request").request.Request("https://public.example/start")
 
@@ -196,8 +194,6 @@ class TestSEC001DeepResearchSSRF:
 
     def test_transport_redirect_to_public_allowed(self, monkeypatch):
         """Redirect to public URL allowed."""
-        from zcoder.core.outbound_security import _ExternalRedirectHandler
-
         def fake_getaddrinfo(host, port, *, type):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
 
