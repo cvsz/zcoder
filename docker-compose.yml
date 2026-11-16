@@ -42,29 +42,23 @@ services:
     secrets:
       - zredis_password
 
-  llama-server:
-    container_name: zcoder-llm
-    image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
-    command:
-      - --model
-      - /models/${ZCODER_GGUF_FILE:-zcoder-pro.gguf}
-      - --alias
-      - ${ZCODER_MODEL:-zcoder-pro}
-      - --host
-      - 127.0.0.1
-      - --port
-      - "8080"
-      - --ctx-size
-      - "${ZCODER_CTX_SIZE:-4096}"
+  ollama:
+    container_name: zcoder-ollama
+    image: ollama/ollama:latest
     volumes:
       - type: bind
         source: ${ZCODER_MODELS_DIR:-/zdata/models}
-        target: /models
+        target: /root/.ollama/models
         read_only: true
         bind:
           create_host_path: false
+    environment:
+      OLLAMA_HOST: 127.0.0.1
+      OLLAMA_MODELS: ${ZCODER_GGUF_FILE:-zcoder-pro.gguf}
+    ports:
+      - "11434:11434"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:11434/api/tags"]
       interval: 15s
       timeout: 5s
       retries: 20
@@ -72,10 +66,7 @@ services:
     networks:
       - default
       - zPostgreSQL_network
-    init: true
     restart: unless-stopped
-    # Deliberately no published ports. ZCoder shares this network namespace
-    # and reaches the loopback-only inference endpoint at 127.0.0.1:8080.
 
   zcoder:
     container_name: zcoder
@@ -84,7 +75,7 @@ services:
       dockerfile: Dockerfile
     image: zcoder:latest
     environment:
-      ZCODER_BASE_URL: http://127.0.0.1:8080/v1
+      ZCODER_BASE_URL: http://127.0.0.1:11434/v1
       ZCODER_MODEL: ${ZCODER_MODEL:-zcoder-pro}
       ZCODER_ROUTE_PROVIDER: ${ZCODER_ROUTE_PROVIDER:-}
       ZCODER_NVIDIA_MODELS: ${ZCODER_NVIDIA_MODELS:-}
@@ -105,9 +96,9 @@ services:
       # Persist config/cache across container restarts without baking
       # secrets or state into the image.
       - zcoder-home:/home/zcoder
-    network_mode: "service:llama-server"
+    network_mode: "service:ollama"
     depends_on:
-      llama-server:
+      ollama:
         condition: service_healthy
       zpostgresql:
         condition: service_healthy
