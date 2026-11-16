@@ -1,7 +1,5 @@
 """Tests for zcoder.agent.capabilities - Tool capability modules."""
 
-import pytest
-
 from zcoder.agent.capabilities.search import SearchCoder
 from zcoder.agent.capabilities.vision import VisionCoder
 from zcoder.agent.capabilities.structured import StructuredCoder
