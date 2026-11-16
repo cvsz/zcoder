@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from zcoder.config.settings import Config, CONFIG_PATH
+from zcoder.config.settings import Config
 
 
 class TestConfigDefaults:
@@ -109,9 +109,10 @@ class TestConfigEnvVarPriority:
             json.dump({"model": "file-model"}, f)
 
         # Temporarily point CONFIG_PATH to our temp file
+        import zcoder.config.settings as settings_mod
 
-        original_path = CONFIG_PATH
-        CONFIG_PATH = config_path
+        original_path = settings_mod.CONFIG_PATH
+        settings_mod.CONFIG_PATH = config_path
 
         try:
             config = Config()
@@ -122,4 +123,4 @@ class TestConfigEnvVarPriority:
             config2 = Config()
             assert config2.get("model") == "env-model"
         finally:
-            CONFIG_PATH = original_path
+            settings_mod.CONFIG_PATH = original_path

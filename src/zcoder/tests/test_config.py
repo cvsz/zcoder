@@ -1,10 +1,12 @@
 """Tests for zcoder.config.settings - typed config with env var overrides."""
 
 import os
+import tempfile
+from unittest.mock import patch
 
 import pytest
 
-from zcoder.config.settings import Config, CONFIG_PATH
+from zcoder.config.settings import Config, DEFAULT_CONFIG
 
 
 class TestConfigDefaults:
@@ -108,9 +110,10 @@ class TestConfigEnvVarPriority:
         with open(config_path, "w") as f:
             json.dump({"model": "file-model"}, f)
 
+        import zcoder.config.settings as settings_mod
 
-        original_path = CONFIG_PATH
-        CONFIG_PATH = config_path
+        original_path = settings_mod.CONFIG_PATH
+        settings_mod.CONFIG_PATH = config_path
 
         try:
             config = Config()
@@ -120,4 +123,4 @@ class TestConfigEnvVarPriority:
             config2 = Config()
             assert config2.get("model") == "env-model"
         finally:
-            CONFIG_PATH = original_path
+            settings_mod.CONFIG_PATH = original_path
