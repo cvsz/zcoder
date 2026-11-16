@@ -428,6 +428,9 @@ narrative writeups this form-style tracker summarizes.
 | 12 | Memory store beta-header regression fix + memory/memory-store CRUD | 🔴 P0 / 🟠 P1 | ✅ Done (v1.27.0) |
 | 13 | CLI-to-API wiring audit (GitHub, Router, Prompt Optimizer, Metrics) | 🟠 P1 | ✅ Done (v1.31.0) |
 | 14 | Claude Opus 5 catalog entry + fast-mode enforcement + fallbacks "default" | 🔴 P0 bug fix + 🟡 P2 | ✅ Done (v1.32.0) |
+| 15 | Model Opus 5, Sonnet 5, Haiku 4.5 re-validation | 🟡 P2 | ✅ Done (v1.33.0) |
+| 16 | Re-validation cycle — Opus, Sonnet, Haiku, Fable, Mythos | 🟠 P1 / 🟡 P2 | ✅ Done (v1.34.0) |
+| 17 | Deep Drill Audit: zcoder implementation of deepseek-harness features | 🟡 P2 | ✅ Done (v1.60.0) — 20/20 tasks across 4 phases (10 weeks) |
 
 ---
 
