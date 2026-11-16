@@ -223,7 +223,7 @@ async def default_pre_selection_hook(context: ModelSelectionContext) -> ModelSel
     """Default pre-selection hook that can modify the selection context."""
     # Example: Add default fallback chain if not provided
     if not context.fallback_chain and context.requested_model:
-        context.fallback_chain = ["claude-sonnet-5", "claude-haiku-5"]
+        context.fallback_chain = ["zcoder-pro", "zcoder-flash"]
     return context
 
 
@@ -256,7 +256,7 @@ async def model_validation_hook(model_id: str) -> dict:
         return {
             "valid": False,
             "error": f"Model {model_id} is retired",
-            "suggested_alternative": "claude-sonnet-5",
+            "suggested_alternative": "zcoder-pro",
         }
 
     if record.is_deprecated():

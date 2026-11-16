@@ -108,7 +108,9 @@ class ProviderAdapter(ABC):
                 raise RateLimitError("Rate limited (429)", details={"body": body[:300]}) from exc
             if exc.code >= 500:
                 raise TransientAPIError(f"Server error ({exc.code})", details={"body": body[:300]}) from exc
-            raise APIError(f"Request rejected ({exc.code})", status_code=exc.code, details={"body": body[:300]}) from exc
+            raise APIError(
+                f"Request rejected ({exc.code})", status_code=exc.code, details={"body": body[:300]}
+            ) from exc
         except (TimeoutError, OSError) as exc:
             raise TransientAPIError(f"Network error: {exc}") from exc
 

@@ -95,7 +95,7 @@ def _detect_prompt_type(prompt: str) -> str:
 
 def optimize_advanced(
     prompt: str,
-    model: str = "claude-sonnet-5",
+    model: str = "zcoder-pro",
 ) -> str:
     """Apply advanced context-aware prompt optimization heuristics.
 

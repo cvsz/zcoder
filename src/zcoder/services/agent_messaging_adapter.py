@@ -19,7 +19,7 @@ def run_agent_messaging_turn_once(
     api_key: str,
     prompt: str,
     *,
-    model: str = "claude-sonnet-5",
+    model: str = "zcoder-pro",
     max_tokens: int = 4096,
     tools: list[dict[str, Any]] | None = None,
     system: str | None = None,

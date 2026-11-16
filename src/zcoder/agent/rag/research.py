@@ -53,7 +53,7 @@ class Report:
 
 
 class DeepResearchAgent:
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5"):
+    def __init__(self, api_key: str, model: str = "zcoder-pro"):
         self.client = create_anthropic_client(api_key)
         self.model = model
 

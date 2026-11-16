@@ -1,4 +1,26 @@
 services:
+  zpostgresql:
+    container_name: zpostgresql
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: zcoder
+      # POSTGRES_PASSWORD ถูกเซตผ่าน secrets ไม่ใช่ hardcode ใน environment
+      POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
+      POSTGRES_DB: zcoder_db
+    volumes:
+      - zpostgresql_data:/var/lib/postgresql/data
+    networks:
+      - zPostgreSQL_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zcoder -d zcoder_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    secrets:
+      - zcoder_postgres_password
+
   zredis:
     container_name: zredis
     image: redis:7-alpine
@@ -25,9 +47,9 @@ services:
     image: ${LLAMA_CPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     command:
       - --model
-      - /models/${ZCODER_GGUF_FILE:-qwen-7b-q4km.gguf}
+      - /models/${ZCODER_GGUF_FILE:-zcoder-pro.gguf}
       - --alias
-      - ${ZCODER_MODEL:-qwen-7b-q4km}
+      - ${ZCODER_MODEL:-zcoder-pro}
       - --host
       - 127.0.0.1
       - --port
@@ -36,7 +58,7 @@ services:
       - "${ZCODER_CTX_SIZE:-4096}"
     volumes:
       - type: bind
-        source: ${ZCODER_MODELS_DIR:-./models}
+        source: ${ZCODER_MODELS_DIR:-/zdata/models}
         target: /models
         read_only: true
         bind:
@@ -63,12 +85,12 @@ services:
     image: zcoder:latest
     environment:
       ZCODER_BASE_URL: http://127.0.0.1:8080/v1
-      ZCODER_MODEL: ${ZCODER_MODEL:-qwen-7b-q4km}
+      ZCODER_MODEL: ${ZCODER_MODEL:-zcoder-pro}
       ZCODER_ROUTE_PROVIDER: ${ZCODER_ROUTE_PROVIDER:-}
       ZCODER_NVIDIA_MODELS: ${ZCODER_NVIDIA_MODELS:-}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-${NVIDIA_API_KEY_1:-${NVIDIA_API_KEY_2:-}}}
       NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      ZCODER_POSTGRES_HOST: zpostgressql
+      ZCODER_POSTGRES_HOST: zpostgresql
       ZCODER_POSTGRES_PORT: "5432"
       ZCODER_POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
       ZCODER_REDIS_HOST: zredis
@@ -87,6 +109,8 @@ services:
     depends_on:
       llama-server:
         condition: service_healthy
+      zpostgresql:
+        condition: service_healthy
       zredis:
         condition: service_healthy
     healthcheck:
@@ -101,7 +125,11 @@ services:
 
 volumes:
   zcoder-home:
+  zpostgresql_data:
   zredis_data:
+
+networks:
+  zPostgreSQL_network:
 
 secrets:
   zcoder_postgres_password:

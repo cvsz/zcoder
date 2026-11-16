@@ -75,8 +75,8 @@ LOCAL_MODEL_CATALOG: dict[str, ModelSpec] = {
         supports_thinking=False,
         local_endpoint="http://127.0.0.1:11434",
     ),
-    "claude-sonnet-5": ModelSpec(
-        id="claude-sonnet-5",
+    "zcoder-pro": ModelSpec(
+        id="zcoder-pro",
         name="Claude 3.5 Sonnet / Sonnet 5",
         cost_class=CostClass.PAID_PLATFORM,
         context_window=200000,

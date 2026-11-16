@@ -127,7 +127,9 @@ async def _slow_tool(**kwargs):
 
 def test_execute_tool_batch_concurrency():
     reg = ToolRegistry()
-    reg.register(ToolDefinition(name="slow", description="slow", parameters=ValueSchemaSpec(), execute=_slow_tool))
+    reg.register(
+        ToolDefinition(name="slow", description="slow", parameters=ValueSchemaSpec(), execute=_slow_tool)
+    )
     pipeline = ToolExecutionPipeline(reg)
 
     calls = [("slow", {"v": i}) for i in range(5)]

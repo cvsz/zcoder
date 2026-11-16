@@ -54,7 +54,7 @@ class Coder:
         inference_geo=None,
         fast_mode=False,
     ):
-        self.model = model or os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
+        self.model = model or os.getenv("ZCODER_MODEL", "zcoder-flash")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.provider = (provider or "local").strip().lower()
@@ -189,9 +189,7 @@ class Coder:
         # the user instead of returning an empty/invalid response.
         tool_calls = message.get("tool_calls") or []
         if tool_calls:
-            names = ", ".join(
-                tc.get("function", {}).get("name", "unknown") for tc in tool_calls
-            )
+            names = ", ".join(tc.get("function", {}).get("name", "unknown") for tc in tool_calls)
             logger.warning(
                 "tool_calls_ignored",
                 extra={"tool_count": len(tool_calls), "tool_names": names},

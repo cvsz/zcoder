@@ -35,7 +35,7 @@ def _content_path(data: bytes | str) -> Path:
 def orchestrate_multi_modal(
     request: MultiModalRequest,
     api_key: str = "",
-    model: str = "claude-sonnet-5-5",
+    model: str = "zcoder-promax",
     timeout: int | None = None,
 ) -> MultiModalResponse:
     """Orchestrate mixed-modal reasoning across supported modalities.
@@ -210,7 +210,7 @@ def cmd_multi_modal(
     prompt: str,
     files: list[str] | None = None,
     api_key: str = "",
-    model: str = "claude-sonnet-5-5",
+    model: str = "zcoder-promax",
 ) -> MultiModalResponse:
     """CLI command for multi-modal processing.
 

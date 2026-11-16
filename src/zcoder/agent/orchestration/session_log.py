@@ -116,8 +116,7 @@ class SessionEventStore:
 
     def _init_db(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS session_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     session_id TEXT NOT NULL,
@@ -127,15 +126,13 @@ class SessionEventStore:
                     ignorable INTEGER NOT NULL DEFAULT 0,
                     seq INTEGER NOT NULL
                 )
-                """
-            )
+                """)
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_session_events_session_id "
                 "ON session_events(session_id, seq)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_session_events_type "
-                "ON session_events(event_type)"
+                "CREATE INDEX IF NOT EXISTS idx_session_events_type " "ON session_events(event_type)"
             )
 
     def append(self, event: SessionEvent) -> int:
@@ -212,7 +209,5 @@ class SessionEventStore:
     def list_sessions(self) -> list[str]:
         """Return all distinct session ids in the store."""
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT session_id FROM session_events ORDER BY session_id"
-            )
+            rows = conn.execute("SELECT DISTINCT session_id FROM session_events ORDER BY session_id")
             return [row[0] for row in rows]

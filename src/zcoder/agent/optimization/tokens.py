@@ -73,7 +73,7 @@ def _cached_optimize_prompt_core(prompt: str, model: str) -> str:
     return optimized
 
 
-def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
+def optimize_prompt(prompt: str, model: str = "zcoder-pro") -> str:
     """Optimize a prompt for better token efficiency.
 
     Applies heuristic rules to reduce token count without changing meaning.
@@ -116,7 +116,7 @@ def optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
     return optimized
 
 
-def count_tokens(prompt: str, model: str = "claude-sonnet-5") -> int:
+def count_tokens(prompt: str, model: str = "zcoder-pro") -> int:
     """Count tokens in a prompt using the local estimation heuristic.
 
     Args:
@@ -130,7 +130,7 @@ def count_tokens(prompt: str, model: str = "claude-sonnet-5") -> int:
     return local_estimate_tokens(prompt, model)
 
 
-def batch_count_tokens(prompts: list[str], model: str = "claude-sonnet-5") -> list[int]:
+def batch_count_tokens(prompts: list[str], model: str = "zcoder-pro") -> list[int]:
     """Count tokens for a batch of prompts.
 
     Args:
@@ -154,10 +154,11 @@ class TokenCounter:
         model: Model name for model-specific token estimation
     """
 
-    def __init__(self, api_key: str = "", model: str = "claude-sonnet-5"):
+    def __init__(self, api_key: str = "", model: str = "zcoder-pro"):
         self.api_key = api_key
         self.model = model
         from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
+
         self._local_estimator = LocalTokenEstimator()
 
     def count(self, prompt: str) -> int:

@@ -590,7 +590,7 @@ async def cmd_statusline(agent: Any, args: list[str]) -> None:
 
     cwd = getattr(agent, "ws", None)
     cwd = str(cwd.root) if cwd else "."
-    cmd_status_line(model="claude-sonnet-5", cwd=cwd)
+    cmd_status_line(model="zcoder-pro", cwd=cwd)
     if hasattr(agent, "notice"):
         agent.notice("Status line displayed above")
 

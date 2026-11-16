@@ -45,7 +45,7 @@ WEB_FETCH_TOOL = {
 class SearchCoder:
     """Claude with web search and fetch tools."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 4096):
+    def __init__(self, api_key: str, model: str = "zcoder-flash", max_tokens: int = 4096):
         self.client = create_anthropic_client(api_key)
         self.model = model
         self.max_tokens = max_tokens

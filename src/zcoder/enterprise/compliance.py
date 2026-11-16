@@ -66,9 +66,7 @@ class ComplianceReporter:
 
         # Build audit summary
         if include_audit_summary:
-            audit_summary = self._build_audit_summary(
-                date_from, date_to, tenant_id
-            )
+            audit_summary = self._build_audit_summary(date_from, date_to, tenant_id)
             report["audit_summary"] = audit_summary
 
         # Build policy violations
@@ -133,11 +131,11 @@ class ComplianceReporter:
         return {
             "total_violations": total_violations,
             "unresolved_violations": unresolved,
-            "resolution_rate": round(
-                (total_violations - unresolved) / total_violations * 100, 2
-            )
-            if total_violations > 0
-            else 100.0,
+            "resolution_rate": (
+                round((total_violations - unresolved) / total_violations * 100, 2)
+                if total_violations > 0
+                else 100.0
+            ),
             "total_audit_records": audit_summary.get("total_records", 0),
             "high_severity_violations": by_severity.get("high", 0),
             "critical_severity_violations": by_severity.get("critical", 0),
@@ -150,9 +148,7 @@ class ComplianceReporter:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, default=str)
 
-    def _date_range_to_days(
-        self, date_from: str | None, date_to: str | None
-    ) -> int | None:
+    def _date_range_to_days(self, date_from: str | None, date_to: str | None) -> int | None:
         """Convert date range strings to number of days."""
         if not date_from and not date_to:
             return None

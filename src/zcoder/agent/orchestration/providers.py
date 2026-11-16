@@ -128,8 +128,7 @@ def _providers_requiring_credential() -> frozenset[str]:
         {
             provider
             for provider, spec in PROVIDER_DEFAULTS.items()
-            if spec.get("env_keys")
-            and provider not in {"local", "ollama"}
+            if spec.get("env_keys") and provider not in {"local", "ollama"}
         }
     )
 
@@ -185,8 +184,7 @@ def resolve_api_key(provider: str, cli_key: str | None = None) -> str:
     if provider in _providers_requiring_credential():
         env_list = ", ".join(spec.get("env_keys", ())) or "<none configured>"
         raise MissingCredentialError(
-            f"No API key configured for provider '{provider}'. "
-            f"Set one of: {env_list} or pass --api-key.",
+            f"No API key configured for provider '{provider}'. " f"Set one of: {env_list} or pass --api-key.",
             details={"provider": provider, "env_keys": list(spec.get("env_keys", ()))},
         )
     return ""

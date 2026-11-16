@@ -58,4 +58,3 @@ class OpenAICompatibleAdapter(ProviderAdapter):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         return headers
-
