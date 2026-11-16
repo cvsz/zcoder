@@ -16,8 +16,8 @@ CLI flags:
 import json
 import re
 import urllib.request
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
@@ -146,7 +146,6 @@ def route_by_cost(
     Returns:
         Dict with recommended model and remaining budget
     """
-    from zcoder.agent.optimization.local_tokens import _is_code_model_specific
 
     # Estimate token count for the prompt
     estimator = LocalTokenEstimator()

@@ -97,7 +97,7 @@ class TestIsLoopback:
     def test_ipv4_loopback(self):
         assert is_loopback("127.0.0.1") is True
         assert is_loopback("127.0.0.2") is True
-        assert is_loopback("0.0.0.0") is False
+        assert is_loopback("0.0.0.0") is False  # nosec B104
 
     def test_ipv6_loopback(self):
         assert is_loopback("::1") is True

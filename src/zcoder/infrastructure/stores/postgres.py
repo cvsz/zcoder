@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 try:
 
+    import psycopg
+
     _PSYCOPG2_AVAILABLE = True
     _PG_AVAILABLE = True
 except ImportError:
