@@ -279,7 +279,7 @@ class Plan:
 
 
 class PlanModeAgent:
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
+    def __init__(self, api_key: str, model: str = "zcoder-flash"):
         self.client = create_anthropic_client(api_key)
         self.model = model
 

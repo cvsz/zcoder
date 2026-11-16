@@ -144,37 +144,30 @@ _SESSION_LIMIT = 200  # oldest session dropped past this to bound memory
 
 # --- Session persistence (phase 3) -----------------------------------------
 
-SESSION_DB_PATH = os.getenv(
-    "ZCODER_SESSION_DB", str(ROOT / "data" / "sessions.db")
-)
+SESSION_DB_PATH = os.getenv("ZCODER_SESSION_DB", str(ROOT / "data" / "sessions.db"))
 
 
 def _init_sessions_db() -> None:
     """Create the sessions table if it does not exist."""
     os.makedirs(os.path.dirname(SESSION_DB_PATH), exist_ok=True)
     with sqlite_connection(SESSION_DB_PATH) as conn:
-        conn.execute(
-            """
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
                 history TEXT NOT NULL,
                 updated_at REAL NOT NULL
             )
-            """
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sessions_updated_at "
-            "ON sessions(updated_at)"
-        )
+            """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated_at " "ON sessions(updated_at)")
 
 
 def _save_session_to_db(session_id: str, history: list[dict]) -> None:
     """Persist one session to SQLite."""
     import json as _json
+
     with sqlite_connection(SESSION_DB_PATH) as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO sessions (session_id, history, updated_at) "
-            "VALUES (?, ?, ?)",
+            "INSERT OR REPLACE INTO sessions (session_id, history, updated_at) " "VALUES (?, ?, ?)",
             (session_id, _json.dumps(history, ensure_ascii=False), time.time()),
         )
 
@@ -182,6 +175,7 @@ def _save_session_to_db(session_id: str, history: list[dict]) -> None:
 def _load_session_from_db(session_id: str) -> list[dict] | None:
     """Load one session from SQLite, or None if not found."""
     import json as _json
+
     with sqlite_connection(SESSION_DB_PATH) as conn:
         row = conn.execute(
             "SELECT history FROM sessions WHERE session_id = ?",
@@ -195,18 +189,16 @@ def _load_session_from_db(session_id: str) -> list[dict] | None:
 def _list_sessions_from_db() -> list[dict]:
     """List all sessions from SQLite (id, preview, turns, updated_at)."""
     import json as _json
+
     with sqlite_connection(SESSION_DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT session_id, history, updated_at FROM sessions "
-            "ORDER BY updated_at DESC LIMIT ?",
+            "SELECT session_id, history, updated_at FROM sessions " "ORDER BY updated_at DESC LIMIT ?",
             (_SESSION_LIMIT,),
         ).fetchall()
     out = []
     for sid, history_json, updated_at in rows:
         history = _json.loads(history_json)
-        first_user = next(
-            (m["content"] for m in history if m.get("role") == "user"), ""
-        )
+        first_user = next((m["content"] for m in history if m.get("role") == "user"), "")
         preview = (first_user[:80] + "…") if len(first_user) > 80 else first_user
         out.append(
             {
@@ -468,6 +460,7 @@ def get_models(request: Request):
 
 # --- Model sector control (phase 1) ----------------------------------------
 
+
 class SectorAction(BaseModel):
     action: str  # start | stop | restart | status | health
 
@@ -549,6 +542,7 @@ def model_sector_health(sector_name: str, request: Request):
 
 # --- Model download (phase 2) ----------------------------------------------
 
+
 class ModelDownloadRequest(BaseModel):
     url: str
     filename: str | None = None
@@ -575,6 +569,7 @@ def download_model(req: ModelDownloadRequest, request: Request):
     cfg = load_config(MODELS_CONFIG_PATH)
     models_dir = cfg.get("models_dir", "/zdata/models")
     import os as _os
+
     target_path = _os.path.join(models_dir, filename)
     if _os.path.exists(target_path):
         raise HTTPException(409, f"Model file '{filename}' already exists")

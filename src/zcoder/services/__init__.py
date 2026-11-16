@@ -1,1 +1,1 @@
-"""Application services."""
+"""zcoder.services — Service capability seams."""

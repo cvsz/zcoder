@@ -64,7 +64,7 @@ class Session:
     sid: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     mode: str = "interactive"
     title: str | None = None
-    model: str = "claude-sonnet-5"
+    model: str = "zcoder-pro"
     persona: str | None = None
     turns: list[Turn] = field(default_factory=list)
     created: str = field(default_factory=lambda: datetime.now().isoformat())

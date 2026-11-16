@@ -35,11 +35,7 @@ class AnthropicAdapter(ProviderAdapter):
         return payload
 
     def parse_response(self, data: dict[str, Any]) -> str:
-        return "".join(
-            b.get("text", "")
-            for b in data.get("content", [])
-            if b.get("type") == "text"
-        )
+        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
 
     def endpoint_for(self, base_url: str, model: str) -> str:
         return f"{base_url}/v1/messages"

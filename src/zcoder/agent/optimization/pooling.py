@@ -49,6 +49,10 @@ class PooledConnection:
     error_count: int = 0
     last_error: str | None = None
 
+    def __hash__(self) -> int:
+        """Hash by object identity so PooledConnection can be used as a dict key."""
+        return id(self)
+
     def is_active(self) -> bool:
         """Check if the connection is currently active."""
         return True  # Connection is always "active" in pooled model

@@ -56,9 +56,7 @@ class PaneManager:
         result: list[dict[str, Any]] = []
 
         # Calculate available space
-        available_width = max(
-            width - sum(p.get("min_width", self.min_width) for p in self.panes), 100
-        )
+        available_width = max(width - sum(p.get("min_width", self.min_width) for p in self.panes), 100)
         available_height = height
 
         for i, pane in enumerate(self.panes):

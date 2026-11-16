@@ -38,7 +38,7 @@ def _api_key(args):
 
 
 def _model(args):
-    return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "qwen-7b-q4km")
+    return getattr(args, "model", None) or os.getenv("ZCODER_MODEL", "zcoder-flash")
 
 
 def _route_provider(args):
@@ -75,11 +75,6 @@ DIRECT_PROVIDER_FEATURE_FLAGS = (
     "browse",
     "list_models",
     "model_info",
-    "fable5",
-    "mythos5",
-    "opus5",
-    "sonnet5",
-    "haiku45",
     "obs_errors",
     "workflow_run",
     "research",
@@ -849,9 +844,9 @@ def build_parser():
     )
     f5.add_argument(
         "--fallback-model",
-        default="claude-opus-4-8",
+        default="zcoder-pro",
         dest="fallback_model",
-        help="Manual-retry fallback model (default: claude-opus-4-8). "
+        help="Manual-retry fallback model (default: zcoder-pro). "
         "No effect if --fable5-fallback-chain is set.",
     )
     f5.add_argument(
@@ -2711,7 +2706,7 @@ def main():
     if args.status_line:
         from zcoder.agent.enterprise.settings import cmd_status_line
 
-        cmd_status_line(model=args.model or "claude-sonnet-5", cwd=args.code_agent_cwd)
+        cmd_status_line(model=args.model or "zcoder-pro", cwd=args.code_agent_cwd)
         return
     if args.list_output_styles:
         from zcoder.agent.eval.output_styles import cmd_list_output_styles
@@ -3654,7 +3649,7 @@ def main():
             sys.exit(1)
         cmd_fable5_call(
             args.fable5,
-            key,
+            api_key=None,  # Ignored — zcoder-flash via Ollama needs no API key
             fallback_model=args.fallback_model,
             allow_fallback=not args.fable5_no_fallback,
             fallback_chain=chain,
@@ -3663,14 +3658,14 @@ def main():
     if args.mythos5:
         from zcoder.agent.models.mythos5 import cmd_mythos5_call
 
-        cmd_mythos5_call(args.mythos5, key)
+        cmd_mythos5_call(args.mythos5, api_key=None)
         return
     if args.opus5:
         from zcoder.agent.models.opus5 import cmd_opus5_call
 
         cmd_opus5_call(
             args.opus5,
-            key,
+            api_key=None,  # Ignored — zcoder-pro via Ollama needs no API key
             effort=args.opus5_effort,
             disable_thinking=args.opus5_disable_thinking,
             fast=args.opus5_fast,
@@ -3680,12 +3675,12 @@ def main():
     if args.sonnet5:
         from zcoder.agent.models.sonnet5 import cmd_sonnet5_call
 
-        cmd_sonnet5_call(args.sonnet5, key, use_geo=args.sonnet5_geo)
+        cmd_sonnet5_call(args.sonnet5, api_key=None)
         return
     if args.haiku45:
         from zcoder.agent.models.haiku45 import cmd_haiku45_call
 
-        cmd_haiku45_call(args.haiku45, key, thinking_budget=args.haiku45_thinking_budget)
+        cmd_haiku45_call(args.haiku45, api_key=None, thinking_budget=args.haiku45_thinking_budget)
         return
 
     # ── zai-live ──

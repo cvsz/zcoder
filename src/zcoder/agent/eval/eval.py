@@ -186,7 +186,7 @@ def cmd_eval_run(
     suite_path: str,
     api_key: str,
     model: str,
-    judge_model: str = "claude-sonnet-5",
+    judge_model: str = "zcoder-pro",
     threshold: float = 0.7,
     output: str | None = None,
 ):
@@ -204,7 +204,7 @@ def cmd_eval_run(
 
 
 def cmd_eval_compare(
-    suite_path: str, model_a: str, model_b: str, api_key: str, judge_model: str = "claude-sonnet-5"
+    suite_path: str, model_a: str, model_b: str, api_key: str, judge_model: str = "zcoder-pro"
 ):
     """Compare two models head-to-head on the same eval suite."""
     data = json.loads(Path(suite_path).read_text())

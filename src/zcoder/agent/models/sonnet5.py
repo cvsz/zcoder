@@ -1,179 +1,103 @@
 """
-claude_sonnet5.py — Claude Sonnet 5 support (deep, model-specific module)
-ZCoder CLI v1.34.0
+zcoder_sonnet5.py — ZCoder ProMax support via Ollama (refactored from Claude Sonnet 5)
+ZCoder CLI v1.33.0
 
-Why this module exists: MODEL_CATALOG's claude-sonnet-5 row carries a
-flat price_in/price_out entry. This module provides deeper per-model
-validation that a flat catalog entry can't express as executable logic.
+Refactored from claude_sonnet5.py to work with ZCoder's own models running
+locally on Ollama instead of Claude Sonnet 5 via Anthropic API.
 
-Pricing history (for cost-estimator accuracy):
-  * Jun 30, 2026 launch: introductory $2/$10 per MTok promised through Aug 31.
-  * Aug 10, 2026: Anthropic cancelled the planned Sep 1 price increase.
-    The $2/$10 introductory rate is now the permanent standard price.
-  * No future price change currently announced.
-  This module's previous PROMO_PRICE_IN/OUT and PROMO_END_DATE constants
-  are kept for backward compatibility but are no longer used by
-  current_pricing() — the function always returns the permanent $2/$10 rate.
-
-It also surfaces the two API-parameter support facts that are easy to get
-backwards for this specific model: Sonnet 5 is the one current-tier model
-that does NOT support service_tier / Priority Tier (grouped in the shared
-catalog with the Mythos-class models, not with the other Opus/Sonnet
-rows), while it DOES support inference_geo data residency (grouped with
-the Opus rows there instead). Checked against
-platform.claude.com/docs/en/api/service-tiers and
-platform.claude.com/docs/en/manage-claude/data-residency, 2026-07-26.
-
-Also added 2026-07-26 (found while re-validating this model against the
-live release notes): Sonnet 5 returns a 400 error if temperature, top_p,
-or top_k is set to any non-default value at all — a stricter behavior
-than most current-tier models, which simply accept non-default sampling
-values. Nothing in this module previously exposed or guarded against
-these parameters; `validate_sampling_params()` now catches this
-client-side before a request is built.
+--sonnet5 now maps to zcoder-promax (ZCoder's large reasoning model) via Ollama.
+No API key or internet required.
 
 CLI flags:
-  --sonnet5-info                Show Sonnet 5's capability table and current pricing
-  --sonnet5 PROMPT               Call Claude Sonnet 5
-  --sonnet5-geo                  Send inference_geo:"us" (supported; 1.1x price)
-  --sonnet5-cost IN,OUT           Estimate cost in USD for IN input / OUT output
-                                  tokens, using whichever rate applies today
+  --sonnet5-info           Show ZCoder ProMax capability table
+  --sonnet5 PROMPT         Call zcoder-promax via Ollama (replaces Claude Sonnet 5)
+  --sonnet5-effort LEVEL   Effort level (low/medium/high/max) — mapped to temperature
+  --sonnet5-disable-thinking Accepted for compatibility, ignored (ZCoder models)
+  --sonnet5-geo            Accepted for compatibility, ignored (local model)
+  --sonnet5-fast           Send faster inference (lower temperature)
+  --sonnet5-cost IN,OUT    Estimate cost — always 0 (free, local inference)
 """
 
-import json
-import urllib.error
-import urllib.request
-from datetime import date
+from __future__ import annotations
 
-from zcoder.agent.models.registry import (
-    INFERENCE_GEO_PRICING_MULTIPLIER,
-    INFERENCE_GEO_SUPPORTED,
-    SERVICE_TIER_UNSUPPORTED,
+from typing import Any
+
+from zcoder.agent.models.zcoder_model import (
+    DEFAULT_OLLAMA_BASE_URL,
+    ZCoderClient,
 )
 from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.resilience import CircuitBreaker, retry
 
-MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-SONNET5_MODEL_ID = "claude-sonnet-5"
+# ── Mapping ──
+# --sonnet5 → zcoder-promax (large reasoning model)
+SONNET5_MODEL_ID = "zcoder-promax"
 
-# Pricing history:
-#   Jun 30, 2026: launched at $2/$10 per MTok introductory rate
-#   Aug 10, 2026: planned increase to $3/$15 cancelled; $2/$10 is permanent standard price
-PROMO_PRICE_IN_USD = 2.0  # historical
-PROMO_PRICE_OUT_USD = 10.0  # historical
-STANDARD_PRICE_IN_USD = 2.0  # permanent standard rate
-STANDARD_PRICE_OUT_USD = 10.0  # permanent standard rate
-PROMO_END_DATE = date(2026, 8, 31)  # obsolete — increase was cancelled permanently
+SONNET5_EFFORT_BUDGETS = {
+    "low": 0.3,
+    "medium": 0.5,
+    "high": 0.7,
+    "max": 0.9,
+}
+SONNET5_EFFORT_LEVELS = list(SONNET5_EFFORT_BUDGETS.keys())
+SONNET5_THINKING_DISABLE_ALLOWED = {"low", "medium", "high", "max"}
 
-SONNET5_INFO = {
-    "display_name": "Claude Sonnet 5",
+SONNET5_INFO: dict[str, Any] = {
+    "display_name": "ZCoder ProMax (via Ollama)",
+    "model_id": SONNET5_MODEL_ID,
     "tier": "current",
-    "context_window": 1_000_000,
-    "max_output_tokens": 128_000,
-    "thinking": "adaptive",
-    "effort_default": "high",
-    "service_tier_supported": SONNET5_MODEL_ID not in SERVICE_TIER_UNSUPPORTED,
-    "inference_geo_supported": SONNET5_MODEL_ID in INFERENCE_GEO_SUPPORTED,
-    "inference_geo_multiplier": INFERENCE_GEO_PRICING_MULTIPLIER,
-    "notes": "Best speed/intelligence balance; builds on Sonnet 4.6. "
-    "Standard pricing is $2/$10 per MTok permanently. "
-    "Unlike most current-tier models, does NOT support "
-    "service_tier / Priority Tier.",
+    "context_window": 32_768,
+    "max_output_tokens": 8192,
+    "size_gb": 16.8,
+    "quant": "27B Q4_K",
+    "effort_levels": SONNET5_EFFORT_LEVELS,
+    "fast_mode_supported": True,
+    "notes": "Refactored from Claude Sonnet 5 module. Now calls zcoder-promax "
+    "via Ollama (local provider). No API key or internet required.",
 }
 
 
-def current_pricing(as_of=None) -> dict:
-    """Return the {'price_in', 'price_out', 'promo_active'} dict for Sonnet 5.
-    On August 10, 2026, Anthropic cancelled the planned price increase;
-    the $2/$10 per MTok rate is now the permanent standard price."""
-    return {"price_in": STANDARD_PRICE_IN_USD, "price_out": STANDARD_PRICE_OUT_USD, "promo_active": False}
+def validate_effort_thinking(effort: str | None, disable_thinking: bool) -> str | None:
+    """Validate effort/thinking combination for ZCoder ProMax.
 
-
-def estimate_cost_usd(
-    input_tokens: int, output_tokens: int, as_of: date | None = None, use_geo: bool = False
-) -> float:
-    """Cost estimate using whichever pricing tier applies on `as_of`
-    (default: today). Applies the data-residency multiplier on top if
-    use_geo=True, since inference_geo="us" pricing is 1.1x on both
-    input and output per claude_models.INFERENCE_GEO_PRICING_MULTIPLIER."""
-    pricing = current_pricing(as_of)
-    multiplier = INFERENCE_GEO_PRICING_MULTIPLIER if use_geo else 1.0
-    return (
-        input_tokens / 1_000_000 * pricing["price_in"] * multiplier
-        + output_tokens / 1_000_000 * pricing["price_out"] * multiplier
-    )
-
-
-def validate_service_tier(service_tier: str | None) -> str | None:
-    """Return None if service_tier is safe to send for Sonnet 5 (i.e. not
-    set at all), or a warning string if the caller is trying to use
-    Priority Tier on a model that doesn't support it."""
-    if service_tier is None:
-        return None
-    if SONNET5_MODEL_ID in SERVICE_TIER_UNSUPPORTED:
-        return (
-            f"claude-sonnet-5 does not support service_tier (grouped with the "
-            f"Mythos-class models in claude_models.SERVICE_TIER_UNSUPPORTED). "
-            f"Sending service_tier='{service_tier}' will likely be ignored or 400 — "
-            f"omit it for this model."
-        )
+    ZCoder models don't have the same thinking restrictions as Claude Sonnet 5,
+    so this is a compatibility shim that accepts all combinations.
+    """
+    if effort is not None and effort not in SONNET5_EFFORT_LEVELS:
+        return f"unknown effort level '{effort}' for ZCoder ProMax — choose from {', '.join(SONNET5_EFFORT_LEVELS)}"
     return None
 
 
-def validate_sampling_params(
-    temperature: float | None = None, top_p: float | None = None, top_k: int | None = None
-) -> str | None:
-    """Sonnet 5 returns a 400 error if temperature, top_p, or top_k is set
-    to a non-default value at all — unlike most other current-tier models,
-    where non-default sampling values are simply accepted. Per the
-    release note checked 2026-07-26: 'setting sampling parameters
-    (temperature, top_p, top_k) to non-default values returns a 400
-    error' on Claude Sonnet 5. This was a genuine gap: nothing in this
-    module (or `Sonnet5Client.call()`) previously exposed or guarded
-    against these parameters at all. Returns None if none were passed
-    (the only safe way to call this model), or a message string
-    identifying which parameter(s) would 400."""
-    offending = []
-    if temperature is not None:
-        offending.append(f"temperature={temperature}")
-    if top_p is not None:
-        offending.append(f"top_p={top_p}")
-    if top_k is not None:
-        offending.append(f"top_k={top_k}")
-    if not offending:
-        return None
-    return (
-        f"claude-sonnet-5 returns a 400 error if any sampling parameter is set "
-        f"to a non-default value — {', '.join(offending)} would fail. Omit "
-        f"these parameters entirely for this model (do not rely on it accepting "
-        f"defaults passed explicitly)."
-    )
+def validate_inference_geo(use_geo: bool) -> str | None:
+    """Inference geo is not applicable to local Ollama models."""
+    return None
 
 
 class Sonnet5Client:
-    """Messages API client for claude-sonnet-5. Follows the same _post()
-    pattern as the other claude_*.py per-model modules."""
+    """ZCoder ProMax client via Ollama (refactored from Claude Sonnet 5 client).
 
-    def __init__(self, api_key: str, max_tokens: int = 4096):
-        self.api_key = api_key
+    Same interface as before but calls local Ollama instead of Anthropic API.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+        base_url: str = DEFAULT_OLLAMA_BASE_URL,
+        max_tokens: int = 8192,
+    ) -> None:
+        self.base_url = base_url
         self.max_tokens = max_tokens
+        self._client = ZCoderClient(
+            model=SONNET5_MODEL_ID,
+            base_url=base_url,
+            max_tokens=max_tokens,
+        )
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            MESSAGES_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
-        )
-        return urlopen_json(req, timeout=300)
+        return self._client._call(payload)
 
     def _post(self, payload: dict) -> dict:
         try:
@@ -187,84 +111,107 @@ class Sonnet5Client:
         self,
         prompt: str,
         system: str | None = None,
+        effort: str | None = None,
+        disable_thinking: bool = False,
+        fast: bool = False,
         use_geo: bool = False,
-        service_tier: str | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        top_k: int | None = None,
     ) -> dict:
-        warning = validate_service_tier(service_tier)
-        sampling_error = validate_sampling_params(temperature, top_p, top_k)
-        if sampling_error:
-            return {"error": sampling_error, "status": None}
-        payload = {
-            "model": SONNET5_MODEL_ID,
-            "max_tokens": self.max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system:
-            payload["system"] = system
-        if use_geo:
-            payload["inference_geo"] = "us"
-        if service_tier:
-            payload["service_tier"] = service_tier
-        data = self._post(payload)
-        if warning and "error" not in data:
-            data["_service_tier_warning"] = warning
-        return data
+        """Build and send one request to zcoder-promax via Ollama.
+
+        effort maps to temperature. disable_thinking and use_geo are
+        accepted for compatibility but have no effect on local models.
+        """
+        err = validate_effort_thinking(effort, disable_thinking)
+        if err:
+            raise ValueError(err)
+
+        temperature = SONNET5_EFFORT_BUDGETS.get(effort, 0.7) if effort else 0.7
+        if fast:
+            temperature = min(temperature, 0.3)
+
+        return self._client.call(
+            prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=self.max_tokens,
+        )
+
+    def call_text(self, prompt: str, **kwargs) -> str:
+        return self._client.call_text(prompt, **kwargs)
+
+
+# ── Re-export for backward compatibility ─────────────────────────────────
+
+__all__ = [
+    "SONNET5_MODEL_ID",
+    "SONNET5_EFFORT_BUDGETS",
+    "SONNET5_EFFORT_LEVELS",
+    "SONNET5_THINKING_DISABLE_ALLOWED",
+    "SONNET5_INFO",
+    "validate_effort_thinking",
+    "validate_inference_geo",
+    "Sonnet5Client",
+    "estimate_cost_usd",
+    "cmd_sonnet5_info",
+    "cmd_sonnet5_call",
+]
+
+
+def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
+    """Estimate cost — ZCoder models are free when run locally."""
+    return 0.0
 
 
 def cmd_sonnet5_info():
+    """Print ZCoder ProMax capability table (refactored from Claude Sonnet 5 info)."""
     info = SONNET5_INFO
-    pricing = current_pricing()
-    print(f"\n\033[94mClaude Sonnet 5\033[0m  ({SONNET5_MODEL_ID})")
+    print(f"\n\033[94mZCoder ProMax (via Ollama)\033[0m  ({SONNET5_MODEL_ID})")
+    print(f"  Model ID:          {SONNET5_MODEL_ID}")
     print(f"  Context window:    {info['context_window']:,} tokens")
     print(f"  Max output:        {info['max_output_tokens']:,} tokens")
-    print(f"  Thinking:          {info['thinking']} (effort default: {info['effort_default']})")
-    print(f"  Priority Tier:     {'supported' if info['service_tier_supported'] else 'NOT supported'}")
-    print(
-        f"  Data residency:    {'supported' if info['inference_geo_supported'] else 'not supported'}"
-        f" ({info['inference_geo_multiplier']}x pricing when used)"
-    )
-    print(f"\n  Pricing today ({date.today().isoformat()}):")
-    print(f"    ${pricing['price_in']}/${pricing['price_out']} per MTok (permanent standard rate)")
-    print(
-        f"    Note: the planned Sep 1, 2026 price increase was permanently cancelled "
-        f"on Aug 7, 2026; ${STANDARD_PRICE_IN_USD}/${STANDARD_PRICE_OUT_USD} is the final standard price."
-    )
-    print(f"\n  Notes: {info['notes']}\n")
+    print(f"  Size:              {info['size_gb']} GB ({info['quant']})")
+    print("  Pricing:           Free (local inference via Ollama)")
+    print(f"  Effort levels:     {', '.join(info['effort_levels'])}")
+    print(f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'not supported'}")
+    print("\n  \033[93mNote:\033[0m Refactored from Claude Sonnet 5 module.")
+    print("    --sonnet5 now calls zcoder-promax via Ollama (local provider).")
+    print("    No API key or internet required.\n")
+    print(f"  Notes: {info['notes']}\n")
 
 
 def cmd_sonnet5_call(
     prompt: str,
-    api_key: str,
+    api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+    effort: str | None = None,
+    disable_thinking: bool = False,
+    fast: bool = False,
     use_geo: bool = False,
-    service_tier: str | None = None,
     system: str | None = None,
 ):
-    client = Sonnet5Client(api_key=api_key)
-    data = client.call(prompt, system=system, use_geo=use_geo, service_tier=service_tier)
+    """Call zcoder-promax via Ollama (refactored from Claude Sonnet 5 call)."""
+    client = Sonnet5Client(base_url=DEFAULT_OLLAMA_BASE_URL)
+    try:
+        data = client.call(
+            prompt,
+            system=system,
+            effort=effort,
+            disable_thinking=disable_thinking,
+            fast=fast,
+            use_geo=use_geo,
+        )
+    except ValueError as e:
+        print(f"\033[91m✗ {e}\033[0m")
+        return None
+
     if "error" in data:
         print(f"[ERROR] {data['error']}")
         return None
-    if data.get("_service_tier_warning"):
-        print(f"\033[93mℹ {data['_service_tier_warning']}\033[0m\n")
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+
+    # Extract text from already-fetched data (avoid double API call)
+    msg = data.get("message", {})
+    if isinstance(msg, dict):
+        text = msg.get("content", "")
+    else:
+        text = data.get("response", "")
     print(text)
     return data
-
-
-def cmd_sonnet5_cost(spec: str):
-    """Parse 'IN,OUT' token counts and print a cost estimate at the current permanent rate."""
-    try:
-        in_tok, out_tok = (int(x.strip()) for x in spec.split(","))
-    except ValueError:
-        print("[ERROR] --sonnet5-cost expects 'INPUT_TOKENS,OUTPUT_TOKENS', e.g. 10000,2000")
-        return
-    cost = estimate_cost_usd(in_tok, out_tok)
-    pricing = current_pricing()
-    print(f"\n  {in_tok:,} input + {out_tok:,} output tokens on Sonnet 5")
-    print(
-        f"  at standard rate (${pricing['price_in']}/${pricing['price_out']} per MTok): "
-        f"\033[1m${cost:.4f}\033[0m\n"
-    )

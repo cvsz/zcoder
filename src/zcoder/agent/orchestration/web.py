@@ -47,7 +47,9 @@ class SearchRateLimiter:
             now = time.monotonic()
             elapsed = now - self._last
             self._last = now
-            self._tokens = min(self.max_calls, self._tokens + elapsed * (self.max_calls / self.window_seconds))
+            self._tokens = min(
+                self.max_calls, self._tokens + elapsed * (self.max_calls / self.window_seconds)
+            )
             if self._tokens < 1.0:
                 wait = (1.0 - self._tokens) / (self.max_calls / self.window_seconds)
                 await asyncio.sleep(wait)
@@ -65,7 +67,9 @@ class WebRuntime:
         self._search_limiters: dict[str, SearchRateLimiter] = {}
         self.billing_mode: str = SearchBilling.AUTO
 
-    def register_search_provider(self, name: str, provider: SearchProvider, max_calls_per_min: int = 60) -> None:
+    def register_search_provider(
+        self, name: str, provider: SearchProvider, max_calls_per_min: int = 60
+    ) -> None:
         """Register a search provider."""
         self._search_providers[name] = provider
         self._search_limiters[name] = SearchRateLimiter(max_calls=max_calls_per_min, window_seconds=60.0)

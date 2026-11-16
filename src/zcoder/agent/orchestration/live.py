@@ -51,7 +51,7 @@ class LiveSession:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-5",
+        model: str = "zcoder-pro",
         temperature: float = 0.7,
         personality_prompt: str = "",
     ):
@@ -140,9 +140,7 @@ def _handle_slash(cmd: str, session: LiveSession) -> bool:
     return False
 
 
-def cmd_live(
-    api_key: str, model: str = "claude-sonnet-5", temperature: float = 0.7, personality_prompt: str = ""
-):
+def cmd_live(api_key: str, model: str = "zcoder-pro", temperature: float = 0.7, personality_prompt: str = ""):
     session = LiveSession(api_key, model, temperature, personality_prompt)
     print(f"⚡ zcoder-live  model={model}  /help for commands  Ctrl+C to quit\n")
     while True:

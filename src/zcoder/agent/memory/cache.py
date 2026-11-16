@@ -150,7 +150,7 @@ class MemoryCache:
 # and was never revisited, so it silently rejected Fable 5 / Mythos 5 calls
 # that the platform has accepted since launch. Not supported on Claude
 # Sonnet 5 or Claude Opus 5 (use the top-level `system` field instead).
-MID_SYSTEM_SUPPORTED_MODELS = {"claude-fable-5", "claude-mythos-5", "claude-opus-4-8"}
+MID_SYSTEM_SUPPORTED_MODELS = {"zcoder-flash", "zcoder-pro"}
 
 
 class SystemMessagePlacementError(ValueError):
@@ -282,7 +282,7 @@ class CachingCoder:
 
     ENDPOINT = "https://api.anthropic.com/v1/messages"
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096, ttl: str = "5m"):
+    def __init__(self, api_key: str, model: str = "zcoder-pro", max_tokens: int = 4096, ttl: str = "5m"):
         self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens

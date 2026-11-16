@@ -6,7 +6,7 @@ ZCoder CLI v1.10.0
 
 Example YAML:
   name: "Refactor + Document"
-  model: claude-sonnet-5
+  model: zcoder-pro
   steps:
     - id: refactor
       instruction: "Refactor this code for readability: {{input}}"
@@ -63,7 +63,7 @@ class AsyncWorkflowStep:
 class Workflow:
     name: str
     steps: list[WorkflowStep]
-    model: str = "claude-sonnet-5"
+    model: str = "zcoder-pro"
 
 
 class WorkflowEngine:
@@ -154,7 +154,7 @@ def _parse(d: dict) -> Workflow:
         )
         for s in d.get("steps", [])
     ]
-    return Workflow(name=d.get("name", "Untitled"), steps=steps, model=d.get("model", "claude-sonnet-5"))
+    return Workflow(name=d.get("name", "Untitled"), steps=steps, model=d.get("model", "zcoder-pro"))
 
 
 def _fill(template: str, variables: dict[str, str]) -> str:
@@ -248,7 +248,7 @@ def cmd_workflow_run(
 def cmd_workflow_scaffold(output: str):
     sample = {
         "name": "Example Workflow",
-        "model": "claude-sonnet-5",
+        "model": "zcoder-pro",
         "steps": [
             {"id": "draft", "instruction": "Write a short essay about: {{input}}"},
             {"id": "improve", "instruction": "Improve this essay:\n{{draft}}", "depends_on": ["draft"]},

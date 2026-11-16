@@ -188,9 +188,7 @@ turnBoundaryProjectionDefinition = ProjectionDefinition(
     name="turnBoundary",
     compute=lambda events: {
         "boundaries": [
-            e.get("payload", {})
-            for e in events
-            if e.get("event_type") == AGENT_EVENT_TURN_BOUNDARY
+            e.get("payload", {}) for e in events if e.get("event_type") == AGENT_EVENT_TURN_BOUNDARY
         ]
     },
 )

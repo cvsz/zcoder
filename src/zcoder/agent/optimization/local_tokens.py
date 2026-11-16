@@ -234,7 +234,7 @@ class LocalTokenEstimator:
     def estimate(
         self,
         prompt: str,
-        model: str = "claude-sonnet-5",
+        model: str = "zcoder-pro",
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         history: list[dict[str, Any]] | None = None,
@@ -305,7 +305,7 @@ class LocalTokenEstimator:
 
         return total
 
-    def estimate_batch(self, prompts: list[str], model: str = "claude-sonnet-5") -> list[int]:
+    def estimate_batch(self, prompts: list[str], model: str = "zcoder-pro") -> list[int]:
         """Estimate tokens for a batch of prompts efficiently.
 
         Args:
@@ -333,7 +333,7 @@ class LocalTokenEstimator:
     def estimate_detailed(
         self,
         prompt: str,
-        model: str = "claude-sonnet-5",
+        model: str = "zcoder-pro",
         system: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         history: list[dict[str, Any]] | None = None,
@@ -398,7 +398,7 @@ _default_estimator = LocalTokenEstimator()
 
 def estimate_tokens(
     prompt: str,
-    model: str = "claude-sonnet-5",
+    model: str = "zcoder-pro",
     system: str | None = None,
     tools: list[dict[str, Any]] | None = None,
     history: list[dict[str, Any]] | None = None,
@@ -462,7 +462,7 @@ def predict_best_model(
 
 def estimate_tokens_detailed(
     prompt: str,
-    model: str = "claude-sonnet-5",
+    model: str = "zcoder-pro",
     system: str | None = None,
     tools: list[dict[str, Any]] | None = None,
     history: list[dict[str, Any]] | None = None,
@@ -471,7 +471,7 @@ def estimate_tokens_detailed(
     return _default_estimator.estimate_detailed(prompt, model, system, tools, history)
 
 
-def detect_code_patterns(text: str, model: str = "claude-sonnet-5") -> dict:
+def detect_code_patterns(text: str, model: str = "zcoder-pro") -> dict:
     """Detect code patterns in text using model-specific heuristics.
 
     Args:

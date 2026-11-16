@@ -33,7 +33,7 @@ from zcoder.services.coder import Coder
 class StructuredCoder:
     """Local model client for structured JSON outputs."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+    def __init__(self, api_key: str, model: str = "zcoder-pro", max_tokens: int = 4096):
         # `api_key` stays in the constructor for source compatibility. Local
         # inference does not read or transmit it.
         self.api_key = ""

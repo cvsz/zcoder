@@ -42,12 +42,8 @@ BATCH_STORE = Path(os.path.expanduser("~/.zcoder/batches"))
 # synchronous Messages API max_output values are unaffected.
 OUTPUT_300K_BETA = "output-300k-2026-03-24"
 OUTPUT_300K_MODELS = {
-    "claude-opus-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-opus-4-6",
-    "claude-sonnet-5",
-    "claude-sonnet-4-6",
+    "zcoder-pro",
+    "zcoder-flash",
 }
 OUTPUT_300K_MAX_TOKENS = 300_000
 
@@ -134,7 +130,7 @@ class BatchProcessor:
 class BatchCoder:
     """Claude Batch API client."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", use_300k_output: bool = False):
+    def __init__(self, api_key: str, model: str = "zcoder-pro", use_300k_output: bool = False):
         self.client = create_anthropic_client(api_key)
         self.model = model
         # Opt-in per-instance rather than per-request: the beta header is
