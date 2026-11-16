@@ -55,8 +55,8 @@ services:
     environment:
       OLLAMA_HOST: 127.0.0.1
       OLLAMA_MODELS: ${ZCODER_GGUF_FILE:-zcoder-pro.gguf}
-    ports:
-      - "11434:11434"
+    # Port not published - Zcoder shares network namespace
+    # and reaches the loopback-only inference endpoint
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:11434/api/tags"]
       interval: 15s

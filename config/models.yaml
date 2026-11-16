@@ -1,7 +1,7 @@
 # Multi-sector GGUF model server configuration for ZCoder local inference.
 #
-# Each sector runs ONE llama-server instance on its own loopback port and
-# serves exactly one GGUF model (llama-server serves one model per process).
+# Each sector runs ONE ollama instance on its own loopback port and
+# serves exactly one GGUF model (ollama serves one model per process).
 # All inference is local-only (loopback); no hosted model API calls are made.
 #
 # Control with: scripts/model-server {list|start|restart|stop|status|health} <sector|all>
@@ -12,8 +12,8 @@
 # Directory containing GGUF model files.
 models_dir: /zdata/models
 
-# llama-server binary.
-llama_server_binary: /home/cvsz/.local/bin/llama-server
+# ollama binary.
+ollama_server_binary: /home/cvsz/.local/bin/llama-server
 
 # Runtime state directory (pidfiles) and log directory.
 run_dir: /home/cvsz/zcoder/run

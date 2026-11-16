@@ -679,7 +679,7 @@ start-all:
 	@echo "All services started"
 	@echo "  Web console: http://$(HOST):$(PORT)"
 	@echo "  API server:  http://$(API_HOST):$(API_PORT)"
-	@echo "  Docker:      llama.cpp + PostgreSQL + ZCoder container"
+	@echo "  Docker:      ollama + PostgreSQL + ZCoder container"
 
 status-all:
 	@echo "=== ZCoder Service Status ==="
@@ -741,7 +741,7 @@ docker-down:
 	docker compose down
 
 docker-logs:
-	docker compose logs --tail=100 -f llama-server
+	docker compose logs --tail=100 -f ollama
 
 postgres-setup:
 	$(PYTHON) scripts/local_postgres.py setup
