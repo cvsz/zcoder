@@ -86,7 +86,7 @@ and test gates green on this branch's tree; CodeQL suite at 0 findings.
 
 - External provider integrations (Anthropic, Gemini, Ollama, xAI, NVIDIA NIM):
   no authorized budget; NOT VERIFIED for live calls (mocked only).
-- GPU hardware / llama.cpp local inference runtime: not exercised beyond
+- GPU hardware / ollama local inference runtime: not exercised beyond
   existing mocked tests this round.
 - Production PostgreSQL / multi-tenant operation: not tested against
   production data.

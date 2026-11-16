@@ -49,7 +49,7 @@
 #138 — feat(local): offline administration, compliance audit and task approval foundation
 - Draft; closed without merge.
 
-#137 — feat(local): route default ZCoder prompt CLI to loopback GGUF llama.cpp
+#137 — feat(local): route default ZCoder prompt CLI to loopback GGUF ollama
 - Draft; closed without merge.
 
 #136 — [Aikido] Fix 10 security issues in truststore, numpy, platformdirs and 3 more

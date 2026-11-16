@@ -27,7 +27,7 @@ Upgrade-14 through Upgrade-16 built:
 - local provider abstraction
 - model factory
 - model registry
-- llama.cpp/Ollama/vLLM adapters
+- ollama/Ollama/vLLM adapters
 - hardware profiling
 - model-fit estimation
 - benchmark infrastructure
@@ -58,7 +58,7 @@ Target:
                          │
        ┌─────────────────┼──────────────────┐
        ▼                 ▼                  ▼
-   llama.cpp          Ollama              vLLM
+   ollama          Ollama              vLLM
        │                 │                  │
        └─────────────────┼──────────────────┘
                          ▼
@@ -476,10 +476,10 @@ cost policy compliant
 22. LLAMA.CPP ROUTER MODE
 ================================================================
 
-Re-read CURRENT official llama.cpp server documentation.
+Re-read CURRENT official ollama server documentation.
 
 If current router mode is stable enough for the target functionality,
-integrate behind the llama.cpp adapter.
+integrate behind the ollama adapter.
 
 Potential responsibilities:
 
@@ -491,7 +491,7 @@ max loaded models
 health
 slot state
 
-Do not expose llama.cpp router-specific concepts to domain callers.
+Do not expose ollama router-specific concepts to domain callers.
 
 ================================================================
 23. LLAMA.CPP MODEL LIMIT
@@ -2253,7 +2253,7 @@ FINAL:
 Explicitly state:
 
 actual model-generated tokens?
-real llama.cpp?
+real ollama?
 real Ollama?
 real vLLM?
 real autonomous repair?

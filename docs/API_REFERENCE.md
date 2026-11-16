@@ -221,7 +221,7 @@ Generate a new session ID in `YYYYMMDD-HHMMSS-XXXXXX` format.
 
 ### `zcoder.agent.codeagent.llm`
 
-Loopback-only OpenAI-compatible streaming client for a local llama-server.
+Loopback-only OpenAI-compatible streaming client for a local ollama.
 
 ### `LocalLLM`
 

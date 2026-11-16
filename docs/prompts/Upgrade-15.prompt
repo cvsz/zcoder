@@ -2,7 +2,7 @@
 
 # Local Model Factory & Auto-Tuning
 
-# GGUF / llama.cpp First-Class Runtime,
+# GGUF / ollama First-Class Runtime,
 
 # Ollama/vLLM Lifecycle, Model Registry,
 
@@ -177,7 +177,7 @@ LocalAgentRuntime
 │
 LocalModelGateway
 │
-├── llama.cpp
+├── ollama
 ├── Ollama
 ├── vLLM
 └── Generic
@@ -186,7 +186,7 @@ LocalModelGateway
 5. LLAMA.CPP FIRST-CLASS SUPPORT
 ================================
 
-Audit the CURRENT official llama.cpp repository/server documentation at
+Audit the CURRENT official ollama repository/server documentation at
 execution time.
 
 Implement documented functionality only.
@@ -210,8 +210,8 @@ Do not assume every loaded model supports every server feature.
 Detect:
 
 llama
-llama-server
-legacy llama.cpp binaries if appropriate
+ollama
+legacy ollama binaries if appropriate
 
 Use:
 
@@ -605,7 +605,7 @@ with reasons.
 32. LLAMA.CPP AUTO-TUNING
 =========================
 
-Audit CURRENT llama.cpp runtime flags first.
+Audit CURRENT ollama runtime flags first.
 
 Build controlled tuning abstraction for parameters such as:
 
@@ -648,7 +648,7 @@ result from one machine is not silently used on incompatible hardware.
 
 Record:
 
-llama.cpp version/build
+ollama version/build
 Ollama version
 vLLM version
 
@@ -1328,7 +1328,7 @@ No internet required.
 Run:
 
 local file
-→ llama.cpp/local runtime
+→ ollama/local runtime
 → coding job
 
 with network interception proving no outbound traffic.
@@ -1339,7 +1339,7 @@ with network interception proving no outbound traffic.
 
 Highest priority.
 
-If llama.cpp or Ollama can be installed/available in environment:
+If ollama or Ollama can be installed/available in environment:
 
 run actual local inference.
 
@@ -2082,7 +2082,7 @@ storage quota
 download dry-run
 gated model state
 license metadata
-llama.cpp adapter
+ollama adapter
 Ollama adapter
 vLLM adapter
 runtime process ownership
@@ -2104,7 +2104,7 @@ project profiles
 
 If environment allows installing/running a lightweight local runtime:
 
-prefer actual llama.cpp or existing Ollama installation.
+prefer actual ollama or existing Ollama installation.
 
 Do not silently install gigabytes.
 
@@ -2161,7 +2161,7 @@ Upgrade-15 is complete only when:
 
 [ ] catalog models cannot appear installed accidentally
 [ ] local model lifecycle is explicit
-[ ] llama.cpp is first-class
+[ ] ollama is first-class
 [ ] Ollama remains first-class
 [ ] vLLM remains optional
 [ ] generic local server remains supported
@@ -2222,7 +2222,7 @@ Model | State | Source | Revision | Digest | Format | Quantization | License
 
 ## 8. Acquisition System
 
-## 9. GGUF / llama.cpp
+## 9. GGUF / ollama
 
 ## 10. Ollama
 
@@ -2356,7 +2356,7 @@ FINAL:
 
 Explicitly state:
 
-real llama.cpp executed?
+real ollama executed?
 real Ollama executed?
 real vLLM executed?
 real GGUF model downloaded?

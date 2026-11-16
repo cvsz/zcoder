@@ -920,7 +920,7 @@ latest tag
 57. RUNTIME UPDATE PIPELINE
 ================================================================
 
-New llama.cpp/Ollama/vLLM version:
+New ollama/Ollama/vLLM version:
 
 re-run:
 
@@ -1770,11 +1770,11 @@ Do not duplicate collectors.
 129. LLAMA.CPP METRICS
 ================================================================
 
-Where real llama.cpp runtime provides current documented metrics:
+Where real ollama runtime provides current documented metrics:
 
 consume them through runtime adapter.
 
-Do not make QualityEngineeringService llama.cpp-specific.
+Do not make QualityEngineeringService ollama-specific.
 
 ================================================================
 130. SLOT/CAPACITY DATA
@@ -2394,7 +2394,7 @@ real model runtime?
 real model count?
 real coding fixtures?
 languages tested?
-actual llama.cpp?
+actual ollama?
 actual Ollama?
 actual vLLM?
 GPU?

@@ -1,0 +1,126 @@
+services:
+  zpostgresql:
+    container_name: zpostgresql
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: zcoder
+      POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
+      POSTGRES_DB: zcoder_db
+    volumes:
+      - zpostgresql_data:/var/lib/postgresql/data
+    networks:
+      - zPostgreSQL_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zcoder -d zcoder_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    secrets:
+      - zcoder_postgres_password
+
+  zredis:
+    container_name: zredis
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory-policy", "allkeys-lru"]
+    environment:
+      REDIS_PASSWORD_FILE: /run/secrets/zredis_password
+    volumes:
+      - zredis_data:/data
+    networks:
+      - zPostgreSQL_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    secrets:
+      - zredis_password
+
+  ollama:
+    container_name: zcoder-ollama
+    image: ollama/ollama:latest
+    volumes:
+      - type: bind
+        source: ${ZCODER_MODELS_DIR:-/zdata/models}
+        target: /root/.ollama/models
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_MODELS: ${ZCODER_GGUF_FILE:-zcoder-pro.gguf}
+    # Don't publish port - Zcoder shares network namespace
+    # ports:
+    #   - "11434:11434"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:11434/api/tags"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    networks:
+      - default
+      - zPostgreSQL_network
+    restart: unless-stopped
+
+  zcoder:
+    container_name: zcoder
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zcoder:latest
+    environment:
+      ZCODER_BASE_URL: http://host.docker.internal:11434/v1
+      ZCODER_MODEL: ${ZCODER_MODEL:-zcoder-pro}
+      ZCODER_ROUTE_PROVIDER: ${ZCODER_ROUTE_PROVIDER:-}
+      ZCODER_NVIDIA_MODELS: ${ZCODER_NVIDIA_MODELS:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-${NVIDIA_API_KEY_1:-${NVIDIA_API_KEY_2:-}}}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      ZCODER_POSTGRES_HOST: zpostgresql
+      ZCODER_POSTGRES_PORT: "5432"
+      ZCODER_POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
+      ZCODER_REDIS_HOST: zredis
+      ZCODER_REDIS_PORT: "6379"
+      ZCODER_REDIS_PASSWORD_FILE: /run/secrets/zredis_password
+      ZCODER_LOG_FORMAT: json
+      ZCODER_LOG_LEVEL: INFO
+    secrets:
+      - zcoder_postgres_password
+      - zredis_password
+    volumes:
+      - zcoder-home:/home/zcoder
+    network_mode: "service:ollama"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      zpostgresql:
+        condition: service_healthy
+      zredis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "zcoder.main", "--health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    stdin_open: true
+    tty: true
+    command: ["--interactive"]
+
+volumes:
+  zcoder-home:
+  zpostgresql_data:
+  zredis_data:
+
+networks:
+  zPostgreSQL_network:
+
+secrets:
+  zcoder_postgres_password:
+    file: ${ZCODER_POSTGRES_SECRET_SOURCE:-${HOME}/.config/zcoder/postgresql.password}
+  zredis_password:
+    file: /home/cvsz/.config/zcoder/redis.password

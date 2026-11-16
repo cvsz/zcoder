@@ -1922,7 +1922,7 @@ Validation:
   ✓ ruff check .
 
 Local AI:
-  llama.cpp: unavailable
+  ollama: unavailable
   Ollama: available
   model: qwen... installed
   fit: SAFE

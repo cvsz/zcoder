@@ -58,7 +58,7 @@ class Coder:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.provider = (provider or "local").strip().lower()
-        self.base_url = (base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")).rstrip("/")
+        self.base_url = (base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")).rstrip("/")
         self.personality_style = personality_style
         # service_tier: "auto" (use Priority Tier if committed, else fall
         # back to standard) or "standard_only". Not sent unless set — most

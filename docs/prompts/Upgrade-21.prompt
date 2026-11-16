@@ -1342,7 +1342,7 @@ Do not fabricate.
 
 Check actual:
 
-llama.cpp
+ollama
 Ollama list
 configured local endpoint
 

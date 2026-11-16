@@ -2951,7 +2951,7 @@ Explicitly state:
 
 real local model used?
 real autonomous coding?
-real llama.cpp/Ollama?
+real ollama/Ollama?
 real GitHub sandbox?
 real CI repair?
 merge automation tested?

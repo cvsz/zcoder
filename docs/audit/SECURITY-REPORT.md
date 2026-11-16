@@ -107,7 +107,7 @@ services.
 
 - `ruff format --check` reports files that would be reformatted (P3 maintainability; not a security issue). CI gate is `black --check .` (508 files clean); ruff format conflicts with black.
 - External provider integrations (Anthropic, Gemini, Ollama, xAI, NVIDIA NIM) not live-tested (no authorized budget) — marked NOT VERIFIED / BLOCKED. Local loopback policy remains enforced and tested.
-- GPU / llama.cpp local inference not exercised beyond mocked tests this round.
+- GPU / ollama local inference not exercised beyond mocked tests this round.
 - `deploy/supabase/**` is gitignored/untracked in this repository: it is not covered by hosted CI or by CodeQL scanning. Local ad-hoc scans found only conservative/classifier issues there (clear-text-logging false positives around a URL without credentials); out of repository scope, unchanged.
 - Production multi-tenant operation requires external identity, authorization, data isolation, audit retention, backup/restore per SECURITY.md known limitations.
 

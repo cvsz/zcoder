@@ -13,7 +13,7 @@
 models_dir: /zdata/models
 
 # ollama binary.
-ollama_server_binary: /home/cvsz/.local/bin/llama-server
+ollama_server_binary: /home/cvsz/.local/bin/ollama
 
 # Runtime state directory (pidfiles) and log directory.
 run_dir: /home/cvsz/zcoder/run
@@ -30,7 +30,7 @@ start_timeout: 120
 stop_timeout: 15
 
 sectors:
-  # Default sector (the existing zcoder service serves the same model on 8080).
+  # Default sector (the existing zcoder service serves the same model on 11434.v1)
   - name: zcoder-flash
     model: zcoder-1.5b-q4km.gguf
     alias: zcoder-flash

@@ -562,7 +562,7 @@ Maintain a continuously updated source registry covering:
 - Cerebras
 - OpenRouter
 - Ollama
-- llama.cpp
+- ollama
 - vLLM
 - SGLang
 - LM Studio
@@ -599,7 +599,7 @@ Create or improve a provider abstraction supporting:
 - Anthropic-compatible APIs
 - Gemini APIs
 - Ollama
-- llama.cpp
+- ollama
 - vLLM
 - NVIDIA NIM
 - Configurable self-hosted gateways
@@ -693,7 +693,7 @@ Preserve ZCoder's local-first design.
 
 Support:
 - Ollama
-- llama.cpp
+- ollama
 - GGUF
 - vLLM
 - Other validated local inference runtimes

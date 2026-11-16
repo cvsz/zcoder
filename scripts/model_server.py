@@ -1,6 +1,6 @@
 """Multi-sector GGUF model server controller for ZCoder local inference.
 
-Starts/stops/restarts/reports status of llama-server instances, one per
+Starts/stops/restarts/reports status of ollama instances, one per
 sector, each serving a single GGUF model on a dedicated loopback port.
 
 All traffic stays on loopback (127.0.0.1); no hosted model API is used.
@@ -73,7 +73,7 @@ def load_config(path: str) -> dict[str, Any]:
 
 def build_sectors(cfg: dict[str, Any]) -> list[Sector]:
     models_dir = str(cfg.get("models_dir", "/zdata/models"))
-    binary = str(cfg.get("llama_server_binary", "/home/cvsz/.local/bin/llama-server"))
+    binary = str(cfg.get("llama_server_binary", "/home/cvsz/.local/bin/ollama"))
     run_dir = str(cfg.get("run_dir", "/home/cvsz/zcoder/run"))
     log_dir = str(cfg.get("log_dir", "/home/cvsz/zcoder/logs"))
     default_ctx = int(cfg.get("default_ctx_size", 4096))
@@ -173,7 +173,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
         return
 
     if not os.path.exists(sector.binary):
-        raise ModelServerError(f"llama-server binary not found: {sector.binary}")
+        raise ModelServerError(f"ollama binary not found: {sector.binary}")
     if not os.path.exists(sector.model_path):
         raise ModelServerError(f"GGUF model not found: {sector.model_path}")
 
@@ -214,7 +214,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
     while time.monotonic() < deadline:
         alive, _pid = sector_running(sector)
         if not alive:
-            raise ModelServerError(f"{sector.name}: llama-server exited during startup; see {sector.logfile}")
+            raise ModelServerError(f"{sector.name}: ollama exited during startup; see {sector.logfile}")
         if health_ok(sector, timeout=2.0):
             print(
                 f"[start] {sector.name}: running on {sector.base_url} "
@@ -290,7 +290,7 @@ def list_sectors(sectors: list[Sector]) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Control ZCoder multi-sector GGUF model servers (llama-server)."
+        description="Control ZCoder multi-sector GGUF model servers (ollama)."
     )
     parser.add_argument(
         "--config",
