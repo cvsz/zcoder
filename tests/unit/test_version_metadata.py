@@ -3,7 +3,9 @@
 import tomllib
 from importlib.metadata import version
 
-from zcoder import __version__, main
+from importlib.metadata import version
+
+__version__ = version("zcoder")
 
 
 def test_runtime_versions_follow_project_metadata():

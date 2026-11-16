@@ -39,9 +39,6 @@ logger = logging.getLogger(__name__)
 # ─── psycopg import guard ────────────────────────────────────────────────────
 
 try:
-    import psycopg2
-    import psycopg2.extras
-    import psycopg2.pool
 
     _PSYCOPG2_AVAILABLE = True
     _PG_AVAILABLE = True
@@ -208,7 +205,6 @@ class PostgresControlPlaneStore:
             )
         else:
             # psycopg3 connection pool
-            import psycopg.pool
 
             self._pool = psycopg.pool.ConnectionPool(
                 dsn,
