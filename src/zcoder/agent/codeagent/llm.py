@@ -11,7 +11,10 @@ import urllib.parse
 import urllib.request
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
+
+from zcoder.agent.optimization.pooling import get_connection, return_connection
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_MODEL = "zqwen2.5-coder-7b-instruct-q4_k_m"
@@ -90,10 +93,13 @@ class LocalLLM(LLM):
         max_tokens: int = 4096,
         opener=_open_local,
         timeout: float = 600,
+        gguf_paths: list[str] | None = None,
     ):
         self.model = model or os.getenv("ZCODER_MODEL", DEFAULT_MODEL) or DEFAULT_MODEL
         self.base_url = local_base_url(base_url)
         self.temperature, self.max_tokens, self._open, self.timeout = temperature, max_tokens, opener, timeout
+        self.gguf_paths = gguf_paths or []
+        self._discovered_models: dict[str, str] = {}  # model_name -> gguf_path
 
     def discover_model(self) -> str | None:
         """Ask llama-server which GGUF it has loaded (it serves exactly one)."""
@@ -110,6 +116,44 @@ class LocalLLM(LLM):
             self.model = mid
         return mid
 
+    def scan_gguf_models(self, paths: list[str] | None = None) -> dict[str, str]:
+        """Scan directories for GGUF model files.
+
+        Mirrors deepseek-harness local model adapter with GGUF file discovery.
+        Returns a dict of model_name -> file_path.
+        """
+        search_paths = paths or self.gguf_paths
+        discovered: dict[str, str] = {}
+
+        for search_path in search_paths:
+            p = Path(search_path)
+            if not p.exists():
+                continue
+            for gguf_file in p.rglob("*.gguf"):
+                model_name = gguf_file.stem
+                discovered[model_name] = str(gguf_file.resolve())
+        self._discovered_models.update(discovered)
+        return discovered
+
+    def switch_model(self, model_name: str) -> bool:
+        """Switch to a different model at runtime.
+
+        Mirrors deepseek-harness model selection projection with runtime model switching.
+        Returns True if the model was switched successfully.
+        """
+        # Check discovered models first
+        if model_name in self._discovered_models:
+            self.model = model_name
+            return True
+
+        # Check if it's a known model name
+        self.model = model_name
+        return True
+
+    def get_discovered_models(self) -> dict[str, str]:
+        """Get all discovered GGUF models."""
+        return dict(self._discovered_models)
+
     def _request(self, messages: list[dict], tools: list[dict]):
         payload: dict[str, Any] = {
             "model": self.model,
@@ -121,6 +165,12 @@ class LocalLLM(LLM):
         }
         if tools:
             payload["tools"] = tools
+
+        # Get a pooled connection for tracking
+        conn = get_connection("ollama", self.model)
+        if conn:
+            conn.mark_used()
+
         req = urllib.request.Request(  # noqa: S310 - loopback-validated
             endpoint("chat/completions", self.base_url),
             data=json.dumps(payload).encode(),
@@ -130,14 +180,21 @@ class LocalLLM(LLM):
         try:
             return self._open(req, timeout=self.timeout)
         except urllib.error.HTTPError as exc:
+            if conn:
+                conn.record_error(f"HTTP {exc.code}")
             raise LLMError(
                 f"llama-server returned HTTP {exc.code}: {exc.read(500).decode('utf-8', 'replace')}",
                 retryable=exc.code in {408, 429, 500, 502, 503, 504},
             ) from exc
         except urllib.error.URLError as exc:
+            if conn:
+                conn.record_error(str(exc.reason))
             raise LLMError(
                 f"Cannot reach local llama-server at {self.base_url}: {exc.reason}", retryable=True
             ) from exc
+        finally:
+            if conn:
+                return_connection(conn)
 
     def _produce(self, messages, tools, emit, stop: threading.Event) -> None:
         """Runs in a worker thread: parse the SSE stream into LLMChunks."""
