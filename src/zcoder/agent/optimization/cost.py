@@ -435,7 +435,10 @@ def route_by_cost(
 
     # Predict best model with actual prompt for token estimation
     prediction = predict_best_model(
-        complexity_or_prompt=prompt, complexity=None, available_models=available_models, prefer_latency=prefer_latency
+        complexity_or_prompt=prompt,
+        complexity=None,
+        available_models=available_models,
+        prefer_latency=prefer_latency,
     )
 
     # Use predicted model's token estimation
@@ -457,7 +460,7 @@ def route_by_cost(
 def forecast_spend(
     num_prompts: int,
     complexity_distribution: dict[str, int] | None = None,
-    model: str = "claude-sonnet-5",
+    model: str = "zcoder-pro",
 ) -> dict[str, Any]:
     """Forecast spend for a given number of prompts.
 
@@ -685,7 +688,7 @@ def cmd_cost_clear_cache():
     print("✓ Cost cache cleared.")
 
 
-def cmd_optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
+def cmd_optimize_prompt(prompt: str, model: str = "zcoder-pro") -> str:
     """Optimize a prompt using token heuristics and return the optimized version."""
     optimized = optimize_prompt(prompt, model)
     original_tokens = local_estimate_tokens(prompt, model)

@@ -55,6 +55,7 @@ def _get_adapter(provider: str) -> ProviderAdapter:
     """Return the registered adapter for *provider*, or raise ``KeyError``."""
     return _ADAPTER_REGISTRY.get(provider)
 
+
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
 

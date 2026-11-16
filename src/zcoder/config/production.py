@@ -72,7 +72,7 @@ class AnthropicConfig:
     """Anthropic API credentials and limits."""
 
     api_key_env: str = "ANTHROPIC_API_KEY"
-    default_model: str = "claude-sonnet-5"
+    default_model: str = "zcoder-pro"
     max_tokens: int = 8192
     timeout_seconds: float = 600.0
     max_retries: int = 3

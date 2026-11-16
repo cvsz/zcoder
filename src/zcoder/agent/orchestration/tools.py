@@ -189,4 +189,3 @@ async def executeToolBatch(
             return await pipeline.run(name, params, context)
 
     return await asyncio.gather(*(run_one(name, params) for name, params in calls))
-

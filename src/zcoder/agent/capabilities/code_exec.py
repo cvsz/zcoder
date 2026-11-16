@@ -62,7 +62,7 @@ class CodeExecutionCoder:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-5",
+        model: str = "zcoder-pro",
         max_tokens: int = 8192,
         code_exec_version: str = DEFAULT_CODE_EXEC_VERSION,
     ):

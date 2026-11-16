@@ -1098,7 +1098,7 @@ class ZCoderDesktopGUI:
             "openai": _ProviderInfo(free=False, models=["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]),
             "anthropic": _ProviderInfo(
                 free=False,
-                models=["claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus"],
+                models=["zcoder-promax", "zcoder-flash", "zcoder-pro"],
             ),
         }
 

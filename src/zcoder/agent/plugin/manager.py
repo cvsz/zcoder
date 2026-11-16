@@ -10,6 +10,7 @@ from typing import Any
 
 from zcoder.agent.plugin.loader import LoadedPlugin, PluginLoader
 from zcoder.agent.plugin.tier import PluginTier
+from zcoder.config.settings import Config
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class PluginManager:
     _plugins_by_tier: dict[PluginTier, list[LoadedPlugin]] = field(default_factory=dict)
     _plugins_by_name: dict[str, LoadedPlugin] = field(default_factory=dict)
     _loaded: bool = False
+    _config: Config | None = None
 
     # Enterprise allowlist/blocklist configuration
     allowlist: list[str] = field(default_factory=list)
@@ -31,6 +33,20 @@ class PluginManager:
     def __post_init__(self):
         for tier in PluginTier:
             self._plugins_by_tier[tier] = []
+
+    def register_config(self, config: Config) -> None:
+        """Register configuration as an effect.
+
+        Registers the Config instance so plugins and consumers can access
+        configuration through the plugin manager. This follows the
+        "registrations are effects" pattern: registration is an effect that
+        unwinds when the plugin unloads.
+        """
+        self._config = config
+
+    def get_config(self) -> Config | None:
+        """Get the registered configuration, or None if not registered."""
+        return self._config
 
     def _is_allowed(self, plugin_name: str) -> bool:
         """Check if a plugin is allowed based on allowlist/blocklist."""

@@ -127,7 +127,7 @@ class SkillsApiClient:
     the same _post() pattern used throughout this project's claude_*.py
     modules for consistency."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+    def __init__(self, api_key: str, model: str = "zcoder-pro", max_tokens: int = 4096):
         self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens

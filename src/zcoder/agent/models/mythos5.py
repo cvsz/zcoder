@@ -1,149 +1,137 @@
 """
-claude_mythos5.py — Claude Mythos 5 support (companion to claude_fable5.py)
-ZCoder CLI v1.10.1
+zcoder_mythos5.py — ZCoder Pro support via Ollama (refactored from Claude Mythos 5)
+ZCoder CLI v1.33.0
 
-IMPORTANT — confidence note, more pointed than claude_fable5.py's: everything
-below is sourced from the same web search results as claude_fable5.py, and
-Mythos 5 is described as *limited-availability, approval-gated* access
-(Project Glasswing) on top of the general uncertainty already flagged there.
-I have no way to independently confirm the model ID, pricing, or even that
-Mythos 5 is reachable via the standard Messages API rather than some
-separate gated endpoint. Treat this module as a convenience wrapper for
-*if and when* you have confirmed access — not as evidence that access
-works this way. Verify at https://platform.claude.com/docs and with your
-Anthropic/AWS/Google Cloud account team before relying on anything here.
+Refactored from claude_mythos5.py to work with ZCoder's own models running
+locally on Ollama instead of Claude Mythos 5 via Anthropic API.
 
-Why this is a separate, thinner module rather than folding into
-claude_fable5.py: Mythos 5 is documented as the same underlying model as
-Fable 5 *without* the safety classifiers — so there is no refusal/fallback
-mechanic to implement here. That's not an oversight; a model with no
-refusal classifier has nothing to fall back from. This module is
-deliberately smaller than claude_fable5.py because there is genuinely
-less to build: an access-gate check, an info command, and a plain call.
-
-UPDATE (2026-07-02): both Mythos-class models were suspended
-2026-06-12 through 2026-06-30 for US export-control compliance and
-restored 2026-07-01. A 403/404 today is therefore more likely a
-Project Glasswing access-gate rejection (see MythosAccessError below)
-than a lingering effect of that suspension — but if you tested this
-during that window and got blocked, retry now.
+--mythos5 now maps to zcoder-pro (ZCoder's general-purpose model) via Ollama.
+No API key or internet required.
 
 CLI flags:
-  --mythos5-info               Show what's known about Mythos 5 access/pricing
-  --mythos5 PROMPT              Call Claude Mythos 5 directly (no refusal handling —
-                                 see note above on why)
+  --mythos5-info           Show ZCoder Pro capability table
+  --mythos5 PROMPT         Call zcoder-pro via Ollama (replaces Claude Mythos 5)
 """
 
-import json
-import urllib.error
-import urllib.request
+from __future__ import annotations
 
-from zcoder.agent.models.fable5 import FABLE_MYTHOS_INFO, MESSAGES_ENDPOINT, MYTHOS5_MODEL_ID
-from zcoder.core.exceptions import APIError, ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from typing import Any
+
+from zcoder.agent.models.zcoder_model import (
+    DEFAULT_OLLAMA_BASE_URL,
+    ZCoderClient,
+)
+from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import CircuitBreaker, retry
 
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-# Re-exported for convenience so callers don't need to import claude_fable5
-# directly just to get the model ID or info table.
-__all__ = ["MYTHOS5_MODEL_ID", "MythosAccessError", "Mythos5Client", "cmd_mythos5_info", "cmd_mythos5_call"]
+# ── Mapping ──
+# --mythos5 → zcoder-pro (general-purpose model)
+MYTHOS5_MODEL_ID = "zcoder-pro"
 
-
-class MythosAccessError(Exception):
-    """Raised when a Mythos 5 call fails in a way that looks like an access-gate
-    rejection (HTTP 403/404 on the model ID) rather than an ordinary API error,
-    so the caller gets a pointed message instead of a generic stack trace."""
-
-    pass
+MYTHOS5_INFO: dict[str, Any] = {
+    "display_name": "ZCoder Pro (via Ollama)",
+    "model_id": MYTHOS5_MODEL_ID,
+    "tier": "current",
+    "context_window": 32_768,
+    "max_output_tokens": 8192,
+    "size_gb": 4.7,
+    "quant": "7B Q4_K",
+    "effort_levels": ["low", "medium", "high", "max"],
+    "fast_mode_supported": True,
+    "notes": "Refactored from Claude Mythos 5 module. Now calls zcoder-pro "
+    "via Ollama (local provider). No API key or internet required.",
+}
 
 
 class Mythos5Client:
-    """Minimal Messages API client for claude-mythos-5. No refusal/fallback
-    handling — see module docstring for why. Follows the same _post() pattern
-    as Fable5Client in claude_fable5.py for consistency."""
+    """ZCoder Pro client via Ollama (refactored from Claude Mythos 5 client).
 
-    def __init__(self, api_key: str, max_tokens: int = 4096):
-        self.api_key = api_key
+    Same interface as before but calls local Ollama instead of Anthropic API.
+    MythosAccessError is kept as a compatibility alias but will never be
+    raised for local models.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+        base_url: str = DEFAULT_OLLAMA_BASE_URL,
+        max_tokens: int = 8192,
+    ) -> None:
+        self.base_url = base_url
         self.max_tokens = max_tokens
+        self._client = ZCoderClient(
+            model=MYTHOS5_MODEL_ID,
+            base_url=base_url,
+            max_tokens=max_tokens,
+        )
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            MESSAGES_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
-        )
-        return urlopen_json(req, timeout=300)
+        return self._client._call(payload)
 
     def _post(self, payload: dict) -> dict:
         try:
             return self._call(payload)
-        except APIError as e:
-            if e.status_code in (403, 404):
-                body = e.details.get("body", "")
-                raise MythosAccessError(
-                    f"HTTP {e.status_code} calling claude-mythos-5 — this looks like an "
-                    "access-gate rejection rather than a normal API error. Mythos 5 "
-                    "requires approved Project Glasswing access; most accounts will "
-                    "see this. Use claude-fable-5 instead unless you've confirmed "
-                    f"access with Anthropic. Raw response: {body}"
-                ) from e
-            return {"error": e.message, "status": e.status_code}
         except ZCoderError as e:
             return {"error": e.message, "status": getattr(e, "status_code", None)}
         except Exception as e:
             return {"error": str(e)}
 
-    def call(self, prompt: str, system: str | None = None) -> dict:
-        payload = {
-            "model": MYTHOS5_MODEL_ID,
-            "max_tokens": self.max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system:
-            payload["system"] = system
-        return self._post(payload)
+    def call(
+        self,
+        prompt: str,
+        system: str | None = None,
+    ) -> dict:
+        """Build and send one request to zcoder-pro via Ollama."""
+        return self._client.call(prompt, system=system)
 
     def call_text(self, prompt: str, system: str | None = None) -> str:
-        """Convenience wrapper returning just the response text (or an
-        [ERROR] string), for callers that don't need the raw response dict."""
-        data = self.call(prompt, system=system)
-        if "error" in data:
-            return f"[ERROR] {data['error']}"
-        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        return self._client.call_text(prompt, system=system)
+
+
+class MythosAccessError(Exception):
+    """Compatibility alias — never raised for local Ollama models."""
+
+    pass
+
+
+# ── Re-export for backward compatibility ─────────────────────────────────
+
+__all__ = [
+    "MYTHOS5_MODEL_ID",
+    "MYTHOS5_INFO",
+    "MythosAccessError",
+    "Mythos5Client",
+    "cmd_mythos5_info",
+    "cmd_mythos5_call",
+]
 
 
 def cmd_mythos5_info():
-    info = FABLE_MYTHOS_INFO[MYTHOS5_MODEL_ID]
-    print("\n\033[94mClaude Mythos 5\033[0m")
-    print("\033[93m⚠ Sourced from the same uncertain web search results as claude_fable5.py.\033[0m")
-    print("\033[93m  Access is described as limited/approval-gated (Project Glasswing) —\033[0m")
-    print("\033[93m  most accounts will not have this. Verify before relying on anything below.\033[0m\n")
-    print(f"    Class:            {info['class']}")
-    print(f"    Context window:   {info['context_window']:,} tokens")
-    print(f"    Max output:       {info['max_output_tokens']:,} tokens")
-    print(
-        f"    Pricing:          ${info['price_input_per_mtok_usd']}/MTok in, "
-        f"${info['price_output_per_mtok_usd']}/MTok out"
-    )
-    print(f"    Data retention:   {info['data_retention']}")
-    print("    Safety classifiers: no (unlike Fable 5 — see claude_fable5.py)")
-    print(f"    Notes:            {info['notes']}")
-    print("\n  To request access: contact your Anthropic, AWS, or Google Cloud account team")
-    print("  about Project Glasswing. See also: --fable5-info for the publicly available sibling model.\n")
+    """Print ZCoder Pro capability table (refactored from Claude Mythos 5 info)."""
+    print(f"\n\033[94mZCoder Pro (via Ollama)\033[0m  ({MYTHOS5_MODEL_ID})")
+    print(f"  Model ID:          {MYTHOS5_MODEL_ID}")
+    print(f"  Context window:    {MYTHOS5_INFO['context_window']:,} tokens")
+    print(f"  Max output:        {MYTHOS5_INFO['max_output_tokens']:,} tokens")
+    print(f"  Size:              {MYTHOS5_INFO['size_gb']} GB ({MYTHOS5_INFO['quant']})")
+    print("  Pricing:           Free (local inference via Ollama)")
+    print("\n  \033[93mNote:\033[0m Refactored from Claude Mythos 5 module.")
+    print("    --mythos5 now calls zcoder-pro via Ollama (local provider).")
+    print("    No API key or internet required. No access gate (Project Glasswing) needed.\n")
 
 
-def cmd_mythos5_call(prompt: str, api_key: str, system: str | None = None):
-    client = Mythos5Client(api_key=api_key)
+def cmd_mythos5_call(
+    prompt: str,
+    api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+    system: str | None = None,
+):
+    """Call zcoder-pro via Ollama (refactored from Claude Mythos 5 call)."""
+    client = Mythos5Client(base_url=DEFAULT_OLLAMA_BASE_URL)
     try:
         text = client.call_text(prompt, system=system)
-    except MythosAccessError as e:
+    except Exception as e:
         print(f"\033[91m✗ {e}\033[0m")
         return None
     print(text)

@@ -1,183 +1,113 @@
 """
-claude_opus5.py — Claude Opus 5 support (deep, model-specific module)
+zcoder_opus5.py — ZCoder Pro support via Ollama (refactored from Claude Opus 5)
 ZCoder CLI v1.33.0
 
-Why this module exists: claude_models.py's MODEL_CATALOG carries a single
-short entry for claude-opus-5 (context window, price, one "notes" string),
-the same shallow shape every other row gets. That's fine as an index, but
-it under-serves Opus 5 specifically, because Opus 5 shipped with a real
-breaking change baked into its request validation that a flat notes string
-can't express as executable logic: effort and thinking interact in a way
-they didn't on Opus 4.8, and getting it wrong is a 400, not a silent
-downgrade. This module gives Opus 5 the same treatment claude_fable5.py /
-claude_mythos5.py already get — a dedicated info table, a client that
-validates requests before sending them, and CLI commands — rather than
-leaving callers to discover the effort/thinking interaction via a failed
-API call.
+Refactored from claude_opus5.py to work with ZCoder's own models running
+locally on Ollama instead of Claude Opus 5 via Anthropic API.
 
-Source: platform.claude.com/docs/en/about-claude/models/overview and the
-2026-07-24 Opus 5 release notes, checked 2026-07-26. Opus 5 launched
-2026-07-24 (two days before this module was written), so treat anything
-here as newer and less battle-tested than the Opus 4.8 module it
-supersedes — re-verify against the live docs before relying on this for
-billing- or correctness-sensitive decisions.
+No API key or internet required — uses the configured Ollama endpoint.
 
-What's specific to Opus 5, concretely:
-  • Thinking is ON by default (unlike Opus 4.8, where adaptive thinking is
-    on but effort_default is "high" with no stated always-on behavior).
-  • A full five-rung effort ladder: low / medium / high / xhigh / max.
-    claude_models.EFFORT_BUDGETS only defines low/medium/high/max — it
-    predates Opus 5 and has no "xhigh" entry. OPUS5_EFFORT_BUDGETS below
-    is the authoritative table for this model; use it instead of (not
-    blended with) the shared table when the model is Opus 5.
-  • BREAKING CHANGE vs. Opus 4.8: disabling thinking
-    (`thinking: {"type": "disabled"}`) is only accepted at effort "high"
-    or below. Sending `effort: "xhigh"` or `effort: "max"` together with
-    thinking disabled returns HTTP 400 — this is not a documented
-    graceful downgrade to standard thinking, it's a hard rejection.
-    validate_effort_thinking() below catches this client-side so callers
-    get a clear message instead of an opaque 400 from the API.
-  • Fast mode (`speed: "fast"`) is supported on Opus 5 — it's one of the
-    two models in claude_models.FAST_MODE_SUPPORTED. Imported here rather
-    than redefined, so the two modules can't drift out of sync.
-  • service_tier ("auto" / "standard_only"): Opus 5 is NOT in
-    claude_models.SERVICE_TIER_UNSUPPORTED, so Priority Tier capacity
-    (for orgs with an existing commitment) applies normally.
-  • inference_geo ("us" / "global"): claude-opus-5 IS in
-    claude_models.INFERENCE_GEO_SUPPORTED as of the 2026-08-13 re-check.
-    (The previous note said "unconfirmed" because the 2026-07-02 catalog
-    check predated this model's 2026-07-24 launch; the 2026-08-13 audit
-    confirmed it is supported at the standard 1.1x US-pin pricing.)
+The --opus5 CLI flag now calls zcoder-pro (ZCoder's flagship model) via
+Ollama, preserving the same CLI interface but using local inference.
 
 CLI flags:
-  --opus5-info                  Show Opus 5's capability table (effort ladder,
-                                 thinking rules, fast mode, service tier, geo)
-  --opus5 PROMPT                Call Claude Opus 5
-  --opus5-effort LEVEL          low|medium|high|xhigh|max (default: model default,
-                                 i.e. adaptive with thinking on)
-  --opus5-disable-thinking      Turn thinking off. Rejected client-side (not sent
-                                 to the API) if combined with --opus5-effort xhigh
-                                 or max — see breaking-change note above.
-  --opus5-fast                  Send speed:"fast" (supported on this model)
+  --opus5-info           Show ZCoder Pro capability table
+  --opus5 PROMPT         Call zcoder-pro via Ollama (replaces Claude Opus 5)
+  --opus5-effort LEVEL   Effort level (low/medium/high/max) — mapped to
+                         temperature for ZCoder models
+  --opus5-disable-thinking Not applicable to ZCoder models (accepted for
+                         compatibility, ignored)
+  --opus5-fast           Send faster inference (mapped to lower temperature)
 """
 
-import json
-import urllib.error
-import urllib.request
+from __future__ import annotations
+
 from typing import Any
 
-from zcoder.agent.models.registry import (
-    FAST_MODE_SUPPORTED,
-    INFERENCE_GEO_SUPPORTED,
-    SERVICE_TIER_UNSUPPORTED,
+from zcoder.agent.models.zcoder_model import (
+    DEFAULT_OLLAMA_BASE_URL,
+    ZCoderClient,
 )
 from zcoder.core.exceptions import ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
+from zcoder.core.resilience import CircuitBreaker, retry
 
-MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 
-OPUS5_MODEL_ID = "claude-opus-5"
+# ── Backward-compatible aliases ──────────────────────────────────────────
 
-# Authoritative for Opus 5 — do not fall back to claude_models.EFFORT_BUDGETS,
-# which has no "xhigh" rung and predates this model.
+# --opus5 now maps to zcoder-pro
+OPUS5_MODEL_ID = "zcoder-pro"
+
+# Effort levels mapped to temperature for ZCoder models
 OPUS5_EFFORT_BUDGETS = {
-    "low": 2_000,
-    "medium": 8_000,
-    "high": 16_000,
-    "xhigh": 24_000,
-    "max": 32_000,
+    "low": 0.3,
+    "medium": 0.5,
+    "high": 0.7,
+    "max": 0.9,
 }
 OPUS5_EFFORT_LEVELS = list(OPUS5_EFFORT_BUDGETS.keys())
 
-# Effort levels at which thinking MAY be disabled. xhigh/max + disabled = 400.
-OPUS5_THINKING_DISABLE_ALLOWED = {"low", "medium", "high"}
+# All effort levels allow "thinking disabled" (ignored for ZCoder models)
+OPUS5_THINKING_DISABLE_ALLOWED = {"low", "medium", "high", "max"}
+
 
 OPUS5_INFO: dict[str, Any] = {
-    "display_name": "Claude Opus 5",
+    "display_name": "ZCoder Pro (via Ollama)",
+    "model_id": OPUS5_MODEL_ID,
     "tier": "current",
-    "launched": "2026-07-24",
-    "context_window": 1_000_000,
-    "max_output_tokens": 128_000,
-    "price_input_per_mtok_usd": 5.0,
-    "price_output_per_mtok_usd": 25.0,
-    "thinking_default": "on (adaptive)",
+    "context_window": 32_768,
+    "max_output_tokens": 8192,
+    "size_gb": 4.7,
+    "quant": "7B Q4_K",
     "effort_levels": OPUS5_EFFORT_LEVELS,
-    "fast_mode_supported": OPUS5_MODEL_ID in FAST_MODE_SUPPORTED,
-    "service_tier_supported": OPUS5_MODEL_ID not in SERVICE_TIER_UNSUPPORTED,
-    "inference_geo_supported": OPUS5_MODEL_ID in INFERENCE_GEO_SUPPORTED,
-    "notes": "A step-change over Opus 4.8 at the same per-token price. "
-    "Breaking change vs. Opus 4.8: thinking can only be disabled "
-    "at effort high or below.",
+    "fast_mode_supported": True,
+    "notes": "Refactored from Claude Opus 5 module. Now calls zcoder-pro "
+    "via Ollama (local provider). No API key or internet required.",
 }
 
 
 def validate_effort_thinking(effort: str | None, disable_thinking: bool) -> str | None:
-    """Return None if this effort/thinking combination is safe to send to
-    Opus 5, or a human-readable reason string if the API would 400 it.
-    Callers should treat a non-None return as a hard stop, not a warning —
-    unlike validate_fast_mode()'s REMOVED_SILENT case, there's no graceful
-    degradation here."""
-    if not disable_thinking:
-        return None
-    if effort is None:
-        # No effort given at all defaults toward the low end in practice,
-        # but we don't know the API's exact default resolution — be
-        # conservative and only clear combinations we can confirm are safe.
-        return None
-    if effort not in OPUS5_EFFORT_LEVELS:
-        return f"unknown effort level '{effort}' for Opus 5 — choose from {', '.join(OPUS5_EFFORT_LEVELS)}"
-    if effort not in OPUS5_THINKING_DISABLE_ALLOWED:
+    """Validate effort/thinking combination for ZCoder models.
+
+    ZCoder models don't have the same thinking restrictions as Claude Opus 5,
+    so this is a compatibility shim that accepts all combinations.
+    """
+    if effort is not None and effort not in OPUS5_EFFORT_LEVELS:
         return (
-            f"Opus 5 rejects thinking disabled at effort '{effort}' (HTTP 400). "
-            f"Thinking can only be disabled at effort {', '.join(sorted(OPUS5_THINKING_DISABLE_ALLOWED))}. "
-            f"Either drop --opus5-disable-thinking or lower --opus5-effort."
+            f"unknown effort level '{effort}' for ZCoder Pro — choose from {', '.join(OPUS5_EFFORT_LEVELS)}"
         )
+    # disable_thinking is accepted but ignored for ZCoder models
     return None
 
 
 def validate_inference_geo(use_geo: bool) -> str | None:
-    """Return None if inference_geo usage is safe for Opus 5, or a reason
-    string if it is not supported. As of 2026-08-13, claude-opus-5 IS in
-    INFERENCE_GEO_SUPPORTED (confirmed via live docs — the previous 'unconfirmed'
-    note is now superseded)."""
-    if not use_geo:
-        return None
-    if OPUS5_MODEL_ID in INFERENCE_GEO_SUPPORTED:
-        return None
-    # Defensive: if for some reason the model were later removed from the set,
-    # surface a clear message rather than silently allowing a 400.
-    return (
-        f"inference_geo is not listed as supported for {OPUS5_MODEL_ID} "
-        f"in claude_models.INFERENCE_GEO_SUPPORTED — verify against "
-        f"platform.claude.com/docs/en/manage-claude/data-residency."
-    )
+    """Inference geo is not applicable to local Ollama models."""
+    return None
 
 
 class Opus5Client:
-    """Messages API client for claude-opus-5 with client-side validation of
-    the effort/thinking interaction, so a bad combination fails fast with a
-    clear message instead of a bare 400 from the API. Follows the same
-    _post() pattern as Fable5Client / Mythos5Client for consistency."""
+    """ZCoder Pro client via Ollama (refactored from Claude Opus 5 client).
 
-    def __init__(self, api_key: str, max_tokens: int = 4096):
-        self.api_key = api_key
+    Same interface as before but calls local Ollama instead of Anthropic API.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,  # Ignored — Ollama doesn't need API key
+        base_url: str = DEFAULT_OLLAMA_BASE_URL,
+        max_tokens: int = 8192,
+    ) -> None:
+        self.base_url = base_url
         self.max_tokens = max_tokens
+        self._client = ZCoderClient(
+            model=OPUS5_MODEL_ID,
+            base_url=base_url,
+            max_tokens=max_tokens,
+        )
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict) -> dict:
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-        }
-        req = urllib.request.Request(
-            MESSAGES_ENDPOINT,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            method="POST",
-        )
-        return urlopen_json(req, timeout=300)
+        return self._client._call(payload)
 
     def _post(self, payload: dict) -> dict:
         try:
@@ -196,84 +126,81 @@ class Opus5Client:
         fast: bool = False,
         use_geo: bool = False,
     ) -> dict:
-        """Build and send one request. Raises ValueError client-side for
-        combinations the API is documented to reject, rather than sending
-        a request known in advance to 400."""
+        """Build and send one request to zcoder-pro via Ollama.
+
+        effort maps to temperature. disable_thinking and use_geo are
+        accepted for compatibility but have no effect on local models.
+        """
         err = validate_effort_thinking(effort, disable_thinking)
         if err:
             raise ValueError(err)
-        if fast and OPUS5_MODEL_ID not in FAST_MODE_SUPPORTED:
-            raise ValueError("fast mode is not supported on claude-opus-5 per the shared catalog")
-        geo_warning = validate_inference_geo(use_geo)
 
-        payload = {
-            "model": OPUS5_MODEL_ID,
-            "max_tokens": self.max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if system:
-            payload["system"] = system
-        if effort:
-            payload["effort"] = effort
-        if disable_thinking:
-            payload["thinking"] = {"type": "disabled"}
+        temperature = OPUS5_EFFORT_BUDGETS.get(effort, 0.7) if effort else 0.7
         if fast:
-            payload["speed"] = "fast"
-        if use_geo:
-            payload["inference_geo"] = "us"
+            temperature = min(temperature, 0.3)  # Lower temperature for fast mode
 
-        data = self._post(payload)
-        if geo_warning and "error" not in data:
-            data["_geo_warning"] = geo_warning
-        return data
+        return self._client.call(
+            prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=self.max_tokens,
+        )
 
     def call_text(self, prompt: str, **kwargs) -> str:
-        data = self.call(prompt, **kwargs)
-        if "error" in data:
-            return f"[ERROR] {data['error']}"
-        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        return self._client.call_text(prompt, **kwargs)
+
+
+# ── Re-export for backward compatibility ─────────────────────────────────
+
+
+__all__ = [
+    "OPUS5_MODEL_ID",
+    "OPUS5_EFFORT_BUDGETS",
+    "OPUS5_EFFORT_LEVELS",
+    "OPUS5_THINKING_DISABLE_ALLOWED",
+    "OPUS5_INFO",
+    "validate_effort_thinking",
+    "validate_inference_geo",
+    "Opus5Client",
+    "estimate_cost_usd",
+    "cmd_opus5_info",
+    "cmd_opus5_call",
+]
 
 
 def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
-    return (
-        input_tokens / 1_000_000 * OPUS5_INFO["price_input_per_mtok_usd"]
-        + output_tokens / 1_000_000 * OPUS5_INFO["price_output_per_mtok_usd"]
-    )
+    """Estimate cost — ZCoder models are free when run locally."""
+    return 0.0
 
 
 def cmd_opus5_info():
+    """Print ZCoder Pro capability table (refactored from Claude Opus 5 info)."""
     info = OPUS5_INFO
-    print(f"\n\033[94mClaude Opus 5\033[0m  ({OPUS5_MODEL_ID})")
-    print(f"  Launched:          {info['launched']}")
+    print(f"\n\033[94mZCoder Pro (via Ollama)\033[0m  ({OPUS5_MODEL_ID})")
+    print(f"  Model ID:          {OPUS5_MODEL_ID}")
     print(f"  Context window:    {info['context_window']:,} tokens")
     print(f"  Max output:        {info['max_output_tokens']:,} tokens")
-    print(
-        f"  Pricing:           ${info['price_input_per_mtok_usd']}/MTok in, "
-        f"${info['price_output_per_mtok_usd']}/MTok out"
-    )
-    print(f"  Thinking default:  {info['thinking_default']}")
-    print(f"  Effort ladder:     {', '.join(info['effort_levels'])}")
+    print(f"  Size:              {info['size_gb']} GB ({info['quant']})")
+    print("  Pricing:           Free (local inference via Ollama)")
+    print(f"  Effort levels:     {', '.join(info['effort_levels'])}")
     print(f"  Fast mode:         {'supported' if info['fast_mode_supported'] else 'not supported'}")
-    print(f"  Priority Tier:     {'supported' if info['service_tier_supported'] else 'not supported'}")
-    print(
-        f"  Data residency:    {'supported (confirmed; 1.1x multiplier)' if info['inference_geo_supported'] else 'not supported'}"
-    )
-    print("\n  \033[93m⚠ Breaking change vs Opus 4.8:\033[0m thinking can only be disabled")
-    print("    at effort high or below. --opus5-disable-thinking + --opus5-effort")
-    print("    xhigh/max is rejected client-side here rather than sent as a 400.")
-    print(f"\n  Notes: {info['notes']}\n")
+    print("\n  \033[93mNote:\033[0m Refactored from Claude Opus 5 module.")
+    print("    --opus5 now calls zcoder-pro via Ollama (local provider).")
+    print("    No API key or internet required.\n")
+    print(f"  Notes: {info['notes']}\n")
 
 
 def cmd_opus5_call(
     prompt: str,
-    api_key: str,
+    api_key: str | None = None,  # Ignored — Ollama doesn't need API key
     effort: str | None = None,
     disable_thinking: bool = False,
     fast: bool = False,
     use_geo: bool = False,
     system: str | None = None,
 ):
-    client = Opus5Client(api_key=api_key)
+    """Call zcoder-pro via Ollama (refactored from Claude Opus 5 call)."""
+    client = Opus5Client(base_url=DEFAULT_OLLAMA_BASE_URL)
     try:
         data = client.call(
             prompt,
@@ -290,8 +217,12 @@ def cmd_opus5_call(
     if "error" in data:
         print(f"[ERROR] {data['error']}")
         return None
-    if data.get("_geo_warning"):
-        print(f"\033[93mℹ {data['_geo_warning']}\033[0m\n")
-    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+
+    # Extract text from the already-fetched data (avoid double API call)
+    msg = data.get("message", {})
+    if isinstance(msg, dict):
+        text = msg.get("content", "")
+    else:
+        text = data.get("response", "")
     print(text)
     return data

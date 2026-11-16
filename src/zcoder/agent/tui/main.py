@@ -75,11 +75,13 @@ class CollaborationApp(App):
         """Compose the UI layout."""
         yield Header()
         # Use TUILayout with pane manager for split-pane interface
-        layout = TUILayout(panes_config=[
-            {"id": "transcript", "label": "Transcript", "size": "60%", "collapsible": False},
-            {"id": "tools", "label": "Tools", "size": "20%", "collapsible": True},
-            {"id": "status", "label": "Status", "size": "20%", "collapsible": True},
-        ])
+        layout = TUILayout(
+            panes_config=[
+                {"id": "transcript", "label": "Transcript", "size": "60%", "collapsible": False},
+                {"id": "tools", "label": "Tools", "size": "20%", "collapsible": True},
+                {"id": "status", "label": "Status", "size": "20%", "collapsible": True},
+            ]
+        )
         yield layout
         yield Footer()
 

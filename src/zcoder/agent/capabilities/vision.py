@@ -64,7 +64,7 @@ def _doc_block(path: str) -> dict:
 class VisionCoder:
     """Claude client for image and PDF analysis."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-5", max_tokens: int = 4096):
+    def __init__(self, api_key: str, model: str = "zcoder-pro", max_tokens: int = 4096):
         self.client = create_anthropic_client(api_key)
         self.model = model
         self.max_tokens = max_tokens

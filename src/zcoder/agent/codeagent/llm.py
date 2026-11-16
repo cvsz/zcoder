@@ -215,4 +215,4 @@ def _finish_call(index: int, raw: dict[str, str]) -> ToolCallRequest:
         args = json.loads(raw["args"]) if raw["args"].strip() else {}
     except json.JSONDecodeError:
         args = {"__parse_error__": raw["args"][:500]}
-    return ToolCallRequest(raw["id"] or f"call_{index}", raw["name"], args)
+    return ToolCallRequest(raw.get("id") or f"call_{index}", raw.get("name") or "", args)

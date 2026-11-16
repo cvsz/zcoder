@@ -64,7 +64,9 @@ def test_append_and_get_events(tmp_path):
 
     store.append(SessionEvent(event_type=EventType.TURN_START, session_id="s1"))
     store.append(SessionEvent(event_type=EventType.USER_MESSAGE, session_id="s1", payload={"content": "hi"}))
-    store.append(SessionEvent(event_type=EventType.ASSISTANT_MESSAGE, session_id="s1", payload={"content": "hello"}))
+    store.append(
+        SessionEvent(event_type=EventType.ASSISTANT_MESSAGE, session_id="s1", payload={"content": "hello"})
+    )
 
     events = store.get_events("s1")
     assert len(events) == 3
@@ -102,7 +104,9 @@ def test_snapshot_events():
     store = SessionEventStore(db_path=db)
 
     store.append(SessionEvent(event_type=EventType.TURN_START, session_id="snap1"))
-    store.append(SessionEvent(event_type=EventType.USER_MESSAGE, session_id="snap1", payload={"content": "hello"}))
+    store.append(
+        SessionEvent(event_type=EventType.USER_MESSAGE, session_id="snap1", payload={"content": "hello"})
+    )
 
     snap = store.snapshot_events("snap1")
     assert snap["session_format_version"] == 4

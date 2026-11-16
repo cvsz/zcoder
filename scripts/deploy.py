@@ -33,7 +33,6 @@ from typing import Any
 
 import yaml
 
-
 BASE_URL = os.getenv("ZCODER_BASE_URL", "http://0.0.0.0:8420").rstrip("/")
 API_KEY = os.getenv("ZCODER_WEB_API_KEY", "")
 TEST_MODEL = os.getenv("ZCODER_MODEL", "zcoder-flash")

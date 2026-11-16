@@ -118,7 +118,7 @@ class ThinkingModeError(ValueError):
 class ThinkingCoder:
     """Claude client with extended / adaptive thinking support."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6", max_tokens: int = 8000):
+    def __init__(self, api_key: str, model: str = "zcoder-flash", max_tokens: int = 8000):
         self.client = create_anthropic_client(api_key)
         self.model = model
         self.max_tokens = max_tokens

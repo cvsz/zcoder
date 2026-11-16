@@ -77,6 +77,7 @@ def test_idle_watchdog_touch_resets():
     assert wd.elapsed >= 0
     wd.touch()
     import time
+
     time.sleep(0.02)
     wd.touch()
     time.sleep(0.06)

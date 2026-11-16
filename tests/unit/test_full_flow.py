@@ -59,7 +59,9 @@ def test_adapter_registry_has_all_providers():
 def test_session_log_append_and_snapshot(tmp_path):
     store = SessionEventStore(db_path=tmp_path / "flow.db")
     store.append(SessionEvent(event_type=EventType.TURN_START, session_id="s1"))
-    store.append(SessionEvent(event_type=EventType.ASSISTANT_MESSAGE, session_id="s1", payload={"content": "hi"}))
+    store.append(
+        SessionEvent(event_type=EventType.ASSISTANT_MESSAGE, session_id="s1", payload={"content": "hi"})
+    )
     snap = store.snapshot_events("s1")
     assert snap["session_format_version"] == 4
     assert snap["event_count"] == 2
