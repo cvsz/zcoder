@@ -1,5 +1,6 @@
 """Tests for zcoder.agent.codeagent.loop - Agent loop module."""
 
+import asyncio
 from unittest.mock import MagicMock
 
 import pytest
