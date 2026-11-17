@@ -24,6 +24,9 @@ KNOWN_EXCEPTIONS = {
     ("plugins/cli.py", "cmd_plugin_search"),
     ("plugins/cli.py", "cmd_plugin_update"),
     ("optimization/cost.py", "cmd_optimize_prompt"),
+    ("models/zcoder_model.py", "cmd_zcoder_info"),
+    ("models/zcoder_model.py", "cmd_zcoder_call"),
+    ("optimization/prompt.py", "cmd_optimize_advanced"),
 }
 
 

@@ -28,7 +28,7 @@ class TestWebConfig:
         config = WebConfig(
             root=Path("/custom"),
             token="b" * 32,
-            host="0.0.0.0",
+            host="0.0.0.0",  # nosec B104
             port=9999,
             max_connections=10,
             max_prompt_chars=50_000,

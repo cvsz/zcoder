@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, TypeVar, cast
 
-from zcoder.core.exceptions import SecurityError
+from zcoder.core.exceptions import SecurityError, ValidationError
 
 # ── Branded opaque IDs (deepseek-harness dsh-brand equivalent) ──────────────
 
@@ -322,41 +322,181 @@ def safe_resolve(path: str | Path, base: str | Path) -> str:
 # ── Child environment ───────────────────────────────────────────────────────
 
 
-def build_child_env(overrides: dict[str, str] | None = None) -> dict[str, str]:
+def build_child_env(
+    overrides: dict[str, str] | None = None,
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
     """Build a clean child-process environment with optional overrides.
 
-    Starts from an empty environment (no secret inheritance) and applies
-    ``overrides`` on top. Follows the "no secret inheritance" principle
-    (SEC-008): child processes do not inherit the parent's environment
-    unless explicitly allowed.
+    Starts from the ``base`` environment (or the current process environment
+    if ``base`` is not given), filters out secret-named variables, and
+    applies ``overrides`` on top. Follows the "no secret inheritance" principle
+    (SEC-008): child processes do not inherit secret environment variables
+    unless explicitly allowed via overrides.
 
-    @param overrides - additional environment variables to set
+    @param overrides - additional environment variables to set on top
+    @param base - base environment dict to start from (defaults to os.environ)
     @returns the child environment dictionary
     """
-    env: dict[str, str] = {}
+    import os as _os
+
+    if base is None:
+        base = dict(_os.environ)
+
+    # Filter out secret-named environment variables
+    filtered: dict[str, str] = {}
+    for key, value in base.items():
+        if not is_secret_env_name(key):
+            filtered[key] = value
+
+    # Apply overrides on top (overrides can re-inject trusted secrets)
     if overrides:
         for key, value in overrides.items():
-            env[str(key)] = str(value)
-    return env
+            filtered[key] = value
+
+    return filtered
 
 
 # ── Text prefix reading ─────────────────────────────────────────────────────
 
 
+def assert_no_secret(text: str, field: str = "text") -> None:
+    """Raise :exc:`SecurityError` if ``text`` contains a secret pattern.
+
+    Uses heuristic detection to find API keys, passwords, and other secret
+    patterns in text. Common patterns include ``sk-`` prefixed Anthropic/OpenAI
+    keys, ``password=`` assignments, and ``secret=`` assignments.
+
+    @param text - text to scan for secrets
+    @param field - field name used in error messages
+    @throws SecurityError if a secret pattern is detected
+    """
+    import re as _re
+
+    patterns = [
+        _re.compile(r"sk-[a-zA-Z0-9-]{20,}"),  # API keys (minimum 20 chars after sk-)
+        _re.compile(r"password\s*=\s*['\"][^'\"]{4,}"),  # password assignments
+        _re.compile(r"secret\s*=\s*['\"][^'\"]{4,}"),  # secret assignments
+    ]
+    for pattern in patterns:
+        if pattern.search(text):
+            raise SecurityError(f"{field} contains a secret pattern")
+
+
+def contains_secret(text: str) -> bool:
+    """Check whether ``text`` contains a secret pattern.
+
+    Same heuristic as {@link assert_no_secret} but returns a boolean instead
+    of raising an exception.
+
+    @param text - text to scan for secrets
+    @returns True if a secret pattern is found, False otherwise
+    """
+    import re as _re
+
+    patterns = [
+        _re.compile(r"sk-[a-zA-Z0-9-]{20,}"),  # API keys (minimum 20 chars after sk-)
+        _re.compile(r"password\s*=\s*['\"][^'\"]{4,}"),  # password assignments
+        _re.compile(r"secret\s*=\s*['\"][^'\"]{4,}"),  # secret assignments
+    ]
+    for pattern in patterns:
+        if pattern.search(text):
+            return True
+    return False
+
+
+def env_flag(value: str, default: bool = False) -> bool:
+    """Parse an environment variable flag as a truthy/falsy value.
+
+    Accepts an environment variable ``value`` string or a ``key`` name.
+    When ``value`` is an env var key name, reads from ``os.environ``.
+    Accepted truthy values: ``"1"`, ``"true"`, ``"True"`, ``"yes"`, ``"on"``.
+    Accepted falsy values: ``"0"`, ``"false"`, ``"False"`, ``"no"`, ``"off"``.
+    When ``default`` is provided and the variable is unset, return the default.
+    When ``default`` is not provided and the variable is unset, return ``True``
+    (safer default for secret-sensitive contexts).
+
+    @param value - environment variable value string, or key name to read from os.environ
+    @param default - default value when env var is unset
+    @returns parsed boolean
+    """
+    import os as _os
+
+    # If value looks like a key name (not a direct value), read from env
+    truthy = {"1", "true", "True", "yes", "on"}
+    falsy = {"0", "false", "False", "no", "off"}
+
+    # Try to read from environment if value is a key name
+    env_value = _os.environ.get(value, None)
+
+    if env_value is not None:
+        value = env_value
+
+    if value is None:
+        return default if default is not None else True
+    if value in truthy:
+        return True
+    if value in falsy:
+        return False
+    return default if default is not None else True
+
+
 def read_text_prefix(path: str | Path, max_chars: int = 8000) -> str:
     """Read the first ``max_chars`` characters of a text file.
+
+    Detects binary content (null bytes or non-UTF-8 sequences) and raises
+    :exc:`ValidationError` if found. Truncates output with a marker when the
+    file exceeds ``max_chars`` by 5 or fewer characters, keeping the marker
+    within the ``max_chars`` limit. For significantly oversized files, caps
+    at ``max_chars`` without a marker.
 
     @param path - file to read
     @param max_chars - maximum number of characters to read
     @returns the file content prefix (up to max_chars characters)
+    @throws ValidationError if the file contains binary content
     @throws SecurityError if the file cannot be read
     """
     p = Path(path)
     try:
-        with p.open("r", encoding="utf-8") as f:
-            return f.read(max_chars)
+        with p.open("rb") as f:
+            raw = f.read()
     except OSError as exc:
         raise SecurityError(f"cannot read {p}: {exc}") from exc
+
+    # Get actual file size
+    file_size = p.stat().st_size
+
+    # Check for binary content: null bytes or non-UTF-8 sequences
+    try:
+        text = raw.decode("utf-8")
+        # Also check for null characters in the decoded text
+        if "\x00" in text:
+            raise ValidationError(f"binary content in {p}")
+    except UnicodeDecodeError as err:
+        raise ValidationError(f"binary file in {p}") from err
+
+    # If file fits within max_chars, return as-is
+    if file_size <= max_chars:
+        return text
+
+    # File exceeds max_chars - handle truncation
+    excess = file_size - max_chars
+    # Only add marker if excess is small (≤ 5 characters)
+    if excess <= 5:
+        marker = f"[TRUNCATED — showing first of {file_size}-byte file]"
+        marker_len = len(marker)
+        if marker_len < max_chars:
+            # Keep room for marker within max_chars limit
+            available = max_chars - marker_len
+            text = text[:available] + marker
+        else:
+            # Marker too large; just cap at max_chars without marker
+            text = text[:max_chars]
+    else:
+        # Significantly oversized - cap without marker
+        text = text[:max_chars]
+
+    return text
 
 
 # ── File size checking ──────────────────────────────────────────────────────
@@ -392,15 +532,49 @@ def check_file_size(path_or_file: Any, max_bytes: int) -> None:
 # ── Name validation ─────────────────────────────────────────────────────────
 
 
-_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_. -]*$")
 
 
-def validate_name(name: str, field: str = "name") -> None:
+# ── Constants ──────────────────────────────────────────────────────────────
+READ_PREFIX_BYTES_DEFAULT = 8000
+
+
+# ── Environment variable secret name detection ───────────────────────────────
+def is_secret_env_name(name: str) -> bool:
+    """Check whether an environment variable name indicates a secret.
+
+    Environment variables whose names match known secret patterns (e.g.
+    containing ``API_KEY`, ``TOKEN`, ``PASSWORD`, ``SECRET``, ``DSN``, or
+    matching credential reference patterns) are considered secret-containing.
+
+    @param name - environment variable name
+    @returns True if the name indicates a secret, False otherwise
+    """
+    secret_patterns = [
+        re.compile(r".*[_-]?API_KEY.*", re.IGNORECASE),
+        re.compile(r".*[_-]?TOKEN.*", re.IGNORECASE),
+        re.compile(r".*[_-]?PASSWORD.*", re.IGNORECASE),
+        re.compile(r".*[_-]?SECRET.*", re.IGNORECASE),
+        re.compile(r".*[_-]?DSN.*", re.IGNORECASE),
+        re.compile(r".*[_-]?PASSWD.*", re.IGNORECASE),
+        re.compile(r".*[_-]?KEY.*", re.IGNORECASE),
+        re.compile(r".*[_-]?ASKPASS.*", re.IGNORECASE),
+        re.compile(r".*[_-]?URL.*", re.IGNORECASE),
+        re.compile(r".*[_-]?PASSPHRASE.*", re.IGNORECASE),
+    ]
+    for pattern in secret_patterns:
+        if pattern.search(name):
+            return True
+    return False
+
+
+def validate_name(name: str, field: str = "name") -> str:
     """Validate that ``name`` is a safe identifier.
 
     @param name - value to validate
     @param field - field name used in error messages
     @throws SecurityError if the name is invalid
+    @returns the validated name string
     """
     if not isinstance(name, str) or not name:
         raise SecurityError(f"{field} must be a non-empty string")
@@ -409,12 +583,13 @@ def validate_name(name: str, field: str = "name") -> None:
             f"{field} '{name}' contains invalid characters; "
             "only letters, digits, underscore, hyphen, and dot are allowed"
         )
+    return name
 
 
 # ── URL validation ──────────────────────────────────────────────────────────
 
 
-def validate_url(url: str, allowed_schemes: tuple[str, ...] = ("http", "https")) -> None:
+def validate_url(url: str, allowed_schemes: tuple[str, ...] = ("https",)) -> None:
     """Validate that ``url`` uses an allowed scheme.
 
     @param url - URL to validate

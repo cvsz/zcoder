@@ -50,23 +50,22 @@ from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
 from zcoder.config.settings import Config  # noqa: E402
 from zcoder.core.health import run_health_check  # noqa: E402
+from zcoder.core.sqlite import sqlite_connection  # noqa: E402
 from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
 from zcoder.services.coder import Coder  # noqa: E402
 from zcoder.services.skills import SkillManager  # noqa: E402
-from zcoder.core.sqlite import sqlite_connection  # noqa: E402
 
 # Import model-server controller (same module used by scripts/model-server).
 sys.path.insert(0, str(ROOT / "scripts"))
 from model_server import (  # noqa: E402
-    load_config,
     build_sectors,
+    health_ok,
+    load_config,
+    restart_sector,
     sector_by_name,
     start_sector,
-    stop_sector,
-    restart_sector,
     status_sector,
-    health_ok,
-    ModelServerError,
+    stop_sector,
 )
 
 logger = get_logger("webapp.server")
@@ -552,8 +551,7 @@ class ModelDownloadRequest(BaseModel):
 def download_model(req: ModelDownloadRequest, request: Request):
     """Download a GGUF model file from a URL into models_dir."""
     _require_auth(request)
-    from zcoder.core.outbound_security import validate_external_http_url, safe_external_urlopen
-    from zcoder.core.security import validate_name
+    from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url
 
     # Validate URL is http/https and not private (SSRF protection)
     validate_external_http_url(req.url)

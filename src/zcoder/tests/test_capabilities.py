@@ -1,15 +1,14 @@
 """Tests for zcoder.agent.capabilities - Tool capability modules."""
 
-import pytest
 
-from zcoder.agent.capabilities.search import SearchCoder
-from zcoder.agent.capabilities.vision import VisionCoder
-from zcoder.agent.capabilities.structured import StructuredCoder
-from zcoder.agent.capabilities.thinking import ThinkingCoder
+from zcoder.agent.capabilities.advisor import AdvisorCoder
 from zcoder.agent.capabilities.citations import CitationsCoder
 from zcoder.agent.capabilities.embeddings import EmbeddingIndex
-from zcoder.agent.capabilities.advisor import AdvisorCoder
+from zcoder.agent.capabilities.search import SearchCoder
 from zcoder.agent.capabilities.stream import StreamCoder
+from zcoder.agent.capabilities.structured import StructuredCoder
+from zcoder.agent.capabilities.thinking import ThinkingCoder
+from zcoder.agent.capabilities.vision import VisionCoder
 
 
 class TestCapabilityModules:

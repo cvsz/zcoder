@@ -3,9 +3,6 @@
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
 from zcoder.services.coder import Coder
 
 
@@ -57,8 +54,6 @@ class TestCoderGenerate:
     def test_generate_success(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import patch, MagicMock
 
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_response = MagicMock()
@@ -81,8 +76,6 @@ class TestCoderGenerate:
     def test_generate_with_system(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import patch, MagicMock
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(
@@ -106,8 +99,6 @@ class TestCoderGenerate:
     def test_generate_auth_error(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import patch, MagicMock
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"error": {"message": "Invalid API key"}}).encode()
@@ -122,8 +113,6 @@ class TestCoderGenerate:
     def test_generate_rate_limit(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import patch, MagicMock
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"error": {"message": "Rate limited"}}).encode()
@@ -138,8 +127,6 @@ class TestCoderGenerate:
     def test_generate_transient_error(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import patch, MagicMock
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"error": {"message": "Server error"}}).encode()
@@ -154,8 +141,6 @@ class TestCoderGenerate:
     def test_generate_invalid_response(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import patch, MagicMock
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"not_choices": {}}).encode()

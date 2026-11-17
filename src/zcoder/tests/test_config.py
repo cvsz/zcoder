@@ -1,12 +1,10 @@
 """Tests for zcoder.config.settings - typed config with env var overrides."""
 
 import os
-import tempfile
-from unittest.mock import patch
 
 import pytest
 
-from zcoder.config.settings import Config, DEFAULT_CONFIG
+from zcoder.config.settings import Config
 
 
 class TestConfigDefaults:
@@ -96,7 +94,7 @@ class TestConfigPersistence:
         config.set("model", "test-model")
         config.set("timeout_ms", 3000)
 
-        loaded = Config()
+        Config()
         assert config.get("model") == "test-model"
 
 

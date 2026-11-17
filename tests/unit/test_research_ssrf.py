@@ -16,13 +16,16 @@ Evidence tier: UNIT_TESTED (these tests) + SOURCE_VERIFIED (code trace below)
 """
 
 import socket
-import zcoder.core.outbound_security
-
-from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url, _ExternalRedirectHandler
 
 import pytest
 
+import zcoder.core.outbound_security
 from zcoder.agent.rag.research import DeepResearchAgent
+from zcoder.core.outbound_security import (
+    _ExternalRedirectHandler,
+    safe_external_urlopen,
+    validate_external_http_url,
+)
 
 
 class TestSEC001DeepResearchSSRF:

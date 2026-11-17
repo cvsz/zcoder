@@ -514,6 +514,13 @@ security:
 	$(PYTHON) -m bandit -r src/zcoder webapp scripts -ll
 
 check: lint typecheck security test-cov
+validated: check security-proven
+security-proven:
+	@echo "Running security verification..."
+	@python -m bandit -r src/zcoder -ll
+	@echo "Security verification complete"
+	@echo ""
+validated: check security-proven
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Build & Code Signing
