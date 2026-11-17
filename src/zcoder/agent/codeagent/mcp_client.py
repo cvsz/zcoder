@@ -185,8 +185,11 @@ class StdioTransport(_BaseTransport):
         protocol = asyncio.StreamReaderProtocol(self._reader)
         _read_transport, _ = await loop.connect_read_pipe(lambda: protocol, self._proc.stdout)
         self._read_transport = _read_transport
-        write_transport, _ = await loop.connect_write_pipe(asyncio.streams.FlowControlMixin, self._proc.stdin)
-        self._writer = write_transport
+        write_transport, write_protocol = await loop.connect_write_pipe(
+            asyncio.streams.FlowControlMixin, self._proc.stdin
+        )
+        # transport เปล่าไม่มี drain(); StreamWriter ให้ backpressure ผ่าน FlowControlMixin
+        self._writer = asyncio.StreamWriter(write_transport, write_protocol, None, loop)
         self._reader_task = asyncio.create_task(self._read_loop())
         self._started.set()
 

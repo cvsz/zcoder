@@ -13,6 +13,7 @@ CLI usage:
 """
 
 import json
+import logging
 import math
 import os
 import re
@@ -29,9 +30,12 @@ from zcoder.agent.rag.vector_stores import (
     VectorConfig,
     VectorStoreBackend,
     VectorStoreFactory,
+    hashed_embedding,
 )
 from zcoder.core.exceptions import ZCoderError
 from zcoder.core.security import validate_name
+
+_logger = logging.getLogger(__name__)
 
 INDEX_DIR = Path.home() / ".zcoder" / "rag_indexes"
 SUPPORTED_EXTS = {
@@ -287,19 +291,13 @@ def _build_vector_config(tenant_id: str, vector_store_backend: str | None = None
 def _extract_chunk_vectors(idx: RAGIndex) -> dict[str, np.ndarray]:
     """Extract numpy vectors from RAG index chunks for vector store operations.
 
-    Note: In a full implementation, these would be real embedding vectors.
-    For now, we use hash-based vectors as a fallback.
+    Uses deterministic local feature-hashing embeddings (no model / network).
     """
     import numpy as np
 
     vectors: dict[str, np.ndarray] = {}
     for chunk in idx.chunks:
-        # Hash-based vector fallback (same approach as ingestion.py)
-        vec = np.array(
-            [hash(chunk.content + chunk.cid) % (2**31) for _ in range(768)],
-            dtype=np.float32,
-        )
-        vectors[chunk.cid] = vec
+        vectors[chunk.cid] = hashed_embedding(chunk.content, 768)
     return vectors
 
 
@@ -332,8 +330,7 @@ def _vector_search(
         if not chunk_vectors:
             return []
 
-        # Query vector (hash-based fallback)
-        query_vec = np.array([hash(query) % (2**31) for _ in range(768)], dtype=np.float32)
+        query_vec = hashed_embedding(query, 768)
         query_vec_list = [float(x) for x in query_vec.tolist()]
 
         # Search using offline vector store approach
@@ -349,7 +346,7 @@ def _vector_search(
                         source=chunk.source,
                         content=chunk.content,
                         score=similarity,
-                        metadata={"vector_source": "hash_fallback"},
+                        metadata={"vector_source": "feature_hashing"},
                     )
                 )
 
@@ -357,9 +354,9 @@ def _vector_search(
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:k]
 
-    except Exception as e:
-        # Vector search failed — fall back to BM25
-        print(f"[WARN] Vector search failed: {e}; falling back to BM25")
+    except (ValueError, ZCoderError, OSError) as e:
+        # Vector backend unavailable/misconfigured — caller falls back to BM25
+        _logger.warning("vector search failed (%s); falling back to BM25", e)
         return []
 
 

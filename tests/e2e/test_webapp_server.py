@@ -217,3 +217,15 @@ def test_wildcard_bind_with_credentials_still_rejected(monkeypatch):
     monkeypatch.setenv("ZCODER_BASE_URL", "http://user:pass@0.0.0.0:8080")
     with pytest.raises(server.HTTPException):
         server._local_model_endpoint("chat/completions")
+
+
+def test_sessions_require_bearer_token_when_api_key_set(client, monkeypatch):
+    """Session transcripts are private: with ZCODER_WEB_API_KEY set they need a valid token."""
+    monkeypatch.setenv("ZCODER_WEB_API_KEY", "s3cret-token")
+    assert client.get("/api/sessions").status_code == 401
+    assert client.get("/api/sessions/abc").status_code == 401
+    bad = {"Authorization": "Bearer wrong"}
+    assert client.get("/api/sessions", headers=bad).status_code == 401
+    good = {"Authorization": "Bearer s3cret-token"}
+    assert client.get("/api/sessions", headers=good).status_code == 200
+    assert client.get("/api/sessions/abc", headers=good).status_code == 404

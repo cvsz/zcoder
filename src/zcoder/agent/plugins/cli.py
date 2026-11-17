@@ -110,7 +110,7 @@ def cmd_plugin_install(args: argparse.Namespace, registry: PluginRegistry) -> in
             print(f"Loading plugin from {source_path}")
 
             # Install
-            success = registry.install_plugin(manifest)
+            success = asyncio.run(registry.install_plugin(manifest))
             if success:
                 print(f"✓ Plugin '{manifest.name}' installed successfully")
             else:
@@ -121,10 +121,10 @@ def cmd_plugin_install(args: argparse.Namespace, registry: PluginRegistry) -> in
             return 1
     else:
         # Remote URL or name-based install
-        print(f"Installing plugin from remote source: {source}")
-        # In a full implementation, this would download from a registry
-        print("Remote plugin installation not yet implemented")
-        return 0
+        # รองรับเฉพาะ path ในเครื่อง (local-first); ไม่ดาวน์โหลดโค้ดจาก network
+        print(f"✗ Plugin source not found: {source}")
+        print("  Only local plugin directories/manifests are supported; download the plugin first.")
+        return 1
 
 
 def cmd_plugin_uninstall(args: argparse.Namespace, registry: PluginRegistry) -> int:
@@ -249,7 +249,7 @@ def cmd_plugin_update(args: argparse.Namespace, registry: PluginRegistry) -> int
     )
     if install == "y":
         for manifest in remote_plugins:
-            success = registry.install_plugin(manifest)
+            success = asyncio.run(registry.install_plugin(manifest))
             if success:
                 print(f"  ✓ Updated {manifest.name}")
             else:

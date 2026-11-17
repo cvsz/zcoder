@@ -30,6 +30,11 @@ import pytest
 import zcoder.enterprise.local_ai_stack as local_ai_stack
 
 
+def _passing_runner(worktree_path, validators, attempt_id):
+    """Test double: validators executed and passed (loop ไม่ apply patch จริงจึงต้อง inject)."""
+    return local_ai_stack.ValidationState.EXECUTED_PASS, []
+
+
 class _TestLocalModelProvider:
     """Deterministic inference dependency for orchestration tests without a daemon."""
 
@@ -585,17 +590,48 @@ class TestPushPolicy:
         )
         assert loop.push_policy == local_ai_stack.PushPolicy.AUTO_PUSH_ALLOWED
 
+    @staticmethod
+    def _passing_runner(worktree_path, validators, attempt_id):
+        return local_ai_stack.ValidationState.EXECUTED_PASS, []
+
     def test_local_only_loop_succeeds_without_push(self):
-        loop = local_ai_stack.AutonomousEngineeringLoop(push_policy=local_ai_stack.PushPolicy.AUTO_LOCAL_ONLY)
+        loop = local_ai_stack.AutonomousEngineeringLoop(
+            push_policy=local_ai_stack.PushPolicy.AUTO_LOCAL_ONLY, validation_runner=self._passing_runner
+        )
         result = loop.run_engineering_loop("t-local", "proj", "fix", {"a.py": "pass"})
         assert result.status == local_ai_stack.TaskStatus.SUCCEEDED
 
     def test_loop_with_push_allowed_also_succeeds(self):
         loop = local_ai_stack.AutonomousEngineeringLoop(
-            push_policy=local_ai_stack.PushPolicy.AUTO_PUSH_ALLOWED
+            push_policy=local_ai_stack.PushPolicy.AUTO_PUSH_ALLOWED, validation_runner=self._passing_runner
         )
         result = loop.run_engineering_loop("t-push", "proj", "fix", {"a.py": "pass"})
         assert result.status == local_ai_stack.TaskStatus.SUCCEEDED
+
+    def test_loop_without_validation_runner_fails_closed(self):
+        """ห้ามรายงาน SUCCEEDED เมื่อไม่ได้รัน validator จริง (เดิม hardcode EXECUTED_PASS)."""
+        loop = local_ai_stack.AutonomousEngineeringLoop()
+        result = loop.run_engineering_loop("t-noval", "proj", "fix", {"a.py": "pass"})
+        assert result.status == local_ai_stack.TaskStatus.FAILED
+        assert loop.get_task_attempts("t-noval")[-1].result == "FAILED_NOT_VALIDATED"
+
+    def test_loop_reports_validation_failure(self):
+        def failing_runner(worktree_path, validators, attempt_id):
+            failure = local_ai_stack.ValidationFailure(
+                validator="pytest",
+                test_or_error="t",
+                file="a.py",
+                message="boom",
+                category="TEST",
+                attempt_id=attempt_id,
+            )
+            return local_ai_stack.ValidationState.EXECUTED_FAIL, [failure]
+
+        loop = local_ai_stack.AutonomousEngineeringLoop(
+            validation_runner=failing_runner, max_repair_attempts=1
+        )
+        result = loop.run_engineering_loop("t-fail", "proj", "fix", {"a.py": "pass"})
+        assert result.status == local_ai_stack.TaskStatus.FAILED
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -656,7 +692,7 @@ class TestCancellation:
 
 class TestEngineeringLoopE2E:
     def test_full_loop_succeeds(self):
-        loop = local_ai_stack.AutonomousEngineeringLoop()
+        loop = local_ai_stack.AutonomousEngineeringLoop(validation_runner=_passing_runner)
         codebase = {
             "service.py": "def handle(req): return 500",
             "tests/test_service.py": "def test_handle(): assert handle({}) == 200",
@@ -677,7 +713,9 @@ class TestEngineeringLoopE2E:
 
     def test_full_loop_checkpoints_saved(self):
         store = local_ai_stack.CheckpointStore()
-        loop = local_ai_stack.AutonomousEngineeringLoop(checkpoint_store=store)
+        loop = local_ai_stack.AutonomousEngineeringLoop(
+            checkpoint_store=store, validation_runner=_passing_runner
+        )
         loop.run_engineering_loop("t-ckpts", "proj", "fix", {"a.py": "pass"})
         ckpts = [c for c in store._store.values() if c.task_id == "t-ckpts"]
         phases = {c.phase for c in ckpts}
@@ -687,7 +725,7 @@ class TestEngineeringLoopE2E:
         assert "COMMIT" in phases
 
     def test_worktree_cleaned_after_success(self):
-        loop = local_ai_stack.AutonomousEngineeringLoop()
+        loop = local_ai_stack.AutonomousEngineeringLoop(validation_runner=_passing_runner)
         loop.run_engineering_loop("t-cleanup", "proj", "fix", {"a.py": "pass"})
         assert loop.worktree_mgr.get_worktree("t-cleanup") is None
 

@@ -822,6 +822,7 @@ class CodeAgent:
             elif answer.behavior == "allow_session":
                 self.policy.remember(tool, args)
         try:
+            self.ctx.agent_loop = asyncio.get_running_loop()
             out = await asyncio.to_thread(tool.func, self.ctx, args)
         except ToolError as exc:
             events.append(PostToolUseFailure(tool=call.name, args=args, error=str(exc)))

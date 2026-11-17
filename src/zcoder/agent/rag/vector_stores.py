@@ -10,7 +10,9 @@ similarity search across both backends.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -34,6 +36,29 @@ try:
     HAS_FAISS = True
 except ImportError:
     HAS_FAISS = False
+
+
+_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def hashed_embedding(text: str, dimension: int = 768) -> np.ndarray:
+    """Deterministic local embedding via signed feature hashing (unigrams + bigrams).
+
+    ไม่ต้องใช้โมเดลหรือ network และให้ค่าเดียวกันทุก process (ต่างจาก ``hash()``
+    ที่สุ่ม seed ต่อ process) ข้อความที่มีคำร่วมกันจะได้ cosine similarity สูง
+    ผลลัพธ์ถูก L2-normalize แล้ว (เวกเตอร์ศูนย์สำหรับข้อความว่าง)
+    """
+    if dimension <= 0:
+        raise ValueError("dimension must be positive")
+    vec = np.zeros(dimension, dtype=np.float32)
+    tokens = [t.casefold() for t in _TOKEN_RE.findall(text)]
+    features = tokens + [f"{a} {b}" for a, b in zip(tokens, tokens[1:], strict=False)]
+    for feature in features:
+        digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
+        value = int.from_bytes(digest, "little")
+        vec[value % dimension] += 1.0 if (value >> 63) & 1 else -1.0
+    norm = float(np.linalg.norm(vec))
+    return vec / norm if norm > 0 else vec
 
 
 class VectorStoreBackend(Enum):
@@ -381,9 +406,7 @@ class VectorStoreFactory:
         elif config.backend == VectorStoreBackend.FAISS:
             return FAISSVectorStore(config)
         elif config.backend == VectorStoreBackend.OFFLINE:
-            # Pure numpy fallback for testing
-            from .rag.vector_stores import OfflineVectorStore
-
+            # Pure numpy fallback (defined later in this module)
             return OfflineVectorStore(config)
         else:
             raise ValueError(f"Unsupported vector store backend: {config.backend}")
@@ -408,31 +431,38 @@ class OfflineVectorStore(BaseVectorStore):
         k: int = 5,
         filter_metadata: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
-        """Brute-force search using numpy cosine similarity or L2."""
-        if not self.vectors:
+        """Brute-force search; ranks by cosine similarity (desc) or L2 distance (asc)."""
+        ids = [
+            cid
+            for cid in self.vectors
+            if not filter_metadata
+            or all(self.metadata.get(cid, {}).get(key) == value for key, value in filter_metadata.items())
+        ]
+        if not ids or k <= 0:
             return []
-        vectors_array = np.array(list(self.vectors.values()))
-        # Compute L2 distances
-        diff = vectors_array - query_vector.reshape(1, -1)
-        distances = np.sum(diff**2, axis=1)
-        # Get top-k indices
-        top_indices = np.argsort(distances)[:k]
-        results: list[SearchResult] = []
-        for idx in top_indices:
-            # Find matching chunk_id
-            chunk_id = list(self.vectors.keys())[idx]
-            score = float(distances[idx])
-            # Convert L2 distance to cosine similarity approximation
+        matrix = np.array([self.vectors[cid] for cid in ids], dtype=float)
+        query = np.asarray(query_vector, dtype=float).reshape(-1)
+        if self.config.metric in ("cosine", "ip"):
+            scores = matrix @ query
             if self.config.metric == "cosine":
-                # Normalize vectors for cosine approx
-                query_norm = np.linalg.norm(query_vector)
-                vec_norm = np.linalg.norm(self.vectors[chunk_id])
-                if query_norm > 0 and vec_norm > 0:
-                    cosine_sim = np.dot(query_vector, self.vectors[chunk_id]) / (query_norm * vec_norm)
-                    score = float(cosine_sim)
-                else:
-                    score = 0.0
-            results.append(SearchResult(chunk_id=chunk_id, source="unknown", content="", score=score))
+                norms = np.linalg.norm(matrix, axis=1) * np.linalg.norm(query)
+                scores = np.divide(scores, norms, out=np.zeros_like(scores), where=norms > 0)
+            order = np.argsort(-scores)[:k]
+        else:  # l2: smaller distance is better; score = negative distance so higher is better
+            scores = -np.sum((matrix - query) ** 2, axis=1)
+            order = np.argsort(-scores)[:k]
+        results: list[SearchResult] = []
+        for idx in order:
+            cid = ids[int(idx)]
+            meta = self.metadata.get(cid, {})
+            results.append(
+                SearchResult(
+                    chunk_id=cid,
+                    source=str(meta.get("source", "unknown")),
+                    content=str(meta.get("content", "")),
+                    score=float(scores[int(idx)]),
+                )
+            )
         return results
 
     def insert(

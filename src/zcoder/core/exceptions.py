@@ -103,6 +103,16 @@ class SecurityError(ZCoderError):
     error_code = "SECURITY_ERROR"
 
 
+class InvalidNameError(ValidationError, SecurityError):
+    """Unsafe identifier (e.g. path separators in an index/tenant name).
+
+    เป็นทั้ง input validation error (caller เดิม/API map เป็น 400) และ security control
+    (กัน path traversal) จึงสืบทอดทั้งสองชนิดเพื่อให้ ``except`` ของทั้งสองแบบทำงาน
+    """
+
+    error_code = "INVALID_NAME"
+
+
 class CircuitOpenError(ZCoderError):
     """resilience.CircuitBreaker is open; the call was short-circuited
     without hitting the network at all."""

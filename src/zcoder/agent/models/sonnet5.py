@@ -155,6 +155,7 @@ __all__ = [
     "STANDARD_PRICE_IN_USD",
     "STANDARD_PRICE_OUT_USD",
     "current_pricing",
+    "cmd_sonnet5_cost",
     "cmd_sonnet5_info",
     "cmd_sonnet5_call",
 ]
@@ -173,6 +174,25 @@ def current_pricing() -> dict[str, Any]:
 def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
     """Estimate cost — ZCoder models are free when run locally."""
     return 0.0
+
+
+def cmd_sonnet5_cost(spec: str) -> None:
+    """Parse 'IN,OUT' token counts; print local cost (0) and the catalog reference cost."""
+    try:
+        in_tok, out_tok = (int(x.strip()) for x in spec.split(","))
+    except ValueError:
+        print("[ERROR] --sonnet5-cost expects 'INPUT_TOKENS,OUTPUT_TOKENS', e.g. 10000,2000")
+        return
+    if in_tok < 0 or out_tok < 0:
+        print("[ERROR] token counts must be non-negative")
+        return
+    pricing = current_pricing()
+    reference = (in_tok * pricing["price_in"] + out_tok * pricing["price_out"]) / 1_000_000
+    print(f"\n  {in_tok:,} input + {out_tok:,} output tokens")
+    print(f"  local ({SONNET5_MODEL_ID} via Ollama): \033[1m${estimate_cost_usd(in_tok, out_tok):.4f}\033[0m")
+    print(
+        f"  reference catalog rate (${pricing['price_in']}/${pricing['price_out']} per MTok): ${reference:.4f}\n"
+    )
 
 
 def cmd_sonnet5_info():

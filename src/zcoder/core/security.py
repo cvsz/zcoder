@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, TypeVar, cast
 
-from zcoder.core.exceptions import SecurityError, ValidationError
+from zcoder.core.exceptions import InvalidNameError, SecurityError, ValidationError
 
 # ── Branded opaque IDs (deepseek-harness dsh-brand equivalent) ──────────────
 
@@ -590,13 +590,13 @@ def validate_name(name: str, field: str = "name") -> str:
 
     @param name - value to validate
     @param field - field name used in error messages
-    @throws SecurityError if the name is invalid
+    @throws InvalidNameError (both ValidationError and SecurityError) if the name is invalid
     @returns the validated name string
     """
     if not isinstance(name, str) or not name:
-        raise SecurityError(f"{field} must be a non-empty string")
+        raise InvalidNameError(f"{field} must be a non-empty string")
     if not _NAME_RE.fullmatch(name):
-        raise SecurityError(
+        raise InvalidNameError(
             f"{field} '{name}' contains invalid characters; "
             "only letters, digits, underscore, hyphen, and dot are allowed"
         )

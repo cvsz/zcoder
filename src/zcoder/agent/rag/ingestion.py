@@ -7,12 +7,20 @@ integrates with vector store backends.
 
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 import re
 from pathlib import Path
 from typing import Any
 
 from zcoder.agent.rag.engine import RAGIndex, build_index
+from zcoder.agent.rag.vector_stores import hashed_embedding
+
+
+def _content_digest(content: str) -> str:
+    """Stable content id (``hash()`` is randomized per process, so IDs would change on restart)."""
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+
 
 SUPPORTED_EXTS = {
     ".txt",
@@ -118,7 +126,7 @@ def chunk_text(
                 {
                     "content": content,
                     "tokens": len(content.split()),
-                    "source_hash": hash(content),
+                    "source_hash": _content_digest(content),
                 }
             )
             current_chunk = []
@@ -137,7 +145,7 @@ def chunk_text(
                         {
                             "content": content,
                             "tokens": len(chunk_words),
-                            "source_hash": hash(content),
+                            "source_hash": _content_digest(content),
                         }
                     )
                 i += chunk_size
@@ -151,7 +159,7 @@ def chunk_text(
                 {
                     "content": content,
                     "tokens": len(content.split()),
-                    "source_hash": hash(content),
+                    "source_hash": _content_digest(content),
                 }
             )
             current_chunk = [part]
@@ -167,7 +175,7 @@ def chunk_text(
             {
                 "content": content,
                 "tokens": len(current_chunk),
-                "source_hash": hash(content),
+                "source_hash": _content_digest(content),
             }
         )
 
@@ -216,14 +224,9 @@ def ingest_file(
         # Generate a chunk ID
         chunk_id = f"{tenant_id}_{Path(filepath).name}_{chunk['source_hash']}"
 
-        # Create embedding vector (using hash-based fallback for offline)
-        import numpy as np
-
+        # Deterministic local embedding (feature hashing; no model / network)
         dimension = vector_store_config.get("dimension", 768) if vector_store_config else 768
-        vector = np.array(
-            [hash(chunk["content"] + chunk_id) % (2**31) for _ in range(dimension)],
-            dtype=np.float32,
-        )
+        vector = hashed_embedding(chunk["content"], dimension)
 
         # Prepare metadata
         metadata = {

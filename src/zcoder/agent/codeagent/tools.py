@@ -23,6 +23,7 @@ from typing import Any
 
 from zcoder.agent.codeagent.workspace import IGNORED_DIRS, Checkpoint, ToolError, Workspace
 from zcoder.agent.tools.sandbox import SandboxViolation
+from zcoder.core.outbound_security import safe_external_urlopen
 from zcoder.core.resilience import safe_urlopen
 
 MAX_OUTPUT_CHARS = 30_000
@@ -42,6 +43,9 @@ class ToolContext:
     agent_registry: Any = None
     agent_mcp: Any = None
     agent_skills: Any = None
+    # event loop ของ agent: tool รันใน worker thread (asyncio.to_thread) แต่ client แบบ async
+    # (MCP, LLM) ผูกกับ loop นี้ จึงต้องส่ง coroutine กลับไปรันบน loop เดิม
+    agent_loop: asyncio.AbstractEventLoop | None = None
 
 
 @dataclass
@@ -728,7 +732,7 @@ def _ask_user(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         raise ToolError("question is required")
     options = args.get("options")
     if isinstance(options, list) and options:
-        opts = "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options))
+        opts = "\n".join(f"  {i + 1}. {o}" for i, o in enumerate(options))
         return ToolOutput(f"Question: {question}\n{opts}")
     return ToolOutput(f"Question: {question}")
 
@@ -757,17 +761,18 @@ def _skill(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
 def _web_fetch(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     """Fetch a URL and return its content as text."""
 
+    from zcoder.agent.codeagent.web_fetch import WebFetchArgsError, fetch_url
+
     url = args.get("url")
     if not isinstance(url, str) or not url.strip():
         raise ToolError("url is required")
     try:
-        with safe_urlopen(
-            url, timeout=30
-        ) as resp:  # nosec B310  # WebFetch tool intentionally opens user-supplied URL
-            data = resp.read().decode("utf-8", errors="replace")
-    except Exception as exc:
+        # fetch_url: SSRF guard (ปฏิเสธ loopback/private/link-local + redirect), จำกัดขนาด, แปลง HTML เป็นข้อความ
+        result = fetch_url(url.strip())
+    except (WebFetchArgsError, urllib.error.HTTPError) as exc:
         return ToolOutput(f"Failed to fetch {url}: {exc}")
-    return ToolOutput(data[:8000])
+    header = f"# {result.title}\n\n" if result.title else ""
+    return ToolOutput((header + result.content)[:8000])
 
 
 def _web_search(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
@@ -781,9 +786,7 @@ def _web_search(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     try:
         url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with safe_urlopen(
-            req, timeout=30
-        ) as resp:  # nosec B310  # WebSearch tool intentionally opens search-engine URL
+        with safe_external_urlopen(req, timeout=30) as resp:
             data = resp.read().decode("utf-8", errors="replace")
         import re
 
@@ -854,7 +857,8 @@ def _spawn_subagent(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     )
 
     try:
-        result = asyncio.run(
+        result = _run_on_agent_loop(
+            ctx,
             runner.run(
                 agent_type=agent_type,
                 prompt=prompt,
@@ -862,7 +866,7 @@ def _spawn_subagent(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
                 model=model if isinstance(model, str) else None,
                 permission_mode=permission_mode if isinstance(permission_mode, str) else None,
                 max_turns=max_turns if isinstance(max_turns, int) else None,
-            )
+            ),
         )
     except Exception as exc:
         return ToolOutput(f"Subagent '{agent_type}' failed: {exc}")
@@ -967,6 +971,24 @@ def _background_output(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     return ToolOutput(f"Background process {process_id} output not available.")
 
 
+def _run_on_agent_loop(ctx: ToolContext, coro: Any) -> Any:
+    """Run ``coro`` on the agent event loop from a tool worker thread.
+
+    ``asyncio.run`` would create a second loop, breaking locks/futures/streams owned by
+    the agent loop. Falls back to ``asyncio.run`` only when no agent loop is running
+    (e.g. tools invoked directly from synchronous code or tests).
+    """
+    loop = ctx.agent_loop
+    if loop is not None and loop.is_running():
+        try:
+            current = asyncio.get_running_loop()
+        except RuntimeError:
+            current = None
+        if current is not loop:
+            return asyncio.run_coroutine_threadsafe(coro, loop).result()
+    return asyncio.run(coro)
+
+
 def _call_mcp_tool(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     """Call a tool on a configured MCP server by full name (mcp__<server>__<tool>)."""
     full_name = args.get("tool")
@@ -981,7 +1003,7 @@ def _call_mcp_tool(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         raise ToolError("No MCP client configured. Add a server via .mcp.json.")
 
     try:
-        result = asyncio.run(mcp.call_tool_full_name(full_name, tool_args))
+        result = _run_on_agent_loop(ctx, mcp.call_tool_full_name(full_name, tool_args))
     except Exception as exc:
         return ToolOutput(f"MCP tool '{full_name}' failed: {exc}")
 

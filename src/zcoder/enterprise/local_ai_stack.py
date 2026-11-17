@@ -1679,6 +1679,10 @@ class CheckpointStore:
 # ── Full Autonomous Engineering Loop ─────────────────────────────────────────
 
 
+# (worktree_path, validator commands, attempt_id) -> (state, failures)
+ValidationRunner = Callable[[str, list[str], str], tuple[ValidationState, list[ValidationFailure]]]
+
+
 class AutonomousEngineeringLoop:
     """Full end-to-end software engineering loop (Upgrade-20).
 
@@ -1697,8 +1701,11 @@ class AutonomousEngineeringLoop:
         checkpoint_store: CheckpointStore | None = None,
         push_policy: str = PushPolicy.AUTO_LOCAL_ONLY,
         max_repair_attempts: int = 3,
+        validation_runner: ValidationRunner | None = None,
     ):
         self.worktree_mgr = worktree_mgr or WorktreeManager()
+        # รัน validator จริงใน worktree; ถ้าไม่มี runner จะ fail-closed (ไม่อ้างผลที่ไม่ได้รัน)
+        self.validation_runner = validation_runner
         self.indexer = indexer or LocalRepositoryIndexer()
         self.provider = provider or OllamaAdapter()
         self.security_gate = security_gate or SecurityGate()
@@ -1834,10 +1841,15 @@ class AutonomousEngineeringLoop:
             self.provider.chat_complete("qwen2.5-coder:7b", f"Fix: {issue_prompt}")
             self.monitor.record_call("http://127.0.0.1:11434/api/generate", is_paid=False)
 
-            # Simulate validation outcome
             task.status = TaskStatus.VALIDATING
-            validation_state = ValidationState.EXECUTED_PASS
-            post_failures = []
+            if self.validation_runner is None:
+                # ไม่มี runner = ยังไม่ได้รัน validator; คงสถานะ DISCOVERED แล้ว fail-closed ด้านล่าง
+                validation_state = ValidationState.DISCOVERED
+                post_failures = []
+            else:
+                validation_state, post_failures = self.validation_runner(
+                    attempt.worktree_path, list(plan.validators), attempt_id
+                )
 
             self.checkpoints.save(
                 Checkpoint(
@@ -1848,6 +1860,8 @@ class AutonomousEngineeringLoop:
                     payload={"attempt": rep, "state": validation_state},
                 )
             )
+            if self.validation_runner is None:
+                break
 
             # No-progress detection
             self._no_progress.record(
@@ -1864,9 +1878,19 @@ class AutonomousEngineeringLoop:
                 break
             task.status = TaskStatus.REPAIRING
 
+        if validation_state != ValidationState.EXECUTED_PASS:
+            task.status = TaskStatus.FAILED
+            attempt.result = (
+                "FAILED_NOT_VALIDATED"
+                if validation_state == ValidationState.DISCOVERED
+                else "FAILED_VALIDATION"
+            )
+            attempt.finished_at = time.time()
+            return task
+
         # 5. STATIC REVIEW ─────────────────────────────────────────────────
         task.status = TaskStatus.REVIEWING
-        sample_diff = diff_lines or ["+# patch applied"]
+        sample_diff = diff_lines or []
         self.security_gate.reviewer.review(sample_diff, task)
 
         # 6. SECURITY GATE ─────────────────────────────────────────────────

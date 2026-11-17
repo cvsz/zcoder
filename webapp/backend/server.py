@@ -20,6 +20,7 @@ Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
 
 from __future__ import annotations
 
+import hmac
 import ipaddress
 import json
 import logging
@@ -103,7 +104,9 @@ def _require_auth(request: Request) -> None:
         # Local/dev mode — no key configured, allow.
         return
     auth = request.headers.get("authorization", "")
-    if not auth.startswith("Bearer ") or auth.removeprefix("Bearer ").strip() != expected:
+    supplied = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+    # constant-time compare กัน timing side-channel
+    if not supplied or not hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid bearer token",
@@ -655,15 +658,17 @@ def set_config(
 
 
 @app.get("/api/sessions")
-def list_sessions():
+def list_sessions(request: Request):
     """Lightweight index for a sessions sidebar — id, turn count, and a
     preview of the first user message, not full transcripts (use
     GET /api/sessions/{id} for that)."""
+    _require_auth(request)  # session previews contain user prompts
     return _list_sessions_from_db()
 
 
 @app.get("/api/sessions/{session_id}")
-def get_session(session_id: str):
+def get_session(session_id: str, request: Request):
+    _require_auth(request)  # full chat transcript
     history = _load_session_from_db(session_id)
     if history is None:
         raise HTTPException(404, "Unknown session_id")
