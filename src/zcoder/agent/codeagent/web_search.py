@@ -87,7 +87,7 @@ def parse_search_args(args: dict[str, Any], max_queries: int = WEB_SEARCH_MAX_QU
     if len(queries) > max_queries:
         noun = 'query' if max_queries == 1 else 'queries'
         raise WebSearchArgsError([f'queries must contain at most {max_queries} {noun}'])
-    if any(not isinstance(q, str) or q.strip().length == 0 if hasattr(q, 'strip') else not isinstance(q, str) for q in queries):
+    if any(not isinstance(q, str) or not q.strip() for q in queries):
         raise WebSearchArgsError(['each query must be a non-empty string'])
     # Collapse exact duplicates, preserving first-occurrence order
     seen: set[str] = set()

@@ -289,10 +289,10 @@ class CompactionEngine:
         # This is synchronous; in production this would be async
         async def _do_summarize() -> str:
             summary = ''
-            async with agent.llm.stream(msgs, []) as stream:
-                async for chunk in stream:
-                    if chunk.kind == 'text':
-                        summary += chunk.text
+            # llm.stream() คืน async generator โดยตรง (ไม่ใช่ async context manager)
+            async for chunk in agent.llm.stream(msgs, []):
+                if chunk.kind == 'text':
+                    summary += chunk.text
             return summary.strip()
 
         try:

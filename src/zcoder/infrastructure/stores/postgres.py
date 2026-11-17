@@ -38,22 +38,18 @@ logger = logging.getLogger(__name__)
 
 # ─── psycopg import guard ────────────────────────────────────────────────────
 
+# ใช้ psycopg2 (dependency หลักใน pyproject) ก่อน แล้ว fallback เป็น psycopg3 + psycopg_pool
 try:
-
-    import psycopg
+    import psycopg2
+    import psycopg2.pool
 
     _PSYCOPG2_AVAILABLE = True
     _PG_AVAILABLE = True
 except ImportError:
+    from importlib.util import find_spec
+
     _PSYCOPG2_AVAILABLE = False
-
-if not _PSYCOPG2_AVAILABLE:
-    try:
-        from importlib.util import find_spec
-
-        _PG_AVAILABLE = find_spec("psycopg") is not None
-    except (ImportError, ValueError):
-        _PG_AVAILABLE = False
+    _PG_AVAILABLE = find_spec("psycopg_pool") is not None
 
 
 # ─── Schema DDL ──────────────────────────────────────────────────────────────
@@ -206,9 +202,10 @@ class PostgresControlPlaneStore:
                 f"PostgreSQL connection pool initialized (psycopg2, min={self._min_conn}, max={self._max_conn})"
             )
         else:
-            # psycopg3 connection pool
+            # psycopg3 connection pool (ConnectionPool อยู่ใน package psycopg_pool)
+            import psycopg_pool
 
-            self._pool = psycopg.pool.ConnectionPool(
+            self._pool = psycopg_pool.ConnectionPool(
                 dsn,
                 min_size=self._min_conn,
                 max_size=self._max_conn,

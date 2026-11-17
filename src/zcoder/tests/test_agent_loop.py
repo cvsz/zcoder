@@ -95,10 +95,7 @@ class TestCodeAgent:
 
     def test_init(self):
         """Test CodeAgent initialization."""
-        CodeAgent()
-        assert True
-        assert True
-        assert True
+        coder = CodeAgent()
         assert coder._interrupted is False
 
     def test_init_with_params(self):
@@ -110,7 +107,7 @@ class TestCodeAgent:
         policy = PermissionPolicy()
         tools = {}
 
-        CodeAgent(
+        coder = CodeAgent(
             llm=llm,
             workspace=workspace,
             policy=policy,
@@ -124,14 +121,14 @@ class TestCodeAgent:
     @pytest.mark.asyncio
     async def test_interrupt(self):
         """Test interrupt functionality."""
-        coder = Coder()
+        coder = CodeAgent()
         coder.running = True
         coder.interrupt()
         assert coder._interrupted is True
 
     def test_is_interrupted(self):
         """Test is_interrupted property."""
-        coder = Coder()
+        coder = CodeAgent()
         assert coder.is_interrupted() is False
         coder.interrupt()
         assert coder.is_interrupted() is True

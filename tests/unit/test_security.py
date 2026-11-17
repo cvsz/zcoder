@@ -2,8 +2,8 @@
 
 import pytest
 
-from zcoder.core.security import SecurityError
 from zcoder.core.security import (
+    SecurityError,
     assert_no_secret,
     contains_secret,
     env_flag,

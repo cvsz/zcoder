@@ -295,28 +295,29 @@ def credentialKeyId(key: CredentialKey) -> str:
 # ── Safe path resolution ────────────────────────────────────────────────────
 
 
-def safe_resolve(path: str | Path, base: str | Path) -> str:
+def safe_resolve(path: str | os.PathLike[str], base_dir: str | os.PathLike[str]) -> Path:
     """Resolve a path safely within a base directory.
 
-    Resolves ``path`` relative to ``base`` and ensures the result stays
-    within ``base``. Raises :exc:`SecurityError` if the resolved path
-    escapes the base directory (path traversal protection).
+    Resolves ``path`` relative to ``base_dir`` (ขยาย ``~`` และ canonicalize
+    ด้วย ``realpath`` เพื่อกัน traversal และ symlink escape) แล้วตรวจว่าผลลัพธ์
+    ยังอยู่ใน ``base_dir`` การตรวจ prefix แบบมี separator กัน sibling-prefix
+    เช่น ``/safe/workspace-evil`` เมื่อ root คือ ``/safe/workspace``
 
     @param path - candidate path (relative or absolute)
-    @param base - base directory that constrains the resolution
-    @returns the resolved absolute path as a string
+    @param base_dir - base directory that constrains the resolution
+    @returns the resolved absolute path as a ``Path``
     @throws SecurityError if the resolved path escapes the base directory
     """
-    base_path = Path(base).resolve()
-    target = (base_path / path).resolve()
-
-    target_str = str(target)
-    base_str = str(base_path)
-
-    if target_str != base_str and not target_str.startswith(base_str + os.sep):
-        raise SecurityError(f'credential key path "{path}" escapes base directory "{base}"')
-
-    return target_str
+    base = os.path.realpath(os.path.expanduser(os.fspath(base_dir)))
+    raw_path = os.fspath(path)
+    candidate = os.path.realpath(raw_path if os.path.isabs(raw_path) else os.path.join(base, raw_path))
+    base_prefix = base if base.endswith(os.sep) else base + os.sep
+    if candidate != base and not candidate.startswith(base_prefix):
+        raise SecurityError(
+            "Path escapes the allowed base directory",
+            details={"path": raw_path, "base_dir": base},
+        )
+    return Path(candidate)
 
 
 # ── Child environment ───────────────────────────────────────────────────────
@@ -460,19 +461,31 @@ def read_text_prefix(path: str | Path, max_chars: int = 8000) -> str:
     @throws ValidationError if the file contains binary content
     @throws SecurityError if the file cannot be read
     """
+    import codecs
+    from stat import S_ISREG
+
     p = Path(path)
+    st = p.stat()  # FileNotFoundError ส่งต่อให้ caller ตามเดิม
+    # ตรวจด้วย stat ก่อนเปิด descriptor: FIFO/device/socket อาจทำให้ agent ค้างตลอดไป
+    if not S_ISREG(st.st_mode):
+        kind = "directory" if os.path.isdir(p) else "non-regular file (pipe/device/socket)"
+        raise ValidationError(f"Refusing to read {kind}: {p.name}")
+
+    # อ่านแบบจำกัดขนาด (UTF-8 ใช้ไม่เกิน 4 bytes ต่อตัวอักษร) ไม่โหลดไฟล์ใหญ่ทั้งก้อนเข้า memory
+    max_bytes = max_chars * 4 + 4
     try:
         with p.open("rb") as f:
-            raw = f.read()
+            raw = f.read(max_bytes + 1)
     except OSError as exc:
         raise SecurityError(f"cannot read {p}: {exc}") from exc
 
     # Get actual file size
-    file_size = p.stat().st_size
+    file_size = st.st_size
 
     # Check for binary content: null bytes or non-UTF-8 sequences
     try:
-        text = raw.decode("utf-8")
+        # final=False ยอมให้ multi-byte sequence ที่ถูกตัดท้าย prefix ไม่ถือเป็น binary
+        text = codecs.getincrementaldecoder("utf-8")().decode(raw, final=len(raw) <= max_bytes)
         # Also check for null characters in the decoded text
         if "\x00" in text:
             raise ValidationError(f"binary content in {p}")

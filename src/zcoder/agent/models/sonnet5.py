@@ -152,9 +152,22 @@ __all__ = [
     "validate_inference_geo",
     "Sonnet5Client",
     "estimate_cost_usd",
+    "STANDARD_PRICE_IN_USD",
+    "STANDARD_PRICE_OUT_USD",
+    "current_pricing",
     "cmd_sonnet5_info",
     "cmd_sonnet5_call",
 ]
+
+# ราคาอ้างอิงของ catalog claude-sonnet-5 (USD ต่อ MTok) สำหรับ conformance และ
+# compatibility เท่านั้น ไม่ได้ใช้คิดค่าใช้จ่าย local inference (ดู estimate_cost_usd)
+STANDARD_PRICE_IN_USD = 2.0
+STANDARD_PRICE_OUT_USD = 10.0
+
+
+def current_pricing() -> dict[str, Any]:
+    """Return reference catalog pricing for claude-sonnet-5 (ไม่มี network call)."""
+    return {"price_in": STANDARD_PRICE_IN_USD, "price_out": STANDARD_PRICE_OUT_USD, "promo_active": False}
 
 
 def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:

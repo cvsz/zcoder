@@ -22,10 +22,18 @@ import webapp.backend.server as server  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _isolate_state():
+def _isolate_state(tmp_path, monkeypatch):
     """Each test gets an empty session store and a fresh rate-limit
     bucket, so tests can't leak state into each other via the
-    process-local dicts server.py uses."""
+    process-local dicts server.py uses.
+
+    แยก SQLite session DB และ models.yaml ไปที่ tmp_path ด้วย เพื่อไม่ให้ test
+    เขียนลง data/sessions.db จริง หรือต่อไปยัง sector ollama ที่รันอยู่บนเครื่อง
+    """
+    monkeypatch.setattr(server, "SESSION_DB_PATH", str(tmp_path / "sessions.db"))
+    monkeypatch.setattr(server, "MODELS_CONFIG_PATH", str(tmp_path / "models.yaml"))
+    monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
+    server._init_sessions_db()
     server._sessions.clear()
     server._rate_buckets.clear()
     yield
@@ -193,3 +201,19 @@ def test_chat_stream_rejects_non_loopback_model_url(client, monkeypatch, base_ur
     assert response.status_code == 200
     assert '"type": "error"' in response.text
     assert "loopback" in response.text
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    ["http://0.0.0.0:8080/v1", "http://0.0.0.0:8080", "http://[::]:8080/v1"],
+)
+def test_wildcard_bind_base_url_connects_via_loopback(monkeypatch, base_url):
+    """0.0.0.0/:: เป็น bind address (เช่นบน WSL2) — webapp ต้องต่อผ่าน 127.0.0.1 และไม่ซ้อน /v1."""
+    monkeypatch.setenv("ZCODER_BASE_URL", base_url)
+    assert server._local_model_endpoint("chat/completions") == "http://127.0.0.1:8080/v1/chat/completions"
+
+
+def test_wildcard_bind_with_credentials_still_rejected(monkeypatch):
+    monkeypatch.setenv("ZCODER_BASE_URL", "http://user:pass@0.0.0.0:8080")
+    with pytest.raises(server.HTTPException):
+        server._local_model_endpoint("chat/completions")

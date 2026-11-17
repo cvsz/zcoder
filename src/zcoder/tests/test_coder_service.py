@@ -89,7 +89,6 @@ class TestCoderGenerate:
                 ]
             }
         ).encode()
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
@@ -103,7 +102,6 @@ class TestCoderGenerate:
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"error": {"message": "Invalid API key"}}).encode()
         mock_response.status = 401
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
@@ -117,7 +115,6 @@ class TestCoderGenerate:
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"error": {"message": "Rate limited"}}).encode()
         mock_response.status = 429
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
@@ -131,7 +128,6 @@ class TestCoderGenerate:
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"error": {"message": "Server error"}}).encode()
         mock_response.status = 500
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response
@@ -144,7 +140,6 @@ class TestCoderGenerate:
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"not_choices": {}}).encode()
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value.__enter__.return_value = mock_response

@@ -375,8 +375,8 @@ class TestEndToEndWorkflows:
                     hooks=Hooks(None, workspace.root),
                 )
 
-                # Create a test file
-                (Path.cwd() / "README.md").write_text("# Test Project\n\nThis is a test.")
+                # Create a test file ใน workspace ชั่วคราว (ห้ามเขียนทับ README.md ของ repo ใน cwd)
+                (workspace.root / "README.md").write_text("# Test Project\n\nThis is a test.")
 
                 # Run the agent
                 events = []

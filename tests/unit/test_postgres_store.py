@@ -453,28 +453,18 @@ class TestPostgresControlPlaneStore:
         """Test init_pool falls back to psycopg3 when psycopg2 not available."""
         with patch("zcoder.infrastructure.stores.postgres._PSYCOPG2_AVAILABLE", False):
             with patch("zcoder.infrastructure.stores.postgres._PG_AVAILABLE", True):
-                # Mock the psycopg module import
-                import sys
-
-                mock_psycopg = MagicMock()
+                # Mock the psycopg_pool module import (psycopg3 ConnectionPool)
+                mock_psycopg_pool = MagicMock()
                 mock_pool = MagicMock()
-                mock_psycopg.pool.ConnectionPool.return_value = mock_pool
-                sys.modules["psycopg"] = mock_psycopg
-                sys.modules["psycopg.pool"] = mock_psycopg.pool
+                mock_psycopg_pool.ConnectionPool.return_value = mock_pool
 
-                try:
+                with patch.dict("sys.modules", {"psycopg_pool": mock_psycopg_pool}):
                     with patch.dict("os.environ", {"DATABASE_URL": "postgresql://test@localhost/test"}):
                         store = PostgresControlPlaneStore(dsn="postgresql://test@localhost/test")
                         # Reset call count since __init__ calls _init_pool
-                        mock_psycopg.pool.ConnectionPool.reset_mock()
+                        mock_psycopg_pool.ConnectionPool.reset_mock()
                         store._pool = None  # Force re-init
                         store._init_pool()
 
-                    assert store._pool is mock_pool
-                    mock_psycopg.pool.ConnectionPool.assert_called_once()
-                finally:
-                    # Clean up
-                    if "psycopg" in sys.modules:
-                        del sys.modules["psycopg"]
-                    if "psycopg.pool" in sys.modules:
-                        del sys.modules["psycopg.pool"]
+                assert store._pool is mock_pool
+                mock_psycopg_pool.ConnectionPool.assert_called_once()

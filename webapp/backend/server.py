@@ -331,9 +331,16 @@ def _sector_for_model(model_id: str) -> dict | None:
     return None
 
 
-def _local_model_endpoint(path: str) -> str:
-    base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080").strip().rstrip("/")
-    parsed = urllib.parse.urlsplit(base_url)
+# bind address ที่หมายถึงทุก interface (เช่น 0.0.0.0 บน WSL2 เพื่อเปิดให้ LAN/Windows host)
+# ใช้เป็น connect address ไม่ได้ webapp จึงต่อผ่าน loopback แทน
+_WILDCARD_BIND_HOSTS = {"0.0.0.0", "::"}  # nosec B104 - normalized to loopback, never bound here
+
+
+def _loopback_endpoint(base_url: str, path: str, error_message: str) -> str:
+    """Validate a loopback model base URL and join ``/v1/<path>``."""
+    parsed = urllib.parse.urlsplit(base_url.strip().rstrip("/"))
+    if parsed.hostname in _WILDCARD_BIND_HOSTS and not (parsed.username or parsed.password):
+        parsed = parsed._replace(netloc=f"127.0.0.1:{parsed.port}" if parsed.port else "127.0.0.1")
     if (
         parsed.scheme != "http"
         or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
@@ -342,11 +349,19 @@ def _local_model_endpoint(path: str) -> str:
         or parsed.query
         or parsed.fragment
     ):
-        raise HTTPException(503, "ZCODER_BASE_URL must point to a local llama-server on loopback")
+        raise HTTPException(503, error_message)
     prefix = parsed.path.rstrip("/")
     if not prefix.endswith("/v1"):
         prefix = f"{prefix}/v1"
     return f"{urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, prefix, '', ''))}/{path.lstrip('/')}"
+
+
+def _local_model_endpoint(path: str) -> str:
+    return _loopback_endpoint(
+        os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080"),
+        path,
+        "ZCODER_BASE_URL must point to a local llama-server on loopback",
+    )
 
 
 def _local_model_endpoint_for_model(model_id: str, path: str) -> str:
@@ -356,21 +371,10 @@ def _local_model_endpoint_for_model(model_id: str, path: str) -> str:
     Otherwise fall back to the ZCODER_BASE_URL environment variable.
     """
     sector = _sector_for_model(model_id)
-    if sector:
-        base_url = f"http://{sector.get('host', '127.0.0.1')}:{sector.get('port', 8080)}"
-    else:
-        base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080").strip().rstrip("/")
-    parsed = urllib.parse.urlsplit(base_url)
-    if (
-        parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
-        or parsed.username
-        or parsed.password
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise HTTPException(503, "model endpoint must point to a local llama-server on loopback")
-    return f"{base_url}/v1/{path.lstrip('/')}"
+    if not sector:
+        return _local_model_endpoint(path)
+    base_url = f"http://{sector.get('host', '127.0.0.1')}:{sector.get('port', 8080)}"
+    return _loopback_endpoint(base_url, path, "model endpoint must point to a local llama-server on loopback")
 
 
 def _local_model_request(req: ChatRequest, history: list[dict], system: str | None, *, stream: bool):
@@ -592,7 +596,7 @@ def download_model(req: ModelDownloadRequest, request: Request):
                 _os.remove(target_path)
         except OSError:
             pass
-        raise HTTPException(502, f"Download failed: {exc}")
+        raise HTTPException(502, f"Download failed: {exc}") from exc
 
     return {
         "ok": True,
@@ -764,9 +768,10 @@ def chat_stream(
                         full_text += content
                         yield f"data: {json.dumps({'type': 'token', 'text': content})}\n\n"
         except HTTPException as exc:
+            # แสดงข้อความ loopback ทั้งจาก ZCODER_BASE_URL และ sector endpoint ใน config/models.yaml
             public_message = (
-                "ZCODER_BASE_URL must point to a local llama-server on loopback"
-                if "ZCODER_BASE_URL must point to a local llama-server on loopback" in str(exc.detail)
+                str(exc.detail)
+                if "must point to a local llama-server on loopback" in str(exc.detail)
                 else "Local model request failed"
             )
             yield f"data: {json.dumps({'type': 'error', 'message': public_message})}\n\n"

@@ -55,7 +55,7 @@ class TaskStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-@dataclass(frozen=True)
+@dataclass
 class DistributedTask:
     """A unit of work distributable across workers."""
 
@@ -229,8 +229,8 @@ class DistributedQueue:
                 return False
             heapq.heappush(self._heap, task)
             self._task_map[task.id] = task
-            async with self._not_empty:
-                self._not_empty.notify()
+            # _not_empty ใช้ lock เดียวกับ self._lock ซึ่งถืออยู่แล้ว (asyncio.Lock ไม่ reentrant)
+            self._not_empty.notify()
             return True
 
     async def dequeue(self) -> DistributedTask | None:
@@ -258,11 +258,13 @@ class DistributedQueue:
 
     def remove_task(self, task_id: str) -> bool:
         """Remove a task from the queue by ID."""
-        task = self._task_map.get(task_id)
+        task = self._task_map.pop(task_id, None)
         if task is None:
             return False
-        # Mark as cancelled
+        # Mark as cancelled แล้วเอาออกจาก heap (ไม่มี await จึงไม่ต้องถือ lock ใน event loop เดียว)
         task.status = TaskStatus.CANCELLED
+        self._heap = [t for t in self._heap if t.id != task_id]
+        heapq.heapify(self._heap)
         return True
 
     def is_full(self) -> bool:
@@ -307,8 +309,8 @@ class DistributedProcessor:
         """Get all available workers."""
         return [w for w in self.workers.values() if w.is_available]
 
-    def submit_task(self, task: DistributedTask) -> bool:
-        """Submit a task to the distributed queue."""
+    def submit_task(self, task: DistributedTask) -> asyncio.Task[bool]:
+        """Submit a task to the distributed queue (ต้องเรียกภายใน running event loop)."""
         return asyncio.create_task(self.queue.enqueue(task))
 
     def get_task_result(self, task_id: str) -> TaskResult | None:

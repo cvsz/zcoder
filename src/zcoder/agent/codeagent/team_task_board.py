@@ -10,9 +10,10 @@ Provides TeamTaskBoard with:
 
 from __future__ import annotations
 
+import builtins
 import threading
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 # ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,8 +22,8 @@ TeamTaskId = str
 TeamMessageId = str
 SessionId = str
 
-TeamMemberPhase = 'provisioning' | 'active' | 'failed'
-TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted'
+TeamMemberPhase = Literal['provisioning', 'active', 'failed']
+TeamTaskStatus = Literal['pending', 'in_progress', 'completed', 'deleted']
 
 
 @dataclass
@@ -334,8 +335,8 @@ class TeamTaskBoard:
         action: str,
         subject: str | None = None,
         description: str | None = None,
-        write_scopes: list[str] | None = None,
-        blocked_by: list[TeamTaskId] | None = None,
+        write_scopes: builtins.list[str] | None = None,
+        blocked_by: builtins.list[TeamTaskId] | None = None,
         owner: SessionId | None = None,
     ) -> TeamTaskView:
         """Compare-and-set one authorized task transition."""

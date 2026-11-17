@@ -15,20 +15,20 @@ class TestConfigDefaults:
         assert config.get("provider") == "openai_compatible"
         assert config.get("model") == "zcoder-flash"
         assert config.get("base_url") == "http://localhost:11434"
-        assert coder.get("api_key") == ""
-        assert coder.get("max_tokens") == 8192
-        assert coder.get("context_window") == 32768
-        assert coder.get("max_output_chars") == 30000
-        assert coder.get("max_steps") == 40
-        assert coder.get("context_window_percentage") == 0.8
-        assert coder.get("theme") == "default"
-        assert coder.get("show_timestamps") is False
-        assert coder.get("show_usage") is True
-        assert coder.get("sandbox_enabled") is True
-        assert coder.get("allow_network") is True
-        assert coder.get("allow_file_write") is True
-        assert coder.get("allow_code_exec") is True
-        assert coder.get("telemetry_enabled") is False
+        assert config.get("api_key") == ""
+        assert config.get("max_tokens") == 8192
+        assert config.get("context_window") == 32768
+        assert config.get("max_output_chars") == 30000
+        assert config.get("max_steps") == 40
+        assert config.get("context_window_percentage") == 0.8
+        assert config.get("theme") == "default"
+        assert config.get("show_timestamps") is False
+        assert config.get("show_usage") is True
+        assert config.get("sandbox_enabled") is True
+        assert config.get("allow_network") is True
+        assert config.get("allow_file_write") is True
+        assert config.get("allow_code_exec") is True
+        assert config.get("telemetry_enabled") is False
 
 
 class TestConfigEnvOverrides:
@@ -41,18 +41,18 @@ class TestConfigEnvOverrides:
 
     def test_env_var_api_key(self, monkeypatch):
         monkeypatch.setenv("ZCODER_API_KEY", "test-api-key-12345")
-        coder = Config()
-        assert coder.get("api_key") == "test-api-key-12345"
+        config = Config()
+        assert config.get("api_key") == "test-api-key-12345"
 
     def test_env_var_base_url(self, monkeypatch):
         monkeypatch.setenv("ZCODER_BASE_URL", "http://custom-api.example.com/v1")
-        coder = Config()
-        assert coder.get("base_url") == "http://custom.example.com/v1"
+        config = Config()
+        assert config.get("base_url") == "http://custom.example.com/v1"
 
     def test_env_var_max_tokens(self, monkeypatch):
         monkeypatch.setenv("ZCODER_MAX_TOKENS", "4096")
-        coder = Config()
-        assert coder.get("max_tokens") == 4096
+        config = Config()
+        assert config.get("max_tokens") == 4096
 
     def test_env_var_max_tokens_invalid(self, monkeypatch):
         """Invalid max_tokens should fall back to default."""
@@ -62,13 +62,13 @@ class TestConfigEnvOverrides:
 
     def test_env_var_bool_false(self, monkeypatch):
         monkeypatch.setenv("ZCODER_ALLOW_NETWORK", "false")
-        coder = Config()
-        assert coder.get("allow_network") is False
+        config = Config()
+        assert config.get("allow_network") is False
 
     def test_env_var_bool_true(self, monkeypatch):
         monkeypatch.setenv("ZCODER_ALLOW_NETWORK", "true")
-        coder = Coder()
-        assert coder.get("allow_network") is True
+        config = Config()
+        assert config.get("allow_network") is True
 
 
 class TestConfigSet:

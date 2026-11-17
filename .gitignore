@@ -15,7 +15,8 @@ venv/
 env/
 
 # Local model weights — mount at runtime, do not commit.
-models/
+# anchor ที่ root เท่านั้น เพื่อไม่ให้ ignore source package เช่น src/zcoder/agent/models/
+/models/
 *.gguf
 *.gguf.*
 

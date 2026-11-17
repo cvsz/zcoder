@@ -1,17 +1,16 @@
 """New security tests for extended coverage."""
+
 import pytest
-import os
 
 from zcoder.core.security import (
+    SecurityError,
+    ValidationError,
     assert_no_secret,
     contains_secret,
     env_flag,
     is_secret_env_name,
     read_text_prefix,
-    ValidationError,
-    SecurityError,
 )
-
 
 # Test strings with 20 chars after sk- (all lowercase)
 _20a = "a" * 20
