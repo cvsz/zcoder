@@ -422,6 +422,10 @@ def env_flag(value: str, default: bool = False) -> bool:
     """
     import os as _os
 
+    # If value is None, return default immediately
+    if value is None:
+        return default if default is not None else True
+
     # If value looks like a key name (not a direct value), read from env
     truthy = {"1", "true", "True", "yes", "on"}
     falsy = {"0", "false", "False", "no", "off"}
