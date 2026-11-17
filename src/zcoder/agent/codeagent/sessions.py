@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import secrets
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from zcoder.agent.codeagent.memory import zcoder_home
+
+_logger = logging.getLogger(__name__)
 
 _ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$")
 
@@ -79,12 +82,14 @@ class SessionStore:
             (m["content"] for m in messages if m.get("role") == "user" and isinstance(m.get("content"), str)),
             "",
         )
+        # ตัดเนื้อหาไฟล์ที่แนบ (<file path=...>) ออกจาก title ไม่ให้รั่วไปในรายการ session
+        title = re.sub(r"\s+", " ", title.split("<file path=")[0]).strip()[:80] or "(empty)"
         doc = {
             "id": session_id,
             "cwd": cwd,
             "title": title,
             "updated": time.time(),
-            "usage": usage,
+            "usage": usage or {},
             "messages": messages,
         }
         fd, tmp = tempfile.mkstemp(dir=self.dir, prefix=".tmp-")
@@ -187,6 +192,10 @@ class SessionStore:
         new_id = new_id or new_session_id()
         self.save(new_id, doc.get("cwd", ""), doc.get("messages", []), doc.get("usage"))
         return new_id
+
+    # public API เดิม (commands /sessions, /resume และ callers ภายนอก) ใช้ชื่อ list();
+    # ประกาศท้าย class เพื่อไม่บัง builtin list ใน annotation ของ method อื่น
+    list = list_sessions
 
 
 # ── Session event types (deepseek-harness compatibility) ──────────────────
@@ -794,7 +803,7 @@ class SessionTitleProjection:
                     )
                     return title_value
             except Exception:
-                pass  # Fall through to heuristic
+                _logger.debug("LLM title generation failed; using heuristic title", exc_info=True)
 
         # Heuristic: use first user message
         for msg in messages:

@@ -10,9 +10,12 @@ Implements: One Async Operation = One Lifecycle Controller (Section 4.9).
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 
 from zcoder.agent.orchestration.cancellation import AbortSignal
+
+_logger = logging.getLogger(__name__)
 
 
 class LifecycleController:
@@ -149,7 +152,7 @@ class LifecycleController:
                 callback()
             except Exception:
                 # Cleanup failures must not prevent other cleanup.
-                pass
+                _logger.warning("cleanup callback %r failed", callback, exc_info=True)
         self._cleanup_callbacks.clear()
 
 

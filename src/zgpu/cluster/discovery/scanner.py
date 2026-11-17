@@ -33,7 +33,7 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 def _open_discovery_request(request: urllib.request.Request, timeout: float):
     opener = urllib.request.build_opener(_NoRedirectHandler())
-    return opener.open(request, timeout=timeout)  # nosec B310 - redirects are disabled
+    return opener.open(request, timeout=timeout)  # nosec B310  # redirects are disabled
 
 
 @dataclass
@@ -166,7 +166,9 @@ class NetworkComputeScanner:
                         latency_ms=round(latency, 2),
                         capabilities=data,
                     )
-            except Exception:
+            except (OSError, ValueError) as exc:
+                # endpoint ไม่ตอบ/ไม่ใช่ JSON เป็นเรื่องปกติระหว่าง probe; ลอง endpoint ถัดไป
+                log.debug("probe %s%s failed: %s", url, endpoint, exc)
                 continue
 
         # Try JSON-RPC system.health or worker.ping
@@ -194,7 +196,8 @@ class NetworkComputeScanner:
                             latency_ms=round(latency, 2),
                             capabilities=data.get("result", {}),
                         )
-            except Exception:
+            except (OSError, ValueError) as exc:
+                log.debug("rpc %s on %s failed: %s", method, url, exc)
                 continue
 
         return None

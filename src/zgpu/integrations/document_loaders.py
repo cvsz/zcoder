@@ -6,7 +6,7 @@ from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
 from typing import ClassVar
-from xml.etree import ElementTree
+from xml.etree import ElementTree  # nosec B405  # input size-capped and DOCTYPE/ENTITY rejected before parse
 from zipfile import BadZipFile, ZipFile
 
 
@@ -159,7 +159,7 @@ def _extract_docx_text(data: bytes) -> str:
     if b"<!doctype" in normalized_xml or b"<!entity" in normalized_xml:
         raise DocumentLoadError("DOCX document contains a forbidden XML declaration", status=415)
     try:
-        root = ElementTree.fromstring(xml)  # nosec B314 - XML pre-validated for DOCTYPE/ENTITY
+        root = ElementTree.fromstring(xml)  # nosec B314  # XML pre-validated for DOCTYPE/ENTITY
     except ElementTree.ParseError as exc:
         raise DocumentLoadError("DOCX document XML is malformed") from exc
 

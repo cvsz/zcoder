@@ -1368,7 +1368,7 @@ class ZCoderDesktopGUI:
     def _get_gpu_memory(self) -> dict:
         """Get GPU memory usage from nvidia-smi."""
         try:
-            out = subprocess.run(  # nosec B603 B607  # nvidia-smi is a trusted local GPU monitoring command
+            out = subprocess.run(  # nosec B603, B607  # nvidia-smi is a trusted local GPU monitoring command
                 ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
                 capture_output=True,
                 text=True,

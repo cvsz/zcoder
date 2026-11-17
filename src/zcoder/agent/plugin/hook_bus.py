@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import shlex
-import subprocess  # nosec B404 - user/org configured hook commands
+import subprocess  # nosec B404  # user/org configured hook commands
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -390,9 +390,9 @@ class HookBus:
             # Run hook as subprocess
             try:
                 process = await asyncio.to_thread(
-                    subprocess.run,  # nosec B603,B604 - user/org configured hook commands, shell only for shell ops
+                    subprocess.run,
                     argv,
-                    shell=use_shell,
+                    shell=use_shell,  # nosec B604  # user/org-configured hook command; shell only for shell operators
                     input=json.dumps(payload),
                     capture_output=True,
                     text=True,

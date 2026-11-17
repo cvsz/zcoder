@@ -1,11 +1,14 @@
 """zcoder.config.settings.py — Configuration management"""
 
 import json
+import logging
 import os
 import tempfile
 from typing import Any, TypedDict, cast
 
 from zcoder.core.exceptions import ConfigError
+
+_logger = logging.getLogger(__name__)
 
 CONFIG_PATH = os.path.expanduser("~/.zcoder-config.json")
 LEGACY_CONFIG_PATH = os.path.expanduser("~/.ai-coder-config.json")
@@ -97,7 +100,9 @@ class Config:
     """
 
     def __init__(self) -> None:
-        self._data: ConfigFields = cast(ConfigFields, dict(DEFAULT_CONFIG))
+        # แยก layer: ค่าที่เก็บในไฟล์ (persist) กับค่า effective (default + file + env)
+        # เพื่อไม่ให้ default หรือ secret จาก env (เช่น ZCODER_API_KEY) ถูกเขียนลงไฟล์
+        self._file_data: dict[str, Any] = {}
         read_path = CONFIG_PATH if os.path.exists(CONFIG_PATH) else LEGACY_CONFIG_PATH
         if os.path.exists(read_path):
             try:
@@ -108,15 +113,19 @@ class Config:
                         f"Config file {read_path} does not contain a JSON object",
                         details={"path": read_path},
                     )
-                coerced = self._validate_and_coerce(raw)
-                self._data.update(coerced)
+                self._file_data = dict(self._validate_and_coerce(raw))
             except ConfigError:
                 raise
-            except Exception:  # nosec
-                # Config file may be missing or unreadable; use defaults.
-                pass
-        # Env vars override file values; they are the highest precedence layer.
+            except (OSError, ValueError):
+                # Config file unreadable or not valid JSON; use defaults.
+                _logger.warning("ignoring unreadable config file %s", read_path, exc_info=True)
+        self._data: ConfigFields = self._effective(self._file_data)
+
+    def _effective(self, file_data: dict[str, Any]) -> ConfigFields:
+        """Defaults, then stored values, then env vars (highest precedence)."""
+        self._data = cast(ConfigFields, {**DEFAULT_CONFIG, **file_data})
         self._apply_env_overrides()
+        return self._data
 
     def _validate_and_coerce(self, raw: dict[str, Any]) -> ConfigFields:
         """Validate and coerce raw config dict into typed ConfigFields.
@@ -228,8 +237,8 @@ class Config:
                 f"Unknown config key: {key}",
                 details={"key": key, "valid_keys": sorted(ConfigFields.__annotations__.keys())},
             )
-        updated = dict(self._data)
-        updated[key] = value
+        updated = dict(self._file_data)
+        updated[key] = self._coerce_value(key, value)
         self._write_config(updated)
 
     def _write_config(self, updated: dict[str, Any]):
@@ -270,7 +279,8 @@ class Config:
             # chmod may fail on some filesystems; safe to ignore.
             pass
         # Only publish the new state after the durable write succeeded.
-        self._data = cast(ConfigFields, updated)
+        self._file_data = updated
+        self._data = self._effective(updated)
 
     def all(self):
         return dict(self._data)

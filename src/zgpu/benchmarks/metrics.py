@@ -7,7 +7,8 @@ import json
 import math
 import os
 import platform
-import subprocess
+import shutil
+import subprocess  # nosec B404  # fixed git argv for benchmark provenance, no shell
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,9 +49,11 @@ def generation_metrics(
 
 def benchmark_environment() -> dict[str, Any]:
     """Collect bounded, non-secret local environment metadata for benchmark evidence."""
+    # absolute path จาก PATH; ถ้าไม่มี git ทั้งสองคำสั่งจะ raise OSError และคืน None
+    git = shutil.which("git") or "git"
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+        result = subprocess.run(  # nosec B603  # resolved git path, fixed argv, no shell
+            [git, "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
@@ -60,8 +63,8 @@ def benchmark_environment() -> dict[str, Any]:
     except (OSError, subprocess.SubprocessError):
         commit = None
     try:
-        status = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=all"],
+        status = subprocess.run(  # nosec B603  # resolved git path, fixed argv, no shell
+            [git, "status", "--porcelain", "--untracked-files=all"],
             check=True,
             capture_output=True,
             text=True,

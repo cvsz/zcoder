@@ -92,7 +92,7 @@ def extract_frames(
     for i, timestamp in enumerate(timestamps):
         frame_path = frame_dir / f"frame_{i:03d}_{timestamp:.2f}s.jpg"
         try:
-            result = subprocess.run(  # nosec  # nosec B603,B607
+            result = subprocess.run(  # nosec B603, B607
                 [
                     "ffmpeg",
                     "-v",

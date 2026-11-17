@@ -7,7 +7,7 @@ hook/tool/command modules for execution.
 import importlib.util
 import logging
 import shutil
-import subprocess  # nosec B404 - git operations with validated input
+import subprocess  # nosec B404  # git operations with validated input
 import sys
 import tempfile
 from dataclasses import dataclass, field

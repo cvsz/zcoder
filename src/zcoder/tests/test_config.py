@@ -47,7 +47,7 @@ class TestConfigEnvOverrides:
     def test_env_var_base_url(self, monkeypatch):
         monkeypatch.setenv("ZCODER_BASE_URL", "http://custom-api.example.com/v1")
         config = Config()
-        assert config.get("base_url") == "http://custom.example.com/v1"
+        assert config.get("base_url") == "http://custom-api.example.com/v1"
 
     def test_env_var_max_tokens(self, monkeypatch):
         monkeypatch.setenv("ZCODER_MAX_TOKENS", "4096")

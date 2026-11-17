@@ -46,7 +46,8 @@ def run_llm_benchmarks(
         start = time.perf_counter()
         result = kernels.gemm(matrix_a, matrix_b)
         gemm_samples.append((time.perf_counter() - start) * 1000.0)
-    assert result is not None
+    if result is None:
+        raise RuntimeError("gemm kernel returned no result")
     gemm_correct = all(abs(value - 32.0) < 1e-5 for row in result for value in row)
     if not gemm_correct:
         raise RuntimeError("simulated GEMM produced an incorrect result")
@@ -119,7 +120,7 @@ def run_llm_benchmarks(
                 "latency_ms_p95": _percentile(gemm_samples, 0.95),
             },
             "generation": {
-                "correct_token_count": True,
+                "correct_token_count": first_sample["generated_tokens"] == requested_tokens,
                 "generated_tokens": first_sample["generated_tokens"],
                 "output_tokens": first_sample["output_tokens"],
                 "latency_seconds_samples": elapsed_samples,

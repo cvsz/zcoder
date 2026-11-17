@@ -1,20 +1,26 @@
 """Multi-sector GGUF model server controller for ZCoder local inference.
 
-Starts/stops/restarts/reports status of ollama instances, one per
-sector, each serving a single GGUF model on a dedicated loopback port.
-
-All traffic stays on loopback (127.0.0.1); no hosted model API is used.
+Starts/stops/restarts/reports status of ``ollama serve`` instances, one per
+sector, each on a dedicated port (``OLLAMA_HOST=<host>:<port>``). ``host`` in
+models.yaml is the *bind* address (0.0.0.0 exposes the sector to the LAN,
+e.g. a Windows host over WSL2); this controller always talks to the sector
+through loopback. Cloud features are disabled (``OLLAMA_NO_CLOUD=1``); no
+hosted model API is used.
 """
 
 from __future__ import annotations
 
 import argparse
+import ipaddress
+import json
 import os
+import shutil
 import signal
-import subprocess
+import subprocess  # nosec B404  # launches the configured ollama binary with a fixed argv list
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -24,8 +30,34 @@ try:  # PyYAML is available in the project venv.
 except Exception as exc:  # pragma: no cover - environment guard
     raise SystemExit(f"PyYAML is required to read the model config: {exc}") from exc
 
-DEFAULT_CONFIG = "/home/cvsz/zcoder/config/models.yaml"
-HEALTH_PATH = "/health"
+DEFAULT_CONFIG = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "models.yaml"
+)
+HEALTH_PATH = "/api/version"
+TAGS_PATH = "/api/tags"
+
+
+def is_wildcard_bind_host(host: str | None) -> bool:
+    """True for an unspecified bind address (0.0.0.0, ::) or an empty host."""
+    if not host:
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_unspecified
+    except ValueError:
+        return False
+
+
+def connect_host(host: str) -> str:
+    """Map a wildcard bind address to the loopback address clients should dial."""
+    return "127.0.0.1" if is_wildcard_bind_host(host) else host
+
+
+def open_http(req: urllib.request.Request, timeout: float):
+    """urlopen restricted to plain http(s) URLs (no file:/custom schemes)."""
+    scheme = urllib.parse.urlsplit(req.full_url).scheme
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"unsupported URL scheme: {scheme or '<missing>'}")
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310  # scheme validated above
 
 
 class ModelServerError(RuntimeError):
@@ -43,6 +75,7 @@ class Sector:
     enabled: bool
     models_dir: str
     binary: str
+    ollama_models_dir: str
     run_dir: str
     log_dir: str
 
@@ -60,7 +93,18 @@ class Sector:
 
     @property
     def base_url(self) -> str:
-        return f"http://{self.host}:{self.port}"
+        """URL used by this controller (loopback even when bound to 0.0.0.0)."""
+        return f"http://{connect_host(self.host)}:{self.port}"
+
+    @property
+    def bind_address(self) -> str:
+        """Value for OLLAMA_HOST (IPv6 literals need brackets)."""
+        host = f"[{self.host}]" if ":" in self.host else self.host
+        return f"{host}:{self.port}"
+
+    @property
+    def modelfile(self) -> str:
+        return os.path.join(self.run_dir, f"{self.name}.Modelfile")
 
 
 def load_config(path: str) -> dict[str, Any]:
@@ -71,9 +115,19 @@ def load_config(path: str) -> dict[str, Any]:
     return data
 
 
+def resolve_binary(cfg: dict[str, Any]) -> str:
+    """Return the ollama executable: configured path if it exists, else ``ollama`` on PATH."""
+    configured = str(cfg.get("ollama_server_binary") or cfg.get("llama_server_binary") or "ollama")
+    if os.path.isfile(configured) and os.access(configured, os.X_OK):
+        return configured
+    found = shutil.which(os.path.basename(configured)) or shutil.which("ollama")
+    # คืนค่าที่ตั้งไว้เมื่อหาไม่เจอ เพื่อให้ start_sector รายงาน path ที่ผิดได้ชัดเจน
+    return found or configured
+
+
 def build_sectors(cfg: dict[str, Any]) -> list[Sector]:
     models_dir = str(cfg.get("models_dir", "/zdata/models"))
-    binary = str(cfg.get("llama_server_binary", "/home/cvsz/.local/bin/ollama"))
+    binary = resolve_binary(cfg)
     run_dir = str(cfg.get("run_dir", "/home/cvsz/zcoder/run"))
     log_dir = str(cfg.get("log_dir", "/home/cvsz/zcoder/logs"))
     default_ctx = int(cfg.get("default_ctx_size", 4096))
@@ -91,6 +145,7 @@ def build_sectors(cfg: dict[str, Any]) -> list[Sector]:
                 ctx_size=int(entry.get("ctx_size", default_ctx)),
                 enabled=bool(entry.get("enabled", False)),
                 models_dir=models_dir,
+                ollama_models_dir=str(cfg.get("ollama_models_dir") or ""),
                 binary=binary,
                 run_dir=run_dir,
                 log_dir=log_dir,
@@ -147,12 +202,72 @@ def remove_pidfile(pidfile: str) -> None:
 
 def health_ok(sector: Sector, timeout: float = 3.0) -> bool:
     url = f"{sector.base_url}{HEALTH_PATH}"
-    req = urllib.request.Request(url, headers={"Accept": "*/*"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with open_http(req, timeout=timeout) as resp:
             return resp.status == 200
     except (OSError, urllib.error.URLError, ValueError):
         return False
+
+
+def installed_models(sector: Sector, timeout: float = 5.0) -> set[str]:
+    """Return model names known to the sector's ollama (with and without ``:latest``)."""
+    req = urllib.request.Request(f"{sector.base_url}{TAGS_PATH}", headers={"Accept": "application/json"})
+    try:
+        with open_http(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8") or "{}")
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        raise ModelServerError(f"{sector.name}: cannot list models at {sector.base_url}: {exc}") from exc
+    names: set[str] = set()
+    for item in payload.get("models", []) if isinstance(payload, dict) else []:
+        name = str(item.get("name", ""))
+        if name:
+            names.add(name)
+            names.add(name.removesuffix(":latest"))
+    return names
+
+
+def ollama_env(sector: Sector) -> dict[str, str]:
+    env = dict(os.environ)
+    env.update(
+        {
+            "OLLAMA_HOST": sector.bind_address,
+            "OLLAMA_CONTEXT_LENGTH": str(sector.ctx_size),
+            "OLLAMA_NO_CLOUD": "1",
+        }
+    )
+    if sector.ollama_models_dir:
+        env["OLLAMA_MODELS"] = sector.ollama_models_dir
+    return env
+
+
+def ensure_model(sector: Sector, timeout: float = 1800.0) -> None:
+    """Make ``sector.alias`` available, creating it from the GGUF file when missing."""
+    if sector.alias in installed_models(sector):
+        return
+    if not os.path.isfile(sector.model_path):
+        raise ModelServerError(
+            f"{sector.name}: model '{sector.alias}' is not installed and GGUF not found: {sector.model_path}"
+        )
+    os.makedirs(sector.run_dir, exist_ok=True)
+    with open(sector.modelfile, "w", encoding="utf-8") as fh:
+        fh.write(f"FROM {sector.model_path}\nPARAMETER num_ctx {sector.ctx_size}\n")
+    client_env = dict(os.environ, OLLAMA_HOST=f"{connect_host(sector.host)}:{sector.port}")
+    try:
+        result = subprocess.run(  # nosec B603  # fixed argv, binary from trusted config, no shell
+            [sector.binary, "create", sector.alias, "-f", sector.modelfile],
+            env=client_env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ModelServerError(f"{sector.name}: ollama create failed: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["no output"]
+        raise ModelServerError(f"{sector.name}: ollama create {sector.alias} failed: {detail[0]}")
+    print(f"[start] {sector.name}: created model {sector.alias} from {sector.model_path}")
 
 
 def sector_running(sector: Sector) -> tuple[bool, int | None]:
@@ -172,41 +287,28 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
         print(f"[start] {sector.name}: already running (pid on port {sector.port})")
         return
 
-    if not os.path.exists(sector.binary):
-        raise ModelServerError(f"ollama binary not found: {sector.binary}")
-    if not os.path.exists(sector.model_path):
-        raise ModelServerError(f"GGUF model not found: {sector.model_path}")
+    if not (os.path.isfile(sector.binary) and os.access(sector.binary, os.X_OK)):
+        raise ModelServerError(f"ollama binary not found or not executable: {sector.binary}")
+    if health_ok(sector, timeout=1.0):
+        raise ModelServerError(
+            f"{sector.name}: port {sector.port} already serves an ollama not managed by this controller"
+        )
 
     os.makedirs(sector.run_dir, exist_ok=True)
     os.makedirs(sector.log_dir, exist_ok=True)
 
-    cmd = [
-        sector.binary,
-        "--model",
-        sector.model_path,
-        "--alias",
-        sector.alias,
-        "--host",
-        sector.host,
-        "--port",
-        str(sector.port),
-        "--ctx-size",
-        str(sector.ctx_size),
-        "--threads",
-        "-1",
-    ]
-
-    log_fh = open(sector.logfile, "ab")
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-    finally:
-        log_fh.close()
+    with open(sector.logfile, "ab") as log_fh:
+        try:
+            proc = subprocess.Popen(  # nosec B603  # fixed argv, binary from trusted config, no shell
+                [sector.binary, "serve"],
+                env=ollama_env(sector),
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            raise ModelServerError(f"{sector.name}: cannot launch {sector.binary}: {exc}") from exc
 
     write_pid(sector.pidfile, proc.pid)
 
@@ -216,13 +318,20 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
         if not alive:
             raise ModelServerError(f"{sector.name}: ollama exited during startup; see {sector.logfile}")
         if health_ok(sector, timeout=2.0):
+            try:
+                ensure_model(sector)
+            except ModelServerError:
+                # ไม่ปล่อย ollama ที่ serve โมเดลไม่ได้ค้างไว้บน port
+                stop_sector(sector, stop_timeout=15)
+                raise
             print(
-                f"[start] {sector.name}: running on {sector.base_url} "
-                f"(pid {proc.pid}, model {sector.model})"
+                f"[start] {sector.name}: running on {sector.bind_address} "
+                f"(pid {proc.pid}, model {sector.alias})"
             )
             return
         time.sleep(1.0)
 
+    stop_sector(sector, stop_timeout=15)
     raise ModelServerError(f"{sector.name}: did not become healthy within {start_timeout}s")
 
 
@@ -289,9 +398,7 @@ def list_sectors(sectors: list[Sector]) -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Control ZCoder multi-sector GGUF model servers (ollama)."
-    )
+    parser = argparse.ArgumentParser(description="Control ZCoder multi-sector GGUF model servers (ollama).")
     parser.add_argument(
         "--config",
         default=os.environ.get("ZCODER_MODELS_CONFIG", DEFAULT_CONFIG),
@@ -336,9 +443,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(status_sector(sector))
             elif args.command == "health":
                 ok = health_ok(sector, timeout=3.0)
-                print(
-                    f"[health] {sector.name}: {'OK' if ok else 'FAIL'} " f"({sector.base_url}{HEALTH_PATH})"
-                )
+                print(f"[health] {sector.name}: {'OK' if ok else 'FAIL'} ({sector.base_url}{HEALTH_PATH})")
                 if not ok:
                     failures += 1
         except ModelServerError as exc:

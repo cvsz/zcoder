@@ -47,17 +47,18 @@ class LocalKnowledgeStore:
         return self.retrieval_status()["retrieval"]
 
     def retrieval_status(self, *, project_id: str | None = "*") -> dict[str, Any]:
-        scope_sql, scope_params = self._project_scope(project_id)
+        scope_params = self._project_scope(project_id)
         provider = self.embedding_provider
         try:
             with self._connection() as connection:
                 total = connection.execute(
-                    f"SELECT count(*) FROM documents d WHERE {scope_sql}", scope_params  # nosec B608
+                    "SELECT count(*) FROM documents d WHERE (? OR d.project_id IS NULL OR d.project_id = ?)", scope_params
                 ).fetchone()[0]
                 indexed = 0
                 if provider is not None:
                     indexed = connection.execute(
-                        f"SELECT count(*) FROM documents d WHERE {scope_sql} AND d.embedding_model = ? AND d.embedding_json IS NOT NULL",  # nosec B608
+                        "SELECT count(*) FROM documents d "
+                        "WHERE (? OR d.project_id IS NULL OR d.project_id = ?) AND d.embedding_model = ? AND d.embedding_json IS NOT NULL",
                         (*scope_params, provider.model),
                     ).fetchone()[0]
         except sqlite3.Error as exc:
@@ -79,13 +80,13 @@ class LocalKnowledgeStore:
             )
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= self.MAX_REINDEX_BATCH:
             raise LocalKnowledgeError(f"reindex limit must be between 1 and {self.MAX_REINDEX_BATCH}")
-        scope_sql, scope_params = self._project_scope(project_id)
+        scope_params = self._project_scope(project_id)
         try:
             with self._connection() as connection:
                 pending = connection.execute(
-                    f"""SELECT d.id, d.content FROM documents d
-                        WHERE {scope_sql} AND (d.embedding_json IS NULL OR d.embedding_model IS NULL OR d.embedding_model != ?)
-                        ORDER BY d.created_at, d.id LIMIT ?""",  # nosec B608
+                    """SELECT d.id, d.content FROM documents d
+                        WHERE (? OR d.project_id IS NULL OR d.project_id = ?) AND (d.embedding_json IS NULL OR d.embedding_model IS NULL OR d.embedding_model != ?)
+                        ORDER BY d.created_at, d.id LIMIT ?""",
                     (*scope_params, provider.model, limit),
                 ).fetchall()
         except sqlite3.Error as exc:
@@ -131,12 +132,12 @@ class LocalKnowledgeStore:
     def list_documents(self, *, limit: int = 100, project_id: str | None = "*") -> list[dict[str, Any]]:
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
             raise LocalKnowledgeError("limit must be between 1 and 100")
-        scope_sql, scope_params = self._project_scope(project_id)
+        scope_params = self._project_scope(project_id)
         with self._connection() as connection:
             rows = connection.execute(
-                f"""SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes,
+                """SELECT id, title, sha256, project_id, length(CAST(content AS BLOB)) AS content_bytes,
                            created_at, updated_at FROM documents d
-                     WHERE {scope_sql} ORDER BY updated_at DESC, id LIMIT ?""",  # nosec B608
+                     WHERE (? OR d.project_id IS NULL OR d.project_id = ?) ORDER BY updated_at DESC, id LIMIT ?""",
                 (*scope_params, limit),
             ).fetchall()
         return [dict(row) for row in rows]
@@ -248,7 +249,7 @@ class LocalKnowledgeStore:
             raise LocalKnowledgeError("query must be valid Unicode text") from exc
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 20:
             raise LocalKnowledgeError("limit must be between 1 and 20")
-        scope_sql, scope_params = self._project_scope(project_id)
+        scope_params = self._project_scope(project_id)
         terms = re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE)[: self.MAX_QUERY_TERMS]
         if not terms:
             raise LocalKnowledgeError("query must contain searchable text")
@@ -261,15 +262,14 @@ class LocalKnowledgeStore:
                     lexical_rows = connection.execute(
                         """SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
                            FROM documents_fts f JOIN documents d ON d.rowid = f.rowid
-                           WHERE documents_fts MATCH ? AND """  # nosec B608
-                        + scope_sql
-                        + " ORDER BY bm25(documents_fts) LIMIT ?",
+                           WHERE documents_fts MATCH ? AND (? OR d.project_id IS NULL OR d.project_id = ?)
+                           ORDER BY bm25(documents_fts) LIMIT ?""",
                         (expression, *scope_params, limit),
                     ).fetchall()
                 else:
                     candidates = connection.execute(
-                        f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
-                            FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
+                        """SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at
+                            FROM documents d WHERE (? OR d.project_id IS NULL OR d.project_id = ?) ORDER BY d.updated_at DESC, d.id""",
                         scope_params,
                     ).fetchall()
                     matching_rows = [
@@ -294,9 +294,9 @@ class LocalKnowledgeStore:
                 embedding_provider_local: Any = self.embedding_provider
                 if query_embedding is not None:
                     semantic_candidates = connection.execute(
-                        f"""SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at,
+                        """SELECT d.id, d.title, d.content, d.sha256, d.project_id, d.updated_at,
                                    d.embedding_json, d.embedding_model
-                            FROM documents d WHERE {scope_sql} ORDER BY d.updated_at DESC, d.id""",  # nosec B608
+                            FROM documents d WHERE (? OR d.project_id IS NULL OR d.project_id = ?) ORDER BY d.updated_at DESC, d.id""",
                         scope_params,
                     ).fetchall()
                     semantic_scores = []
@@ -477,14 +477,19 @@ class LocalKnowledgeStore:
             raise LocalKnowledgeError("local knowledge storage is unavailable", status=503) from exc
 
     @staticmethod
-    def _project_scope(project_id: str | None) -> tuple[str, tuple[str, ...]]:
+    def _project_scope(project_id: str | None) -> tuple[int, str | None]:
+        """Bind parameters for the fixed scope predicate ``(? OR d.project_id IS NULL OR d.project_id = ?)``.
+
+        ``"*"`` matches every document; ``None`` matches only unscoped documents
+        (``= NULL`` is never true); a project id matches unscoped plus that project.
+        """
         if project_id == "*":
-            return "1 = 1", ()
+            return 1, None
         if project_id is None:
-            return "d.project_id IS NULL", ()
+            return 0, None
         if not isinstance(project_id, str) or not re.fullmatch(r"[a-f0-9]{32}", project_id):
             raise LocalKnowledgeError("invalid project identifier")
-        return "(d.project_id IS NULL OR d.project_id = ?)", (project_id,)
+        return 0, project_id
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:

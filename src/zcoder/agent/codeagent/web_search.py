@@ -18,6 +18,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from zcoder.core.outbound_security import safe_external_urlopen
+
 # Maximum number of search results returned per call
 WEB_SEARCH_MAX_RESULTS = 10
 
@@ -240,7 +242,7 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                     'Accept': 'text/html,application/xhtml+xml',
                 },
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with safe_external_urlopen(req, timeout=10) as resp:
                 html_content = resp.read().decode('utf-8', errors='replace')
 
             # Simple regex-based extraction of DuckDuckGo results
@@ -300,8 +302,8 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                     snippet=snippet,
                 ))
 
-        except (urllib.error.URLError, urllib.error.HTTPError, OSError, Exception):
-            # Continue to next query on failure
+        except (urllib.error.URLError, OSError, ValueError, RuntimeError):
+            # network/SSRF-policy failure ของ query นี้: ข้ามไป query ถัดไป
             continue
 
     truncated = len(sources) >= max_results and len(queries) > 0

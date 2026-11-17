@@ -167,7 +167,7 @@ class StdioTransport(_BaseTransport):
             cmd = self.config.command
             if cmd is None:
                 raise MCPConnectionError(f"stdio server '{self.config.name}' has no command")
-            self._proc = subprocess.Popen(  # noqa: S603  # nosec B602,B603  # user-configured stdio server
+            self._proc = subprocess.Popen(  # noqa: S603  # nosec B603  # user-configured stdio server
                 [cmd, *self.config.args],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -456,7 +456,7 @@ class WebSocketTransport(_BaseTransport):
                     fut = self._pending.pop(msg_id)
                     if not fut.done():
                         fut.set_result(msg)
-        except Exception:  # nosec B110 — graceful degradation on listener failure
+        except Exception:  # nosec B110  # graceful degradation on listener failure
             pass
 
     async def send(self, message: dict[str, Any]) -> dict[str, Any]:
@@ -483,7 +483,7 @@ class WebSocketTransport(_BaseTransport):
         if self._ws:
             try:
                 await self._ws.close()
-            except Exception:  # nosec B110 — graceful degradation on transport failure
+            except Exception:  # nosec B110  # graceful degradation on transport failure
                 pass
 
 
@@ -590,7 +590,7 @@ class MCPClient:
                         await self.discover(name)
                     except (
                         Exception
-                    ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                    ):  # nosec B110  # graceful degradation on discovery failure; graceful degradation on transport failure
                         pass  # keep old capabilities on discovery failure
             elif method.startswith("notifications/"):
                 # Other notifications are ignored for now.
@@ -608,7 +608,7 @@ class MCPClient:
         if transport:
             try:
                 await transport.close()
-            except Exception:  # nosec B110 — graceful degradation on transport failure
+            except Exception:  # nosec B110  # graceful degradation on transport failure
                 pass
 
     async def disconnect_all(self) -> None:
@@ -665,7 +665,7 @@ class MCPClient:
                     await self.discover(name)
                 except (
                     Exception
-                ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                ):  # nosec B110  # graceful degradation on discovery failure; graceful degradation on transport failure
                     pass
         return dict(self._capabilities)
 
@@ -804,14 +804,14 @@ class MCPClient:
                     await self.disconnect(name)
                 except (
                     Exception
-                ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                ):  # nosec B110  # graceful degradation on discovery failure; graceful degradation on transport failure
                     pass
                 try:
                     await self.connect(name)
                     await self.discover(name)
                 except (
                     Exception
-                ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                ):  # nosec B110  # graceful degradation on discovery failure; graceful degradation on transport failure
                     pass
 
     async def aclose(self) -> None:

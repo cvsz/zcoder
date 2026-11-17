@@ -22,6 +22,7 @@ module instead of folded into local estimation here.
 """
 
 import json
+import logging
 import threading
 import time
 from collections import OrderedDict
@@ -35,6 +36,8 @@ from zcoder.agent.optimization.local_tokens import estimate_tokens as local_esti
 from zcoder.agent.optimization.tokens import optimize_prompt
 from zcoder.core.provider_policy import create_anthropic_client
 from zcoder.core.utils import sampling_kwargs
+
+_logger = logging.getLogger(__name__)
 
 SPEND_LOG = Path.home() / ".zcoder" / "cost_log.json"
 
@@ -466,8 +469,9 @@ def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_previe
             "prompt": prompt_preview[:80],
         }
         SPEND_LOG.write_text(json.dumps(list(existing_entries.values())[-5000:], indent=2))
-    except Exception:
-        pass
+    except (OSError, ValueError, TypeError):
+        # spend log เป็น best-effort telemetry; ห้ามทำให้ request หลักล้ม
+        _logger.warning("could not update spend log %s", SPEND_LOG, exc_info=True)
 
 
 @dataclass

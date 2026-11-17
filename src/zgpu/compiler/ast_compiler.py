@@ -106,7 +106,8 @@ HALT"""
         else:
             tree = ast.parse(src)
         fn_def = tree.body[0]
-        assert isinstance(fn_def, ast.FunctionDef)
+        if not isinstance(fn_def, ast.FunctionDef):
+            raise TypeError("kernel source must start with a function definition")
 
         # Determine operator
         ret_stmt = None

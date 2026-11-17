@@ -14,12 +14,15 @@ Architecture:
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
 from zcoder.agent.codeagent.sessions import SessionEvent
+
+_logger = logging.getLogger(__name__)
 
 S = TypeVar("S")
 
@@ -328,6 +331,7 @@ class SessionProjectionRegistry:
                 try:
                     state = registration.def_.validate_state(row.get("val"))
                 except Exception:
+                    _logger.warning("skipping invalid projected state for %s", key, exc_info=True)
                     continue
                 values[key] = registration.def_.wire.view(state)
             return values
@@ -361,11 +365,7 @@ class SessionProjectionRegistry:
                 if row is not None:
                     row_ver = row.get("ver")
                     row_seq = int(row.get("seq", -1))
-                    usable = (
-                        row_ver == defn.state_version
-                        and row_seq >= before_base
-                        and row_seq <= end_seq
-                    )
+                    usable = row_ver == defn.state_version and row_seq >= before_base and row_seq <= end_seq
                 if not usable and base_seq > 0:
                     raise ValueError(
                         f"session projection {key!r} cannot restore from seq {base_seq}: "
@@ -373,7 +373,8 @@ class SessionProjectionRegistry:
                     )
 
                 if usable:
-                    assert row is not None
+                    if row is None:
+                        raise ValueError(f"session projection {key!r}: checkpoint row disappeared")
                     state = defn.validate_state(row.get("val"))
                     from_seq = row_seq
                 else:
@@ -386,7 +387,7 @@ class SessionProjectionRegistry:
                     expected_seq = base_seq + index
                     if getattr(event, "event_id", None) != expected_seq:
                         raise ValueError(
-                            f"session projection {key!r} cannot restore across " f"missing seq {expected_seq}"
+                            f"session projection {key!r} cannot restore across missing seq {expected_seq}"
                         )
                     state = defn.apply(state, event)
 
@@ -545,7 +546,7 @@ def session_stats_apply(state: SessionStatsState, event: SessionEvent) -> Sessio
                 "turn": data.get("turn", 0),
                 "step": data.get("step", 0),
                 "start_time": event_time,
-                "first_token_time": None,
+                **dict.fromkeys(("first_token_time",)),  # timing slot, filled on first streamed token
             },
             pending_calls=dict(state.pending_calls),
         )

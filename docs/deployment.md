@@ -140,6 +140,17 @@ scripts/model-server restart zcoder-max
 scripts/model-server stop zcoder-promax
 ```
 
+แต่ละ sector คือ `ollama serve` หนึ่ง process ที่รันด้วย `OLLAMA_HOST=<host>:<port>`, `OLLAMA_CONTEXT_LENGTH=<ctx_size>`
+และ `OLLAMA_NO_CLOUD=1` โดย health check ใช้ `GET /api/version`
+
+- `host` ใน `config/models.yaml` คือ **bind address** ถ้าตั้งเป็น `0.0.0.0` (เช่นบน WSL2 เพื่อให้ Windows/LAN เข้าถึงได้)
+  controller, webapp และ `scripts/deploy.py` จะยังเชื่อมต่อผ่าน `127.0.0.1` เสมอ — Ollama ไม่มี authentication
+  จึงควรจำกัดการเข้าถึงด้วย firewall
+- `ollama_server_binary` รับได้ทั้ง absolute path หรือชื่อที่ค้นใน `PATH` (ค่าเริ่มต้น `ollama`)
+- ถ้า alias ของ sector ยังไม่มีใน Ollama store controller จะสร้างจากไฟล์ GGUF ใน `models_dir` ด้วย `ollama create`
+  ตั้ง `ollama_models_dir` เพื่อกำหนด `OLLAMA_MODELS` ให้ sector ใช้ store ที่ต้องการ
+- ถ้าเตรียมโมเดลไม่สำเร็จหรือ health check ไม่ผ่านภายใน `start_timeout` controller จะหยุด process ที่ start ไว้
+
 ---
 
 ## 6. การปรับใช้ผ่าน Docker (ถ้ามี)
@@ -163,14 +174,17 @@ docker compose ps
 รันสคริปต์ทดสอบว่าระบบทำงานถูกต้อง:
 
 ```bash
-python scripts/deploy.py
+ZCODER_WEB_URL=http://127.0.0.1:8420 python scripts/deploy.py
 ```
+
+`ZCODER_WEB_URL` คือ URL ของ webapp backend (ค่าเริ่มต้น `http://127.0.0.1:8420`) แยกจาก `ZCODER_BASE_URL`
+ซึ่งเป็น endpoint ของ model server
 
 สคริปต์จะทดสอบ:
 1. `/api/health` ตอบสนองหรือไม่
 2. `/api/models` คืนรายชื่อโมเดลที่เปิดใช้งานหรือไม่
 3. `/api/chat` สามารถส่ง prompt และรับคำตอบจากโมเดลได้หรือไม่
-4. Health check ของแต่ละ model sector
+4. Health check (`GET /api/version`) ของแต่ละ model sector ที่ enabled
 
 ถ้าทุกขั้นตอนผ่านจะแสดง `SMOKE TEST PASSED` หากมีขั้นตอนใดล้มเหลวจะแสดงข้อผิดพลาดและคืนค่า exit code ไม่ใช่ศูนย์
 

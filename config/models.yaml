@@ -12,8 +12,8 @@
 # Directory containing GGUF model files.
 models_dir: /zdata/models
 
-# ollama binary.
-ollama_server_binary: /home/cvsz/.local/bin/ollama
+# ollama binary (absolute path, or a name resolved on PATH).
+ollama_server_binary: ollama
 
 # Runtime state directory (pidfiles) and log directory.
 run_dir: /home/cvsz/zcoder/run

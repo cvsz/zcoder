@@ -193,7 +193,7 @@ def verify_release_tag(tag: str) -> str:
 def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
     """Fetch completed GitHub check runs bound to the candidate SHA."""
     repo = os.environ.get("GITHUB_REPOSITORY") or _repo_slug()
-    result = subprocess.run(  # nosec B603 B607  # fixed argv, gh resolved from PATH, no shell
+    result = subprocess.run(  # nosec B603, B607  # fixed argv, gh resolved from PATH, no shell
         [
             "gh",
             "api",
@@ -226,7 +226,7 @@ def fetch_check_runs(sha: str) -> list[dict[str, Any]]:
 
 def _dependency_review_for_merge(repo: str, sha: str) -> dict[str, Any]:
     """Bind the PR-only dependency review to the exact squash merge commit."""
-    pulls = subprocess.run(  # nosec B603 B607  # fixed argv, gh resolved from PATH, no shell
+    pulls = subprocess.run(  # nosec B603, B607  # fixed argv, gh resolved from PATH, no shell
         ["gh", "api", f"repos/{repo}/commits/{sha}/pulls", "--paginate", "--slurp"],
         capture_output=True,
         text=True,
@@ -250,7 +250,7 @@ def _dependency_review_for_merge(repo: str, sha: str) -> dict[str, Any]:
     except (json.JSONDecodeError, AttributeError, KeyError, TypeError, ValueError) as exc:
         raise EvidenceImportError(f"invalid merged pull-request evidence: {exc}") from exc
 
-    checks = subprocess.run(  # nosec B603 B607  # fixed argv, gh resolved from PATH, no shell
+    checks = subprocess.run(  # nosec B603, B607  # fixed argv, gh resolved from PATH, no shell
         [
             "gh",
             "api",

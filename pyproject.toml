@@ -117,6 +117,10 @@ ignore = ["E501"]
 "tests/integration/test_auth_oidc.py" = ["B017"]
 "tests/unit/test_claude_models_deprecation.py" = ["E402"]
 
+[tool.bandit]
+# test suites ใช้ assert และ fixture path เป็นปกติ; สแกนเฉพาะโค้ด production
+exclude_dirs = ["tests", "src/zcoder/tests", "src/zgpu/tests", "external", "venv", ".venv"]
+
 [tool.black]
 line-length = 110
 target-version = ["py312"]

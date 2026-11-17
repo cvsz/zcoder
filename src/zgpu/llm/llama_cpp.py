@@ -6,7 +6,7 @@ import json
 import os
 import secrets
 import socket
-import subprocess
+import subprocess  # nosec B404  # launches configured llama-server with an argv list, no shell
 import tempfile
 import time
 import urllib.error
@@ -128,7 +128,7 @@ class LlamaCppServer:
                 if os.name == "posix":
                     os.fchmod(key_file.fileno(), 0o600)
                 key_file.write(self.api_key + "\n")
-            self._process = subprocess.Popen(
+            self._process = subprocess.Popen(  # nosec B603  # argv built from validated config, no shell
                 self.config.command(self._api_key_file),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,

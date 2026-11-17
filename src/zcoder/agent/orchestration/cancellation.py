@@ -7,7 +7,10 @@ request mid-stream.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+
+_logger = logging.getLogger(__name__)
 
 
 class AbortSignal:
@@ -37,7 +40,7 @@ class AbortSignal:
                 cb()
             except Exception:
                 # Callback failures must not prevent cancellation.
-                pass
+                _logger.warning("cancellation callback %r failed", cb, exc_info=True)
 
     def on_abort(self, callback: Callable) -> None:
         """Register a callback to run when ``abort()`` is called."""

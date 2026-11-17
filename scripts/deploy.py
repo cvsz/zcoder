@@ -6,13 +6,14 @@ deploy.py — ZCoder deployment smoke test (Phase 9).
   1. GET /api/health        — backend ตอบสนองและ healthy
   2. GET /api/models        — คืนรายชื่อโมเดลที่เปิดใช้งาน
   3. POST /api/chat         — ส่ง prompt และรับคำตอบจากโมเดล
-  4. Model sector health    — แต่ละ sector ที่ enabled ตอบ health check
+  4. Model sector health    — แต่ละ sector ที่ enabled ตอบ GET /api/version (ollama)
 
 ใช้งาน:
     python scripts/deploy.py
 
 ตัวแปรสภาพแวดล้อมที่อ่าน:
-    ZCODER_BASE_URL         backend base URL (default: http://0.0.0.0:8420)
+    ZCODER_WEB_URL          webapp backend base URL (default: http://127.0.0.1:8420)
+                            (ZCODER_BASE_URL คือ model endpoint จึงไม่ใช้ที่นี่)
     ZCODER_WEB_API_KEY      bearer token สำหรับ authenticated endpoints
     ZCODER_MODEL            โมเดลที่ใช้ทดสอบแชท (default: zcoder-flash)
     ZCODER_MODELS_CONFIG    path ไปยัง config/models.yaml (default: config/models.yaml)
@@ -22,20 +23,41 @@ deploy.py — ZCoder deployment smoke test (Phase 9).
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-BASE_URL = os.getenv("ZCODER_BASE_URL", "http://0.0.0.0:8420").rstrip("/")
+BASE_URL = os.getenv("ZCODER_WEB_URL", "http://127.0.0.1:8420").rstrip("/")
 API_KEY = os.getenv("ZCODER_WEB_API_KEY", "")
 TEST_MODEL = os.getenv("ZCODER_MODEL", "zcoder-flash")
 MODELS_CONFIG = os.getenv("ZCODER_MODELS_CONFIG", "config/models.yaml")
+SECTOR_HEALTH_PATH = "/api/version"
+
+
+def is_wildcard_bind_host(host: str | None) -> bool:
+    """True for an unspecified bind address (0.0.0.0, ::) or an empty host."""
+    if not host:
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_unspecified
+    except ValueError:
+        return False
+
+
+def open_http(req: urllib.request.Request, timeout: float):
+    """urlopen restricted to plain http(s) URLs (no file:/custom schemes)."""
+    scheme = urllib.parse.urlsplit(req.full_url).scheme
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"unsupported URL scheme: {scheme or '<missing>'}")
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310  # scheme validated above
 
 
 def log(msg: str, level: str = "INFO") -> None:
@@ -46,13 +68,13 @@ def http_get(path: str, headers: dict[str, str] | None = None, timeout: float = 
     url = f"{BASE_URL}{path}"
     req = urllib.request.Request(url, headers=headers or {}, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with open_http(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
             return resp.status, json.loads(body) if body.strip() else {}
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         return exc.code, body
-    except (urllib.error.URLError, OSError) as exc:
+    except (urllib.error.URLError, OSError, ValueError) as exc:
         return None, f"connection error: {exc}"
 
 
@@ -61,13 +83,13 @@ def http_post(path: str, payload: dict, headers: dict[str, str] | None = None, t
     h = {"Content-Type": "application/json", **(headers or {})}
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=h, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with open_http(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
             return resp.status, json.loads(body) if body.strip() else {}
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         return exc.code, body
-    except (urllib.error.URLError, OSError) as exc:
+    except (urllib.error.URLError, OSError, ValueError) as exc:
         return None, f"connection error: {exc}"
 
 
@@ -116,7 +138,7 @@ def main() -> int:
         fail(f"/api/chat returned HTTP {status}: {data}")
     if not isinstance(data, dict) or not data.get("response"):
         fail(f"/api/chat did not return a response: {data}")
-    pass_(f"POST /api/chat -> model={TEST_MODEL}, response_len={len(data.get('response',''))}")
+    pass_(f"POST /api/chat -> model={TEST_MODEL}, response_len={len(data.get('response', ''))}")
 
     # ── 4. Model sector health ───────────────────────────────────
     cfg_path = Path(MODELS_CONFIG)
@@ -139,17 +161,19 @@ def main() -> int:
     for sector in enabled:
         name = sector["name"]
         port = sector.get("port")
-        host = sector.get("host", "0.0.0.0")
-        sector_url = f"http://{host}:{port}/health"
+        host = str(sector.get("host", "127.0.0.1"))
+        # host ใน models.yaml คือ bind address; ต่อผ่าน loopback เมื่อ bind ทุก interface
+        dial_host = "127.0.0.1" if is_wildcard_bind_host(host) else host
+        sector_url = f"http://{dial_host}:{port}{SECTOR_HEALTH_PATH}"
         try:
             req = urllib.request.Request(sector_url, headers={"Accept": "*/*"})
-            with urllib.request.urlopen(req, timeout=5.0) as resp:
+            with open_http(req, timeout=5.0) as resp:
                 if resp.status == 200:
                     pass_(f"sector {name} ({host}:{port}) -> healthy")
                 else:
                     all_healthy = False
                     log(f"FAIL: sector {name} returned HTTP {resp.status}", "ERROR")
-        except (urllib.error.URLError, OSError) as exc:
+        except (urllib.error.URLError, OSError, ValueError) as exc:
             all_healthy = False
             log(f"FAIL: sector {name} ({host}:{port}) connection error: {exc}", "ERROR")
 

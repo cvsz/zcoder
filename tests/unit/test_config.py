@@ -6,7 +6,8 @@ import stat
 
 import pytest
 
-from zcoder.config.settings import Config
+from zcoder.config.settings import DEFAULT_CONFIG, Config
+from zcoder.core.exceptions import ConfigError
 
 
 def test_get_default_when_missing():
@@ -35,16 +36,34 @@ def test_new_instance_reads_persisted_value(isolated_config):
 
 def test_all_returns_copy_not_reference(isolated_config):
     cfg = Config()
-    cfg.set("k", "v")
+    cfg.set("model", "v")
     snapshot = cfg.all()
-    snapshot["k"] = "mutated"
-    assert cfg.get("k") == "v"
+    snapshot["model"] = "mutated"
+    assert cfg.get("model") == "v"
 
 
-def test_corrupt_config_file_does_not_crash(isolated_config):
+def test_unknown_key_is_rejected(isolated_config):
+    with pytest.raises(ConfigError):
+        Config().set("k", "v")
+
+
+def test_corrupt_config_file_does_not_crash(isolated_config, monkeypatch):
+    for name in list(os.environ):
+        if name.startswith("ZCODER_"):
+            monkeypatch.delenv(name)
     isolated_config.write_text("{not valid json")
     cfg = Config()
-    assert cfg.all() == {}
+    assert cfg.all() == DEFAULT_CONFIG
+
+
+def test_env_secret_is_never_persisted(isolated_config, monkeypatch):
+    """ZCODER_API_KEY comes from the environment; writing another key must not copy it to disk."""
+    monkeypatch.setenv("ZCODER_API_KEY", "sk-from-env-only")
+    cfg = Config()
+    assert cfg.get("api_key") == "sk-from-env-only"
+    cfg.set("model", "zcoder-pro")
+    assert json.loads(isolated_config.read_text()) == {"model": "zcoder-pro"}
+    assert cfg.get("api_key") == "sk-from-env-only"
 
 
 def test_set_writes_config_with_owner_only_permissions(isolated_config):
@@ -96,7 +115,7 @@ def test_failed_replace_keeps_previous_config_and_memory(isolated_config, monkey
 
     assert isolated_config.read_bytes() == original
     assert cfg.get("api_key") == "old"
-    assert list(isolated_config.parent.glob(".zcoder-config-*")) == []
+    assert [p for p in isolated_config.parent.glob(".zcoder-config.*") if p != isolated_config] == []
 
 
 def test_failed_serialization_keeps_previous_config_and_memory(isolated_config, monkeypatch):
@@ -113,5 +132,5 @@ def test_failed_serialization_keeps_previous_config_and_memory(isolated_config, 
         cfg.set("model", "changed")
 
     assert isolated_config.read_bytes() == original
-    assert cfg.all() == {"model": "existing"}
-    assert list(isolated_config.parent.glob(".zcoder-config-*")) == []
+    assert cfg.get("model") == "existing"
+    assert [p for p in isolated_config.parent.glob(".zcoder-config.*") if p != isolated_config] == []

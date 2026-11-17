@@ -23,6 +23,7 @@ from typing import Any
 
 from zcoder.agent.codeagent.workspace import IGNORED_DIRS, Checkpoint, ToolError, Workspace
 from zcoder.agent.tools.sandbox import SandboxViolation
+from zcoder.core.resilience import safe_urlopen
 
 MAX_OUTPUT_CHARS = 30_000
 MAX_READ_BYTES = 2_000_000
@@ -297,7 +298,7 @@ def _api_call(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with safe_urlopen(req, timeout=timeout) as resp:
             status = resp.status
             resp_headers = dict(resp.headers)
             raw_body = resp.read(100_001)  # Read one byte extra to detect truncation
@@ -755,15 +756,14 @@ def _skill(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
 
 def _web_fetch(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     """Fetch a URL and return its content as text."""
-    import urllib.request
 
     url = args.get("url")
     if not isinstance(url, str) or not url.strip():
         raise ToolError("url is required")
     try:
-        with urllib.request.urlopen(
+        with safe_urlopen(
             url, timeout=30
-        ) as resp:  # nosec B310 — WebFetch tool intentionally opens user-supplied URL
+        ) as resp:  # nosec B310  # WebFetch tool intentionally opens user-supplied URL
             data = resp.read().decode("utf-8", errors="replace")
     except Exception as exc:
         return ToolOutput(f"Failed to fetch {url}: {exc}")
@@ -781,9 +781,9 @@ def _web_search(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     try:
         url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(
+        with safe_urlopen(
             req, timeout=30
-        ) as resp:  # nosec B310 — WebSearch tool intentionally opens search-engine URL
+        ) as resp:  # nosec B310  # WebSearch tool intentionally opens search-engine URL
             data = resp.read().decode("utf-8", errors="replace")
         import re
 

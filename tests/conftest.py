@@ -1,13 +1,19 @@
 """tests/conftest.py — shared fixtures"""
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
+from dotenv import dotenv_values, find_dotenv
 
-# Load .env file for test environment variables (e.g., DATABASE_URL)
-load_dotenv()
+# โหลดจาก .env เฉพาะ connection ของ database สำหรับ integration tests
+# ห้ามโหลด runtime settings (ZCODER_MODEL, ZCODER_BASE_URL ฯลฯ) ของเครื่องผู้พัฒนาเข้ามา
+# เพราะจะทำให้ unit tests ที่ทดสอบค่า default ขึ้นกับ environment
+_DOTENV_TEST_KEYS = ("DATABASE_URL", "TEST_DATABASE_URL")
+for _key, _value in dotenv_values(find_dotenv(usecwd=True)).items():
+    if _key in _DOTENV_TEST_KEYS and _value is not None:
+        os.environ.setdefault(_key, _value)
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"

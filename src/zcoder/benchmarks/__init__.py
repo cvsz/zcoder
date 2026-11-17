@@ -59,7 +59,7 @@ def run_session_benchmarks(*, warmups: int = 3, repeats: int = 100) -> list[dict
     ]
 
     def save_session():
-        store.save("20260115-120000-000001", "/tmp/test", messages)
+        store.save("20260115-120000-000001", str(tmpdir), messages)
 
     def load_session():
         store.load("20260115-120000-000001")

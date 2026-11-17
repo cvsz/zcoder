@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -19,6 +20,7 @@ from typing import Any
 from zcoder.agent.plugin.events import HookEvent
 from zcoder.agent.plugin.hook_bus import HookBus, HookContext, HookResult
 from zcoder.agent.plugin.tier import PluginTier
+from zcoder.core.resilience import safe_urlopen
 
 logger = logging.getLogger(__name__)
 
@@ -229,13 +231,15 @@ class FileLoggingPlugin(LoggingPlugin):
         **kwargs,
     ):
         super().__init__(name=name, hook_bus=hook_bus, **kwargs)
-        self.log_file = log_file or f"/tmp/zcoder_{name}.log"
+        # ค่าเริ่มต้นอยู่ใต้ home ของผู้ใช้ ไม่ใช่ /tmp ที่ผู้ใช้อื่นสร้าง symlink ดักไว้ได้
+        self.log_file = log_file or os.path.join(os.path.expanduser("~/.zcoder/logs"), f"zcoder_{name}.log")
         self._file_handle = None
         self._open_file()
 
     def _open_file(self):
         """Open the log file for writing."""
         try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.log_file)), mode=0o700, exist_ok=True)
             self._file_handle = open(self.log_file, "a", encoding="utf-8")
         except OSError as exc:
             logger.warning(f"Failed to open log file {self.log_file}: {exc}")
@@ -337,7 +341,7 @@ class HttpLoggingPlugin(LoggingPlugin):
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with safe_urlopen(req, timeout=self.timeout) as resp:
                 if resp.status >= 400:
                     logger.warning(f"HTTP logging endpoint returned {resp.status}")
         except urllib.error.URLError as exc:

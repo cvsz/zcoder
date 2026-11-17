@@ -19,6 +19,7 @@ from zcoder.agent.codeagent.events import (
 from zcoder.agent.codeagent.hooks import Hooks
 from zcoder.agent.codeagent.llm import LLMError
 from zcoder.agent.codeagent.permissions import Mode
+from zcoder.agent.codeagent.tools import default_tools
 
 
 def kinds(events):
@@ -51,9 +52,9 @@ async def test_tool_roundtrip_feeds_result_back(make_agent, tmp_path):
     second_request = agent.llm.requests[1][0]
     assert second_request[-1]["role"] == "tool" and "alpha" in second_request[-1]["content"]
     assert second_request[0]["role"] == "system" and "Working directory" in second_request[0]["content"]
-    assert (
-        len(agent.llm.requests[0][1]) == 25
-    )  # all tool definitions are offered (includes Agent, MCP, EnterWorktree, ExitWorktree, EnterPlanMode, AskUserQuestion, Skill, WebFetch, WebSearch, NotebookEdit, LSP, TaskOutput, BashOutput, KillShell, BackgroundOutput, CodeExec)
+    # all tool definitions are offered (เทียบกับ registry จริง แทนการ hardcode จำนวน)
+    offered = {spec["function"]["name"] for spec in agent.llm.requests[0][1]}
+    assert offered == set(default_tools())
 
 
 async def test_edit_requires_approval_and_applies_when_allowed(make_agent, tmp_path):

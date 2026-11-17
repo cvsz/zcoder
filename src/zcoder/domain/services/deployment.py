@@ -94,15 +94,18 @@ class DeploymentEngine:
 
     def create_logical_backup(self) -> BackupArchive:
         records = {}
-        _ALLOWED_TABLES = frozenset({"jobs", "outbox", "webhook_inbox", "installations", "repositories"})
+        # query คงที่ต่อ table (ไม่มีการประกอบ SQL จาก input)
+        count_queries = {
+            "jobs": 'SELECT COUNT(*) FROM "jobs"',
+            "outbox": 'SELECT COUNT(*) FROM "outbox"',
+            "webhook_inbox": 'SELECT COUNT(*) FROM "webhook_inbox"',
+            "installations": 'SELECT COUNT(*) FROM "installations"',
+            "repositories": 'SELECT COUNT(*) FROM "repositories"',
+        }
         with sqlite_connection(self.store.db_path) as conn:
             cur = conn.cursor()
-            for table in ["jobs", "outbox", "webhook_inbox", "installations", "repositories"]:
-                if table not in _ALLOWED_TABLES:
-                    raise ValueError(f"disallowed table for backup: {table}")
-                # Table name is validated against a hard-coded allowlist above,
-                # so this f-string cannot be injected with user-controlled input.
-                cur.execute(f'SELECT COUNT(*) FROM "{table}"')  # nosec B608
+            for table, query in count_queries.items():
+                cur.execute(query)
                 records[table] = cur.fetchone()[0]
 
             # Dump SQL lines

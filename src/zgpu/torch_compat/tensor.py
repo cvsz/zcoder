@@ -21,7 +21,8 @@ class ZTensor:
         for dim in shape:
             self.numel *= dim
 
-        assert len(data) == self.numel, f"Data size {len(data)} != shape size {self.numel}"
+        if len(data) != self.numel:
+            raise ValueError(f"Data size {len(data)} != shape size {self.numel}")
         self.size_bytes = self.numel * 4
 
         # Allocate on zGPU device memory
@@ -47,7 +48,8 @@ class ZTensor:
         new_numel = 1
         for dim in new_shape:
             new_numel *= dim
-        assert new_numel == self.numel
+        if new_numel != self.numel:
+            raise ValueError(f"cannot reshape {self.numel} elements into shape {new_shape}")
         t = ZTensor.__new__(ZTensor)
         t.shape = new_shape
         t.runtime = self.runtime

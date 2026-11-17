@@ -20,8 +20,11 @@ Run with:  uvicorn webapp.backend.server:app --host 0.0.0.0 --port 8420
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import logging
 import os
+import sqlite3
 import sys
 import time
 import urllib.error
@@ -75,6 +78,8 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 # --- API key authentication -------------------------------------------------
 # Read-only public endpoints (version, health, models, personalities, skills,
 # agents, config) are intentionally open for local discovery. All state-changing
+
+_logger = logging.getLogger(__name__)
 # (POST/DELETE) and admin endpoints require a bearer token matching
 # ZCODER_WEB_API_KEY. When the env var is unset, auth is disabled for local-only
 # dev use (a startup warning is logged).
@@ -225,9 +230,9 @@ try:
         history = _load_session_from_db(sid)
         if history is not None:
             _sessions[sid] = history
-except Exception:
+except (OSError, sqlite3.Error, ValueError):
     # If SQLite is unavailable, start with empty in-memory store.
-    pass
+    _logger.warning("session DB %s unavailable; starting with empty session store", SESSION_DB_PATH, exc_info=True)
 
 
 class ChatRequest(BaseModel):
@@ -333,13 +338,20 @@ def _sector_for_model(model_id: str) -> dict | None:
 
 # bind address ที่หมายถึงทุก interface (เช่น 0.0.0.0 บน WSL2 เพื่อเปิดให้ LAN/Windows host)
 # ใช้เป็น connect address ไม่ได้ webapp จึงต่อผ่าน loopback แทน
-_WILDCARD_BIND_HOSTS = {"0.0.0.0", "::"}  # nosec B104 - normalized to loopback, never bound here
+def _is_wildcard_bind_host(host: str | None) -> bool:
+    """True for an unspecified bind address (0.0.0.0, ::) or an empty host."""
+    if not host:
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_unspecified
+    except ValueError:
+        return False
 
 
 def _loopback_endpoint(base_url: str, path: str, error_message: str) -> str:
     """Validate a loopback model base URL and join ``/v1/<path>``."""
     parsed = urllib.parse.urlsplit(base_url.strip().rstrip("/"))
-    if parsed.hostname in _WILDCARD_BIND_HOSTS and not (parsed.username or parsed.password):
+    if parsed.hostname and _is_wildcard_bind_host(parsed.hostname) and not (parsed.username or parsed.password):
         parsed = parsed._replace(netloc=f"127.0.0.1:{parsed.port}" if parsed.port else "127.0.0.1")
     if (
         parsed.scheme != "http"

@@ -21,6 +21,7 @@ from zcoder.core.exceptions import (
     RateLimitError,
     TransientAPIError,
 )
+from zcoder.core.resilience import safe_urlopen
 
 
 @dataclass(frozen=True)
@@ -98,7 +99,7 @@ class ProviderAdapter(ABC):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=300) as resp:
+            with safe_urlopen(request, timeout=300) as resp:
                 raw = json.loads(resp.read().decode())
         except urllib.error.HTTPError as exc:
             body = exc.read().decode()

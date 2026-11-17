@@ -268,6 +268,7 @@ class SkillRegistry:
                 continue
             if not data.get("description") and not body.strip():
                 continue
+            shell_name = str(data.get("shell", "bash"))
             skill = Skill(
                 name=name,
                 description=str(data.get("description", "")),
@@ -285,9 +286,7 @@ class SkillRegistry:
                 background=_parse_bool(data.get("background", True)),
                 hooks=data.get("hooks", []) if isinstance(data.get("hooks"), list) else [],
                 paths=_parse_list(data.get("paths")),
-                shell=str(
-                    data.get("shell", "bash")
-                ),  # nosec B604 — skill shell name string, not subprocess shell=True
+                shell=shell_name,  # nosec B604  # skill shell name (bash/powershell), not a subprocess flag
                 metadata=data.get("metadata", {}) if isinstance(data.get("metadata"), dict) else {},
                 license=data.get("license"),
                 compatibility=data.get("compatibility"),

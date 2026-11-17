@@ -21,6 +21,7 @@ from pathlib import Path
 
 from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import safe_urlopen
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 
@@ -407,7 +408,7 @@ class TokenCounter:
         :class:`ZCoderError` and never exposed as raw urllib exceptions.
         """
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with safe_urlopen(req, timeout=30) as resp:
                 body = resp.read()
             return json.loads(body)
         except Exception as exc:

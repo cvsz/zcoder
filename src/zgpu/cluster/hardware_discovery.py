@@ -14,7 +14,7 @@ import os
 import platform
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404  # fixed hardware-probe argv lists, no shell
 from pathlib import Path
 
 SCHEMA = "zgpu.hardware.v1"
@@ -25,7 +25,9 @@ def _command(argv: list[str], timeout: int = 3) -> str:
     if not shutil.which(argv[0]):
         return ""
     try:
-        result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+        result = subprocess.run(  # nosec B603  # argv from internal probe table, resolved via shutil.which
+            argv, capture_output=True, text=True, timeout=timeout, check=False
+        )
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return result.stdout[:32768] if result.returncode == 0 else ""

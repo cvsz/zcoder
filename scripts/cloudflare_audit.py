@@ -12,7 +12,7 @@ req = urllib.request.Request("https://api.cloudflare.com/client/v4/user/tokens/v
 try:
     with urllib.request.urlopen(
         req
-    ) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
+    ) as resp:  # nosec B310  # hardcoded https://api.cloudflare.com endpoint, not user-controlled
         data = json.loads(resp.read().decode())
         print("Token Verify:", data.get("success"), data.get("messages"))
 except Exception as e:
@@ -23,7 +23,7 @@ zone_id = None
 try:
     with urllib.request.urlopen(
         req
-    ) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
+    ) as resp:  # nosec B310  # hardcoded https://api.cloudflare.com endpoint, not user-controlled
         data = json.loads(resp.read().decode())
         for zone in data.get("result", []):
             print(f"Zone: {zone['name']} (ID: {zone['id']}, Status: {zone['status']})")
@@ -40,7 +40,7 @@ if zone_id:
     try:
         with urllib.request.urlopen(
             req
-        ) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
+        ) as resp:  # nosec B310  # hardcoded https://api.cloudflare.com endpoint, not user-controlled
             data = json.loads(resp.read().decode())
             for rec in data.get("result", []):
                 print(f"[{rec['type']}] {rec['name']} -> {rec['content']} (Proxied: {rec['proxied']})")
@@ -54,7 +54,7 @@ req = urllib.request.Request(
 try:
     with urllib.request.urlopen(
         req
-    ) as resp:  # nosec B310 — hardcoded https://api.cloudflare.com endpoint, not user-controlled
+    ) as resp:  # nosec B310  # hardcoded https://api.cloudflare.com endpoint, not user-controlled
         data = json.loads(resp.read().decode())
         for tunnel in data.get("result", []):
             print(

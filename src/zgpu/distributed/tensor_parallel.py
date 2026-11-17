@@ -20,7 +20,8 @@ class DistributedCrossbar:
 
     def all_reduce(self, shards: list[list[list[float]]]) -> list[list[list[float]]]:
         """Performs hardware All-Reduce SUM across all participating device shards."""
-        assert len(shards) == self.world_size
+        if len(shards) != self.world_size:
+            raise ValueError(f"expected {self.world_size} shards, got {len(shards)}")
         rows = len(shards[0])
         cols = len(shards[0][0])
 

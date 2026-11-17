@@ -511,13 +511,13 @@ typecheck:
 	$(PYTHON) -m mypy src/zcoder webapp --ignore-missing-imports
 
 security:
-	$(PYTHON) -m bandit -r src/zcoder webapp scripts -ll
+	$(PYTHON) -m bandit -c pyproject.toml -r src webapp scripts -ll
 
 check: lint typecheck security test-cov
 validated: check security-proven
 security-proven:
 	@echo "Running security verification..."
-	@python -m bandit -r src/zcoder -ll
+	@$(PYTHON) -m bandit -c pyproject.toml -r src webapp scripts -ll
 	@echo "Security verification complete"
 	@echo ""
 validated: check security-proven

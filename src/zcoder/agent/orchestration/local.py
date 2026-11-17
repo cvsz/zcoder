@@ -14,6 +14,7 @@ import urllib.request
 from typing import Any
 
 from zcoder.core.exceptions import APIError
+from zcoder.core.resilience import safe_urlopen
 
 from .adapter import ProviderAdapter, ProviderResult
 
@@ -115,7 +116,7 @@ class LocalAdapter(ProviderAdapter):
         )
 
         try:
-            with urllib.request.urlopen(request, timeout=300) as resp:
+            with safe_urlopen(request, timeout=300) as resp:
                 raw = json.loads(resp.read().decode())
         except urllib.error.HTTPError as exc:
             body = exc.read().decode()

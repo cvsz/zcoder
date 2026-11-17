@@ -18,6 +18,9 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from zcoder.core.exceptions import SecurityError
+from zcoder.core.outbound_security import safe_external_urlopen
+
 # Maximum bytes to fetch from a URL
 WEB_FETCH_MAX_BYTES = 1_000_000  # 1 MB
 
@@ -128,7 +131,8 @@ def fetch_url(url: str, max_bytes: int = WEB_FETCH_MAX_BYTES) -> WebFetchResult:
 
     while redirects < WEB_FETCH_MAX_REDIRECTS:
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            # SSRF guard: ปฏิเสธ loopback/private/link-local ทั้ง URL แรกและ redirect
+            with safe_external_urlopen(req, timeout=15) as resp:
                 content_type = resp.headers.get('Content-Type', '')
                 # Extract media type without charset
                 media_type = content_type.split(';')[0].strip().lower() if content_type else ''
@@ -144,10 +148,7 @@ def fetch_url(url: str, max_bytes: int = WEB_FETCH_MAX_BYTES) -> WebFetchResult:
                 # Decode content
                 charset = 'utf-8'
                 if 'charset=' in content_type:
-                    try:
-                        charset = content_type.split('charset=')[1].split(';')[0].strip().strip('"\'')
-                    except Exception:
-                        pass
+                    charset = content_type.split('charset=', 1)[1].split(';')[0].strip().strip('"\'') or 'utf-8'
 
                 try:
                     content = raw.decode(charset, errors='replace')
@@ -195,6 +196,9 @@ def fetch_url(url: str, max_bytes: int = WEB_FETCH_MAX_BYTES) -> WebFetchResult:
             raise
         except (urllib.error.URLError, OSError) as exc:
             raise WebFetchArgsError(f'Failed to fetch {url}: {exc}') from exc
+        except (ValueError, RuntimeError, SecurityError) as exc:
+            # URL ชี้ไป private/loopback address, scheme ไม่ใช่ http(s) หรือขัด outbound policy
+            raise WebFetchArgsError(f'Refusing to fetch {current_url}: {exc}') from exc
 
     raise WebFetchArgsError(f'Too many redirects for {url}')
 
