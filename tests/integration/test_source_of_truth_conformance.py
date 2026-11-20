@@ -2,29 +2,22 @@
 tests/test_source_of_truth_conformance.py — Source-of-Truth Conformance Tests
 
 Validates ZCoder runtime behavior and constants directly against independent
-authoritative Anthropic specifications, preventing regressions and false releases.
+authoritative specifications, preventing regressions and false releases.
 """
 
 from zcoder.agent.models.registry import (
     DEPRECATED_MODELS,
     INFERENCE_GEO_SUPPORTED,
-    MODEL_CATALOG,
     RETIRED_MODELS,
 )
-from zcoder.agent.models.sonnet5 import STANDARD_PRICE_IN_USD, STANDARD_PRICE_OUT_USD, current_pricing
+from zcoder.agent.models.sonnet5 import estimate_cost_usd
 from zcoder.core.resilience import extract_response_metadata
 
 
-def test_sonnet5_authoritative_price():
-    """Assert Sonnet 5 permanent pricing matches the August 10, 2026 announcement ($2.00 / $10.00)."""
-    assert STANDARD_PRICE_IN_USD == 2.0
-    assert STANDARD_PRICE_OUT_USD == 10.0
-    pricing = current_pricing()
-    assert pricing["price_in"] == 2.0
-    assert pricing["price_out"] == 10.0
-    catalog = MODEL_CATALOG["claude-sonnet-5"]
-    assert catalog["price_in"] == 2.0
-    assert catalog["price_out"] == 10.0
+def test_zcoder_models_are_free_local_inference():
+    """ZCoder models run locally on Ollama, so estimated cost is always zero."""
+    assert estimate_cost_usd(1_000_000, 1_000_000) == 0.0
+    assert estimate_cost_usd(0, 0) == 0.0
 
 
 def test_opus41_retired():
