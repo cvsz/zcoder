@@ -58,9 +58,9 @@ class TestCoderGenerate:
         coder = Coder(api_key="test-key", model="test-model")
 
         import json
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("zcoder.services.coder._open_local") as mock_open:
             mock_response = MagicMock()
             mock_response.read.return_value = json.dumps(
                 {
@@ -73,7 +73,7 @@ class TestCoderGenerate:
                     ]
                 }
             ).encode()
-            mock_urlopen.return_value.__enter__.return_value = mock_response
+            mock_open.return_value.__enter__.return_value = mock_response
 
             result = coder.generate("Hello")
             assert result == "Hello, world!"
@@ -82,7 +82,7 @@ class TestCoderGenerate:
         coder = Coder(api_key="test-key", model="test-model")
 
         import json
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(
@@ -96,10 +96,9 @@ class TestCoderGenerate:
                 ]
             }
         ).encode()
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.return_value.__enter__.return_value = mock_response
+        with patch("zcoder.services.coder._open_local") as mock_open:
+            mock_open.return_value.__enter__.return_value = mock_response
             result = coder.generate("Hello", system="You are helpful")
             assert result == "System response"
 
@@ -107,15 +106,14 @@ class TestCoderGenerate:
         coder = Coder(api_key="test-key", model="test-model")
 
         import json
-        from unittest.mock import patch, MagicMock
+        import urllib.error
+        from io import BytesIO
+        from unittest.mock import patch
 
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps({"error": {"message": "Invalid API key"}}).encode()
-        mock_response.status = 401
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        err_body = json.dumps({"error": {"message": "Invalid API key"}}).encode()
+        http_err = urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 401, "Unauthorized", {}, BytesIO(err_body))
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.return_value.__enter__.return_value = mock_response
+        with patch("zcoder.services.coder._open_local", side_effect=http_err):
             result = coder.generate("Hello")
             assert "API ERROR 401" in result
 
@@ -123,15 +121,14 @@ class TestCoderGenerate:
         coder = Coder(api_key="test-key", model="test-model")
 
         import json
-        from unittest.mock import patch, MagicMock
+        import urllib.error
+        from io import BytesIO
+        from unittest.mock import patch
 
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps({"error": {"message": "Rate limited"}}).encode()
-        mock_response.status = 429
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        err_body = json.dumps({"error": {"message": "Rate limited"}}).encode()
+        http_err = urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 429, "Too Many Requests", {}, BytesIO(err_body))
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.return_value.__enter__.return_value = mock_response
+        with patch("zcoder.services.coder._open_local", side_effect=http_err):
             result = coder.generate("Hello")
             assert "API ERROR 429" in result
 
@@ -139,15 +136,14 @@ class TestCoderGenerate:
         coder = Coder(api_key="test-key", model="test-model")
 
         import json
-        from unittest.mock import patch, MagicMock
+        import urllib.error
+        from io import BytesIO
+        from unittest.mock import patch
 
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps({"error": {"message": "Server error"}}).encode()
-        mock_response.status = 500
-        mock_urlopen.return_value.__enter__.return_value = mock_response
+        err_body = json.dumps({"error": {"message": "Server error"}}).encode()
+        http_err = urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 500, "Internal Server Error", {}, BytesIO(err_body))
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.return_value.__enter__.return_value = mock_response
+        with patch("zcoder.services.coder._open_local", side_effect=http_err):
             result = coder.generate("Hello")
             assert "[ERROR]" in result
 
@@ -155,13 +151,12 @@ class TestCoderGenerate:
         coder = Coder(api_key="test-key", model="test-model")
 
         import json
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"not_choices": {}}).encode()
-        mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            mock_urlopen.return_value.__enter__.return_value = mock_response
+        with patch("zcoder.services.coder._open_local") as mock_open:
+            mock_open.return_value.__enter__.return_value = mock_response
             result = coder.generate("Hello")
             assert "[ERROR]" in result
