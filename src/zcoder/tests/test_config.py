@@ -1,10 +1,12 @@
 """Tests for zcoder.config.settings - typed config with env var overrides."""
 
+import json
 import os
 
 import pytest
 
-from zcoder.config.settings import Config, CONFIG_PATH
+import zcoder.config.settings as _settings_mod
+from zcoder.config.settings import CONFIG_PATH, Config
 
 
 class TestConfigDefaults:
@@ -102,7 +104,6 @@ class TestConfigEnvVarPriority:
     """Test that env vars override config file values."""
 
     def test_env_overrides_file(self, monkeypatch, tmp_path):
-        import json
 
         config_path = os.path.join(tmp_path, "test-config.json")
         with open(config_path, "w") as f:
@@ -110,7 +111,7 @@ class TestConfigEnvVarPriority:
 
 
         original_path = CONFIG_PATH
-        CONFIG_PATH = config_path
+        _settings_mod.CONFIG_PATH = config_path
 
         try:
             config = Config()
@@ -120,4 +121,4 @@ class TestConfigEnvVarPriority:
             config2 = Config()
             assert config2.get("model") == "env-model"
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path

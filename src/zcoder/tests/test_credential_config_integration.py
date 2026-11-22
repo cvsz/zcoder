@@ -6,7 +6,8 @@ import os
 
 import pytest
 
-from zcoder.config.settings import Config, CONFIG_PATH
+import zcoder.config.settings as _settings_mod
+from zcoder.config.settings import CONFIG_PATH, Config
 from zcoder.credentials.credential_seam import (
     CredentialError,
     CredentialInfo,
@@ -260,14 +261,14 @@ class TestEnvConfigLoading:
         monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
 
         original_path = CONFIG_PATH
-        CONFIG_PATH = str(tmp_path / "nonexistent.json")
+        _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
         try:
             config = Config()
             assert config.get("model") == "zcoder-flash"
             assert config.get("provider") == "openai_compatible"
             assert config.get("base_url") == "http://localhost:11434"
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path
 
     def test_env_var_override(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ZCODER_MODEL", "custom-model")
@@ -276,7 +277,7 @@ class TestEnvConfigLoading:
 
 
         original_path = CONFIG_PATH
-        CONFIG_PATH = str(tmp_path / "nonexistent.json")
+        _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
         try:
             config = Config()
@@ -284,27 +285,27 @@ class TestEnvConfigLoading:
             assert config.get("max_tokens") == 2048
             assert config.get("allow_network") is False
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path
 
     def test_env_var_invalid_falls_back_to_default(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ZCODER_MAX_TOKENS", "not-a-number")
 
 
         original_path = CONFIG_PATH
-        CONFIG_PATH = str(tmp_path / "nonexistent.json")
+        _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
         try:
             config = Config()
             assert config.get("max_tokens") == 8192
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path
 
     def test_config_persistence_round_trip(self, tmp_path):
 
 
         config_path = os.path.join(tmp_path, "test-config.json")
         original_path = CONFIG_PATH
-        CONFIG_PATH = config_path
+        _settings_mod.CONFIG_PATH = config_path
 
         try:
             config = Config()
@@ -316,7 +317,7 @@ class TestEnvConfigLoading:
             assert config2.get("model") == "persisted-model"
             assert config2.get("timeout_ms") == 5000
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path
 
     def test_env_var_overrides_file_value(self, monkeypatch, tmp_path):
         import json
@@ -327,7 +328,7 @@ class TestEnvConfigLoading:
             json.dump({"model": "file-model"}, f)
 
         original_path = CONFIG_PATH
-        CONFIG_PATH = config_path
+        _settings_mod.CONFIG_PATH = config_path
 
         try:
             config = Config()
@@ -337,17 +338,17 @@ class TestEnvConfigLoading:
             config2 = Config()
             assert config2.get("model") == "env-model"
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path
 
     def test_env_var_api_key(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ZCODER_API_KEY", "sk-test-12345")
 
 
         original_path = CONFIG_PATH
-        CONFIG_PATH = str(tmp_path / "nonexistent.json")
+        _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
         try:
             config = Config()
             assert config.get("api_key") == "sk-test-12345"
         finally:
-            CONFIG_PATH = original_path
+            _settings_mod.CONFIG_PATH = original_path
