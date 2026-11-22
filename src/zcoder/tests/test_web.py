@@ -17,7 +17,7 @@ class TestWebConfig:
         config = WebConfig(root=Path("/tmp"), token="a" * 32)
         assert config.root == Path("/tmp").resolve()
         assert config.token == "a" * 32
-        assert config.host == "127.0.0.1"
+        assert config.host == "0.0.0.0"
         assert config.port == 8421
         assert config.max_connections == 4
         assert config.max_prompt_chars == 100_000
@@ -71,10 +71,15 @@ class TestWebConfig:
         assert "https://example.com" in config.allowed_origins
 
     def test_allowed_hosts_includes_loopback(self):
-        config = WebConfig(root=Path("/tmp"), token="a" * 32)
+        config = WebConfig(root=Path("/tmp"), token="a" * 32, host="127.0.0.1")
         assert "127.0.0.1" in config.allowed_hosts
         assert "localhost" in config.allowed_hosts
         assert "::1" in config.allowed_hosts
+
+    def test_allowed_hosts_wildcard(self):
+        config = WebConfig(root=Path("/tmp"), token="a" * 32, host="0.0.0.0")
+        assert "*" in config.allowed_hosts
+        assert "*" in config.allowed_origins
 
 
 class TestGenerateToken:

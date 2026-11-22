@@ -85,7 +85,7 @@ def is_loopback(host: str) -> bool:
 class WebConfig:
     root: Path
     token: str
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"
     port: int = 8421
     extra_origins: tuple[str, ...] = ()
     extra_hosts: tuple[str, ...] = ()
@@ -105,10 +105,15 @@ class WebConfig:
         self.root = Path(self.root).resolve()
         names = {self.host, *LOOPBACK_NAMES, *self.extra_hosts}
         self.allowed_hosts = {n.strip("[]").lower() for n in names}
+        if self.host in {"0.0.0.0", "::", "[::]"}:
+            self.allowed_hosts.add("*")
+
         origins = set(self.extra_origins)
         for name in names:
             shown = f"[{name}]" if ":" in name else name
             origins.add(f"http://{shown}:{self.port}")
+        if self.host in {"0.0.0.0", "::", "[::]"}:
+            origins.add("*")
         self.allowed_origins = origins
         if self.agent_factory is None:
             root = self.root
@@ -154,14 +159,15 @@ class HostGuard:
 
     async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
         if scope["type"] in {"http", "websocket"}:
-            raw = dict(scope["headers"]).get(b"host", b"").decode("latin-1")
-            host = (urllib.parse.urlsplit("//" + raw).hostname or "").lower()
-            if host not in self.allowed:
-                if scope["type"] == "websocket":
-                    await send({"type": "websocket.close", "code": 1008})
-                else:
-                    await Response("Invalid host header", status_code=400)(scope, receive, send)
-                return
+            if "*" not in self.allowed:
+                raw = dict(scope["headers"]).get(b"host", b"").decode("latin-1")
+                host = (urllib.parse.urlsplit("//" + raw).hostname or "").lower()
+                if host not in self.allowed:
+                    if scope["type"] == "websocket":
+                        await send({"type": "websocket.close", "code": 1008})
+                    else:
+                        await Response("Invalid host header", status_code=400)(scope, receive, send)
+                    return
         await self.app(scope, receive, send)
 
 
@@ -738,7 +744,7 @@ def create_app(cfg: WebConfig) -> FastAPI:
     return app
 
 
-def serve(root: Path, *, host: str = "127.0.0.1", port: int = 8421, allow_remote: bool = False) -> int:
+def serve(root: Path, *, host: str = "0.0.0.0", port: int = 8421, allow_remote: bool = True) -> int:
     import sys
 
     if not is_loopback(host) and not allow_remote:

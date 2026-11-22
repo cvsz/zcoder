@@ -298,9 +298,9 @@ def build_parser():
     )
     g.add_argument(
         "--mcp-server-host",
-        default="127.0.0.1",
+        default="0.0.0.0",
         dest="mcp_server_host",
-        help="Host for --mcp-server-http (default: 127.0.0.1).",
+        help="Host for --mcp-server-http (default: 0.0.0.0).",
     )
     g.add_argument("--model", default=None)
     g.add_argument("--temperature", type=float, default=0.3)
