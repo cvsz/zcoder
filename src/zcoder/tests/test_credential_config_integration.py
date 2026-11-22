@@ -6,8 +6,7 @@ import os
 
 import pytest
 
-import zcoder.config.settings as _settings_mod
-from zcoder.config.settings import CONFIG_PATH, Config
+from zcoder.config import settings as _settings_mod
 from zcoder.credentials.credential_seam import (
     CredentialError,
     CredentialInfo,
@@ -258,12 +257,13 @@ class TestEnvConfigLoading:
 
     def test_config_defaults(self, monkeypatch, tmp_path):
         monkeypatch.delenv("ZCODER_MODEL", raising=False)
+        monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
         monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
 
-        original_path = CONFIG_PATH
+        original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
         try:
-            config = Config()
+            config = _settings_mod.Config()
             assert config.get("model") == "zcoder-flash"
             assert config.get("provider") == "openai_compatible"
             assert config.get("base_url") == "http://localhost:11434"
@@ -276,11 +276,11 @@ class TestEnvConfigLoading:
         monkeypatch.setenv("ZCODER_ALLOW_NETWORK", "false")
 
 
-        original_path = CONFIG_PATH
+        original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
         try:
-            config = Config()
+            config = _settings_mod.Config()
             assert config.get("model") == "custom-model"
             assert config.get("max_tokens") == 2048
             assert config.get("allow_network") is False
@@ -291,29 +291,30 @@ class TestEnvConfigLoading:
         monkeypatch.setenv("ZCODER_MAX_TOKENS", "not-a-number")
 
 
-        original_path = CONFIG_PATH
+        original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
         try:
-            config = Config()
+            config = _settings_mod.Config()
             assert config.get("max_tokens") == 8192
         finally:
             _settings_mod.CONFIG_PATH = original_path
 
-    def test_config_persistence_round_trip(self, tmp_path):
+    def test_config_persistence_round_trip(self, monkeypatch, tmp_path):
 
 
         config_path = os.path.join(tmp_path, "test-config.json")
-        original_path = CONFIG_PATH
+        original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = config_path
 
         try:
-            config = Config()
+            config = _settings_mod.Config()
             config.set("model", "persisted-model")
             config.set("timeout_ms", 5000)
 
+            monkeypatch.delenv("ZCODER_MODEL", raising=False)
             # Reload from file
-            config2 = Config()
+            config2 = _settings_mod.Config()
             assert config2.get("model") == "persisted-model"
             assert config2.get("timeout_ms") == 5000
         finally:
@@ -327,15 +328,17 @@ class TestEnvConfigLoading:
         with open(config_path, "w") as f:
             json.dump({"model": "file-model"}, f)
 
-        original_path = CONFIG_PATH
+        original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = config_path
 
         try:
-            config = Config()
+            monkeypatch.delenv("ZCODER_MODEL", raising=False)
+            config = _settings_mod.Config()
             assert config.get("model") == "file-model"
 
+            monkeypatch.delenv("ZCODER_MODEL", raising=False)
             monkeypatch.setenv("ZCODER_MODEL", "env-model")
-            config2 = Config()
+            config2 = _settings_mod.Config()
             assert config2.get("model") == "env-model"
         finally:
             _settings_mod.CONFIG_PATH = original_path
@@ -344,11 +347,11 @@ class TestEnvConfigLoading:
         monkeypatch.setenv("ZCODER_API_KEY", "sk-test-12345")
 
 
-        original_path = CONFIG_PATH
+        original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
         try:
-            config = Config()
+            config = _settings_mod.Config()
             assert config.get("api_key") == "sk-test-12345"
         finally:
             _settings_mod.CONFIG_PATH = original_path
