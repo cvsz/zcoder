@@ -587,7 +587,7 @@ def build_fastapi_app(server: MCPServer) -> Any:
     return app
 
 
-def run_http(server: MCPServer, host: str = "127.0.0.1", port: int = 8422) -> None:
+def run_http(server: MCPServer, host: str = "0.0.0.0", port: int = 8422) -> None:
     """Run the MCP server over HTTP/SSE using uvicorn."""
     try:
         import uvicorn
@@ -595,7 +595,19 @@ def run_http(server: MCPServer, host: str = "127.0.0.1", port: int = 8422) -> No
         raise MCPError("uvicorn is required for HTTP MCP transport: pip install uvicorn") from exc
 
     app = build_fastapi_app(server)
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    loop = "uvloop"
+    try:
+        import uvloop  # noqa: F401
+    except ImportError:
+        loop = "auto"
+
+    http = "httptools"
+    try:
+        import httptools  # noqa: F401
+    except ImportError:
+        http = "auto"
+
+    uvicorn.run(app, host=host, port=port, log_level="warning", loop=loop, http=http)
 
 
 # ---------------------------------------------------------------------------
@@ -603,7 +615,7 @@ def run_http(server: MCPServer, host: str = "127.0.0.1", port: int = 8422) -> No
 # ---------------------------------------------------------------------------
 
 
-async def run_websocket(server: MCPServer, host: str = "127.0.0.1", port: int = 8423) -> None:
+async def run_websocket(server: MCPServer, host: str = "0.0.0.0", port: int = 8423) -> None:
     """Serve MCP over WebSocket."""
     try:
         import websockets
