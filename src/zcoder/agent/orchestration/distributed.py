@@ -55,7 +55,7 @@ class TaskStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
-@dataclass(frozen=True)
+@dataclass
 class DistributedTask:
     """A unit of work distributable across workers."""
 
@@ -229,13 +229,12 @@ class DistributedQueue:
                 return False
             heapq.heappush(self._heap, task)
             self._task_map[task.id] = task
-            async with self._not_empty:
-                self._not_empty.notify()
+            self._not_empty.notify()
             return True
 
     async def dequeue(self) -> DistributedTask | None:
         """Remove and return the highest priority task."""
-        async with self._not_empty:
+        async with self._lock:
             while not self._heap:
                 await self._not_empty.wait()
             task = heapq.heappop(self._heap)
@@ -258,11 +257,16 @@ class DistributedQueue:
 
     def remove_task(self, task_id: str) -> bool:
         """Remove a task from the queue by ID."""
-        task = self._task_map.get(task_id)
+        task = self._task_map.pop(task_id, None)
         if task is None:
             return False
-        # Mark as cancelled
+        # Mark as cancelled and remove from heap
         task.status = TaskStatus.CANCELLED
+        try:
+            self._heap.remove(task)
+            heapq.heapify(self._heap)
+        except ValueError:
+            pass
         return True
 
     def is_full(self) -> bool:
