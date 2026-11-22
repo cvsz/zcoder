@@ -16,13 +16,16 @@ Evidence tier: UNIT_TESTED (these tests) + SOURCE_VERIFIED (code trace below)
 """
 
 import socket
-import zcoder.core.outbound_security
-
-from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url, _ExternalRedirectHandler
 
 import pytest
 
 from zcoder.agent.rag.research import DeepResearchAgent
+from zcoder.core import outbound_security as _outbound_security
+from zcoder.core.outbound_security import (
+    _ExternalRedirectHandler,
+    safe_external_urlopen,
+    validate_external_http_url,
+)
 
 
 class TestSEC001DeepResearchSSRF:
@@ -174,7 +177,7 @@ class TestSEC001DeepResearchSSRF:
 
         monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
         monkeypatch.setenv("HTTPS_PROXY", "http://evil-proxy:8888")
-        monkeypatch.setattr(zcoder.core.outbound_security, "validate_external_http_url", lambda _url: None)
+        monkeypatch.setattr(_outbound_security, "validate_external_http_url", lambda _url: None)
         monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
 
         req = urllib.request.Request("https://public.example/data")
