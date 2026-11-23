@@ -144,8 +144,8 @@ def optimize_advanced(
     # Apply context-aware rules based on detected context
     context = _detect_context(prompt)
     if context in _CONTEXT_RULES:
-        for pattern, replacement in _CONTEXT_RULES[context]:
-            optimized = _apply_context_rule(optimized, pattern, replacement)
+        for rule_pattern, rule_replacement in _CONTEXT_RULES[context]:
+            optimized = _apply_context_rule(optimized, rule_pattern, rule_replacement)
 
     # Remove excessive whitespace (universal rule)
     optimized = "\n".join(line.rstrip() for line in optimized.split("\n"))

@@ -85,6 +85,7 @@ def test_health_check_does_not_require_provider_credentials(monkeypatch):
 
 
 def test_health_check_rejects_non_loopback_model_url(monkeypatch):
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     monkeypatch.setenv("ZCODER_BASE_URL", "https://models.example.com/v1")
     check = _check_model_config()
     assert not check.ok

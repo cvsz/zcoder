@@ -91,3 +91,11 @@ deploy/supabase/
 .DS_Store
 Thumbs.db
 external/cloudflare-os
+
+# Local runtime & test artifacts
+makecheck.txt
+run/*.pid
+
+# External skills submodules / clones
+NVIDIA_skills/
+skills/nvidia/
