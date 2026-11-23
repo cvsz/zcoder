@@ -3,6 +3,8 @@
 import tomllib
 from importlib.metadata import version
 
+from zcoder import main
+
 __version__ = version("zcoder")
 
 

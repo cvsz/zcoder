@@ -1,62 +1,55 @@
 # Local Inference Configuration
 
 ZCoder's default prompt client sends chat-completion requests to a local
-llama.cpp server. The client requires a loopback HTTP endpoint and rejects
+Ollama server (http://127.0.0.1:11434). The client requires a loopback HTTP endpoint and rejects
 redirects.
 
-## Run llama.cpp on the host
+## Run Ollama on the host
+
+Models are stored in `/zdata/models/`. Ollama serves them on loopback:
 
 ```bash
-llama-server \
-  --model /home/cvsz/zcoder/models/qwen-7b-q4km.gguf \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --ctx-size 4096
+ollama serve
 ```
 
-For lower memory use, load
-`/home/cvsz/zcoder/models/qwen-1.5b-q4km.gguf` instead. The GGUF must exist
-and be readable by the server process.
+Available models read from `/zdata/models/`:
+- `zcoder-flash` (`zcoder-flash.gguf`)
+- `zcoder-pro` (`zcoder-pro.gguf`)
+- `zcoder-max` (`zcoder-max.gguf`)
+- `zcoder-promax` (`zcoder-promax.gguf`)
 
 ## Run with Docker Compose
 
-Docker Compose starts a dedicated `llama-server` service and runs ZCoder
+Docker Compose starts a dedicated `ollama` service and runs ZCoder
 against it. Copy `.env.example` to `.env`, then confirm the configured
-model file exists in the configured models directory:
+models exist in `/zdata/models/`:
 
 ```bash
 cp -n .env.example .env
-ls -lh models/qwen-7b-q4km.gguf
+ls -lh /zdata/models/
 docker compose config
 docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
+docker compose logs -f ollama
 ```
 
 If `.env` already exists, keep it and update only the required model settings.
 
 The default settings are:
 
-- `ZCODER_MODELS_DIR=./models`
-- `ZCODER_GGUF_FILE=qwen-7b-q4km.gguf`
-- `ZCODER_MODEL=qwen-7b-q4km`
-- `ZCODER_CTX_SIZE=4096`
-
-To use the smaller model, set `ZCODER_GGUF_FILE=qwen-1.5b-q4km.gguf` and
-`ZCODER_MODEL=qwen-1.5b-q4km` in `.env`. The selected GGUF is mounted
-read-only at `/models`; weights are not copied into the ZCoder image or
-committed to Git. The model service listens on loopback and publishes no host
-port. ZCoder shares that service's network namespace, preserving the client's
-loopback-only URL validation without allowing arbitrary Compose hostnames.
-
-The first run downloads the llama.cpp image and builds the ZCoder image. Model
-loading can take time; Compose waits for the model server health check before
-running ZCoder. Use `docker compose logs -f llama-server` to inspect loading
-and `docker compose down` to stop the server and remove the Compose network.
+- `ZCODER_MODELS_DIR=/zdata/models`
+- `ZCODER_MODEL=zcoder-pro`
+- `ZCODER_BASE_URL=http://127.0.0.1:11434/v1`
+- `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+- `ZCODER_PROVIDER=ollama`
+- `ZCODER_CTX_SIZE=32768`
 
 ## Configure ZCoder when running from source
 
 ```bash
-export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-export ZCODER_MODEL=qwen-7b-q4km
+export ZCODER_BASE_URL=http://127.0.0.1:11434/v1
+export OLLAMA_BASE_URL=http://127.0.0.1:11434
+export ZCODER_MODEL=zcoder-pro
+export ZCODER_PROVIDER=ollama
 zcoder -p "Review the supplied source code"
 ```
 
@@ -67,13 +60,15 @@ the chat-completions path.
 ## Verification
 
 ```bash
-curl --fail http://127.0.0.1:8080/health
+# ตรวจสอบ Ollama (port 11434)
+curl --fail http://127.0.0.1:11434/api/version
+# รัน ZCoder test prompt
 zcoder -p "Reply with exactly LOCAL_OK"
 ```
 
 For Docker, run the CLI smoke test above; the inference endpoint is intentionally
-not exposed on the host, so a host-side `curl` to port 8080 is not expected to
-work.
+not exposed on the host, so a host-side `curl` to port 11434 from outside the container
+is not expected to work unless port-mapped.
 
 Do not bind the model server to a public interface unless a separately
 reviewed authentication and network policy protects it. Local inference uses

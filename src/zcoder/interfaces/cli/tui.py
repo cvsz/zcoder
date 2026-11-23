@@ -5,7 +5,7 @@ Launched via `python main.py --tui` (see main.py). This is a second front
 end alongside the plain-argparse CLI and the FastAPI web console
 (webapp/), reusing the exact same core the other two do:
 
-    llama-server              -> local chat/generation over its OpenAI-
+    Ollama                    -> local chat/generation over its OpenAI-
                                   compatible loopback endpoint
     personalities.py          -> PersonalityManager
     skills.py                 -> SkillManager
@@ -69,7 +69,7 @@ from zcoder.interfaces.cli.tui_tools import ToolCall, ToolResult, TUIToolExecuto
 from zcoder.services.skills import SkillManager
 
 DEFAULT_MODEL = "zcoder-7b"
-DEFAULT_BASE_URL = "http://127.0.0.1:8080"
+DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 
 
 @dataclass
@@ -121,18 +121,18 @@ class ErrorDisplay(Message):
 
 
 def _local_server_base_url() -> str:
-    """Return a loopback-only llama-server URL; never allow hosted egress."""
+    """Return a loopback-only Ollama server URL; never allow hosted egress."""
     base_url = os.getenv("ZCODER_BASE_URL", DEFAULT_BASE_URL).strip().rstrip("/")
     parsed = urllib.parse.urlsplit(base_url)
     if (
         parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "::1"}
+        or parsed.hostname not in {"127.0.0.1", "::1", "0.0.0.0", "localhost"}
         or parsed.username
         or parsed.password
         or parsed.query
         or parsed.fragment
     ):
-        raise ValueError("ZCODER_BASE_URL must point to a local llama-server on loopback.")
+        raise ValueError("ZCODER_BASE_URL must point to a local Ollama server on loopback.")
     return base_url
 
 
@@ -207,7 +207,7 @@ class SessionSidebar(Vertical):
 
 
 class ZCoderTUI(App):
-    """Interactive chat UI that sends requests only to loopback llama-server."""
+    """Interactive chat UI that sends requests only to loopback Ollama server."""
 
     TITLE = "ZCoder"
     SUB_TITLE = "Coding assistant"
@@ -494,7 +494,7 @@ class ZCoderTUI(App):
 
     def _status_text(self) -> str:
         if self.local_server_error:
-            return f"llama-server unavailable at {self.local_server_url} · check local model service"
+            return f"Ollama unavailable at {self.local_server_url} · check local model service"
         return f"GGUF: {self._selected_model()}  ·  {self._short_directory()}  ·  local inference"
 
     def on_mount(self) -> None:
@@ -553,7 +553,7 @@ class ZCoderTUI(App):
             models = payload.get("data", [])
             model_id = next((item.get("id") for item in models if item.get("id")), None)
             if not model_id:
-                raise RuntimeError("llama-server returned no loaded model.")
+                raise RuntimeError("Local model server returned no loaded model.")
             self.call_from_thread(self._set_server_model, model_id)
         except Exception as exc:
             self.call_from_thread(self._set_server_error, str(exc))
@@ -937,7 +937,7 @@ class ZCoderTUI(App):
             server_state = self.local_server_error or "connected"
             self._show_message(
                 "system",
-                f"provider: local llama.cpp · model: {self._selected_model()} · "
+                f"provider: local Ollama · model: {self._selected_model()} · "
                 f"server: {server_state} · directory: {self.working_directory} · "
                 f"turns: {len(self.history) // 2}",
             )
@@ -952,15 +952,13 @@ class ZCoderTUI(App):
         if command == "/model":
             if argument and argument != self._selected_model():
                 self._show_message(
-                    "error",
-                    "llama-server loads one GGUF at a time. Restart it with the desired GGUF, "
-                    "then start a new TUI session.",
+                    "system",
+                    f"Selected model: {argument}. Ensure the model is available in Ollama.",
                 )
             else:
                 self._show_message(
                     "system",
-                    f"Loaded GGUF: {self._selected_model()}. To change it, restart llama-server "
-                    "with the other GGUF, then reopen the TUI.",
+                    f"Loaded model: {self._selected_model()}.",
                 )
             return True
         if command in {"/agent", "/skill"}:
@@ -1085,7 +1083,7 @@ class ZCoderTUI(App):
         self.query_one("#prompt_input", Input).disabled = False
         self.query_one("#send_btn", Button).disabled = False
         if failed:
-            self.local_server_error = "The local model request failed. Check llama-server and retry."
+            self.local_server_error = "The local model request failed. Check Ollama and retry."
         self._refresh_session_labels()
 
     def _messages(self, prompt: str, system: str | None, history: list[dict]) -> list[dict]:
@@ -1116,10 +1114,10 @@ class ZCoderTUI(App):
             return _open_local(request, timeout=300)
         except urllib.error.HTTPError as exc:
             body = exc.read(500).decode("utf-8", errors="replace")
-            raise RuntimeError(f"llama-server returned HTTP {exc.code}: {body}") from exc
+            raise RuntimeError(f"Ollama returned HTTP {exc.code}: {body}") from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(
-                f"Cannot connect to local llama-server at {self.local_server_url}: {exc.reason}"
+                f"Cannot connect to local Ollama server at {self.local_server_url}: {exc.reason}"
             ) from exc
 
     def _complete_local(self, prompt, model, system, temperature, history) -> str:
@@ -1127,10 +1125,10 @@ class ZCoderTUI(App):
             payload = json.loads(response.read().decode("utf-8"))
         choices = payload.get("choices") or []
         if not choices:
-            raise RuntimeError("llama-server returned no completion choices.")
+            raise RuntimeError("Local model server returned no completion choices.")
         content = (choices[0].get("message") or {}).get("content", "")
         if not isinstance(content, str):
-            raise RuntimeError("llama-server returned an unsupported response format.")
+            raise RuntimeError("Local model server returned an unsupported response format.")
         return content
 
     def _stream_reply(self, prompt, model, system, temperature, history, reply_widget) -> str:
@@ -1162,7 +1160,7 @@ class ZCoderTUI(App):
                     self.call_from_thread(reply_widget.update_text, full_text)
                     self.call_from_thread(self.query_one("#transcript").scroll_end, animate=False)
         if not full_text:
-            raise RuntimeError("llama-server returned an empty streamed response.")
+            raise RuntimeError("Local model server returned an empty streamed response.")
         # Flush the final unpainted delta so the transcript matches history.
         self.call_from_thread(reply_widget.update_text, full_text)
         self.call_from_thread(self.query_one("#transcript").scroll_end, animate=False)

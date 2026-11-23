@@ -8,7 +8,7 @@
 
 ## สถาปัตยกรรม
 
-`zPITR` รันเป็น sidecar container บนเครือข่าย Docker `zPostgreSQL_network` ร่วมกับ `zpostgressql` (บริการ PostgreSQL เฉพาะของ ZCoder, ฐานข้อมูล `zcoder_db`, role `zcoder`) ประกอบด้วย:
+`zPITR` รันเป็น sidecar container บนเครือข่าย Docker `zpostgressql_network` ร่วมกับ `zpostgressql` (บริการ PostgreSQL เฉพาะของ ZCoder, ฐานข้อมูล `zcoder_db`, role `zcoder`) ประกอบด้วย:
 
 - **`pg_receivewal` daemon** — สตรีม WAL อย่างต่อเนื่องจาก `zpostgressql` เข้า volume `zpitr_wal_archive` (RPO < 5 นาที)
 - **`pg_basebackup` scheduler** — สำรองฐานข้อมูลทั้งก้อนเป็นระยะด้วย manifest SHA-256 เข้า volume `zpitr_base_backups`

@@ -59,7 +59,7 @@ class ConfigFields(TypedDict, total=False):
 # Default values for all config fields. These are the defaults used when
 # a field is not present in the stored config file.
 DEFAULT_CONFIG: ConfigFields = {
-    "provider": "openai_compatible",
+    "provider": "ollama",
     "model": "zcoder-flash",
     "base_url": "http://localhost:11434",
     "api_key": "",

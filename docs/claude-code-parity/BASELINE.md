@@ -172,7 +172,7 @@ No circular dependencies verified by architecture tests.
 
 ### PostgreSQL (Enterprise)
 - **Container:** zpostgressql (PostgreSQL 15 Alpine)
-- **Network:** zPostgreSQL_network
+- **Network:** zpostgressql_network
 - **Database:** zcoder_db
 - **Role:** zcoder
 - **Credentials:** File-based secrets (~/.config/zcoder/postgresql.password)

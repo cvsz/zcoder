@@ -91,7 +91,7 @@ class _RejectStreamRedirects(urllib.request.HTTPRedirectHandler):
 
 
 class StreamCoder:
-    """Stream text from local llama-server; retain legacy remote tool streams."""
+    """Stream text from local Ollama server; retain legacy remote tool streams."""
 
     def __init__(
         self, api_key: str = "", model: str = "zqwen2.5-coder-7b-instruct-q4_k_m", max_tokens: int = 4096
@@ -100,7 +100,7 @@ class StreamCoder:
         self.model = model
         self.max_tokens = max_tokens
         self.client = None
-        self.base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip().rstrip("/")
+        self.base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1").strip().rstrip("/")
 
     def stream(
         self,
@@ -113,13 +113,13 @@ class StreamCoder:
         parsed = urllib.parse.urlsplit(self.base_url)
         if (
             parsed.scheme != "http"
-            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
             or parsed.username
             or parsed.password
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("ZCODER_BASE_URL must point to a local llama-server on loopback")
+            raise ValueError("ZCODER_BASE_URL must point to a local Ollama server on loopback")
         endpoint_base = self.base_url if parsed.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
         messages = [{"role": "user", "content": prompt}]
         if system:

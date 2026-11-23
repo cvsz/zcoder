@@ -57,8 +57,12 @@ class Coder:
         self.model = model or os.getenv("ZCODER_MODEL", "zcoder-flash")
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.provider = (provider or "local").strip().lower()
-        self.base_url = (base_url or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1")).rstrip("/")
+        self.provider = (provider or os.getenv("ZCODER_PROVIDER", "ollama")).strip().lower()
+        self.base_url = (
+            base_url
+            or os.getenv("OLLAMA_BASE_URL")
+            or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")
+        ).rstrip("/")
         self.personality_style = personality_style
         # service_tier: "auto" (use Priority Tier if committed, else fall
         # back to standard) or "standard_only". Not sent unless set — most
@@ -77,12 +81,12 @@ class Coder:
 
     def generate(self, prompt, system=None, file_content=None, history=None):
         """Generate a response from the AI model."""
-        if self.provider not in {"local", "llama_cpp", "openai_compatible"}:
+        if self.provider not in {"local", "llama_cpp", "openai_compatible", "ollama"}:
             return "[ERROR] The command-line coding client only supports local inference."
         parsed_url = urllib.parse.urlsplit(self.base_url)
         if (
             parsed_url.scheme != "http"
-            or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
             or parsed_url.username
             or parsed_url.password
             or parsed_url.query

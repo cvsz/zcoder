@@ -14,7 +14,7 @@ Managed via `uv.lock` and `requirements.txt` / `requirements-dev.txt`.
 ### Docker Base Images
 - `python:3.14-slim` → `python:3.15-slim` was proposed (Dependabot PR #158) but **closed without merge** — not adopted
 - `postgres:15-alpine` for zpostgressql service
-- `ghcr.io/ggml-org/llama.cpp:server` for local inference
+- `ollama/ollama:latest` for local inference (Ollama replaces `ghcr.io/ggml-org/llama.cpp:server` since v1.60.0)
 
 ### GitHub Actions
 Multiple Dependabot PRs merged keeping actions up to date:

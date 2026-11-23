@@ -1,7 +1,12 @@
-"""Multi-sector GGUF model server controller for ZCoder local inference.
+"""Multi-sector model management controller for ZCoder local inference via Ollama.
 
-Starts/stops/restarts/reports status of llama-server instances, one per
-sector, each serving a single GGUF model on a dedicated loopback port.
+จัดการ model lifecycle บน Ollama (port 11434) สำหรับ ZCoder local inference
+Models อ่านจาก /zdata/models/ และ registered ผ่าน Ollama
+
+ตั้งแต่ ZCoder v1.60.0: ใช้ Ollama เป็น inference runtime ทั้งหมด
+  - llama-server binary ถูกยกเลิกแล้ว
+  - Ollama จัดการ GGUF loading/unloading โดยตรง
+  - Health check ผ่าน http://127.0.0.1:11434/api/version
 
 All traffic stays on loopback (127.0.0.1); no hosted model API is used.
 """
@@ -25,7 +30,8 @@ except Exception as exc:  # pragma: no cover - environment guard
     raise SystemExit(f"PyYAML is required to read the model config: {exc}") from exc
 
 DEFAULT_CONFIG = "/home/cvsz/zcoder/config/models.yaml"
-HEALTH_PATH = "/health"
+HEALTH_PATH = "/api/version"
+OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 
 
 class ModelServerError(RuntimeError):
@@ -73,7 +79,7 @@ def load_config(path: str) -> dict[str, Any]:
 
 def build_sectors(cfg: dict[str, Any]) -> list[Sector]:
     models_dir = str(cfg.get("models_dir", "/zdata/models"))
-    binary = str(cfg.get("llama_server_binary", "/home/cvsz/.local/bin/llama-server"))
+    binary = str(cfg.get("model_server_binary", cfg.get("llama_server_binary", "/usr/local/bin/ollama")))
     run_dir = str(cfg.get("run_dir", "/home/cvsz/zcoder/run"))
     log_dir = str(cfg.get("log_dir", "/home/cvsz/zcoder/logs"))
     default_ctx = int(cfg.get("default_ctx_size", 4096))
@@ -86,7 +92,7 @@ def build_sectors(cfg: dict[str, Any]) -> list[Sector]:
                 name=name,
                 model=str(entry["model"]),
                 alias=str(entry.get("alias", name)),
-                host=str(entry.get("host", "127.0.0.1")),
+                host=str(entry.get("host", os.getenv("HOST", "0.0.0.0"))),
                 port=int(entry["port"]),
                 ctx_size=int(entry.get("ctx_size", default_ctx)),
                 enabled=bool(entry.get("enabled", False)),
@@ -146,13 +152,17 @@ def remove_pidfile(pidfile: str) -> None:
 
 
 def health_ok(sector: Sector, timeout: float = 3.0) -> bool:
-    url = f"{sector.base_url}{HEALTH_PATH}"
-    req = urllib.request.Request(url, headers={"Accept": "*/*"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status == 200
-    except (OSError, urllib.error.URLError, ValueError):
-        return False
+    """ตรวจสอบ Ollama health ผ่าน /api/version หรือ /api/tags (Ollama-native paths)."""
+    for path in (HEALTH_PATH, "/api/tags", "/api/version", "/"):
+        url = f"{sector.base_url}{path}"
+        req = urllib.request.Request(url, headers={"Accept": "*/*"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status == 200:
+                    return True
+        except (OSError, urllib.error.URLError, ValueError):
+            continue
+    return False
 
 
 def sector_running(sector: Sector) -> tuple[bool, int | None]:
@@ -167,34 +177,48 @@ def sector_running(sector: Sector) -> tuple[bool, int | None]:
 
 
 def start_sector(sector: Sector, start_timeout: int) -> None:
+    """เริ่ม Ollama สำหรับ sector นี้ (ถ้ายังไม่รัน).
+
+    Ollama เป็น shared singleton process (port 11434) ไม่ใช่ per-sector process
+    เหมือน llama-server  ฟังก์ชันนี้ตรวจสอบว่า Ollama healthy แล้วรายงาน
+    ถ้า Ollama ไม่รัน ผู้ใช้ต้องรัน 'ollama serve' หรือ 'docker compose up ollama'
+    """
     running, _pid = sector_running(sector)
     if running:
         print(f"[start] {sector.name}: already running (pid on port {sector.port})")
         return
 
+    # ตรวจสอบ Ollama ที่ port 11434 ก่อน (shared singleton)
+    ollama_req = urllib.request.Request(OLLAMA_BASE_URL + "/api/version", headers={"Accept": "*/*"})
+    try:
+        with urllib.request.urlopen(ollama_req, timeout=3.0) as resp:
+            if resp.status == 200:
+                print(
+                    f"[start] {sector.name}: Ollama is running on {OLLAMA_BASE_URL} "
+                    f"(model {sector.model})"
+                )
+                # Ollama ไม่มี per-process pid — ใช้ sentinel pid=0 บอก 'external'
+                write_pid(sector.pidfile, 0)
+                return
+    except (OSError, urllib.error.URLError, ValueError):
+        pass
+
     if not os.path.exists(sector.binary):
-        raise ModelServerError(f"llama-server binary not found: {sector.binary}")
+        raise ModelServerError(
+            f"Ollama binary not found: {sector.binary}\n"
+            "ติดตั้ง Ollama: https://ollama.com/download หรือ 'docker compose up ollama'"
+        )
     if not os.path.exists(sector.model_path):
-        raise ModelServerError(f"GGUF model not found: {sector.model_path}")
+        raise ModelServerError(
+            f"GGUF model not found: {sector.model_path}\n"
+            f"ตรวจสอบว่าไฟล์ {sector.model} อยู่ใน /zdata/models/ แล้ว"
+        )
 
     os.makedirs(sector.run_dir, exist_ok=True)
     os.makedirs(sector.log_dir, exist_ok=True)
 
-    cmd = [
-        sector.binary,
-        "--model",
-        sector.model_path,
-        "--alias",
-        sector.alias,
-        "--host",
-        sector.host,
-        "--port",
-        str(sector.port),
-        "--ctx-size",
-        str(sector.ctx_size),
-        "--threads",
-        "-1",
-    ]
+    # เรียก 'ollama serve' เป็น daemon
+    cmd = [sector.binary, "serve"]
 
     log_fh = open(sector.logfile, "ab")
     try:
@@ -214,7 +238,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
     while time.monotonic() < deadline:
         alive, _pid = sector_running(sector)
         if not alive:
-            raise ModelServerError(f"{sector.name}: llama-server exited during startup; see {sector.logfile}")
+            raise ModelServerError(f"{sector.name}: Ollama exited during startup; see {sector.logfile}")
         if health_ok(sector, timeout=2.0):
             print(
                 f"[start] {sector.name}: running on {sector.base_url} "
@@ -290,7 +314,7 @@ def list_sectors(sectors: list[Sector]) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Control ZCoder multi-sector GGUF model servers (llama-server)."
+        description="Control ZCoder multi-sector GGUF model servers (Ollama / loopback)."
     )
     parser.add_argument(
         "--config",

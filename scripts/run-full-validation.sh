@@ -12,7 +12,7 @@
 #   ZCODER_VALIDATION_PYTHON=/path/to/python scripts/run-full-validation.sh
 #
 # Environment:
-#   ZCODER_POSTGRES_CONTAINER   Local PostgreSQL container (default: zPostgreSQL)
+#   ZCODER_POSTGRES_CONTAINER   Local PostgreSQL container (default: zpostgressql)
 #   ZCODER_VALIDATION_PYTHON    Interpreter to validate (default: auto-detect)
 #   ZCODER_VALIDATION_RETENTION Keep this many newest validation dirs (0 = keep all)
 #   ZCODER_ALLOW_SKIPS=1        Do not fail when a required pytest step reports skips

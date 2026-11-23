@@ -1,36 +1,32 @@
 # Quickstart
 
-## Run from source with a local GGUF model
+## Run from source with Ollama
 
-Start llama.cpp in a separate terminal:
+Start Ollama in a separate terminal or verify the service:
 
 ```bash
-llama-server \
-  --model /home/cvsz/zcoder/models/qwen-7b-q4km.gguf \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --ctx-size 4096
+ollama serve
 ```
 
 Then install and run ZCoder:
 
 ```bash
 make setup
-export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
-export ZCODER_MODEL=qwen-7b-q4km
+export ZCODER_BASE_URL=http://127.0.0.1:11434/v1
+export OLLAMA_BASE_URL=http://127.0.0.1:11434
+export ZCODER_PROVIDER=ollama
+export ZCODER_MODEL=zcoder-pro
 zcoder -p "Write a function to reverse a string"
 ```
 
-For lower memory use, load `/home/cvsz/zcoder/models/qwen-1.5b-q4km.gguf` instead.
+Models are read from `/zdata/models/` (`zcoder-flash`, `zcoder-pro`, `zcoder-max`, `zcoder-promax`).
 See [Local inference configuration](docs/guides/LOCAL-INFERENCE.md) for
 details and endpoint checks.
 
-## Run with Docker Compose (local GGUF, no Anthropic API key)
+## Run with Docker Compose (Ollama local inference)
 
-Place the model files in the repository's `models/` directory. The expected
-default path is `models/qwen-7b-q4km.gguf`; Docker Compose mounts this
-directory read-only into the inference container. Model weights are excluded
-from Git and the Docker build context.
+GGUF model files are stored in `/zdata/models/`. Docker Compose mounts this
+directory read-only into the Ollama container.
 
 ```bash
 cp -n .env.example .env
@@ -40,10 +36,8 @@ docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
 
 If `.env` already exists, keep it and update only the required model settings.
 
-The first run downloads the llama.cpp server image and builds the ZCoder image.
-The server loads the GGUF before the command runs; the first model load can take
-a while. The inference port is not published to the host or LAN. ZCoder shares
-the inference service's network namespace and uses its loopback endpoint.
+The first run pulls the Ollama image and builds the ZCoder image.
+ZCoder shares the inference service's network namespace and uses its loopback endpoint.
 
 To use the smaller model, edit `.env`:
 

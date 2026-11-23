@@ -1185,7 +1185,7 @@ class _RejectModelRedirects(urllib.request.HTTPRedirectHandler):
 
 class CodeAgent:
     """
-    Local agentic coding loop using an OpenAI-compatible llama-server endpoint.
+    Local agentic coding loop using an OpenAI-compatible Ollama endpoint.
     """
 
     def __init__(
@@ -1196,7 +1196,7 @@ class CodeAgent:
         del api_key
         self.model = model
         self.max_tokens = max_tokens
-        self.base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip().rstrip("/")
+        self.base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1").strip().rstrip("/")
 
     @retry(max_attempts=4, base_delay=1.0, max_delay=15.0, breaker=_breaker)
     def _call(self, payload: dict, betas: list | None = None) -> dict:
@@ -1204,13 +1204,13 @@ class CodeAgent:
         parsed = urllib.parse.urlsplit(self.base_url)
         if (
             parsed.scheme != "http"
-            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
             or parsed.username
             or parsed.password
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("ZCODER_BASE_URL must point to a local llama-server on loopback")
+            raise ValueError("ZCODER_BASE_URL must point to a local Ollama server on loopback")
         endpoint_base = self.base_url if parsed.path.rstrip("/").endswith("/v1") else f"{self.base_url}/v1"
         messages = self._local_messages(payload.get("messages", []))
         local_payload = {

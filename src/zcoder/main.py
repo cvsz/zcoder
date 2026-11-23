@@ -65,7 +65,7 @@ def _is_local_only(args) -> bool:
             base_url = resolve_base_url(provider, getattr(args, "base_url", None))
             from urllib.parse import urlsplit
 
-            return urlsplit(base_url).hostname in {"127.0.0.1", "localhost", "::1"}
+            return urlsplit(base_url).hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
         return False
     except ValueError:
         return local_mode
@@ -321,7 +321,7 @@ def build_parser():
             "ollama",
             "local",
         ],
-        help="Model gateway provider (local llama.cpp is the default)",
+        help="Model gateway provider (local Ollama is the default)",
     )
     g.add_argument(
         "--base-url",
@@ -4698,7 +4698,8 @@ def main():
         c = Coder(
             api_key=key,
             model=model,
-            base_url=args.base_url,
+            provider=getattr(args, "provider", None) or os.getenv("ZCODER_PROVIDER", "ollama"),
+            base_url=args.base_url or os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://0.0.0.0:11434")),
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             service_tier=args.service_tier,

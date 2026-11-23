@@ -42,7 +42,7 @@ A typo in the PostgreSQL host name was fixed:
 export ZCODER_POSTGRES_HOST=zpostgressql
 
 # New (correct)
-export ZCODER_POSTGRES_HOST=zpostgresql
+export ZCODER_POSTGRES_HOST=zpostgressql
 ```
 
 ### Checking compatibility
@@ -61,7 +61,7 @@ differences:
 
 | Feature | Claude Code | ZCoder |
 |---------|-------------|--------|
-| Model provider | Anthropic API | Local llama.cpp (default) |
+| Model provider | Anthropic API | Local Ollama (default) |
 | API key required | Yes | No (local inference) |
 | Data privacy | Sends code to Anthropic | Stays local |
 | Session storage | Cloud | Local files/PostgreSQL |
@@ -74,9 +74,9 @@ differences:
    pip install -e .
    ```
 
-2. Start a local llama.cpp server:
+2. Start local Ollama:
    ```bash
-   llama-server --model /path/to/model.gguf --host 127.0.0.1 --port 8080
+   ollama serve
    ```
 
 3. Configure ZCoder:
@@ -160,7 +160,7 @@ To migrate configuration from another system, create a `~/.zcoder-config.json`:
 ```json
 {
   "model": "zcoder-flash",
-  "base_url": "http://127.0.0.1:8080/v1",
+  "base_url": "http://127.0.0.1:11434/v1",
   "max_tokens": 8192,
   "context_window": 32768,
   "sandbox_enabled": true,
@@ -190,7 +190,7 @@ format:
 
 ```yaml
 services:
-  zpostgresql:
+  zpostgressql:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: zcoder
@@ -200,19 +200,19 @@ services:
   zredis:
     image: redis:7-alpine
     ...
-  llama-server:
-    image: ghcr.io/ggml-org/llama.cpp:server
+  ollama:
+    image: ollama/ollama:latest
     ...
   zcoder:
     image: zcoder:latest
     environment:
-      ZCODER_BASE_URL: http://127.0.0.1:8080/v1
+      ZCODER_BASE_URL: http://127.0.0.1:11434/v1
       ZCODER_MODEL: ${ZCODER_MODEL:-zcoder-pro}
-      ZCODER_POSTGRES_HOST: zpostgresql
+      ZCODER_POSTGRES_HOST: zpostgressql
       ...
     depends_on:
-      - llama-server
-      - zpostgresql
+      - ollama
+      - zpostgressql
       - zredis
 ```
 
@@ -221,7 +221,7 @@ services:
 ### v1.60.0
 - Default model changed to `zcoder-flash`
 - Default models directory changed to `/zdata/models`
-- PostgreSQL host typo fixed (`zpostgressql` → `zpostgresql`)
+- PostgreSQL host configured as `zpostgressql`
 - Added Delete tool
 - Added DatabaseQuery and APICall tools
 - Added session projection features (token usage, cost tracking, analytics)

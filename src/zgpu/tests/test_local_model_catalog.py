@@ -77,7 +77,7 @@ def test_local_model_catalog_distinguishes_configured_runtime_model(tmp_path):
     )
     assert result["data"][0]["state"] == "configured_runtime_model"
     assert result["runtime"] == {
-        "provider": "llama.cpp",
+        "provider": "ollama",
         "model_id": "zgpu-local-test",
         "configured_model_in_inventory": True,
     }

@@ -10,7 +10,7 @@
 All checks below were executed locally against the working tree of this branch.
 No production data, no external provider calls, no destructive operations.
 PostgreSQL-backed integration/e2e tests were run via the disposable local
-Docker container (`zPostgreSQL_network`, database `zcoder_db`, role `zcoder`)
+Docker container (`zpostgressql_network`, database `zcoder_db`, role `zcoder`)
 provisioned by `scripts/local_postgres.py` (status: `zcoder_db ready for
 zcoder (PostgreSQL 15.19)`). Python interpreter: the project validation venv
 (`python 3.14` inside `.venv-validation`, per this machine's toolchain).

@@ -50,23 +50,22 @@ from zcoder.api.auth import parse_cors_origins  # noqa: E402
 from zcoder.config.logging import get_logger  # noqa: E402
 from zcoder.config.settings import Config  # noqa: E402
 from zcoder.core.health import run_health_check  # noqa: E402
+from zcoder.core.sqlite import sqlite_connection  # noqa: E402
 from zcoder.main import AGENT_SYSTEM_PROMPTS, VERSION  # noqa: E402
 from zcoder.services.coder import Coder  # noqa: E402
 from zcoder.services.skills import SkillManager  # noqa: E402
-from zcoder.core.sqlite import sqlite_connection  # noqa: E402
 
 # Import model-server controller (same module used by scripts/model-server).
 sys.path.insert(0, str(ROOT / "scripts"))
 from model_server import (  # noqa: E402
-    load_config,
     build_sectors,
+    health_ok,
+    load_config,
+    restart_sector,
     sector_by_name,
     start_sector,
-    stop_sector,
-    restart_sector,
     status_sector,
-    health_ok,
-    ModelServerError,
+    stop_sector,
 )
 
 logger = get_logger("webapp.server")
@@ -333,17 +332,18 @@ def _sector_for_model(model_id: str) -> dict | None:
 
 
 def _local_model_endpoint(path: str) -> str:
-    base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080").strip().rstrip("/")
+    base_url = os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434")).strip().rstrip("/")
     parsed = urllib.parse.urlsplit(base_url)
     if (
         parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+        and parsed.scheme != "https"
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
         or parsed.username
         or parsed.password
         or parsed.query
         or parsed.fragment
     ):
-        raise HTTPException(503, "ZCODER_BASE_URL must point to a local llama-server on loopback")
+        raise HTTPException(503, "ZCODER_BASE_URL must point to a local Ollama server on loopback")
     prefix = parsed.path.rstrip("/")
     if not prefix.endswith("/v1"):
         prefix = f"{prefix}/v1"
@@ -353,25 +353,33 @@ def _local_model_endpoint(path: str) -> str:
 def _local_model_endpoint_for_model(model_id: str, path: str) -> str:
     """Return the loopback endpoint for a specific model.
 
-    If the model is defined in config/models.yaml, use that sector's host:port.
-    Otherwise fall back to the ZCODER_BASE_URL environment variable.
+    If an environment override (ZCODER_BASE_URL or OLLAMA_BASE_URL) is set, use it.
+    Otherwise, if the model is defined in config/models.yaml, use that sector's host:port.
     """
-    sector = _sector_for_model(model_id)
-    if sector:
-        base_url = f"http://{sector.get('host', '127.0.0.1')}:{sector.get('port', 8080)}"
+    env_override = os.getenv("ZCODER_BASE_URL") or os.getenv("OLLAMA_BASE_URL")
+    if env_override and env_override.strip():
+        base_url = env_override.strip().rstrip("/")
     else:
-        base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080").strip().rstrip("/")
+        sector = _sector_for_model(model_id)
+        if sector:
+            base_url = f"http://{sector.get('host', '127.0.0.1')}:{sector.get('port', 11434)}"
+        else:
+            base_url = "http://127.0.0.1:11434"
     parsed = urllib.parse.urlsplit(base_url)
     if (
         parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+        and parsed.scheme != "https"
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
         or parsed.username
         or parsed.password
         or parsed.query
         or parsed.fragment
     ):
-        raise HTTPException(503, "model endpoint must point to a local llama-server on loopback")
-    return f"{base_url}/v1/{path.lstrip('/')}"
+        raise HTTPException(503, "model endpoint must point to a local Ollama server on loopback")
+    prefix = parsed.path.rstrip("/")
+    if not prefix.endswith("/v1"):
+        prefix = f"{prefix}/v1"
+    return f"{urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, prefix, '', ''))}/{path.lstrip('/')}"
 
 
 def _local_model_request(req: ChatRequest, history: list[dict], system: str | None, *, stream: bool):
@@ -399,7 +407,7 @@ def _local_model_request(req: ChatRequest, history: list[dict], system: str | No
         exc.close()
         raise HTTPException(502, f"Local model server returned HTTP {exc.code}") from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise HTTPException(503, "Cannot connect to the local llama-server") from exc
+        raise HTTPException(503, "Cannot connect to the local Ollama server") from exc
 
 
 class ConfigUpdate(BaseModel):
@@ -552,8 +560,7 @@ class ModelDownloadRequest(BaseModel):
 def download_model(req: ModelDownloadRequest, request: Request):
     """Download a GGUF model file from a URL into models_dir."""
     _require_auth(request)
-    from zcoder.core.outbound_security import validate_external_http_url, safe_external_urlopen
-    from zcoder.core.security import validate_name
+    from zcoder.core.outbound_security import safe_external_urlopen, validate_external_http_url
 
     # Validate URL is http/https and not private (SSRF protection)
     validate_external_http_url(req.url)
@@ -594,7 +601,7 @@ def download_model(req: ModelDownloadRequest, request: Request):
                 _os.remove(target_path)
         except OSError:
             pass
-        raise HTTPException(502, f"Download failed: {exc}")
+        raise HTTPException(502, f"Download failed: {exc}") from exc
 
     return {
         "ok": True,
@@ -767,9 +774,7 @@ def chat_stream(
                         yield f"data: {json.dumps({'type': 'token', 'text': content})}\n\n"
         except HTTPException as exc:
             public_message = (
-                "ZCODER_BASE_URL must point to a local llama-server on loopback"
-                if "ZCODER_BASE_URL must point to a local llama-server on loopback" in str(exc.detail)
-                else "Local model request failed"
+                str(exc.detail) if "loopback" in str(exc.detail) else "Local model request failed"
             )
             yield f"data: {json.dumps({'type': 'error', 'message': public_message})}\n\n"
             return
@@ -842,8 +847,8 @@ def _admin_providers() -> list[dict]:
     return [
         {
             "id": "local",
-            "name": "Local llama.cpp (Loopback)",
-            "endpoint": os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1"),
+            "name": "Local Ollama (Loopback)",
+            "endpoint": os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")),
             "cost_class": "FREE_LOCAL",
             "policy_mode": "ZERO_COST_ONLY",
             "availability": "available",
@@ -934,7 +939,7 @@ def _admin_hardware() -> dict:
         "python_version": platform.python_version(),
         "cpu_cores": os.cpu_count() or 1,
         "ram_status": "available",
-        "local_endpoint": os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1"),
+        "local_endpoint": os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")),
     }
 
 

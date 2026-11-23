@@ -50,4 +50,4 @@ This runbook provides actionable standard operating procedures (SOP) for recover
 
 ### 4. Integration and Local Model Availability
 **GitHub Outage**: Outbox messages buffer mutations with exponential backoff up to 5 attempts before DEAD-lettering. Replay via `POST /api/v1/outbox/retry`.
-**Local model server unavailable**: Inference requests fail with a bounded error. Restore the llama.cpp process and validate its health endpoint before resuming model-backed jobs. Do not retry indefinitely while the model server is down.
+**Local model server unavailable**: Inference requests fail with a bounded error. Restore the Ollama process and validate its health endpoint (`/api/version`) before resuming model-backed jobs. Do not retry indefinitely while the model server is down.

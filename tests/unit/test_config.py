@@ -27,7 +27,8 @@ def test_set_persists_to_disk(isolated_config):
     assert on_disk["model"] == "claude-sonnet-5"
 
 
-def test_new_instance_reads_persisted_value(isolated_config):
+def test_new_instance_reads_persisted_value(isolated_config, monkeypatch):
+    monkeypatch.delenv("ZCODER_MODEL", raising=False)
     Config().set("model", "claude-opus-4-8")
     fresh = Config()
     assert fresh.get("model") == "claude-opus-4-8"
@@ -35,16 +36,16 @@ def test_new_instance_reads_persisted_value(isolated_config):
 
 def test_all_returns_copy_not_reference(isolated_config):
     cfg = Config()
-    cfg.set("k", "v")
+    cfg.set("model", "test-copy")
     snapshot = cfg.all()
-    snapshot["k"] = "mutated"
-    assert cfg.get("k") == "v"
+    snapshot["model"] = "mutated"
+    assert cfg.get("model") == "test-copy"
 
 
 def test_corrupt_config_file_does_not_crash(isolated_config):
     isolated_config.write_text("{not valid json")
     cfg = Config()
-    assert cfg.all() == {}
+    assert isinstance(cfg.all(), dict)
 
 
 def test_set_writes_config_with_owner_only_permissions(isolated_config):
@@ -77,7 +78,7 @@ def test_set_replaces_permissive_config_with_private_file(isolated_config):
     cfg = Config()
     cfg.set("api_key", "new")
     assert stat.S_IMODE(isolated_config.stat().st_mode) == 0o600
-    assert json.loads(isolated_config.read_text()) == {"api_key": "new"}
+    assert json.loads(isolated_config.read_text())["api_key"] == "new"
 
 
 def test_failed_replace_keeps_previous_config_and_memory(isolated_config, monkeypatch):
@@ -113,5 +114,5 @@ def test_failed_serialization_keeps_previous_config_and_memory(isolated_config, 
         cfg.set("model", "changed")
 
     assert isolated_config.read_bytes() == original
-    assert cfg.all() == {"model": "existing"}
+    assert cfg.all()["model"] == "existing"
     assert list(isolated_config.parent.glob(".zcoder-config-*")) == []

@@ -12,11 +12,11 @@
 
 ## PostgreSQL Setup
 
-The shared PostgreSQL container `zpostgressql` on network `zPostgreSQL_network` was started and provisioned:
+The shared PostgreSQL container `zpostgressql` on network `zpostgressql_network` was started and provisioned:
 - Container: `zpostgressql` (postgres:15-alpine)
 - Database: `zcoder_db`
 - Role: `zcoder`
-- Network: `zPostgreSQL_network`
+- Network: `zpostgressql_network`
 
 `python scripts/local_postgres.py setup` completed successfully:
 ```

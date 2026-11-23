@@ -221,14 +221,14 @@ Generate a new session ID in `YYYYMMDD-HHMMSS-XXXXXX` format.
 
 ### `zcoder.agent.codeagent.llm`
 
-Loopback-only OpenAI-compatible streaming client for a local llama-server.
+Loopback-only OpenAI-compatible streaming client for a local Ollama server.
 
 ### `LocalLLM`
 
 ```python
 from zcoder.agent.codeagent.llm import LocalLLM
 
-llm = LocalLLM(model="zcoder-pro", base_url="http://127.0.0.1:8080")
+llm = LocalLLM(model="zcoder-pro", base_url="http://127.0.0.1:11434")
 async for chunk in llm.stream(messages, tools):
     ...
 ```

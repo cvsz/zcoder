@@ -1,64 +1,60 @@
-# Multi-sector GGUF model server configuration for ZCoder local inference.
+# Multi-sector model configuration for ZCoder local inference via Ollama.
 #
-# Each sector runs ONE llama-server instance on its own loopback port and
-# serves exactly one GGUF model (llama-server serves one model per process).
+# Models อ่านจาก /zdata/models/ และ serve ผ่าน Ollama (http://127.0.0.1:11434)
+# ตั้งแต่ ZCoder v1.60.0: ใช้ Ollama เป็น inference runtime ทั้งหมด
+# llama-server binary ถูกยกเลิกแล้ว
+#
 # All inference is local-only (loopback); no hosted model API calls are made.
-#
-# Control with: scripts/model-server {list|start|restart|stop|status|health} <sector|all>
-#
-# NOTE: ports 8080/8081 are occupied by existing services on this host, so
-# this config uses 9801-9804. Adjust if they collide with other services.
+
+# Ollama binary path (shared singleton process — ไม่ใช่ per-sector)
+model_server_binary: /usr/local/bin/ollama
 
 # Directory containing GGUF model files.
 models_dir: /zdata/models
-
-# llama-server binary.
-llama_server_binary: /home/cvsz/.local/bin/llama-server
 
 # Runtime state directory (pidfiles) and log directory.
 run_dir: /home/cvsz/zcoder/run
 log_dir: /home/cvsz/zcoder/logs
 
 # Defaults applied to sectors that omit a field.
-default_ctx_size: 4096
+default_ctx_size: 32768
 default_threads: -1
 default_gpu_layers: -1
 
-# Seconds to wait for /health after starting a sector.
+# Seconds to wait for health check after starting a sector.
 start_timeout: 120
 # Seconds to wait for a sector to terminate on stop.
 stop_timeout: 15
 
 sectors:
-  # Default sector (the existing zcoder service serves the same model on 8080).
   - name: zcoder-flash
-    model: zcoder-1.5b-q4km.gguf
+    model: zcoder-flash.gguf
     alias: zcoder-flash
-    host: 0.0.0.0
-    port: 9801
-    ctx_size: 4096
+    host: 127.0.0.1
+    port: 11434
+    ctx_size: 32768
     enabled: true
 
   - name: zcoder-pro
-    model: zcoder-7b-q4km.gguf
+    model: zcoder-pro.gguf
     alias: zcoder-pro
-    host: 0.0.0.0
-    port: 9802
-    ctx_size: 4096
+    host: 127.0.0.1
+    port: 11434
+    ctx_size: 131072
     enabled: true
 
   - name: zcoder-promax
-    model: zcoder-27b.gguf
+    model: zcoder-promax.gguf
     alias: zcoder-promax
-    host: 0.0.0.0
-    port: 9804
-    ctx_size: 4096
+    host: 127.0.0.1
+    port: 11434
+    ctx_size: 262144
     enabled: true
 
   - name: zcoder-max
-    model: zcoder-9b-bf16.gguf
+    model: zcoder-max.gguf
     alias: zcoder-max
-    host: 0.0.0.0
-    port: 9803
-    ctx_size: 4096
+    host: 127.0.0.1
+    port: 11434
+    ctx_size: 262144
     enabled: true

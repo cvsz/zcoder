@@ -17,7 +17,7 @@
 5. Release Gate [scripts/release_gate.py]
      ← docs/evidence/pitr-qualification-<SHA>.json (schema v1)
 4. Regional Worker (residency_models / policy_engine)
-     ├── Local llama.cpp [loopback HTTP]
+     ├── Local Ollama [loopback http://127.0.0.1:11434] ← GGUF models from /zdata/models/
      ├── GitHub API [OAuth / GitHub App Installation]
      └── Artifact Store [AES-256 GCM Encrypted Objects]
 ```

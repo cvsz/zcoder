@@ -41,16 +41,16 @@ pip install -e .
 
 ### Symptom: `Connection refused` or `ERR_CONNECTION_REFUSED`
 
-**Cause:** The llama.cpp server is not running or not on the expected port.
+**Cause:** The Ollama server is not running or not on the expected port (11434).
 
 **Solution:**
 
 ```bash
-# Check if the server is running
-curl -s http://127.0.0.1:8080/v1/models
+# Check if Ollama is running
+curl -s http://127.0.0.1:11434/api/version
 
-# Start the server
-llama-server --model /path/to/model.gguf --host 127.0.0.1 --port 8080
+# Start Ollama
+ollama serve
 
 # Check ZCODER_BASE_URL
 echo $ZCODER_BASE_URL
@@ -96,7 +96,7 @@ docker compose build zcoder
 
 # Check logs
 docker compose logs zcoder
-docker compose logs llama-server
+docker compose logs ollama
 ```
 
 ### Symptom: Model file not found in container
@@ -129,7 +129,7 @@ make postgres-status
 make postgres-setup
 
 # Check connection
-docker exec -it zpostgresql psql -U zcoder -d zcoder_db -c "SELECT 1"
+docker exec -it zpostgressql psql -U zcoder -d zcoder_db -c "SELECT 1"
 ```
 
 ### Symptom: Redis connection fails
@@ -215,7 +215,7 @@ export ZCODER_MODEL=zcoder-flash
 export ZCODER_CTX_SIZE=4096
 
 # Enable PostgreSQL for session persistence
-export ZCODER_POSTGRES_HOST=zpostgresql
+export ZCODER_POSTGRES_HOST=zpostgressql
 ```
 
 ## 8. Build and installation issues
@@ -272,7 +272,7 @@ echo "ZCODER_MODEL=$ZCODER_MODEL"
 echo "ZCODER_LOCAL_MODE=$ZCODER_LOCAL_MODE"
 
 # Test model connection
-curl -s http://127.0.0.1:8080/v1/models
+curl -s http://127.0.0.1:11434/api/tags
 
 # Check Docker services
 docker compose ps

@@ -30,9 +30,9 @@ API_PID_FILE  := .api.pid
 API_LOG_FILE  := logs/api.log
 WORKER_PID_FILE := .worker.pid
 WORKER_LOG_FILE := logs/worker.log
-HOST          ?= 127.0.0.1
+HOST          ?= 0.0.0.0
 PORT          ?= 8420
-API_HOST      ?= 127.0.0.1
+API_HOST      ?= 0.0.0.0
 API_PORT      ?= 8088
 WORKER_ARGS   ?=
 OPENCODE_BIN  ?= $(shell which opencode 2>/dev/null || echo "$$HOME/.opencode/bin/opencode")
@@ -365,16 +365,16 @@ help-docker:
 	@echo "  \033[1;33mdocker-build\033[0m       Build ZCoder image (zcoder:latest)"
 	@echo "                        Usage: make docker-build"
 	@echo ""
-	@echo "  \033[1;33mdocker-up\033[0m          Start all Docker services (llama.cpp, PostgreSQL, ZCoder)"
+	@echo "  \033[1;33mdocker-up\033[0m          Start all Docker services (Ollama, PostgreSQL, ZCoder)"
 	@echo "                        Usage: make docker-up"
 	@echo ""
-	@echo "  \033[1;33mdocker-run\033[0m         Run ZCoder with local GGUF inference"
+	@echo "  \033[1;33mdocker-run\033[0m         Run ZCoder with local Ollama inference"
 	@echo "                        Usage: make docker-run ARGS='-p \"prompt\"'"
 	@echo ""
 	@echo "  \033[1;33mdocker-down\033[0m        Stop local inference and remove Compose resources"
 	@echo "                        Usage: make docker-down"
 	@echo ""
-	@echo "  \033[1;33mdocker-logs\033[0m        Follow llama.cpp model-server logs"
+	@echo "  \033[1;33mdocker-logs\033[0m        Follow Ollama model-server logs"
 	@echo "                        Usage: make docker-logs"
 	@echo ""
 	@echo "  \033[1;33mpostgres-setup\033[0m     Initialize and migrate local PostgreSQL database"
@@ -679,7 +679,7 @@ start-all:
 	@echo "All services started"
 	@echo "  Web console: http://$(HOST):$(PORT)"
 	@echo "  API server:  http://$(API_HOST):$(API_PORT)"
-	@echo "  Docker:      llama.cpp + PostgreSQL + ZCoder container"
+	@echo "  Docker:      Ollama + PostgreSQL + ZCoder container"
 
 status-all:
 	@echo "=== ZCoder Service Status ==="
@@ -741,7 +741,7 @@ docker-down:
 	docker compose down
 
 docker-logs:
-	docker compose logs --tail=100 -f llama-server
+	docker compose logs --tail=100 -f ollama
 
 postgres-setup:
 	$(PYTHON) scripts/local_postgres.py setup
