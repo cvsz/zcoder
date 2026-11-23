@@ -39,8 +39,9 @@ logger = logging.getLogger(__name__)
 # ─── psycopg import guard ────────────────────────────────────────────────────
 
 try:
-
-    import psycopg
+    import psycopg2
+    import psycopg2.extras
+    import psycopg2.pool
 
     _PSYCOPG2_AVAILABLE = True
     _PG_AVAILABLE = True
@@ -49,10 +50,11 @@ except ImportError:
 
 if not _PSYCOPG2_AVAILABLE:
     try:
-        from importlib.util import find_spec
+        import psycopg
+        import psycopg.pool
 
-        _PG_AVAILABLE = find_spec("psycopg") is not None
-    except (ImportError, ValueError):
+        _PG_AVAILABLE = True
+    except ImportError:
         _PG_AVAILABLE = False
 
 

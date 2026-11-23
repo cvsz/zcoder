@@ -21,8 +21,8 @@ TeamTaskId = str
 TeamMessageId = str
 SessionId = str
 
-TeamMemberPhase = 'provisioning' | 'active' | 'failed'
-TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted'
+TeamMemberPhase = "provisioning" | "active" | "failed"
+TeamTaskStatus = "pending" | "in_progress" | "completed" | "deleted"
 
 
 @dataclass
@@ -105,6 +105,7 @@ class UpdateTeamTaskRequest:
 
 # ── Error types ───────────────────────────────────────────────────────────────
 
+
 class TeamError(Exception):
     """Base team error."""
 
@@ -115,13 +116,14 @@ class TeamError(Exception):
 
 
 TASK_GRAPH_ERROR_CODES = {
-    'missing': 'TEAM_TASK_NOT_FOUND',
-    'duplicate': 'TEAM_INVALID_ARGUMENT',
-    'cycle': 'TEAM_TASK_DEPENDENCY_CYCLE',
+    "missing": "TEAM_TASK_NOT_FOUND",
+    "duplicate": "TEAM_INVALID_ARGUMENT",
+    "cycle": "TEAM_TASK_DEPENDENCY_CYCLE",
 }
 
 
 # ── Task graph validation ─────────────────────────────────────────────────────
+
 
 def assert_task_graph_candidate(
     state_tasks: list[TeamTaskSnapshot],
@@ -153,24 +155,26 @@ def assert_task_graph_candidate(
         if color[tid] == WHITE:
             if dfs(tid):
                 raise TeamError(
-                    f'Adding task {new_task.id} would create a dependency cycle',
-                    TASK_GRAPH_ERROR_CODES['cycle'],
+                    f"Adding task {new_task.id} would create a dependency cycle",
+                    TASK_GRAPH_ERROR_CODES["cycle"],
                 )
 
 
 # ── Task ready computation ────────────────────────────────────────────────────
+
 
 def task_ready(state_tasks: list[TeamTaskSnapshot], task: TeamTaskSnapshot) -> bool:
     """Check if a task is ready to be claimed (all dependencies completed)."""
     task_map = {t.id: t for t in state_tasks}
     for dep_id in task.blocked_by:
         dep = task_map.get(dep_id)
-        if dep is None or dep.status != 'completed':
+        if dep is None or dep.status != "completed":
             return False
     return True
 
 
 # ── TeamTaskBoard ─────────────────────────────────────────────────────────────
+
 
 class TeamTaskBoard:
     """Owns Team task limits, authorization, transitions, and derived views."""
@@ -187,10 +191,10 @@ class TeamTaskBoard:
         with self._lock:
             if team_id not in self._teams:
                 self._teams[team_id] = {
-                    'enabled': False,
-                    'tasks': [],
-                    'next_task_number': 1,
-                    'failure': None,
+                    "enabled": False,
+                    "tasks": [],
+                    "next_task_number": 1,
+                    "failure": None,
                 }
             return self._teams[team_id]
 
@@ -198,15 +202,15 @@ class TeamTaskBoard:
         """Enable Agent Teams for this Session."""
         with self._lock:
             state = self._get_team_state(team_id)
-            state['enabled'] = True
-            state['failure'] = None
+            state["enabled"] = True
+            state["failure"] = None
 
     def _state(self, team_id: TeamId) -> dict[str, Any]:
         state = self._get_team_state(team_id)
-        if not state['enabled']:
+        if not state["enabled"]:
             raise TeamError(
-                'enable Agent Teams for this Session before using the task board',
-                'TEAM_DISABLED',
+                "enable Agent Teams for this Session before using the task board",
+                "TEAM_DISABLED",
             )
         return state
 
@@ -217,13 +221,13 @@ class TeamTaskBoard:
         exclude_id: TeamTaskId | None = None,
     ) -> list[TeamTaskId]:
         """Validate and return dependency task IDs."""
-        valid_ids = {t['id'] for t in state['tasks'] if t['id'] != exclude_id}
+        valid_ids = {t["id"] for t in state["tasks"] if t["id"] != exclude_id}
         result: list[TeamTaskId] = []
         for dep_id in blocked_by:
             if dep_id not in valid_ids:
                 raise TeamError(
                     f'dependency task "{dep_id}" not found',
-                    TASK_GRAPH_ERROR_CODES['missing'],
+                    TASK_GRAPH_ERROR_CODES["missing"],
                 )
             result.append(dep_id)
         return result
@@ -235,15 +239,15 @@ class TeamTaskBoard:
     def _without_owner(self, task: dict[str, Any]) -> dict[str, Any]:
         """Return task copy without owner fields."""
         return {
-            'id': task['id'],
-            'revision': task['revision'],
-            'subject': task['subject'],
-            'description': task['description'],
-            'status': task['status'],
-            'owner_id': None,
-            'owner_name': None,
-            'blocked_by': list(task['blocked_by']),
-            'write_scopes': list(task['write_scopes']),
+            "id": task["id"],
+            "revision": task["revision"],
+            "subject": task["subject"],
+            "description": task["description"],
+            "status": task["status"],
+            "owner_id": None,
+            "owner_name": None,
+            "blocked_by": list(task["blocked_by"]),
+            "write_scopes": list(task["write_scopes"]),
         }
 
     def create(
@@ -258,51 +262,56 @@ class TeamTaskBoard:
         with self._lock:
             state = self._state(team_id)
 
-            active = len([t for t in state['tasks'] if t['status'] != 'deleted'])
+            active = len([t for t in state["tasks"] if t["status"] != "deleted"])
             if active >= self.max_tasks:
-                raise TeamError(f'Team task limit {self.max_tasks} reached', 'TEAM_TASK_LIMIT')
+                raise TeamError(f"Team task limit {self.max_tasks} reached", "TEAM_TASK_LIMIT")
 
             task_id = f'task-{state["next_task_number"]}'
-            if any(t['id'] == task_id for t in state['tasks']):
-                raise TeamError('Team task id space exhausted', 'TEAM_TASK_LIMIT')
+            if any(t["id"] == task_id for t in state["tasks"]):
+                raise TeamError("Team task id space exhausted", "TEAM_TASK_LIMIT")
 
             if not subject or not subject.strip():
-                raise TeamError('subject is required', 'TEAM_INVALID_ARGUMENT')
+                raise TeamError("subject is required", "TEAM_INVALID_ARGUMENT")
             if len(subject) > 200:
-                raise TeamError('subject must be at most 200 characters', 'TEAM_INVALID_ARGUMENT')
+                raise TeamError("subject must be at most 200 characters", "TEAM_INVALID_ARGUMENT")
             if len(description) > 16384:
-                raise TeamError('description must be at most 16384 characters', 'TEAM_INVALID_ARGUMENT')
+                raise TeamError("description must be at most 16384 characters", "TEAM_INVALID_ARGUMENT")
 
             deps = self._dependencies(blocked_by or [], state)
             scopes = self._write_scopes(write_scopes or [])
 
             task: dict[str, Any] = {
-                'id': task_id,
-                'revision': 1,
-                'subject': subject.strip(),
-                'description': description.strip(),
-                'status': 'pending',
-                'owner_id': None,
-                'owner_name': None,
-                'blocked_by': deps,
-                'write_scopes': scopes,
+                "id": task_id,
+                "revision": 1,
+                "subject": subject.strip(),
+                "description": description.strip(),
+                "status": "pending",
+                "owner_id": None,
+                "owner_name": None,
+                "blocked_by": deps,
+                "write_scopes": scopes,
             }
 
             assert_task_graph_candidate(
-                [TeamTaskSnapshot(**{k: v for k, v in t.items() if k in TeamTaskSnapshot.__dataclass_fields__}) for t in state['tasks']],
+                [
+                    TeamTaskSnapshot(
+                        **{k: v for k, v in t.items() if k in TeamTaskSnapshot.__dataclass_fields__}
+                    )
+                    for t in state["tasks"]
+                ],
                 TeamTaskSnapshot(
                     id=task_id,
                     revision=1,
                     subject=subject.strip(),
                     description=description.strip(),
-                    status='pending',
+                    status="pending",
                     blocked_by=deps,
                     write_scopes=scopes,
                 ),
             )
 
-            state['tasks'].append(task)
-            state['next_task_number'] += 1
+            state["tasks"].append(task)
+            state["next_task_number"] += 1
 
             return self._project_task_view(state, task)
 
@@ -310,20 +319,16 @@ class TeamTaskBoard:
         """Return one task, including deleted tombstone."""
         with self._lock:
             state = self._state(team_id)
-            task = next((t for t in state['tasks'] if t['id'] == task_id), None)
+            task = next((t for t in state["tasks"] if t["id"] == task_id), None)
             if task is None:
-                raise TeamError(f'team task "{task_id}" not found', 'TEAM_TASK_NOT_FOUND')
+                raise TeamError(f'team task "{task_id}" not found', "TEAM_TASK_NOT_FOUND")
             return self._project_task_view(state, task)
 
     def list(self, team_id: TeamId) -> list[TeamTaskView]:
         """List current non-deleted tasks in numeric creation order."""
         with self._lock:
             state = self._state(team_id)
-            return [
-                self._project_task_view(state, t)
-                for t in state['tasks']
-                if t['status'] != 'deleted'
-            ]
+            return [self._project_task_view(state, t) for t in state["tasks"] if t["status"] != "deleted"]
 
     def update(
         self,
@@ -341,126 +346,135 @@ class TeamTaskBoard:
         """Compare-and-set one authorized task transition."""
         with self._lock:
             state = self._state(team_id)
-            current = next((t for t in state['tasks'] if t['id'] == task_id), None)
+            current = next((t for t in state["tasks"] if t["id"] == task_id), None)
             if current is None:
-                raise TeamError(f'team task "{task_id}" not found', 'TEAM_TASK_NOT_FOUND')
-            if current['revision'] != expected_revision:
+                raise TeamError(f'team task "{task_id}" not found', "TEAM_TASK_NOT_FOUND")
+            if current["revision"] != expected_revision:
                 raise TeamError(
                     f'stale team task "{current["id"]}" revision {expected_revision}; '
                     f'current revision is {current["revision"]}',
-                    'TEAM_TASK_STALE_REVISION',
+                    "TEAM_TASK_STALE_REVISION",
                 )
-            if current['status'] == 'deleted':
-                raise TeamError(f'team task "{current["id"]}" is deleted', 'TEAM_TASK_DELETED')
+            if current["status"] == "deleted":
+                raise TeamError(f'team task "{current["id"]}" is deleted', "TEAM_TASK_DELETED")
 
             is_lead = caller_id == team_id  # simplified: team_id is lead
-            is_owner = current['owner_id'] == caller_id
+            is_owner = current["owner_id"] == caller_id
 
             def authorize_owner() -> None:
                 if not is_lead and not is_owner:
                     raise TeamError(
-                        'task mutation requires its owner or Team Lead',
-                        'TEAM_TASK_UNAUTHORIZED',
+                        "task mutation requires its owner or Team Lead",
+                        "TEAM_TASK_UNAUTHORIZED",
                     )
 
             next_task: dict[str, Any]
 
-            if action == 'claim':
-                if current['owner_id'] is not None and current['owner_id'] != caller_id:
+            if action == "claim":
+                if current["owner_id"] is not None and current["owner_id"] != caller_id:
                     raise TeamError(
                         f'team task "{current["id"]}" is owned by another member',
-                        'TEAM_TASK_ALREADY_CLAIMED',
+                        "TEAM_TASK_ALREADY_CLAIMED",
                     )
-                if current['status'] != 'pending' or not task_ready(
-                    [TeamTaskSnapshot(**{k: v for k, v in t.items() if k in TeamTaskSnapshot.__dataclass_fields__}) for t in state['tasks']],
-                    TeamTaskSnapshot(**{k: v for k, v in current.items() if k in TeamTaskSnapshot.__dataclass_fields__}),
+                if current["status"] != "pending" or not task_ready(
+                    [
+                        TeamTaskSnapshot(
+                            **{k: v for k, v in t.items() if k in TeamTaskSnapshot.__dataclass_fields__}
+                        )
+                        for t in state["tasks"]
+                    ],
+                    TeamTaskSnapshot(
+                        **{k: v for k, v in current.items() if k in TeamTaskSnapshot.__dataclass_fields__}
+                    ),
                 ):
                     raise TeamError(
                         f'team task "{current["id"]}" is not ready to claim',
-                        'TEAM_TASK_BLOCKED',
+                        "TEAM_TASK_BLOCKED",
                     )
                 next_task = self._without_owner(current)
-                next_task['status'] = 'in_progress'
-                next_task['owner_id'] = caller_id
+                next_task["status"] = "in_progress"
+                next_task["owner_id"] = caller_id
 
-            elif action == 'release':
+            elif action == "release":
                 authorize_owner()
-                if current['status'] != 'in_progress':
-                    raise TeamError('only an in-progress task can be released', 'TEAM_TASK_INVALID_TRANSITION')
-                next_task = self._without_owner({**current, 'status': 'pending'})
+                if current["status"] != "in_progress":
+                    raise TeamError(
+                        "only an in-progress task can be released", "TEAM_TASK_INVALID_TRANSITION"
+                    )
+                next_task = self._without_owner({**current, "status": "pending"})
 
-            elif action == 'edit':
+            elif action == "edit":
                 authorize_owner()
                 if subject is None and description is None and write_scopes is None:
                     raise TeamError(
-                        'task edit requires subject, description, or write_scopes',
-                        'TEAM_INVALID_ARGUMENT',
+                        "task edit requires subject, description, or write_scopes",
+                        "TEAM_INVALID_ARGUMENT",
                     )
                 next_task = {
                     **current,
                     **(
-                        {'subject': subject.strip()} if subject is not None and len(subject.strip()) > 0 else {}
+                        {"subject": subject.strip()}
+                        if subject is not None and len(subject.strip()) > 0
+                        else {}
                     ),
+                    **({"description": description.strip()} if description is not None else {}),
                     **(
-                        {'description': description.strip()} if description is not None else {}
-                    ),
-                    **(
-                        {'write_scopes': self._write_scopes(write_scopes)} if write_scopes is not None else {}
+                        {"write_scopes": self._write_scopes(write_scopes)} if write_scopes is not None else {}
                     ),
                 }
-                if 'subject' in next_task and len(next_task['subject']) > 200:
-                    raise TeamError('subject must be at most 200 characters', 'TEAM_INVALID_ARGUMENT')
+                if "subject" in next_task and len(next_task["subject"]) > 200:
+                    raise TeamError("subject must be at most 200 characters", "TEAM_INVALID_ARGUMENT")
 
-            elif action == 'set_dependencies':
+            elif action == "set_dependencies":
                 authorize_owner()
                 if blocked_by is None:
-                    raise TeamError('set_dependencies requires blocked_by', 'TEAM_INVALID_ARGUMENT')
+                    raise TeamError("set_dependencies requires blocked_by", "TEAM_INVALID_ARGUMENT")
                 deps = self._dependencies(blocked_by, state, exclude_id=task_id)
-                next_task = {**current, 'blocked_by': deps}
+                next_task = {**current, "blocked_by": deps}
 
-            elif action == 'complete':
+            elif action == "complete":
                 authorize_owner()
-                if current['status'] != 'in_progress':
-                    raise TeamError('only an in-progress task can complete', 'TEAM_TASK_INVALID_TRANSITION')
-                next_task = {**current, 'status': 'completed'}
+                if current["status"] != "in_progress":
+                    raise TeamError("only an in-progress task can complete", "TEAM_TASK_INVALID_TRANSITION")
+                next_task = {**current, "status": "completed"}
 
-            elif action == 'reopen':
+            elif action == "reopen":
                 authorize_owner()
-                if current['status'] != 'completed':
-                    raise TeamError('only a completed task can reopen', 'TEAM_TASK_INVALID_TRANSITION')
-                next_task = self._without_owner({**current, 'status': 'pending'})
+                if current["status"] != "completed":
+                    raise TeamError("only a completed task can reopen", "TEAM_TASK_INVALID_TRANSITION")
+                next_task = self._without_owner({**current, "status": "pending"})
 
-            elif action == 'reassign':
+            elif action == "reassign":
                 if not is_lead:
-                    raise TeamError('only the Team Lead can reassign tasks', 'TEAM_LEAD_REQUIRED')
-                if current['status'] not in ('pending', 'in_progress'):
+                    raise TeamError("only the Team Lead can reassign tasks", "TEAM_LEAD_REQUIRED")
+                if current["status"] not in ("pending", "in_progress"):
                     raise TeamError(
-                        'only a pending or in-progress task can be reassigned',
-                        'TEAM_TASK_INVALID_TRANSITION',
+                        "only a pending or in-progress task can be reassigned",
+                        "TEAM_TASK_INVALID_TRANSITION",
                     )
                 if owner is None:
-                    next_task = self._without_owner({**current, 'status': 'pending'})
+                    next_task = self._without_owner({**current, "status": "pending"})
                 else:
                     next_task = {
                         **current,
-                        'owner_id': owner,
-                        'status': current['status'],
+                        "owner_id": owner,
+                        "status": current["status"],
                     }
 
             else:
-                raise TeamError(f'unknown action: {action}', 'TEAM_INVALID_ARGUMENT')
+                raise TeamError(f"unknown action: {action}", "TEAM_INVALID_ARGUMENT")
 
-            next_task['revision'] = current['revision'] + 1
+            next_task["revision"] = current["revision"] + 1
 
             # Validate task graph if dependencies changed
-            if action in ('set_dependencies', 'create'):
+            if action in ("set_dependencies", "create"):
                 # Re-validate graph
                 pass
 
             # Replace current task with next
-            for i, t in enumerate(state['tasks']):
-                if t['id'] == task_id:
-                    state['tasks'][i] = next_task
+            for i, t in enumerate(state["tasks"]):
+                if t["id"] == task_id:
+                    state["tasks"][i] = next_task
                     break
 
             return self._project_task_view(state, next_task)
@@ -472,27 +486,30 @@ class TeamTaskBoard:
     ) -> TeamTaskView:
         """Project a task snapshot into a runtime-enriched view."""
         ready = task_ready(
-            [TeamTaskSnapshot(**{k: v for k, v in t.items() if k in TeamTaskSnapshot.__dataclass_fields__}) for t in state['tasks']],
+            [
+                TeamTaskSnapshot(**{k: v for k, v in t.items() if k in TeamTaskSnapshot.__dataclass_fields__})
+                for t in state["tasks"]
+            ],
             TeamTaskSnapshot(
-                id=task['id'],
-                revision=task['revision'],
-                subject=task['subject'],
-                description=task['description'],
-                status=task['status'],
-                blocked_by=list(task['blocked_by']),
-                write_scopes=list(task['write_scopes']),
+                id=task["id"],
+                revision=task["revision"],
+                subject=task["subject"],
+                description=task["description"],
+                status=task["status"],
+                blocked_by=list(task["blocked_by"]),
+                write_scopes=list(task["write_scopes"]),
             ),
         )
         return TeamTaskView(
-            id=task['id'],
-            revision=task['revision'],
-            subject=task['subject'],
-            description=task['description'],
-            status=task['status'],
-            blocked_by=list(task['blocked_by']),
-            write_scopes=list(task['write_scopes']),
-            owner_id=task.get('owner_id'),
-            owner_name=task.get('owner_name'),
+            id=task["id"],
+            revision=task["revision"],
+            subject=task["subject"],
+            description=task["description"],
+            status=task["status"],
+            blocked_by=list(task["blocked_by"]),
+            write_scopes=list(task["write_scopes"]),
+            owner_id=task.get("owner_id"),
+            owner_name=task.get("owner_name"),
             ready=ready,
             write_scope_warnings=[],
         )
@@ -502,21 +519,21 @@ class TeamTaskBoard:
         with self._lock:
             state = self._get_team_state(team_id)
             return TeamProjection(
-                enabled=state['enabled'],
+                enabled=state["enabled"],
                 tasks=self.list(team_id),
-                failure=state.get('failure'),
+                failure=state.get("failure"),
             )
 
 
 __all__ = [
-    'TeamError',
-    'TeamTaskBoard',
-    'TeamTaskSnapshot',
-    'TeamTaskView',
-    'TeamProjection',
-    'CreateTeamTaskRequest',
-    'UpdateTeamTaskRequest',
-    'TeamMemberSnapshot',
-    'task_ready',
-    'assert_task_graph_candidate',
+    "TeamError",
+    "TeamTaskBoard",
+    "TeamTaskSnapshot",
+    "TeamTaskView",
+    "TeamProjection",
+    "CreateTeamTaskRequest",
+    "UpdateTeamTaskRequest",
+    "TeamMemberSnapshot",
+    "task_ready",
+    "assert_task_graph_candidate",
 ]

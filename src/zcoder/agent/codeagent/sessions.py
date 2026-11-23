@@ -79,6 +79,7 @@ class SessionStore:
             (m["content"] for m in messages if m.get("role") == "user" and isinstance(m.get("content"), str)),
             "",
         )
+        title = re.sub(r"\s+", " ", title.split("<file path=")[0]).strip()[:80] or "(empty)"
         doc = {
             "id": session_id,
             "cwd": cwd,
@@ -120,6 +121,10 @@ class SessionStore:
             except (OSError, ValueError, KeyError):
                 continue
         return sorted(infos, key=lambda i: i.updated, reverse=True)
+
+    def list(self, cwd: str | None = None) -> list[SessionInfo]:
+        """Backward compatibility alias for list_sessions."""
+        return self.list_sessions(cwd)
 
     def delete(self, session_id: str, confirm: bool = True) -> None:
         """Delete a session with optional confirmation."""

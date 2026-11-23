@@ -448,10 +448,36 @@ def env_flag(value: str, default: bool = False) -> bool:
 
 BINARY_FILE_EXTENSIONS = frozenset(
     {
-        ".xlsm", ".parquet", ".epub", ".heic", ".png", ".zip", ".sqlite",
-        ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".pdf", ".tar",
-        ".gz", ".bz2", ".xz", ".7z", ".exe", ".dll", ".so", ".dylib", ".bin",
-        ".woff", ".woff2", ".ttf", ".otf", ".eot", ".pyc",
+        ".xlsm",
+        ".parquet",
+        ".epub",
+        ".heic",
+        ".png",
+        ".zip",
+        ".sqlite",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".webp",
+        ".pdf",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".eot",
+        ".pyc",
     }
 )
 
@@ -465,7 +491,6 @@ def read_text_prefix(
     max_chars: int | None = None,
 ) -> str:
     from stat import S_ISREG
-
 
     p = Path(path)
     suffix = p.suffix.lower()
@@ -501,6 +526,7 @@ def read_text_prefix(
 
 
 # ── File size checking ──────────────────────────────────────────────────────
+
 
 def check_file_size(path_or_file: Any, max_bytes: int) -> None:
     """Raise :exc:`SecurityError` if ``path_or_file`` exceeds ``max_bytes``.
@@ -577,6 +603,7 @@ def validate_name(name: str, field: str = "name") -> str:
             "only letters, digits, underscore, hyphen, and dot are allowed"
         )
     return name
+
 
 # ── URL validation ──────────────────────────────────────────────────────────
 

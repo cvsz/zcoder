@@ -3,9 +3,6 @@
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from zcoder.core.exceptions import APIError, AuthenticationError, RateLimitError, TransientAPIError
 from zcoder.services.coder import Coder
 
 
@@ -57,9 +54,6 @@ class TestCoderGenerate:
     def test_generate_success(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
-        from unittest.mock import MagicMock, patch
-
         with patch("zcoder.services.coder._open_local") as mock_open:
             mock_response = MagicMock()
             mock_response.read.return_value = json.dumps(
@@ -80,9 +74,6 @@ class TestCoderGenerate:
 
     def test_generate_with_system(self):
         coder = Coder(api_key="test-key", model="test-model")
-
-        import json
-        from unittest.mock import MagicMock, patch
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(
@@ -105,13 +96,13 @@ class TestCoderGenerate:
     def test_generate_auth_error(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
         import urllib.error
         from io import BytesIO
-        from unittest.mock import patch
 
         err_body = json.dumps({"error": {"message": "Invalid API key"}}).encode()
-        http_err = urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 401, "Unauthorized", {}, BytesIO(err_body))
+        http_err = urllib.error.HTTPError(
+            "http://127.0.0.1:8080/v1/chat/completions", 401, "Unauthorized", {}, BytesIO(err_body)
+        )
 
         with patch("zcoder.services.coder._open_local", side_effect=http_err):
             result = coder.generate("Hello")
@@ -120,13 +111,13 @@ class TestCoderGenerate:
     def test_generate_rate_limit(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
         import urllib.error
         from io import BytesIO
-        from unittest.mock import patch
 
         err_body = json.dumps({"error": {"message": "Rate limited"}}).encode()
-        http_err = urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 429, "Too Many Requests", {}, BytesIO(err_body))
+        http_err = urllib.error.HTTPError(
+            "http://127.0.0.1:8080/v1/chat/completions", 429, "Too Many Requests", {}, BytesIO(err_body)
+        )
 
         with patch("zcoder.services.coder._open_local", side_effect=http_err):
             result = coder.generate("Hello")
@@ -135,13 +126,13 @@ class TestCoderGenerate:
     def test_generate_transient_error(self):
         coder = Coder(api_key="test-key", model="test-model")
 
-        import json
         import urllib.error
         from io import BytesIO
-        from unittest.mock import patch
 
         err_body = json.dumps({"error": {"message": "Server error"}}).encode()
-        http_err = urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 500, "Internal Server Error", {}, BytesIO(err_body))
+        http_err = urllib.error.HTTPError(
+            "http://127.0.0.1:8080/v1/chat/completions", 500, "Internal Server Error", {}, BytesIO(err_body)
+        )
 
         with patch("zcoder.services.coder._open_local", side_effect=http_err):
             result = coder.generate("Hello")
@@ -149,9 +140,6 @@ class TestCoderGenerate:
 
     def test_generate_invalid_response(self):
         coder = Coder(api_key="test-key", model="test-model")
-
-        import json
-        from unittest.mock import MagicMock, patch
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({"not_choices": {}}).encode()

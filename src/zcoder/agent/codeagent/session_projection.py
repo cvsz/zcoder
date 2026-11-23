@@ -361,11 +361,7 @@ class SessionProjectionRegistry:
                 if row is not None:
                     row_ver = row.get("ver")
                     row_seq = int(row.get("seq", -1))
-                    usable = (
-                        row_ver == defn.state_version
-                        and row_seq >= before_base
-                        and row_seq <= end_seq
-                    )
+                    usable = row_ver == defn.state_version and row_seq >= before_base and row_seq <= end_seq
                 if not usable and base_seq > 0:
                     raise ValueError(
                         f"session projection {key!r} cannot restore from seq {base_seq}: "

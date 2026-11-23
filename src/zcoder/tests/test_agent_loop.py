@@ -1,9 +1,6 @@
 """Tests for zcoder.agent.codeagent.loop - Agent loop module."""
 
-from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 from zcoder.agent.codeagent.loop import (
     CodeAgent,
@@ -78,7 +75,7 @@ class TestTagFilter:
     def test_feed_with_tag(self):
         """Test feeding text with tool call tag."""
         f = _TagFilter()
-        result = f.feed("Before <tool_call>{\"name\": \"foo\"}</tool_call> After")
+        result = f.feed('Before <tool_call>{"name": "foo"}</tool_call> After')
         assert result == "Before "
         assert f.hidden == '<tool_call>{"name": "foo"}</tool_call> After'
 
