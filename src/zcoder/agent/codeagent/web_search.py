@@ -27,11 +27,11 @@ WEB_SEARCH_MAX_QUERIES = 10
 # Default cap on one source summary, in characters
 WEB_SEARCH_SUMMARY_MAX_CHARS = 800
 
-SUMMARY_ELLIPSIS = '…'
+SUMMARY_ELLIPSIS = "…"
 
 EXTERNAL_WEB_CONTENT_NOTICE = (
-    'External web content may be incomplete, outdated, or inaccurate. '
-    'Verify important claims from primary sources.'
+    "External web content may be incomplete, outdated, or inaccurate. "
+    "Verify important claims from primary sources."
 )
 
 
@@ -68,7 +68,7 @@ class WebSearchArgsError(Exception):
     """Validation error for web_search arguments."""
 
     def __init__(self, messages: list[str]):
-        super().__init__('; '.join(messages))
+        super().__init__("; ".join(messages))
         self.messages = messages
 
 
@@ -79,16 +79,19 @@ def parse_search_args(args: dict[str, Any], max_queries: int = WEB_SEARCH_MAX_QU
     contain only non-blank strings, and fit within max_queries bound.
     Exact duplicate strings are collapsed after the bound check.
     """
-    queries = args.get('queries', [])
+    queries = args.get("queries", [])
     if not isinstance(queries, list):
-        raise WebSearchArgsError(['queries must be a list'])
+        raise WebSearchArgsError(["queries must be a list"])
     if len(queries) == 0:
-        raise WebSearchArgsError(['queries must contain at least one query'])
+        raise WebSearchArgsError(["queries must contain at least one query"])
     if len(queries) > max_queries:
-        noun = 'query' if max_queries == 1 else 'queries'
-        raise WebSearchArgsError([f'queries must contain at most {max_queries} {noun}'])
-    if any(not isinstance(q, str) or q.strip().length == 0 if hasattr(q, 'strip') else not isinstance(q, str) for q in queries):
-        raise WebSearchArgsError(['each query must be a non-empty string'])
+        noun = "query" if max_queries == 1 else "queries"
+        raise WebSearchArgsError([f"queries must contain at most {max_queries} {noun}"])
+    if any(
+        not isinstance(q, str) or q.strip().length == 0 if hasattr(q, "strip") else not isinstance(q, str)
+        for q in queries
+    ):
+        raise WebSearchArgsError(["each query must be a non-empty string"])
     # Collapse exact duplicates, preserving first-occurrence order
     seen: set[str] = set()
     result: list[str] = []
@@ -105,6 +108,7 @@ def source_label(url: str, title: str | None) -> str:
         return title
     try:
         from urllib.parse import urlparse
+
         return urlparse(url).hostname or url
     except Exception:
         return url
@@ -115,55 +119,57 @@ def truncate_without_splitting_surrogate_pair(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
     # Simple approach: truncate at max_chars, adjusting for surrogate pairs
-    encoded = text.encode('utf-16-le')
+    encoded = text.encode("utf-16-le")
     if len(encoded) <= max_chars * 2:
         return text
-    truncated = encoded[:max_chars * 2]
+    truncated = encoded[: max_chars * 2]
     # Ensure we don't split a surrogate pair (high surrogate 0xD800-0xDBFF,
     # low surrogate 0xDC00-0xDFFF)
     if len(truncated) >= 2:
-        last_word = int.from_bytes(truncated[-2:], 'little')
+        last_word = int.from_bytes(truncated[-2:], "little")
         if 0xD800 <= last_word <= 0xDBFF:
             truncated = truncated[:-2]
-    return truncated.decode('utf-16-le', errors='ignore')
+    return truncated.decode("utf-16-le", errors="ignore")
 
 
 def project_source(source: WebSearchSource) -> dict[str, Any]:
     """Project one source into display fields dict."""
-    result: dict[str, Any] = {'url': source.url}
+    result: dict[str, Any] = {"url": source.url}
     if source.title is not None:
-        result['title'] = source.title
+        result["title"] = source.title
     if source.snippet is not None:
-        result['snippet'] = source.snippet
+        result["snippet"] = source.snippet
     if source.published_at is not None:
-        result['published_at'] = source.published_at
+        result["published_at"] = source.published_at
     return result
 
 
-def model_source(source: WebSearchSource, summary_max_chars: int = WEB_SEARCH_SUMMARY_MAX_CHARS) -> dict[str, Any]:
+def model_source(
+    source: WebSearchSource, summary_max_chars: int = WEB_SEARCH_SUMMARY_MAX_CHARS
+) -> dict[str, Any]:
     """Project one source into model-facing output with bounded summary."""
     result = project_source(source)
     if source.summary:
-        summary = re.sub(r'\s+', ' ', source.summary).strip()
+        summary = re.sub(r"\s+", " ", source.summary).strip()
         if summary:
             if len(summary) <= summary_max_chars:
-                result['summary'] = summary
+                result["summary"] = summary
             else:
                 bounded = truncate_without_splitting_surrogate_pair(
                     summary, summary_max_chars - len(SUMMARY_ELLIPSIS)
                 )
-                result['summary'] = bounded + SUMMARY_ELLIPSIS
+                result["summary"] = bounded + SUMMARY_ELLIPSIS
     return result
 
 
 def search_meta_from_value(result: WebSearchResult) -> dict[str, Any]:
     """Project WebSearchResult into replayable meta payload."""
     meta: dict[str, Any] = {
-        'sources': [project_source(s) for s in result.sources],
-        'truncated': result.truncated,
+        "sources": [project_source(s) for s in result.sources],
+        "truncated": result.truncated,
     }
     if result.content is not None:
-        meta['answer'] = result.content
+        meta["answer"] = result.content
     return meta
 
 
@@ -187,30 +193,27 @@ def format_search_output(result: WebSearchResult) -> str:
             if excerpt:
                 meta_parts.append(excerpt)
             if source.published_at:
-                meta_parts.append(f'({source.published_at})')
-            suffix = f' — {" ".join(meta_parts)}' if meta_parts else ''
-            lines.append(f'- [{label}]({source.url}){suffix}')
-        parts.append('Sources:\n' + '\n'.join(lines))
+                meta_parts.append(f"({source.published_at})")
+            suffix = f' — {" ".join(meta_parts)}' if meta_parts else ""
+            lines.append(f"- [{label}]({source.url}){suffix}")
+        parts.append("Sources:\n" + "\n".join(lines))
     elif not result.content:
-        parts.append('No results found.')
+        parts.append("No results found.")
 
     if result.truncated:
-        parts.append(
-            f'(Showing the first {len(result.sources)} sources. '
-            'Refine the query for more.)'
-        )
-    parts.append('Cite the relevant URLs above as markdown links in your answer.')
-    return '\n\n'.join(parts)
+        parts.append(f"(Showing the first {len(result.sources)} sources. " "Refine the query for more.)")
+    parts.append("Cite the relevant URLs above as markdown links in your answer.")
+    return "\n\n".join(parts)
 
 
 def present_search_call(queries: list[str]) -> dict[str, Any]:
     """Pending-call presentation: a search card titled by the query list."""
-    title = ', '.join(queries)
+    title = ", ".join(queries)
     return {
-        'card': 'generic',
-        'title': title,
-        'kind': 'search',
-        'raw_input': title,
+        "card": "generic",
+        "title": title,
+        "kind": "search",
+        "raw_input": title,
     }
 
 
@@ -228,20 +231,20 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
             break
         try:
             encoded_query = urllib.parse.quote(query)
-            url = f'https://html.duckduckgo.com/html/?q={encoded_query}'
+            url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
             req = urllib.request.Request(
                 url,
                 headers={
-                    'User-Agent': (
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/120.0.0.0 Safari/537.36'
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
                     ),
-                    'Accept': 'text/html,application/xhtml+xml',
+                    "Accept": "text/html,application/xhtml+xml",
                 },
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
-                html_content = resp.read().decode('utf-8', errors='replace')
+                html_content = resp.read().decode("utf-8", errors="replace")
 
             # Simple regex-based extraction of DuckDuckGo results
             # Each result is in a <div class="result"> block
@@ -262,11 +265,11 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                     continue
                 result_url = url_match.group(1)
                 # DuckDuckGo uses redirect URLs; extract the actual URL
-                if result_url.startswith('//duckduckgo.com/l/?'):
+                if result_url.startswith("//duckduckgo.com/l/?"):
                     parsed = urllib.parse.urlparse(result_url)
                     params = urllib.parse.parse_qs(parsed.query)
-                    if 'uddg' in params:
-                        result_url = params['uddg'][0]
+                    if "uddg" in params:
+                        result_url = params["uddg"][0]
 
                 if result_url in seen_urls:
                     continue
@@ -280,7 +283,7 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                 )
                 title = None
                 if title_match:
-                    title = re.sub(r'<[^>]+>', '', title_match.group(1))
+                    title = re.sub(r"<[^>]+>", "", title_match.group(1))
                     title = html.unescape(title).strip()
 
                 # Extract snippet
@@ -291,14 +294,16 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                 )
                 snippet = None
                 if snippet_match:
-                    snippet = re.sub(r'<[^>]+>', '', snippet_match.group(1))
+                    snippet = re.sub(r"<[^>]+>", "", snippet_match.group(1))
                     snippet = html.unescape(snippet).strip()
 
-                sources.append(WebSearchSource(
-                    url=result_url,
-                    title=title,
-                    snippet=snippet,
-                ))
+                sources.append(
+                    WebSearchSource(
+                        url=result_url,
+                        title=title,
+                        snippet=snippet,
+                    )
+                )
 
         except (urllib.error.URLError, urllib.error.HTTPError, OSError, Exception):
             # Continue to next query on failure
@@ -312,19 +317,19 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
 
 
 __all__ = [
-    'WEB_SEARCH_MAX_RESULTS',
-    'WEB_SEARCH_MAX_QUERIES',
-    'WEB_SEARCH_SUMMARY_MAX_CHARS',
-    'WebSearchSource',
-    'WebSearchResult',
-    'WebSearchMeta',
-    'WebSearchArgsError',
-    'parse_search_args',
-    'source_label',
-    'project_source',
-    'model_source',
-    'search_meta_from_value',
-    'format_search_output',
-    'present_search_call',
-    'duckduckgo_search',
+    "WEB_SEARCH_MAX_RESULTS",
+    "WEB_SEARCH_MAX_QUERIES",
+    "WEB_SEARCH_SUMMARY_MAX_CHARS",
+    "WebSearchSource",
+    "WebSearchResult",
+    "WebSearchMeta",
+    "WebSearchArgsError",
+    "parse_search_args",
+    "source_label",
+    "project_source",
+    "model_source",
+    "search_meta_from_value",
+    "format_search_output",
+    "present_search_call",
+    "duckduckgo_search",
 ]

@@ -275,7 +275,6 @@ class TestEnvConfigLoading:
         monkeypatch.setenv("ZCODER_MAX_TOKENS", "2048")
         monkeypatch.setenv("ZCODER_ALLOW_NETWORK", "false")
 
-
         original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
@@ -290,7 +289,6 @@ class TestEnvConfigLoading:
     def test_env_var_invalid_falls_back_to_default(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ZCODER_MAX_TOKENS", "not-a-number")
 
-
         original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")
 
@@ -301,7 +299,6 @@ class TestEnvConfigLoading:
             _settings_mod.CONFIG_PATH = original_path
 
     def test_config_persistence_round_trip(self, monkeypatch, tmp_path):
-
 
         config_path = os.path.join(tmp_path, "test-config.json")
         original_path = _settings_mod.CONFIG_PATH
@@ -322,7 +319,6 @@ class TestEnvConfigLoading:
 
     def test_env_var_overrides_file_value(self, monkeypatch, tmp_path):
         import json
-
 
         config_path = os.path.join(tmp_path, "test-config.json")
         with open(config_path, "w") as f:
@@ -345,7 +341,6 @@ class TestEnvConfigLoading:
 
     def test_env_var_api_key(self, monkeypatch, tmp_path):
         monkeypatch.setenv("ZCODER_API_KEY", "sk-test-12345")
-
 
         original_path = _settings_mod.CONFIG_PATH
         _settings_mod.CONFIG_PATH = str(tmp_path / "nonexistent.json")

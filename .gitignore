@@ -15,7 +15,7 @@ venv/
 env/
 
 # Local model weights — mount at runtime, do not commit.
-models/
+/models/
 *.gguf
 *.gguf.*
 
