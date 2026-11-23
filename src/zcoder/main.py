@@ -4699,7 +4699,8 @@ def main():
             api_key=key,
             model=model,
             provider=getattr(args, "provider", None) or os.getenv("ZCODER_PROVIDER", "ollama"),
-            base_url=args.base_url or os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://0.0.0.0:11434")),
+            base_url=args.base_url
+            or os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://0.0.0.0:11434")),
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             service_tier=args.service_tier,

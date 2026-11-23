@@ -52,7 +52,15 @@ from zgpu.integrations.zisa_studio import (
     simulate_source,
 )
 from zgpu.kernels.flash_attn.flash_attention import FlashAttention3Kernel
-from zgpu.llm.llama_cpp import LlamaCppConfig, LlamaCppError, LlamaCppServer  # noqa: F401 — deprecated, kept for ProviderPool type compat
+from zgpu.llm.llama_cpp import (
+    LlamaCppConfig as _LlamaCppConfig,  # noqa: F401
+)
+from zgpu.llm.llama_cpp import (
+    LlamaCppError,
+)
+from zgpu.llm.llama_cpp import (
+    LlamaCppServer as _LlamaCppServer,  # noqa: F401
+)
 from zgpu.llm.model_registry import ModelRegistry
 from zgpu.llm.openai_compat import CompletionRequestError, OpenAICompatibleAdapter, ProviderPool
 from zgpu.llm.tool_calls import ToolCallError, ZGPUToolRegistry

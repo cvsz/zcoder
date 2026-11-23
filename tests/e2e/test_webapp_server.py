@@ -32,7 +32,12 @@ def _isolate_state(monkeypatch):
         server,
         "_list_sessions_from_db",
         lambda: [
-            {"session_id": sid, "turns": len(h) // 2, "preview": h[0]["content"] if h else "", "updated_at": 0.0}
+            {
+                "session_id": sid,
+                "turns": len(h) // 2,
+                "preview": h[0]["content"] if h else "",
+                "updated_at": 0.0,
+            }
             for sid, h in server._sessions.items()
         ],
     )

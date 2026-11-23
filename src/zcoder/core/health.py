@@ -36,8 +36,7 @@ class HealthReport:
 
 def _check_model_config() -> CheckResult:
     base_url = (
-        os.getenv("OLLAMA_BASE_URL")
-        or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")
+        os.getenv("OLLAMA_BASE_URL") or os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")
     ).strip()
     model = os.getenv("ZCODER_MODEL", "zcoder-flash").strip()
     parsed = urllib.parse.urlsplit(base_url)

@@ -332,7 +332,11 @@ def _sector_for_model(model_id: str) -> dict | None:
 
 
 def _local_model_endpoint(path: str) -> str:
-    base_url = os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434")).strip().rstrip("/")
+    base_url = (
+        os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434"))
+        .strip()
+        .rstrip("/")
+    )
     parsed = urllib.parse.urlsplit(base_url)
     if (
         parsed.scheme != "http"
@@ -848,7 +852,9 @@ def _admin_providers() -> list[dict]:
         {
             "id": "local",
             "name": "Local Ollama (Loopback)",
-            "endpoint": os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")),
+            "endpoint": os.getenv(
+                "OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")
+            ),
             "cost_class": "FREE_LOCAL",
             "policy_mode": "ZERO_COST_ONLY",
             "availability": "available",
@@ -939,7 +945,9 @@ def _admin_hardware() -> dict:
         "python_version": platform.python_version(),
         "cpu_cores": os.cpu_count() or 1,
         "ram_status": "available",
-        "local_endpoint": os.getenv("OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")),
+        "local_endpoint": os.getenv(
+            "OLLAMA_BASE_URL", os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")
+        ),
     }
 
 
