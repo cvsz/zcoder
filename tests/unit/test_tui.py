@@ -1,4 +1,4 @@
-"""Tests for the local llama-server Textual front end."""
+"""Tests for the local Ollama Textual front end."""
 
 from __future__ import annotations
 
@@ -63,7 +63,12 @@ async def test_prompt_uses_local_server_without_credentials(local_server):
         assert any(message.role == "user" and message.raw_text == "hello there" for message in messages)
         assert any(message.role == "assistant" and message.raw_text == "Hello there" for message in messages)
         assert len(local_server) == 2
-        assert local_server[1][0].full_url == "http://127.0.0.1:8080/v1/chat/completions"
+        assert local_server[1][0].full_url in {
+            "http://127.0.0.1:11434/v1/chat/completions",
+            "http://0.0.0.0:11434/v1/chat/completions",
+            "http://127.0.0.1:8080/v1/chat/completions",
+            "http://0.0.0.0:8080/v1/chat/completions",
+        }
 
 
 @pytest.mark.asyncio

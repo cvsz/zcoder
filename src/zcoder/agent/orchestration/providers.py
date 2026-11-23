@@ -213,7 +213,7 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
         # provider-specific URL or explicit CLI override was supplied.
         from urllib.parse import urlsplit
 
-        if urlsplit(env_gateway).hostname in {"127.0.0.1", "localhost", "::1"}:
+        if urlsplit(env_gateway).hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}:
             env_gateway = ""
     if env_gateway:
         _validate_base_url(env_gateway)
@@ -223,10 +223,14 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
         if ollama_env:
             _validate_base_url(ollama_env)
             return ollama_env
+        env_gateway = os.getenv("ZCODER_BASE_URL", "").strip().rstrip("/")
+        if env_gateway:
+            _validate_base_url(env_gateway)
+            return env_gateway
     spec = PROVIDER_DEFAULTS.get(provider, {})
     default = spec.get("base_url", "")
     if provider == "openai_compatible" and not default:
-        return "http://127.0.0.1:8080/v1"
+        return os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1")
     return default
 
 
@@ -300,9 +304,11 @@ def build_payload(
             payload["systemInstruction"] = {"parts": [{"text": system}]}
         return payload
     if provider == "ollama":
+        ollama_messages = [{"role": "system", "content": system}] if system else []
+        ollama_messages.extend(messages)
         return {
             "model": model,
-            "messages": messages,
+            "messages": ollama_messages,
             "stream": False,
             "options": {
                 "num_predict": max_tokens,
@@ -344,6 +350,8 @@ def parse_response(provider: str, data: dict) -> str:
             if parts:
                 return parts[0].get("text", "")
         return ""
+    if provider == "local":
+        return "[local mode] No upstream call — local stub response."
     if provider == "ollama":
         return data.get("message", {}).get("content", "")
     # openai_compatible and others: OpenAI chat completions format

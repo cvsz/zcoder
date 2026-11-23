@@ -24,6 +24,9 @@ KNOWN_EXCEPTIONS = {
     ("plugins/cli.py", "cmd_plugin_search"),
     ("plugins/cli.py", "cmd_plugin_update"),
     ("optimization/cost.py", "cmd_optimize_prompt"),
+    ("optimization/prompt.py", "cmd_optimize_advanced"),
+    ("models/zcoder_model.py", "cmd_zcoder_info"),
+    ("models/zcoder_model.py", "cmd_zcoder_call"),
 }
 
 
@@ -125,9 +128,9 @@ def test_member_role_flag_parse(parsed_args):
 
 
 def _run_main_with(monkeypatch, argv, api_key="sk-ant-test"):
-    import main as main_mod
+    import zcoder.main as main_mod
 
-    monkeypatch.setattr("sys.argv", ["main.py"] + argv)
+    monkeypatch.setattr("sys.argv", ["zcoder"] + argv)
     monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
     main_mod.main()
 

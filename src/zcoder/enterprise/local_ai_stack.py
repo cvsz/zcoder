@@ -311,9 +311,17 @@ class LocalModelProvider:
 
 
 class LlamaCppRuntime(LocalModelProvider):
-    """First-class llama.cpp / llama-server adapter with process ownership and structured output."""
+    """[DEPRECATED] llama.cpp / llama-server adapter — ไม่ใช้งานใน production อีกต่อไป.
 
-    def __init__(self, executable_path: str = "llama-server", base_url: str = "http://127.0.0.1:8080"):
+    ตั้งแต่ ZCoder v1.60.0 ใช้ OllamaAdapter (port 11434) แทนทั้งหมด
+    คลาสนี้ถูกเก็บไว้เพื่อ backward-compatibility ของ tests เท่านั้น
+    และจะถูกลบในเวอร์ชันถัดไป
+
+    Deprecated since: v1.60.0
+    Use: OllamaAdapter
+    """
+
+    def __init__(self, executable_path: str = "ollama", base_url: str = "http://127.0.0.1:11434"):
         self.executable_path = executable_path
         self.base_url = base_url.rstrip("/")
         self.managed_pid: int | None = None
@@ -336,8 +344,8 @@ class LlamaCppRuntime(LocalModelProvider):
                 data = json.loads(resp.read().decode())
                 return [
                     LocalModelMetadata(
-                        provider="llama.cpp",
-                        model_id=m.get("id", "llama-model"),
+                        provider="ollama",
+                        model_id=m.get("id", "zcoder-pro"),
                         context_window=32768,
                         parameter_size_b=7.0,
                     )
@@ -348,7 +356,10 @@ class LlamaCppRuntime(LocalModelProvider):
 
     def chat_complete(self, model_id: str, prompt: str, tools: list[dict[str, Any]] | None = None) -> str:
         if not self.is_running():
-            raise RuntimeError("llama.cpp inference server is unavailable")
+            raise RuntimeError(
+                "Ollama inference server is unavailable at http://127.0.0.1:11434 — "
+                "รัน 'ollama serve' หรือตรวจสอบ docker compose status"
+            )
         try:
             body = json.dumps(
                 {"model": model_id, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}
@@ -362,7 +373,7 @@ class LlamaCppRuntime(LocalModelProvider):
                 res = json.loads(resp.read().decode())
                 return res.get("choices", [{}])[0].get("message", {}).get("content", "")
         except Exception as exc:
-            raise RuntimeError("llama.cpp inference request failed") from exc
+            raise RuntimeError("Ollama inference request failed") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -796,7 +807,7 @@ class ModelPoolManager:
         entry = ResidentModelEntry(
             model_id=model_id,
             digest=f"sha256:{model_id}_digest",
-            runtime_type="llama.cpp",
+            runtime_type="ollama",
             estimated_ram_gb=ram_gb,
             residency=ModelResidency.HOT,
             last_used=time.time(),

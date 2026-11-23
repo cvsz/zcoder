@@ -10,7 +10,8 @@ import asyncio
 
 import pytest
 
-from zcoder.agent.orchestration.agents import AgentRegistry, AgentOptions
+from zcoder.agent.orchestration.agents import AgentOptions, AgentRegistry
+from zcoder.agent.orchestration.providers import MissingCredentialError, resolve_api_key
 from zcoder.agent.orchestration.session_log import (
     EventType,
     SessionEvent,
@@ -22,8 +23,7 @@ from zcoder.agent.orchestration.tools import (
     ToolRegistry,
     ValueSchemaSpec,
 )
-from zcoder.agent.orchestration.web import WebRuntime, SearchProvider, FetchProvider
-from zcoder.agent.orchestration.providers import resolve_api_key, MissingCredentialError
+from zcoder.agent.orchestration.web import FetchProvider, SearchProvider, WebRuntime
 
 
 def test_credential_seam_blocks_missing_key(monkeypatch):
@@ -34,12 +34,12 @@ def test_credential_seam_blocks_missing_key(monkeypatch):
 
 def test_adapter_registry_has_all_providers():
     from zcoder.agent.orchestration import adapter as _  # noqa: F401
-    from zcoder.agent.orchestration.registry import AdapterRegistry
-    from zcoder.agent.orchestration.openai_compatible import OpenAICompatibleAdapter
     from zcoder.agent.orchestration.anthropic import AnthropicAdapter
     from zcoder.agent.orchestration.gemini import GeminiAdapter
-    from zcoder.agent.orchestration.ollama import OllamaAdapter
     from zcoder.agent.orchestration.local import LocalAdapter
+    from zcoder.agent.orchestration.ollama import OllamaAdapter
+    from zcoder.agent.orchestration.openai_compatible import OpenAICompatibleAdapter
+    from zcoder.agent.orchestration.registry import AdapterRegistry
 
     reg = AdapterRegistry()
     reg.register("openai_compatible", OpenAICompatibleAdapter())
@@ -78,7 +78,6 @@ def test_tool_registry_and_pipeline():
             execute=lambda **p: calls.append(p) or p.get("msg"),
         )
     )
-    from zcoder.agent.orchestration.tools import ToolExecutionPipeline
 
     pipeline = ToolExecutionPipeline(reg)
 

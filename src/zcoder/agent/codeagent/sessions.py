@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 import os
 import re
@@ -164,7 +165,7 @@ class SessionStore:
         doc["updated"] = time.time()
         self.save(session_id, doc.get("cwd", ""), messages, doc.get("usage"))
 
-    def search(self, query: str, cwd: str | None = None) -> list[SessionInfo]:
+    def search(self, query: str, cwd: str | None = None) -> builtins.list[SessionInfo]:
         """Search sessions by title or content."""
         query = query.lower()
         results: list[SessionInfo] = []

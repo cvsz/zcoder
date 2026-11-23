@@ -48,7 +48,7 @@ def build(tmp_path, script, *, bypass=False, **cfg_kw):
 
 @pytest.fixture
 def client(tmp_path):
-    app, holder = build(tmp_path, [{"text": "hi"}])
+    app, holder = build(tmp_path, [{"text": "hi"}], host="127.0.0.1")
     c = TestClient(app, base_url=BASE)
     c.holder = holder
     return c
@@ -397,7 +397,7 @@ def test_is_loopback():
 
 
 def test_serve_refuses_remote_bind_without_flag(tmp_path, capsys):
-    assert web.serve(tmp_path, host="0.0.0.0") == 1
+    assert web.serve(tmp_path, host="0.0.0.0", allow_remote=False) == 1
     assert "refusing to bind" in capsys.readouterr().err
 
 

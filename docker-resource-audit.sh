@@ -27,11 +27,11 @@ COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-zcoder}"
 
 # Resources declared by docker-compose.yml that this audit expects to exist.
 EXPECTED_CONTAINERS=(zpostgressql zredis zcoder-llm zcoder)
-EXPECTED_IMAGES=("postgres:15-alpine" "redis:7-alpine" "zcoder:latest" "ghcr.io/ggml-org/llama.cpp:server")
-EXPECTED_VOLUMES=(zpostgressql_data zredis_data zcoder-home)
-EXPECTED_NETWORKS=(zPostgreSQL_network)
+EXPECTED_IMAGES=("postgres:15-alpine" "redis:7-alpine" "zcoder:latest" "ollama/ollama:latest")
+EXPECTED_VOLUMES=(zpostgressql_data zredis_data ollama_data zcoder-home)
+EXPECTED_NETWORKS=(zpostgressql_network)
 
-LLAMA_HEALTH_URL="http://127.0.0.1:8080/health"
+OLLAMA_HEALTH_URL="http://127.0.0.1:11434/api/version"
 
 # Host-side secret files referenced by docker-compose.yml. Existence and
 # readability are checked; contents are never printed.
@@ -352,14 +352,14 @@ check_redis
 
 # ── 9. Local inference endpoint ───────────────────────────────────────────
 
-section "Local inference endpoint ($LLAMA_HEALTH_URL)"
+section "Ollama inference endpoint ($OLLAMA_HEALTH_URL)"
 
 if have curl; then
-    capture curl -fsS --max-time 5 "$LLAMA_HEALTH_URL"
+    capture curl -fsS --max-time 5 "$OLLAMA_HEALTH_URL"
     if ((AUDIT_LAST_RC == 0)); then
-        ok "llama.cpp health endpoint responded: ${AUDIT_LAST_OUTPUT}"
+        ok "Ollama health endpoint responded: ${AUDIT_LAST_OUTPUT}"
     else
-        warn "llama.cpp health endpoint unreachable (curl exit=$AUDIT_LAST_RC)"
+        warn "Ollama health endpoint unreachable (curl exit=$AUDIT_LAST_RC) — รัน 'ollama serve' หรือ 'docker compose up ollama'"
     fi
 else
     warn "curl not installed; skipping inference endpoint check"

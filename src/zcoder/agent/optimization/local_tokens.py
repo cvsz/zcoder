@@ -177,7 +177,7 @@ def _estimate_mixed(text: str, code_ratio: float = 0.5) -> int:
     code_chars = int(char_count * code_ratio)
     non_code_chars = char_count - code_chars
 
-    code_tokens = max(1, int(code_chars / 3))
+    code_tokens = max(1, int(code_chars / 3)) if code_chars > 0 else 0
     non_code_tokens = max(1, int(non_code_chars / 4))
 
     return code_tokens + non_code_tokens

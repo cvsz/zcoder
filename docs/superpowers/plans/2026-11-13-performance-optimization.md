@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Python >=3.12 (from pyproject.toml)
-- PostgreSQL 15+ via Docker container `zpostgresql` on network `zPostgreSQL_network`
+- PostgreSQL 15+ via Docker container `zpostgressql` on network `zpostgressql_network`
 - Database: `zcoder_db`, Role: `zcoder`
 - All tests must pass with `python scripts/local_postgres.py run -- pytest tests/`
 - Coverage threshold: 70% (from pyproject.toml)

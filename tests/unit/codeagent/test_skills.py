@@ -273,7 +273,7 @@ class TestSkillCommands:
 
 
 @pytest.fixture
-def make_agent_with_skills():
+def make_agent_with_skills(monkeypatch):
     def _make():
         import tempfile
 
@@ -282,6 +282,8 @@ def make_agent_with_skills():
         from zcoder.agent.codeagent.sessions import SessionStore
         from zcoder.agent.codeagent.workspace import Workspace
 
+        # Ensure loopback URL is set for unit tests (no real server needed)
+        monkeypatch.setenv("ZCODER_BASE_URL", "http://127.0.0.1:8080")
         tmp = Path(tempfile.mkdtemp())
         ws = Workspace(tmp)
         llm = LocalLLM()

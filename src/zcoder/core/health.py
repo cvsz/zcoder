@@ -35,12 +35,14 @@ class HealthReport:
 
 
 def _check_model_config() -> CheckResult:
-    base_url = os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1").strip()
-    model = os.getenv("ZCODER_MODEL", "zcoder-flash").strip()
+    base_url = (
+        os.getenv("OLLAMA_BASE_URL") or os.getenv("ZCODER_BASE_URL") or "http://127.0.0.1:11434/v1"
+    ).strip()
+    model = (os.getenv("ZCODER_MODEL") or "zcoder-flash").strip()
     parsed = urllib.parse.urlsplit(base_url)
     valid_url = (
         parsed.scheme == "http"
-        and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        and parsed.hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
         and not parsed.username
         and not parsed.password
         and not parsed.query

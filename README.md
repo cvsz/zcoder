@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-SEC--001%20%E2%86%92%20SEC--011-green.svg)](SECURITY.md)
 [![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/cvsz/zcoder/pkgs/container/zcoder)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgresql-blue.svg)](docs/operations/deployment.md)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-zpostgressql-blue.svg)](docs/operations/deployment.md)
 [![Coverage](https://img.shields.io/badge/Coverage-81.68%25-brightgreen.svg)](https://github.com/cvsz/zcoder/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cvsz/zcoder)](https://github.com/cvsz/zcoder/releases)
 [![Final Report](https://img.shields.io/badge/Report-Final--Report.md-blue)](Final-Report.md)
@@ -44,11 +44,11 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 - **Web Console** — FastAPI + Uvicorn, browser-based management console
 - **API Server** — RESTful API พร้อม `/health/live`, `/health/ready`, `/metrics`
 - **Autonomous Agent Runtime** — bounded coding cycles (Inspect → Plan → Edit → Test → Validate)
-- **Local AI Infrastructure** — llama.cpp / Ollama / vLLM บน loopback, zero-cost first
+- **Local AI Infrastructure** — Ollama บน loopback (`http://127.0.0.1:11434`), zero-cost first
 - **GitHub Orchestration** — PR/CI orchestration, bounded repair
 - **Enterprise Control Plane** — multi-tenancy, RBAC, audit, quotas, billing, observability
 - **MCP Server/Client** — Model Context Protocol server over stdio/HTTP/SSE
-- **Database** — SQLite (default, single-user) / PostgreSQL (`zcoder_db`, role `zcoder`) ผ่าน Docker service `zpostgresql`
+- **Database** — SQLite (default, single-user) / PostgreSQL (`zcoder_db`, role `zcoder`) ผ่าน Docker service `zpostgressql`
 
 ---
 
@@ -68,7 +68,7 @@ ZCoder คือ **Enterprise AI Coding Platform** ที่ออกแบบ�
 
 ## Bridge Infrastructure
 
-ZCoder รองรับ **shared PostgreSQL container** (`zpostgresql`) บน Docker network เฉพาะ (`zPostgreSQL_network`) สำหรับ integration tests และ local development โดยแยก lifecycle จาก repository:
+ZCoder รองรับ **shared PostgreSQL container** (`zpostgressql`) บน Docker network เฉพาะ (`zpostgressql_network`) สำหรับ integration tests และ local development โดยแยก lifecycle จาก repository:
 
 ### Shared PostgreSQL Container
 
@@ -81,13 +81,13 @@ make postgres-status
 ```
 
 **ค่าเริ่มต้นของการกำหนดค่า:**
-- **Container:** `zpostgresql`
-- **Network:** `zPostgreSQL_network`
+- **Container:** `zpostgressql`
+- **Network:** `zpostgressql_network`
 - **ฐานข้อมูล:** `zcoder_db`
 - **Role:** `zcoder`
-- **Connection:** `postgresql://zcoder@zpostgresql:5432/zcoder_db`
+- **Connection:** `postgresql://zcoder@zpostgressql:5432/zcoder_db`
 
-Compose service เข้าร่วม `zPostgreSQL_network` และ mount password file ที่สร้างโดย `make postgres-setup` เป็น read-only secret。Container entrypoint จะสร้าง `DATABASE_URL` ขณะรันโดยไม่เขียนรหัสผ่านลงใน `.env`, ภาพ Docker, หรือ command line ให้แก้ไข `ZCODER_POSTGRES_SECRET_SOURCE` เฉพาะเมื่อ password file บน host ใช้ path ที่ไม่ใช่ค่าเริ่มต้นเท่านั้น
+Compose service เข้าร่วม `zpostgressql_network` และ mount password file ที่สร้างโดย `make postgres-setup` เป็น read-only secret。Container entrypoint จะสร้าง `DATABASE_URL` ขณะรันโดยไม่เขียนรหัสผ่านลงใน `.env`, ภาพ Docker, หรือ command line ให้แก้ไข `ZCODER_POSTGRES_SECRET_SOURCE` เฉพาะเมื่อ password file บน host ใช้ path ที่ไม่ใช่ค่าเริ่มต้นเท่านั้น
 
 ### การทดสอบในเครื่องด้วย Shared PostgreSQL
 
@@ -225,7 +225,7 @@ Deploy with `docker compose -f docker-compose.zpitr.yml up -d`. See [`docs/zpitr
 - The local `--pptx` integration is supported on Python 3.12+. `--pptx-native` avoids local PPTX conversion dependencies but does not lower the project minimum Python version.
 - pip
 - (Optional) PostgreSQL 16+ สำหรับ enterprise mode
-- (Optional) Ollama/llama.cpp สำหรับ local AI
+- (Optional) Ollama สำหรับ local AI
 
 For custom installation paths and platform-specific standalone builds, see the [Portable Installation Guide](docs/guides/PORTABLE-INSTALL.md).
 
@@ -285,7 +285,7 @@ ZCoder แยก **cost classification** จาก **runtime availability**:
 
 ```text
 Cost Classes:
-  FREE_LOCAL     → Ollama, llama.cpp, local embeddings
+  FREE_LOCAL     → Ollama, local embeddings
   FREE_REMOTE    → Public/free model endpoints
   CUSTOMER_KEY   → Customer-supplied API keys
   PAID_PLATFORM  → Commercial provider APIs
@@ -305,8 +305,7 @@ Policy Modes:
 
 ### Runtime Adapters
 
-- **llama.cpp / llama-server** — process ownership, structured output
-- **Ollama** — local gateway (`http://127.0.0.1:11434`)
+- **Ollama** — primary local gateway (`http://127.0.0.1:11434`), reads models from `/zdata/models/`
 - **vLLM** — high-throughput local inference
 - **OpenAI-compatible** — generic loopback servers
 
@@ -497,27 +496,23 @@ pytest --cov --cov-report=term-missing
 
 ## Docker
 
-### Local GGUF inference (recommended)
+### Local inference with Ollama (recommended)
 
-The Compose stack runs ZCoder and a separate llama.cpp server. It does not
-require an Anthropic API key. Put the selected GGUF in `/zdata/models/` (default:
-`/zdata/models/zcoder-7b-q4km.gguf`), then run:
+The Compose stack runs ZCoder and a local Ollama server. It does not
+require an external API key. Models are stored in `/zdata/models/`, then run:
 
 ```bash
 cp -n .env.example .env
 docker compose config
 docker compose run --build --rm zcoder -p "Reply with exactly LOCAL_OK"
-docker compose logs -f llama-server
+docker compose logs -f ollama
 docker compose down
 ```
 
 If `.env` already exists, keep it and update only the required model settings.
 
-Use `ZCODER_GGUF_FILE=zcoder-1.5b-q4km.gguf` and
-`ZCODER_MODEL=zcoder-1.5b-q4km` in `.env` to select the smaller model.
-The model directory is mounted read-only. GGUF files are excluded from Git
-and from the Docker build context. The inference service publishes no host
-port; ZCoder shares its network namespace and uses the loopback endpoint.
+Use `ZCODER_MODEL=zcoder-flash` (or `zcoder-pro`, `zcoder-max`, `zcoder-promax`) in `.env`
+to select the desired model. GGUF models are read from `/zdata/models/`.
 See [QUICKSTART.md](docs/guides/QUICKSTART.md) and
 [Local Inference Configuration](docs/guides/LOCAL-INFERENCE.md).
 

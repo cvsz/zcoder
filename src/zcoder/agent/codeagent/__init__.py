@@ -9,7 +9,7 @@ Shared by the Textual TUI (`zcoder.interfaces.cli.agent_tui`) and the web GUI
     sessions     persisted, resumable conversations
     commands     slash commands shared by every front end
     memory       ZCODER.md / AGENTS.md project memory and @Makefile mentions
-    llm          loopback-only OpenAI-compatible streaming client (llama-server)
+    llm          loopback-only OpenAI-compatible streaming client (Ollama)
 """
 
 from zcoder.agent.codeagent.events import (

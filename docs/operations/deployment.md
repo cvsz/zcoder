@@ -4,7 +4,7 @@
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `ZCODER_BASE_URL` | No | `http://127.0.0.1:8080/v1` | Loopback llama.cpp chat endpoint |
+| `ZCODER_BASE_URL` | No | `http://127.0.0.1:11434/v1` | Loopback Ollama chat endpoint |
 | `ZCODER_MODEL` | No | `qwen-7b-q4km` | Local request label |
 | `DATABASE_URL` | No | SQLite | PostgreSQL DSN for API and worker processes; Docker entrypoint derives it from the mounted ZCoder password secret when configured |
 | `ZCODER_POSTGRES_SECRET_SOURCE` | Compose only | `${HOME}/.config/zcoder/postgresql.password` | Host path to the password file created by `make postgres-setup`; mounted read-only into the ZCoder container |
@@ -26,14 +26,14 @@ Start the model server before issuing inference requests. See
 
 ```bash
 make setup
-export ZCODER_BASE_URL=http://127.0.0.1:8080/v1
+export ZCODER_BASE_URL=http://127.0.0.1:11434/v1
 zcoder -p "Explain this repository"
 ```
 
 ## Shared PostgreSQL
 
 The shared Docker PostgreSQL container is named `zpostgressql`. ZCoder uses
-database `zcoder_db` and role `zcoder` on the `zPostgreSQL_network` bridge.
+database `zcoder_db` and role `zcoder` on the `zpostgressql_network` bridge.
 Provision and check it with:
 
 ```bash
@@ -41,7 +41,7 @@ make postgres-setup
 make postgres-status
 ```
 
-The ZCoder Compose stack joins the external `zPostgreSQL_network` and mounts
+The ZCoder Compose stack joins the external `zpostgressql_network` and mounts
 the dedicated role's password file as a read-only Compose secret. The
 container entrypoint derives `DATABASE_URL` in memory for `zcoder_db`/`zcoder`;
 the DSN is not stored in the repository `.env` or baked into the image. Keep
@@ -120,7 +120,7 @@ production migration.
 
 | Symptom | First step |
 |---|---|
-| Local inference fails | Check `llama-server` health, GGUF path, and loopback URL |
+| Local inference fails | Check `ollama` service, `/zdata/models/` path, and loopback URL |
 | Model URL validation fails | Set `ZCODER_BASE_URL` to an HTTP loopback URL without credentials or query parameters |
 | PostgreSQL connection fails | Check container `zpostgressql`, network membership, role, database, and secret-file permissions |
 | API readiness returns 503 | Check database health and API configuration before adding traffic |
@@ -132,7 +132,7 @@ ZCoder includes a dedicated `zPITR` Docker service for automated Point-in-Time R
 
 ### Architecture
 
-`zPITR` runs as a sidecar container on `zPostgreSQL_network` with:
+`zPITR` runs as a sidecar container on `zpostgressql_network` with:
 - **`pg_receivewal` daemon** — continuous WAL streaming from `zpostgressql` into `zpitr_wal_archive` Docker volume.
 - **`pg_basebackup` scheduler** — periodic full physical snapshots into `zpitr_base_backups` Docker volume.
 - **Restore drill** — isolated recovery into `/tmp/pg_drill_data` with `recovery.signal` + `restore_command`, WAL archive continuity check, and Release Gate evidence emission.

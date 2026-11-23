@@ -49,12 +49,12 @@ zcoder --health-check
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ZCODER_BASE_URL` | `http://127.0.0.1:8080/v1` | Local inference server URL |
+| `ZCODER_BASE_URL` | `http://127.0.0.1:11434/v1` | Local inference server URL |
 | `ZCODER_MODEL` | `zcoder-flash` | Default model name |
 | `ZCODER_CTX_SIZE` | `4096` | Context window size |
 | `ZCODER_LOCAL_MODE` | unset | Block remote API calls when set |
 | `ZCODER_MODELS_DIR` | `/zdata/models` | GGUF models directory |
-| `ZCODER_POSTGRES_HOST` | `zpostgresql` | PostgreSQL host |
+| `ZCODER_POSTGRES_HOST` | `zpostgressql` | PostgreSQL host |
 | `ZCODER_POSTGRES_PORT` | `5432` | PostgreSQL port |
 | `ZCODER_POSTGRES_DB` | `zcoder_db` | PostgreSQL database |
 | `ZCODER_REDIS_HOST` | `zredis` | Redis host |
@@ -159,7 +159,7 @@ python -m zcoder.agent.codeagent.mcp_server
       "command": "zcoder",
       "args": ["--mcp-server"],
       "env": {
-        "ZCODER_BASE_URL": "http://127.0.0.1:8080/v1",
+        "ZCODER_BASE_URL": "http://127.0.0.1:11434/v1",
         "ZCODER_MODEL": "zcoder-pro"
       }
     }
@@ -181,13 +181,14 @@ services:
   zcoder:
     image: zcoder:latest
     environment:
-      ZCODER_BASE_URL: http://llama-server:8080/v1
-      ZCODER_MODEL: qwen-7b-q4km
-      ZCODER_POSTGRES_HOST: zpostgresql
+      ZCODER_BASE_URL: http://127.0.0.1:11434/v1
+      OLLAMA_BASE_URL: http://127.0.0.1:11434
+      ZCODER_MODEL: zcoder-pro
+      ZCODER_POSTGRES_HOST: zpostgressql
       ZCODER_REDIS_HOST: zredis
     depends_on:
-      - llama-server
-      - zpostgresql
+      - ollama
+      - zpostgressql
       - zredis
 ```
 
@@ -231,7 +232,7 @@ See `docs/API_REFERENCE.md` for the complete credential management API.
 
 - Use `zcoder-flash` for fast, low-cost operations
 - Use `zcoder-pro` for complex reasoning tasks
-- Enable PostgreSQL for durable session storage: `ZCODER_POSTGRES_HOST=zpostgresql`
+- Enable PostgreSQL for durable session storage: `ZCODER_POSTGRES_HOST=zpostgressql`
 - Enable Redis for caching: `ZCODER_REDIS_HOST=zredis`
 - Adjust context window: `ZCODER_CTX_SIZE=32768`
 

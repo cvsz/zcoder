@@ -48,13 +48,14 @@ try:
 except ImportError:
     _PSYCOPG2_AVAILABLE = False
 
-if not _PSYCOPG2_AVAILABLE:
-    try:
-        import psycopg
-        import psycopg.pool
+try:
+    import psycopg
+    import psycopg.pool
 
-        _PG_AVAILABLE = True
-    except ImportError:
+    _PG_AVAILABLE = True
+except ImportError:
+    psycopg = None  # type: ignore[assignment]
+    if not _PSYCOPG2_AVAILABLE:
         _PG_AVAILABLE = False
 
 
@@ -209,6 +210,7 @@ class PostgresControlPlaneStore:
             )
         else:
             # psycopg3 connection pool
+            import psycopg.pool
 
             self._pool = psycopg.pool.ConnectionPool(
                 dsn,

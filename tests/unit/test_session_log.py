@@ -10,10 +10,7 @@ Covers Prompt 7.4:
 
 from __future__ import annotations
 
-import os
 import tempfile
-
-import pytest
 
 from zcoder.agent.orchestration.session_log import (
     SESSION_FORMAT_VERSION,

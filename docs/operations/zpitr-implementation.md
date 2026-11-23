@@ -9,7 +9,7 @@
 
 ## 1. บทนำและวัตถุประสงค์ (Executive Summary & Mission)
 
-ระบบ **zPITR** ถูกออกแบบขึ้นเพื่อแก้ปัญหาช่องว่างด้านความพร้อมใช้งานและการกู้คืนข้อมูลของฐานข้อมูล PostgreSQL 16 (ทั้งบน Docker `zPostgreSQL` และ Remote Environment `zwslcore`) เพื่อให้บรรลุเป้าหมายสำคัญ 2 ประการ:
+ระบบ **zPITR** ถูกออกแบบขึ้นเพื่อแก้ปัญหาช่องว่างด้านความพร้อมใช้งานและการกู้คืนข้อมูลของฐานข้อมูล PostgreSQL 16 (ทั้งบน Docker `zpostgressql` และ Remote Environment `zwslcore`) เพื่อให้บรรลุเป้าหมายสำคัญ 2 ประการ:
 
 1. **Enterprise Operational Durability**:
    - การสำรองข้อมูลระดับฐานข้อมูลอย่างต่อเนื่อง (Continuous WAL Streaming & Archiving) ควบคู่กับ Periodical Base Backups
@@ -25,7 +25,7 @@
 
 ```mermaid
 flowchart TD
-    subgraph PrimaryNetwork ["zPostgreSQL_network (Docker Network)"]
+    subgraph PrimaryNetwork ["zpostgressql_network (Docker Network)"]
         direction TB
         subgraph PrimaryDB ["zpostgressql Container (PostgreSQL 16)"]
             PGCore["PostgreSQL 16 Engine"]
@@ -45,7 +45,7 @@ flowchart TD
         end
 
         subgraph TestEnvironment ["Isolated Test Sandbox"]
-            IsolatedPG["zPostgreSQL-drill Container<br/>(Target for Replay & Verify)"]
+            IsolatedPG["zpostgressql-drill Container<br/>(Target for Replay & Verify)"]
         end
     end
 
@@ -380,7 +380,7 @@ services:
       - zpitr_base_backups:/var/backups/base_backups
       - ./docs/evidence:/app/evidence
     networks:
-      - zPostgreSQL_network
+      - zpostgressql_network
     restart: unless-stopped
 
 volumes:
@@ -390,7 +390,7 @@ volumes:
     name: zpitr_base_backups
 
 networks:
-  zPostgreSQL_network:
+  zpostgressql_network:
     external: true
 
 secrets:

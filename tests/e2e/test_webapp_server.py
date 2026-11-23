@@ -1,7 +1,7 @@
 """tests/test_webapp_server.py — webapp/backend/server.py
 
 Uses FastAPI's TestClient (httpx-based, no real network/socket). The
-Coder.generate() / local llama-server HTTP calls are monkeypatched so no
+Coder.generate() / local Ollama HTTP calls are monkeypatched so no
 real API or model calls happen anywhere in this file.
 """
 
@@ -22,12 +22,25 @@ import webapp.backend.server as server  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _isolate_state():
+def _isolate_state(monkeypatch):
     """Each test gets an empty session store and a fresh rate-limit
     bucket, so tests can't leak state into each other via the
     process-local dicts server.py uses."""
     server._sessions.clear()
     server._rate_buckets.clear()
+    monkeypatch.setattr(
+        server,
+        "_list_sessions_from_db",
+        lambda: [
+            {
+                "session_id": sid,
+                "turns": len(h) // 2,
+                "preview": h[0]["content"] if h else "",
+                "updated_at": 0.0,
+            }
+            for sid, h in server._sessions.items()
+        ],
+    )
     yield
     server._sessions.clear()
     server._rate_buckets.clear()
@@ -45,6 +58,7 @@ def test_version_endpoint(client):
 
 
 def test_models_endpoint_lists_only_configured_local_model(client, monkeypatch):
+    monkeypatch.setattr(server, "_load_sectors", lambda: [])
     monkeypatch.setenv("ZCODER_MODEL", "qwen-local.gguf")
 
     response = client.get("/api/models")
@@ -175,7 +189,12 @@ def test_chat_stream_uses_loopback_local_model_without_credentials(client, monke
     assert client.get("/api/sessions/local-session").json()["history"][-1]["content"] == "Hello!"
     assert len(calls) == 1
     url, method, request_payload = calls[0]
-    assert url == "http://127.0.0.1:8080/v1/chat/completions"
+    assert url in {
+        "http://127.0.0.1:11434/v1/chat/completions",
+        "http://0.0.0.0:11434/v1/chat/completions",
+        "http://127.0.0.1:8080/v1/chat/completions",
+        "http://0.0.0.0:8080/v1/chat/completions",
+    }
     assert method == "POST"
     assert request_payload["stream"] is True
     assert request_payload["model"] == "local-qwen"

@@ -3,7 +3,8 @@
 ก่อนทำงานใน repository นี้ ให้อ่านและปฏิบัติตาม [AGENTS.md](AGENTS.md) ซึ่งเป็นแหล่งคำแนะนำหลักของ ZCoder ครอบคลุมขอบเขต ภาษา local inference ความปลอดภัย การตรวจสอบ และ release policy
 
 ## Active Default Model Configuration
-- **Active Model ID:** `qwen3.8-27b-turbo-fable-neo-coder` (DavidAU Qwen3.8-27B-TURBO-Fable-Cold-Fusion-735-882-Heretic-Uncensored-NEO-CODER-MAX-MTP-GGUF).
-- **Inference Provider:** Ollama / Llama.cpp local container (`zcoder-llm`) running on `http://127.0.0.1:8080/v1`.
-- **Context Window:** 128,000 tokens.
-- **Hardware Profile:** 32GB+ RAM, 24GB+ VRAM (GGUF quantization).
+- **Inference Runtime:** Ollama local service (`zcoder-llm`) บน `http://127.0.0.1:11434` — **เป็น runtime เดียวที่ใช้งาน ไม่มี llama-server อีกต่อไป**
+- **Models dir:** `/zdata/models/` (zcoder-flash, zcoder-pro, zcoder-max, zcoder-promax)
+- **Active Model ID:** `zcoder-pro` (default; override ด้วย `ZCODER_MODEL`)
+- **Context Window:** 128,000 tokens (zcoder-pro/max), 32,768 tokens (zcoder-flash)
+- **Hardware Profile:** 32GB+ RAM, 24GB+ VRAM (GGUF quantization Q4_K_M–Q8_0)

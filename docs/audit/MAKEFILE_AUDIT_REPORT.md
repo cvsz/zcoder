@@ -105,7 +105,7 @@ The Makefile is **well-structured, comprehensive, and functional**. All major ca
 | `docker-up` | ✅ Works | Starts all services with `.env` |
 | `docker-run` | ✅ Works | Runs zcoder container with args |
 | `docker-down` | ✅ Works | Stops and removes compose resources |
-| `docker-logs` | ✅ Works | Follows llama-server logs |
+| `docker-logs` | ✅ Works | Follows Ollama logs |
 | `postgres-setup` | ✅ Works | Initializes local PostgreSQL |
 | `postgres-status` | ✅ Works | Shows DB connectivity status |
 

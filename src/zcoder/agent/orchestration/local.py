@@ -2,7 +2,7 @@
 local.py — Local GGUF model server adapter (Phase 2).
 
 Implements a local GGUF model provider adapter that talks to a running
-llama-server instance over HTTP.  All inference happens on loopback; no
+Ollama instance over HTTP.  All inference happens on loopback; no
 network egress to hosted model APIs is ever performed.
 """
 
@@ -19,9 +19,9 @@ from .adapter import ProviderAdapter, ProviderResult
 
 
 class LocalAdapter(ProviderAdapter):
-    """Adapter for a local GGUF model served via llama-server.
+    """Adapter for a local GGUF model served via Ollama.
 
-    Communicates with a locally-running llama.cpp server over HTTP.
+    Communicates with a locally-running Ollama server over HTTP.
     All inference happens on the loopback interface; no remote model
     API is ever contacted.
     """
@@ -38,7 +38,7 @@ class LocalAdapter(ProviderAdapter):
         max_tokens: int,
         sampling: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build the llama-server chat/completions request payload."""
+        """Build the Ollama OpenAI-compatible chat/completions request payload."""
         messages_list: list[dict[str, Any]] = []
         if system:
             messages_list.append({"role": "system", "content": system})
@@ -51,7 +51,7 @@ class LocalAdapter(ProviderAdapter):
             "stream": False,
         }
 
-        # Apply sampling parameters that llama-server understands
+        # Apply sampling parameters that Ollama understands
         if sampling.get("temperature") is not None:
             payload["temperature"] = sampling["temperature"]
         if sampling.get("top_p") is not None:
@@ -64,7 +64,7 @@ class LocalAdapter(ProviderAdapter):
         return payload
 
     def parse_response(self, data: dict[str, Any]) -> str:
-        """Parse the llama-server chat/completions response."""
+        """Parse the Ollama chat/completions response."""
         choices = data.get("choices", [])
         if choices:
             message = choices[0].get("message", {})
@@ -72,14 +72,14 @@ class LocalAdapter(ProviderAdapter):
         return ""
 
     def endpoint_for(self, base_url: str, model: str) -> str:
-        """Return the llama-server chat/completions endpoint URL."""
+        """Return the Ollama chat/completions endpoint URL."""
         base = base_url.rstrip("/")
         return f"{base}/v1/chat/completions"
 
     def headers_for(self, api_key: str) -> dict[str, str]:
         """Return HTTP headers for the request."""
         headers: dict[str, str] = {"Content-Type": "application/json"}
-        # llama-server does not require authentication by default, but we
+        # Ollama does not require authentication by default, but we
         # accept an API key if one is provided for compatibility.
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -96,7 +96,7 @@ class LocalAdapter(ProviderAdapter):
         sampling: dict[str, Any],
         api_key: str,
     ) -> ProviderResult:
-        """Execute a single chat completion against the local llama-server."""
+        """Execute a single chat completion against the local Ollama server."""
         payload = self.build_payload(
             model=model,
             messages=messages,

@@ -1,4 +1,13 @@
-"""Optional, loopback-only llama.cpp server integration for local GGUF models."""
+"""[DEPRECATED] Optional llama.cpp / llama-server adapter — kept for test coverage only.
+
+ตั้งแต่ ZCoder v1.60.0 เป็นต้นไป inference ทั้งระบบใช้ Ollama (http://127.0.0.1:11434)
+เป็น inference runtime เพียงผู้เดียว  โค้ดในโมดูลนี้ไม่ถูกเรียกจากเส้นทาง
+production อีกต่อไปและจะถูกลบในเวอร์ชันถัดไป  ห้ามเพิ่ม call path ใหม่ที่นี่
+
+Deprecated since: v1.60.0
+Replacement: OllamaAdapter ใน src/zcoder/enterprise/local_ai_stack.py
+             LocalLLM ใน src/zcoder/agent/codeagent/llm.py (Ollama-native)
+"""
 
 from __future__ import annotations
 

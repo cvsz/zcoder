@@ -204,7 +204,7 @@ class LocalModelCatalog:
         runtime = None
         if runtime_model_id:
             runtime = {
-                "provider": "llama.cpp",
+                "provider": "ollama",
                 "model_id": runtime_model_id[:128],
                 "configured_model_in_inventory": configured_model_seen,
             }

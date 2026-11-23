@@ -7,7 +7,7 @@ PITR_SERVICE="zpitr"
 PITR_CONTAINER="zPITR"
 PG_USER="zcoder"
 PG_DATABASE="zcoder_db"
-NETWORK="zPostgreSQL_network"
+NETWORK="zpostgressql_network"
 HBA_FILE="/var/lib/postgresql/data/pg_hba.conf"
 
 log()  { printf '\n[%s] %s\n' "$(date '+%F %T')" "$*"; }

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from zcoder.agent.orchestration.agents import (
     AGENT_EVENT_CREATE,
     AGENT_EVENT_ENTER,

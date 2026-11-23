@@ -895,7 +895,7 @@ class ZCoderDesktopGUI:
         self.ent_base_url = tk.Entry(
             card, font=("Consolas", 10), bg=self.c["input_bg"], fg=self.c["accent_cyan"], width=40
         )
-        self.ent_base_url.insert(0, os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:8080/v1"))
+        self.ent_base_url.insert(0, os.getenv("ZCODER_BASE_URL", "http://127.0.0.1:11434/v1"))
         self.ent_base_url.grid(row=0, column=1, sticky="w", padx=10, pady=8)
 
         tk.Label(

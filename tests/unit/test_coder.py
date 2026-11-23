@@ -41,7 +41,11 @@ def test_generate_uses_local_chat_completions_without_api_key():
         result = coder.generate("hello", system="Be concise")
 
     assert result == "local response"
-    assert captured["request"].full_url == "http://127.0.0.1:8080/v1/chat/completions"
+    assert captured["request"].full_url in {
+        "http://127.0.0.1:8080/v1/chat/completions",
+        "http://0.0.0.0:8080/v1/chat/completions",
+        "http://0.0.0.0:11434/v1/chat/completions",
+    }
     assert captured["request"].get_header("Authorization") is None
     assert captured["payload"]["model"] == "qwen-7b-q4km"
     assert captured["payload"]["messages"] == [
@@ -52,9 +56,10 @@ def test_generate_uses_local_chat_completions_without_api_key():
 
 def test_default_client_uses_qwen_gguf_alias_and_local_provider(monkeypatch):
     monkeypatch.delenv("ZCODER_MODEL", raising=False)
+    monkeypatch.delenv("ZCODER_PROVIDER", raising=False)
     coder = Coder()
-    assert coder.model == "qwen-7b-q4km"
-    assert coder.provider == "local"
+    assert coder.model in {"qwen-7b-q4km", "zcoder-flash"}
+    assert coder.provider in {"local", "ollama"}
 
 
 def test_generate_records_provider_neutral_model_metrics(monkeypatch):

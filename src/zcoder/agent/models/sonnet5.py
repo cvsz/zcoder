@@ -35,6 +35,10 @@ _breaker = CircuitBreaker(failure_threshold=5, reset_timeout=30)
 # --sonnet5 → zcoder-promax (large reasoning model)
 SONNET5_MODEL_ID = "zcoder-promax"
 
+# Pricing constants kept for conformance checking and cost compatibility
+STANDARD_PRICE_IN_USD = 2.0
+STANDARD_PRICE_OUT_USD = 10.0
+
 SONNET5_EFFORT_BUDGETS = {
     "low": 0.3,
     "medium": 0.5,

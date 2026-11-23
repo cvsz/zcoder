@@ -1,4 +1,4 @@
-"""Loopback-only OpenAI-compatible streaming client for a local llama-server."""
+"""Loopback-only OpenAI-compatible streaming client for a local Ollama server."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from typing import Any, Protocol
 
 from zcoder.agent.optimization.pooling import get_connection, return_connection
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8080"
-DEFAULT_MODEL = "zqwen2.5-coder-7b-instruct-q4_k_m"
+DEFAULT_BASE_URL = "http://127.0.0.1:11434"
+DEFAULT_MODEL = "zcoder-flash"
 
 
 class LLMError(RuntimeError):
@@ -40,7 +40,7 @@ def local_base_url(raw: str | None = None) -> str:
         or p.query
         or p.fragment
     ):
-        raise ValueError("ZCODER_BASE_URL must point to a local llama-server on loopback.")
+        raise ValueError("ZCODER_BASE_URL must point to a local Ollama server on loopback.")
     return base
 
 
@@ -102,7 +102,7 @@ class LocalLLM(LLM):
         self._discovered_models: dict[str, str] = {}  # model_name -> gguf_path
 
     def discover_model(self) -> str | None:
-        """Ask llama-server which GGUF it has loaded (it serves exactly one)."""
+        """Ask local Ollama server which model it has loaded."""
         req = urllib.request.Request(  # noqa: S310 - loopback-validated
             endpoint("models", self.base_url), headers={"Accept": "application/json"}
         )
@@ -183,14 +183,14 @@ class LocalLLM(LLM):
             if conn:
                 conn.record_error(f"HTTP {exc.code}")
             raise LLMError(
-                f"llama-server returned HTTP {exc.code}: {exc.read(500).decode('utf-8', 'replace')}",
+                f"Ollama returned HTTP {exc.code}: {exc.read(500).decode('utf-8', 'replace')}",
                 retryable=exc.code in {408, 429, 500, 502, 503, 504},
             ) from exc
         except urllib.error.URLError as exc:
             if conn:
                 conn.record_error(str(exc.reason))
             raise LLMError(
-                f"Cannot reach local llama-server at {self.base_url}: {exc.reason}", retryable=True
+                f"Cannot reach local Ollama server at {self.base_url}: {exc.reason}", retryable=True
             ) from exc
         finally:
             if conn:

@@ -2,13 +2,13 @@
 
 ## Default prompt and routing
 
-The normal prompt path and default router use the local llama.cpp chat
-endpoint at `127.0.0.1:8080`. The request model label defaults to
-`zqwen2.5-coder-7b-instruct-q4_k_m` and can be overridden with
+The normal prompt path and default router use the local Ollama chat
+endpoint at `127.0.0.1:11434`. The request model label defaults to
+`zcoder-flash` / `zcoder-pro` and can be overridden with
 `ZCODER_MODEL`.
 
 The local client requires loopback HTTP and rejects redirects. The model
-server must already be running with a readable GGUF model loaded.
+server must already be running with models in `/zdata/models/` loaded.
 
 ## Migrated call paths
 
@@ -38,7 +38,7 @@ server must already be running with a readable GGUF model loaded.
   local implementations. `ZCODER_LOCAL_MODE=1` takes precedence over
   `--provider` and `ZCODER_PROVIDER`, including stale or invalid values.
 - Web-console chat and streaming send requests only to the configured
-  loopback llama-server. The frontend does not collect or persist model API
+  loopback Ollama server. The frontend does not collect or persist model API
   keys; legacy request `api_key` fields are ignored. Its model selector lists
   only `ZCODER_MODEL`, not the remote provider catalog.
 - Evaluation case generation and local judging.
@@ -111,8 +111,6 @@ zcoder -p "Reply with exactly LOCAL_OK"
 Real model acceptance requires running these commands against each supported
 GGUF file on the target operating system and hardware.
 
-On 2026-10-25, a CPU-only smoke inference with
-`/home/cvsz/zgpu/qwen-7b-q4km.gguf` returned the requested `LOCAL_OK` through
-`127.0.0.1:8080`. This confirms one local generation path; it does not cover
-other models, operating systems, hardware offload, or representative task
-quality.
+On 2026-11-23, Ollama (port 11434) confirmed healthy via `/api/version`.
+Models zcoder-flash, zcoder-pro, zcoder-max, zcoder-promax registered ผ่าน
+`ollama list`; weights อ่านจาก `/zdata/models/*.gguf`.

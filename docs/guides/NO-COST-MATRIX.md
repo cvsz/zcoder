@@ -1,6 +1,6 @@
 # Local Inference and Storage Matrix
 
-The primary coding prompt path uses the local llama.cpp server. This matrix
+The primary coding prompt path uses the local Ollama server. This matrix
 describes that path and the local persistence choices; it does not claim that
 every optional integration in the repository has completed migration.
 
@@ -9,7 +9,7 @@ every optional integration in the repository has completed migration.
 ```text
 ZCoder CLI / API
       |
-      +---- local llama.cpp server ---- GGUF model
+      +---- local Ollama server ---- GGUF models in /zdata/models/
       |
       +---- SQLite (single-user default)
       |
@@ -20,8 +20,8 @@ ZCoder CLI / API
 
 | Area | Local implementation | Notes |
 |---|---|---|
-| Inference | llama.cpp with GGUF | Loopback endpoint at `127.0.0.1:8080/v1` by default |
-| Model selection | `ZCODER_MODEL` | Defaults to `zqwen2.5-coder-7b-instruct-q4_k_m` |
+| Inference | Ollama with GGUF models | Loopback endpoint at `127.0.0.1:11434/v1` by default |
+| Model selection | `ZCODER_MODEL` | Defaults to `zcoder-pro` / `zcoder-flash` |
 | Single-user persistence | SQLite | Default for the local installation |
 | Shared PostgreSQL | Docker container `zpostgressql` | Applications use separate databases and roles |
 | ZCoder PostgreSQL database | `zcoder_db` | Provisioned by `make postgres-setup` |
@@ -30,12 +30,10 @@ ZCoder CLI / API
 
 ## Local model server
 
+Ollama serves models read from `/zdata/models/`:
+
 ```bash
-llama-server \
-  --model /home/cvsz/zgpu/qwen-7b-q4km.gguf \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --ctx-size 4096
+ollama serve
 ```
 
 Set `ZCODER_MODEL` to a local request label when needed. The model file loaded

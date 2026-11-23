@@ -127,7 +127,7 @@ async def _plan(agent, arg):
 
 @command("model", "Show the loaded model")
 async def _model(agent, arg):
-    return CommandResult(f"Model: {agent.llm.model} (llama-server serves one GGUF; restart it to switch).")
+    return CommandResult(f"Model: {agent.llm.model} (Ollama local inference).")
 
 
 @command("cost", "Show token usage for this session")

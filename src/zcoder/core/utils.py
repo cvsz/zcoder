@@ -88,7 +88,13 @@ def confirm(prompt):
 # through sampling_kwargs() instead of building the dict itself, or it will
 # 400 the moment someone points it at zcoder-pro (the default model in
 # config.py / coder.py).
-NO_SAMPLING_PARAMS_MODEL_PREFIXES = ("zcoder-pro", "zcoder-flash", "zcoder-pro")
+NO_SAMPLING_PARAMS_MODEL_PREFIXES = (
+    "zcoder-pro",
+    "zcoder-flash",
+    "claude-sonnet-5",
+    "claude-fable-5",
+    "claude-mythos-5",
+)
 
 
 def sampling_kwargs(model, temperature=None, top_p=None, top_k=None):

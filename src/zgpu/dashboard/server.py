@@ -52,7 +52,15 @@ from zgpu.integrations.zisa_studio import (
     simulate_source,
 )
 from zgpu.kernels.flash_attn.flash_attention import FlashAttention3Kernel
-from zgpu.llm.llama_cpp import LlamaCppConfig, LlamaCppError, LlamaCppServer
+from zgpu.llm.llama_cpp import (
+    LlamaCppConfig as _LlamaCppConfig,  # noqa: F401
+)
+from zgpu.llm.llama_cpp import (
+    LlamaCppError,
+)
+from zgpu.llm.llama_cpp import (
+    LlamaCppServer as _LlamaCppServer,  # noqa: F401
+)
 from zgpu.llm.model_registry import ModelRegistry
 from zgpu.llm.openai_compat import CompletionRequestError, OpenAICompatibleAdapter, ProviderPool
 from zgpu.llm.tool_calls import ToolCallError, ZGPUToolRegistry
@@ -74,10 +82,11 @@ class DashboardBackend:
         self.llm = ZGPULLM(config=LLMConfig(d_model=16, num_layers=2), runtime=self.runtime)
         self.model_registry = ModelRegistry(runtime=self.runtime)
         self.local_model_catalog = LocalModelCatalog.from_environment()
-        llama_config = LlamaCppConfig.from_environment()
-        self.llama_cpp = LlamaCppServer(llama_config) if llama_config is not None else None
-        if self.llama_cpp is not None:
-            self.llama_cpp.start()
+        # ตั้งแต่ ZCoder v1.60.0: ใช้ Ollama (port 11434) แทน llama-server
+        # LlamaCppServer ถูกยกเลิกแล้ว — ตรวจสอบ Ollama health แทน
+        self.llama_cpp = None  # kept for ProviderPool API compatibility only
+        ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip().rstrip("/")
+        log.info("zGPU Dashboard: using Ollama inference at %s", ollama_base)
         openai_url = os.environ.get("ZGPU_OPENAI_API_URL", "").strip()
         openai_key = os.environ.get("ZGPU_OPENAI_API_KEY", "").strip()
         if bool(openai_url) != bool(openai_key):

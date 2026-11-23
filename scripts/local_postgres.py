@@ -17,7 +17,7 @@ CONTAINER_FALLBACKS = () if os.environ.get("ZCODER_POSTGRES_CONTAINER") else ("z
 ROLE = "zcoder"
 DATABASE = "zcoder_db"
 PREVIOUS_DATABASE = "zcoder_db"
-POSTGRES_NETWORK = "zPostgreSQL_network"
+POSTGRES_NETWORK = "zpostgressql_network"
 PASSWORD_FILE = Path.home() / ".config" / "zcoder" / "postgresql.password"
 
 # Static provisioning template. Values are rendered with str.format: ROLE and
