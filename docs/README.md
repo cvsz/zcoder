@@ -1,3 +1,27 @@
+# ZCoder Documentation Index (ดัชนีเอกสาร ZCoder)
+
+ยินดีต้อนรับสู่ศูนย์รวมเอกสารและการออกแบบระบบของ ZCoder เอกสารทั้งหมดถูกจัดหมวดหมู่ตามโครงสร้าง Documentation Architecture ดังนี้:
+
+---
+
+## 🗂️ หมวดหมู่เอกสารหลัก (Documentation Categories)
+
+| หมวดหมู่ | โฟลเดอร์ | รายละเอียด |
+|---|---|---|
+| **Architecture** | [`docs/architecture/`](architecture/) | สถาปัตยกรรมระบบ Data Flow, HA Boundaries, Repos Report |
+| **Audit & Security Reports** | [`docs/audit/`](audit/) | รายงานผลการตรวจสอบเชิงลึก (Deep Audit), Security Scans, PR History |
+| **Phase Reports** | [`docs/reports/phases/`](reports/phases/) | รายงานผลการดำเนินงานและแผนงาน Phase 7 ถึง Phase 17 |
+| **Implementation** | [`docs/reports/implementation/`](reports/implementation/) | แผนการพัฒนา แผนการตรวจรับ และ Checklist การติดตามผล |
+| **Security** | [`docs/security/`](security/) | นโยบายความปลอดภัย, Key Management, Identity, RBAC, SCIM, Encryption |
+| **Operations** | [`docs/operations/`](operations/) | คู่มือการติดตั้ง Deployment, การกู้คืน DR, Runbooks, Monitoring |
+| **Compliance** | [`docs/compliance/`](compliance/) | มาตรฐานการกำกับดูแล, Data Residency, Evidence Model |
+| **Guides** | [`docs/guides/`](guides/) | คู่มือเริ่มต้นใช้งาน Quickstart, Local Inference, Troubleshooting |
+| **Claude Code Parity** | [`docs/claude-code-parity/`](claude-code-parity/) | สถาปัตยกรรมและการเทียบฟีเจอร์กับ Claude Code |
+| **Engineering** | [`docs/engineering/`](engineering/) | ทิศทางการพัฒนาวิศวกรรม, Roadmap, Master Prompts |
+| **Upgrades Ledger** | [`docs/upgrades/`](upgrades/) | ประวัติและบันทึกการอัปเกรดตามเวอร์ชัน (UPGRADE-00 ถึง UPGRADE-56) |
+
+---
+
 # Upgrade Notes Index
 
 เอกสารอัปเกรดทั้งหมดในโฟลเดอร์ `docs/upgrades/` เรียงตามลำดับเวอร์ชัน
