@@ -197,6 +197,7 @@ class TestSEC001DeepResearchSSRF:
 
     def test_transport_redirect_to_public_allowed(self, monkeypatch):
         """Redirect to public URL allowed."""
+
         def fake_getaddrinfo(host, port, *, type):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
 

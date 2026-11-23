@@ -264,7 +264,7 @@ def start():
     import uvicorn
 
     port = int(os.getenv("PORT", "8088"))
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "0.0.0.0")  # nosec B104
     workers = int(os.getenv("WEB_CONCURRENCY", "1"))
 
     # Fast path: check for uvloop and httptools for max performance

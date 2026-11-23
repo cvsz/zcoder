@@ -18,6 +18,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from zcoder.core.outbound_security import safe_external_urlopen
+
 # Maximum number of search results returned per call
 WEB_SEARCH_MAX_RESULTS = 10
 
@@ -87,10 +89,7 @@ def parse_search_args(args: dict[str, Any], max_queries: int = WEB_SEARCH_MAX_QU
     if len(queries) > max_queries:
         noun = "query" if max_queries == 1 else "queries"
         raise WebSearchArgsError([f"queries must contain at most {max_queries} {noun}"])
-    if any(
-        not isinstance(q, str) or q.strip().length == 0 if hasattr(q, "strip") else not isinstance(q, str)
-        for q in queries
-    ):
+    if any(not isinstance(q, str) or not q.strip() for q in queries):
         raise WebSearchArgsError(["each query must be a non-empty string"])
     # Collapse exact duplicates, preserving first-occurrence order
     seen: set[str] = set()
@@ -243,7 +242,7 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                     "Accept": "text/html,application/xhtml+xml",
                 },
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with safe_external_urlopen(req, timeout=10) as resp:
                 html_content = resp.read().decode("utf-8", errors="replace")
 
             # Simple regex-based extraction of DuckDuckGo results
@@ -305,8 +304,8 @@ def duckduckgo_search(queries: list[str], max_results: int = WEB_SEARCH_MAX_RESU
                     )
                 )
 
-        except (urllib.error.URLError, urllib.error.HTTPError, OSError, Exception):
-            # Continue to next query on failure
+        except (urllib.error.URLError, OSError, ValueError, RuntimeError):
+            # network/SSRF-policy failure ของ query นี้: ข้ามไป query ถัดไป
             continue
 
     truncated = len(sources) >= max_results and len(queries) > 0

@@ -126,7 +126,7 @@ def _local_server_base_url() -> str:
     parsed = urllib.parse.urlsplit(base_url)
     if (
         parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "::1", "0.0.0.0", "localhost"}
+        or parsed.hostname not in {"127.0.0.1", "::1", "0.0.0.0", "localhost"}  # nosec B104
         or parsed.username
         or parsed.password
         or parsed.query

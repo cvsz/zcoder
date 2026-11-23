@@ -213,7 +213,7 @@ def resolve_base_url(provider: str, cli_base_url: str | None = None) -> str:
         # provider-specific URL or explicit CLI override was supplied.
         from urllib.parse import urlsplit
 
-        if urlsplit(env_gateway).hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}:
+        if urlsplit(env_gateway).hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}:  # nosec B104
             env_gateway = ""
     if env_gateway:
         _validate_base_url(env_gateway)

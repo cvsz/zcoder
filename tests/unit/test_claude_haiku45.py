@@ -8,7 +8,6 @@ HAIKU45_ALIAS, MIN_THINKING_BUDGET and validate_fast_mode no longer exist;
 thinking_budget is accepted for compatibility but ignored by the local model.
 """
 
-
 from zcoder.agent.models.haiku45 import (
     HAIKU45_EFFORT_BUDGETS,
     HAIKU45_EFFORT_LEVELS,

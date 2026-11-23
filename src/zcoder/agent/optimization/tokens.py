@@ -21,6 +21,7 @@ from pathlib import Path
 
 from zcoder.agent.optimization.local_tokens import LocalTokenEstimator
 from zcoder.core.exceptions import ZCoderError
+from zcoder.core.resilience import safe_urlopen
 
 COUNT_ENDPOINT = "https://api.anthropic.com/v1/messages/count_tokens"
 
@@ -250,9 +251,10 @@ def forecast_spend(
     if daily_prompts is not None:
         # Scale forecast based on estimated prompts
         # This is a simplified approach - in production would use more sophisticated scaling
-        scale_factor = daily_prompts / max(sum(len(v.get("entries", [])) for v in history.values()), 1)
+        # history เป็น dict[model, list[entry]] จึงนับจำนวน entry ด้วย len(entries)
+        scale_factor = daily_prompts / max(sum(len(entries) for entries in history.values()), 1)
         total_daily_cost *= scale_factor
-        daily_average_usd = total_daily_cost / days
+        daily_average_usd = total_daily_cost / days if days > 0 else 0.0
     else:
         daily_average_usd = total_daily_cost / days if days > 0 else 0.0
 
@@ -266,7 +268,7 @@ def forecast_spend(
     }
 
 
-def _track_usage(self, tokens: int, cost_usd: float, model: str) -> None:
+def _track_usage(tokens: int, cost_usd: float, model: str) -> None:
     """Track usage history for predictive model selection."""
     entry = {
         "tokens": tokens,
@@ -394,7 +396,7 @@ class TokenCounter:
             }
             price = prices_per_mtok.get(model, 3.0)
             cost_usd = (tokens / 1_000_000) * price
-            self._track_usage(tokens, cost_usd, model)
+            _track_usage(tokens, cost_usd, model)
             return result
         except ZCoderError as e:
             raise RuntimeError(f"Token count failed: {e.message}") from e
@@ -406,7 +408,7 @@ class TokenCounter:
         :class:`ZCoderError` and never exposed as raw urllib exceptions.
         """
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with safe_urlopen(req, timeout=30) as resp:
                 body = resp.read()
             return json.loads(body)
         except Exception as exc:
@@ -452,7 +454,7 @@ class TokenCounter:
         # Estimate cost for tracking
         cost_est = self.estimate_cost(tokens, m)
         # Track usage history for predictive model selection
-        self._track_usage(tokens, cost_est["estimated_cost_usd"], m)
+        _track_usage(tokens, cost_est["estimated_cost_usd"], m)
         return {"input_tokens": tokens, "method": "local"}
 
     def estimate_local(

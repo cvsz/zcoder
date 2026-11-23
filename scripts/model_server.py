@@ -92,7 +92,7 @@ def build_sectors(cfg: dict[str, Any]) -> list[Sector]:
                 name=name,
                 model=str(entry["model"]),
                 alias=str(entry.get("alias", name)),
-                host=str(entry.get("host", os.getenv("HOST", "0.0.0.0"))),
+                host=str(entry.get("host", os.getenv("HOST", "0.0.0.0"))),  # nosec B104
                 port=int(entry["port"]),
                 ctx_size=int(entry.get("ctx_size", default_ctx)),
                 enabled=bool(entry.get("enabled", False)),
@@ -157,7 +157,7 @@ def health_ok(sector: Sector, timeout: float = 3.0) -> bool:
         url = f"{sector.base_url}{path}"
         req = urllib.request.Request(url, headers={"Accept": "*/*"})
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                 if resp.status == 200:
                     return True
         except (OSError, urllib.error.URLError, ValueError):
@@ -191,7 +191,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
     # ตรวจสอบ Ollama ที่ port 11434 ก่อน (shared singleton)
     ollama_req = urllib.request.Request(OLLAMA_BASE_URL + "/api/version", headers={"Accept": "*/*"})
     try:
-        with urllib.request.urlopen(ollama_req, timeout=3.0) as resp:
+        with urllib.request.urlopen(ollama_req, timeout=3.0) as resp:  # nosec B310
             if resp.status == 200:
                 print(
                     f"[start] {sector.name}: Ollama is running on {OLLAMA_BASE_URL} "

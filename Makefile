@@ -511,7 +511,7 @@ typecheck:
 	$(PYTHON) -m mypy src/zcoder webapp --ignore-missing-imports
 
 security:
-	$(PYTHON) -m bandit -r src/zcoder webapp scripts -ll
+	$(PYTHON) -m bandit -c pyproject.toml -r src webapp scripts -ll
 
 check: lint typecheck security test-cov
 

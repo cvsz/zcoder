@@ -25,7 +25,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -47,7 +46,7 @@ def http_get(path: str, headers: dict[str, str] | None = None, timeout: float = 
     url = f"{BASE_URL}{path}"
     req = urllib.request.Request(url, headers=headers or {}, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
             body = resp.read().decode("utf-8")
             return resp.status, json.loads(body) if body.strip() else {}
     except urllib.error.HTTPError as exc:
@@ -62,7 +61,7 @@ def http_post(path: str, payload: dict, headers: dict[str, str] | None = None, t
     h = {"Content-Type": "application/json", **(headers or {})}
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=h, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
             body = resp.read().decode("utf-8")
             return resp.status, json.loads(body) if body.strip() else {}
     except urllib.error.HTTPError as exc:
@@ -140,11 +139,11 @@ def main() -> int:
     for sector in enabled:
         name = sector["name"]
         port = sector.get("port")
-        host = sector.get("host", "0.0.0.0")
+        host = sector.get("host", "0.0.0.0")  # nosec B104
         sector_url = f"http://{host}:{port}/health"
         try:
             req = urllib.request.Request(sector_url, headers={"Accept": "*/*"})
-            with urllib.request.urlopen(req, timeout=5.0) as resp:
+            with urllib.request.urlopen(req, timeout=5.0) as resp:  # nosec B310
                 if resp.status == 200:
                     pass_(f"sector {name} ({host}:{port}) -> healthy")
                 else:

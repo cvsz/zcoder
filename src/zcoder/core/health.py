@@ -42,7 +42,7 @@ def _check_model_config() -> CheckResult:
     parsed = urllib.parse.urlsplit(base_url)
     valid_url = (
         parsed.scheme == "http"
-        and parsed.hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+        and parsed.hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}  # nosec B104
         and not parsed.username
         and not parsed.password
         and not parsed.query

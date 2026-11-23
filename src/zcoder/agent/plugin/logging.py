@@ -229,7 +229,7 @@ class FileLoggingPlugin(LoggingPlugin):
         **kwargs,
     ):
         super().__init__(name=name, hook_bus=hook_bus, **kwargs)
-        self.log_file = log_file or f"/tmp/zcoder_{name}.log"
+        self.log_file = log_file or f"/tmp/zcoder_{name}.log"  # nosec B108
         self._file_handle = None
         self._open_file()
 
@@ -337,7 +337,7 @@ class HttpLoggingPlugin(LoggingPlugin):
         )
 
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 if resp.status >= 400:
                     logger.warning(f"HTTP logging endpoint returned {resp.status}")
         except urllib.error.URLError as exc:

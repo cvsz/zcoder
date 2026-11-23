@@ -12,7 +12,7 @@ mkdir -p "$LOG_DIR"
 echo "[$(date -Iseconds)] Auto-starting ZCoder model servers..." >> "$LOG_FILE"
 
 # Wait briefly for networking to be ready.
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
     if ping -c1 -W1 127.0.0.1 >/dev/null 2>&1; then
         break
     fi

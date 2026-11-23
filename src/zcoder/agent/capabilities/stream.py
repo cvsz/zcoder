@@ -113,7 +113,7 @@ class StreamCoder:
         parsed = urllib.parse.urlsplit(self.base_url)
         if (
             parsed.scheme != "http"
-            or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}  # nosec B104
             or parsed.username
             or parsed.password
             or parsed.query

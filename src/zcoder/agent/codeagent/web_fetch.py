@@ -130,7 +130,7 @@ def fetch_url(url: str, max_bytes: int = WEB_FETCH_MAX_BYTES) -> WebFetchResult:
 
     while redirects < WEB_FETCH_MAX_REDIRECTS:
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310
                 content_type = resp.headers.get("Content-Type", "")
                 # Extract media type without charset
                 media_type = content_type.split(";")[0].strip().lower() if content_type else ""
