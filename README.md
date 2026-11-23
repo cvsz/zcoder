@@ -646,10 +646,12 @@ Dashboard config: [`docs/observability/dashboard.json`](docs/observability/dashb
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history |
 | [`SECURITY.md`](SECURITY.md) | Security guidance |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution workflow |
-| [`IMPLEMENTATION_CHECKLIST.md`](IMPLEMENTATION_CHECKLIST.md) | Implementation tracking |
+| [`IMPLEMENTATION_CHECKLIST.md`](docs/reports/implementation/IMPLEMENTATION_CHECKLIST.md) | Implementation tracking |
 | [`exec-planning.md`](docs/engineering/exec-planning.md) | Production readiness execution plan |
 | [`docs/operations/`](docs/operations/) | Deployment, DR, observability runbooks |
 | [`docs/security/`](docs/security/) | Security audits and remediation |
+| [`docs/audit/`](docs/audit/) | Comprehensive security & architecture audits |
+| [`docs/reports/`](docs/reports/) | Implementation plans, phase reports, and summaries |
 | [`Final-Report.md`](Final-Report.md) | Deep audit & production-readiness final report |
 
 ---
