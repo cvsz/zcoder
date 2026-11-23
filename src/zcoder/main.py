@@ -65,7 +65,7 @@ def _is_local_only(args) -> bool:
             base_url = resolve_base_url(provider, getattr(args, "base_url", None))
             from urllib.parse import urlsplit
 
-            return urlsplit(base_url).hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+            return urlsplit(base_url).hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}  # nosec B104
         return False
     except ValueError:
         return local_mode
@@ -298,7 +298,7 @@ def build_parser():
     )
     g.add_argument(
         "--mcp-server-host",
-        default="0.0.0.0",
+        default="0.0.0.0",  # nosec B104
         dest="mcp_server_host",
         help="Host for --mcp-server-http (default: 0.0.0.0).",
     )

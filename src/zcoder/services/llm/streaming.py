@@ -10,6 +10,7 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -44,7 +45,12 @@ class StreamableLLMProvider:
         checks the abort signal — if aborted, yields a final ``done`` chunk
         and stops.
         """
-        async for chunk in self._provider.generate_stream(options):
+        stream = (
+            await self._provider.generate_stream(options)
+            if asyncio.iscoroutinefunction(self._provider.generate_stream)
+            else self._provider.generate_stream(options)
+        )
+        async for chunk in stream:  # type: ignore[union-attr]
             yield chunk
             if self._abort_signal.aborted:
                 yield StreamChunk(

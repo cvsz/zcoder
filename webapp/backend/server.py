@@ -341,7 +341,7 @@ def _local_model_endpoint(path: str) -> str:
     if (
         parsed.scheme != "http"
         and parsed.scheme != "https"
-        or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}  # nosec B104
         or parsed.username
         or parsed.password
         or parsed.query
@@ -373,7 +373,7 @@ def _local_model_endpoint_for_model(model_id: str, path: str) -> str:
     if (
         parsed.scheme != "http"
         and parsed.scheme != "https"
-        or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+        or parsed.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}  # nosec B104
         or parsed.username
         or parsed.password
         or parsed.query

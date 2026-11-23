@@ -64,7 +64,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - run: bandit -r src -ll
+      - run: bandit -c pyproject.toml -r src webapp scripts -ll
 
   test:
     runs-on: ubuntu-latest

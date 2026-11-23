@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from zcoder.tools.definition import ToolError, ToolProtocol
@@ -134,12 +134,15 @@ class GuardedToolExecutor:
             elapsed = time.monotonic() - start_time
 
             if isinstance(result, ToolResult):
-                result.metadata = {
-                    **result.metadata,
-                    "elapsed_ms": round(elapsed * 1000, 2),
-                    "tool": tool.name,
-                }
-                return result
+                # ToolResult เป็น frozen dataclass จึงต้องสร้าง instance ใหม่แทนการ mutate
+                return replace(
+                    result,
+                    metadata={
+                        **result.metadata,
+                        "elapsed_ms": round(elapsed * 1000, 2),
+                        "tool": tool.name,
+                    },
+                )
 
             # Wrap plain output in ToolResult
             if isinstance(result, ToolOutput):

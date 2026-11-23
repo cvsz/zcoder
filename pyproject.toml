@@ -142,3 +142,7 @@ dev = [
     "build>=1.0.0",
     "pip-audit>=2.0.0",
 ]
+
+[tool.bandit]
+# Test suites ใช้ fixture paths และ assert; สแกนเฉพาะโค้ด production
+exclude_dirs = ["tests", "src/zcoder/tests", "src/zgpu/tests", "external", "venv", ".venv"]

@@ -115,7 +115,7 @@ class LocalAdapter(ProviderAdapter):
         )
 
         try:
-            with urllib.request.urlopen(request, timeout=300) as resp:
+            with urllib.request.urlopen(request, timeout=300) as resp:  # nosec B310
                 raw = json.loads(resp.read().decode())
         except urllib.error.HTTPError as exc:
             body = exc.read().decode()

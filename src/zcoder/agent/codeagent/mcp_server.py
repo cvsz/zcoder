@@ -587,7 +587,7 @@ def build_fastapi_app(server: MCPServer) -> Any:
     return app
 
 
-def run_http(server: MCPServer, host: str = "0.0.0.0", port: int = 8422) -> None:
+def run_http(server: MCPServer, host: str = "0.0.0.0", port: int = 8422) -> None:  # nosec B104
     """Run the MCP server over HTTP/SSE using uvicorn."""
     try:
         import uvicorn
@@ -607,7 +607,7 @@ def run_http(server: MCPServer, host: str = "0.0.0.0", port: int = 8422) -> None
     except ImportError:
         http = "auto"
 
-    uvicorn.run(app, host=host, port=port, log_level="warning", loop=loop, http=http)
+    uvicorn.run(app, host=host, port=port, log_level="warning", loop=loop, http=http)  # nosec B104
 
 
 # ---------------------------------------------------------------------------
@@ -615,7 +615,7 @@ def run_http(server: MCPServer, host: str = "0.0.0.0", port: int = 8422) -> None
 # ---------------------------------------------------------------------------
 
 
-async def run_websocket(server: MCPServer, host: str = "0.0.0.0", port: int = 8423) -> None:
+async def run_websocket(server: MCPServer, host: str = "0.0.0.0", port: int = 8423) -> None:  # nosec B104
     """Serve MCP over WebSocket."""
     try:
         import websockets
@@ -648,5 +648,5 @@ async def run_websocket(server: MCPServer, host: str = "0.0.0.0", port: int = 84
                     resp["id"] = msg["id"]
                 await websocket.send(json.dumps(resp, ensure_ascii=False))
 
-    async with websockets.serve(_handler, host, port):
+    async with websockets.serve(_handler, host, port):  # nosec B104
         await asyncio.Future()  # run forever

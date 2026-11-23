@@ -8,7 +8,6 @@ fallback retry paths and RefusalError no longer exist; parse_fallback_chain is
 kept as a compatibility shim that accepts input and returns a neutral result.
 """
 
-
 from zcoder.agent.models.fable5 import (
     FABLE5_EFFORT_BUDGETS,
     FABLE5_EFFORT_LEVELS,

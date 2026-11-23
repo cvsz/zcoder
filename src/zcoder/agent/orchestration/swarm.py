@@ -22,8 +22,6 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, cast
 
-from zcoder.agent.codeagent.sessions import SessionEvent
-
 
 class SwarmRole(StrEnum):
     """Role of an agent within a swarm."""
@@ -310,7 +308,7 @@ class SwarmCoordinator:
                         )
                     )
                 else:
-                    results.append(cast(SessionEvent, result))
+                    results.append(cast(SwarmResult, result))
 
         self.swarm.status = SwarmStatus.IDLE
         return results
