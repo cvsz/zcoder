@@ -43,7 +43,7 @@ jobs:
           python -m pip install bandit==1.9.4 pip-audit==2.10.1
 
       - name: Bandit source scan
-        run: bandit -r src -q -ll
+        run: bandit -c pyproject.toml -r src -q -ll
 
       - name: Audit Python dependencies
         run: pip-audit -r requirements.txt -r requirements-dev.txt
