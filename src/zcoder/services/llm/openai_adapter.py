@@ -38,7 +38,12 @@ class OpenAIAdapter:
                 "OpenAI API key is required — set OPENAI_API_KEY or pass api_key",
                 provider="openai",
             )
-        self.base_url = (base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
+        raw_base_url = (
+            base_url
+            or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            or "https://api.openai.com/v1"
+        )
+        self.base_url = raw_base_url.rstrip("/")
         self.timeout = timeout
 
     @property

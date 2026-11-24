@@ -457,6 +457,8 @@ class CloudDeployer:
                 step.started_at = time.time()
 
                 try:
+                    if self.provider is None:
+                        raise RuntimeError("Cloud provider is not configured")
                     # Create the resource
                     resource_config = {
                         "type": "vm",  # Default, could be customized
@@ -496,9 +498,10 @@ class CloudDeployer:
             return False
 
         # Destroy all resources
-        for resource_id, _resource in list(deployment.resources.items()):
-            await self.provider.delete_resource(resource_id)
-            del deployment.resources[resource_id]
+        if self.provider is not None:
+            for resource_id, _resource in list(deployment.resources.items()):
+                await self.provider.delete_resource(resource_id)
+                del deployment.resources[resource_id]
 
         deployment.status = DeploymentStatus.DESTROYED
         deployment.completed_at = time.time()

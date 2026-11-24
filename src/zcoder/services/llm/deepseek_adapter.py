@@ -39,7 +39,12 @@ class DeepSeekAdapter:
                 "DeepSeek API key is required — set DEEPSEEK_API_KEY or pass api_key",
                 provider="deepseek",
             )
-        self.base_url = (base_url or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")).rstrip("/")
+        raw_base_url = (
+            base_url
+            or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+            or "https://api.deepseek.com"
+        )
+        self.base_url = raw_base_url.rstrip("/")
         self.timeout = timeout
 
     @property
