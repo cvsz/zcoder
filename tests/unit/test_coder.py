@@ -44,6 +44,7 @@ def test_generate_uses_local_chat_completions_without_api_key():
     assert captured["request"].full_url in {
         "http://127.0.0.1:8080/v1/chat/completions",
         "http://0.0.0.0:8080/v1/chat/completions",
+        "http://127.0.0.1:11434/v1/chat/completions",
         "http://0.0.0.0:11434/v1/chat/completions",
     }
     assert captured["request"].get_header("Authorization") is None
