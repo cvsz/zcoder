@@ -446,73 +446,82 @@ def env_flag(value: str, default: bool = False) -> bool:
     return default if default is not None else True
 
 
-def read_text_prefix(path: str | Path, max_chars: int = 8000) -> str:
-    """Read the first ``max_chars`` characters of a text file.
+BINARY_FILE_EXTENSIONS = frozenset(
+    {
+        ".xlsm",
+        ".parquet",
+        ".epub",
+        ".heic",
+        ".png",
+        ".zip",
+        ".sqlite",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".webp",
+        ".pdf",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".eot",
+        ".pyc",
+    }
+)
 
-    Detects binary content (null bytes or non-UTF-8 sequences) and raises
-    :exc:`ValidationError` if found. Truncates output with a marker when the
-    file exceeds ``max_chars`` by 5 or fewer characters, keeping the marker
-    within the ``max_chars`` limit. For significantly oversized files, caps
-    at ``max_chars`` without a marker.
+READ_PREFIX_BYTES_DEFAULT = 1 * 1024 * 1024  # 1 MiB
 
-    @param path - file to read
-    @param max_chars - maximum number of characters to read
-    @returns the file content prefix (up to max_chars characters)
-    @throws ValidationError if the file contains binary content
-    @throws SecurityError if the file cannot be read
-    """
-    import codecs
+
+def read_text_prefix(
+    path: str | os.PathLike,
+    *,
+    max_bytes: int = READ_PREFIX_BYTES_DEFAULT,
+    max_chars: int | None = None,
+) -> str:
     from stat import S_ISREG
 
     p = Path(path)
-    st = p.stat()  # FileNotFoundError ส่งต่อให้ caller ตามเดิม
-    # ตรวจด้วย stat ก่อนเปิด descriptor: FIFO/device/socket อาจทำให้ agent ค้างตลอดไป
+    suffix = p.suffix.lower()
+    if suffix in BINARY_FILE_EXTENSIONS:
+        raise ValidationError(
+            f"Refusing to read binary file {p.name} as text",
+            details={"path": str(p), "suffix": suffix},
+        )
+    st = p.stat()
     if not S_ISREG(st.st_mode):
         kind = "directory" if os.path.isdir(p) else "non-regular file (pipe/device/socket)"
-        raise ValidationError(f"Refusing to read {kind}: {p.name}")
-
-    # อ่านแบบจำกัดขนาด (UTF-8 ใช้ไม่เกิน 4 bytes ต่อตัวอักษร) ไม่โหลดไฟล์ใหญ่ทั้งก้อนเข้า memory
-    max_bytes = max_chars * 4 + 4
-    try:
-        with p.open("rb") as f:
-            raw = f.read(max_bytes + 1)
-    except OSError as exc:
-        raise SecurityError(f"cannot read {p}: {exc}") from exc
-
-    # Get actual file size
-    file_size = st.st_size
-
-    # Check for binary content: null bytes or non-UTF-8 sequences
-    try:
-        # final=False ยอมให้ multi-byte sequence ที่ถูกตัดท้าย prefix ไม่ถือเป็น binary
-        text = codecs.getincrementaldecoder("utf-8")().decode(raw, final=len(raw) <= max_bytes)
-        # Also check for null characters in the decoded text
-        if "\x00" in text:
-            raise ValidationError(f"binary content in {p}")
-    except UnicodeDecodeError as err:
-        raise ValidationError(f"binary file in {p}") from err
-
-    # If file fits within max_chars, return as-is
-    if file_size <= max_chars:
-        return text
-
-    # File exceeds max_chars - handle truncation
-    excess = file_size - max_chars
-    # Only add marker if excess is small (≤ 5 characters)
-    if excess <= 5:
-        marker = f"[TRUNCATED — showing first of {file_size}-byte file]"
-        marker_len = len(marker)
-        if marker_len < max_chars:
-            # Keep room for marker within max_chars limit
-            available = max_chars - marker_len
-            text = text[:available] + marker
-        else:
-            # Marker too large; just cap at max_chars without marker
-            text = text[:max_chars]
-    else:
-        # Significantly oversized - cap without marker
+        raise ValidationError(
+            f"Refusing to read {kind}: {p.name}",
+            details={"path": str(p), "mode": oct(st.st_mode)},
+        )
+    with p.open("rb") as fh:
+        prefix = fh.read(max_bytes + 1)
+    truncated = len(prefix) > max_bytes
+    prefix = prefix[:max_bytes]
+    if b"\x00" in prefix:
+        raise ValidationError(
+            f"Refusing to read {p.name}: binary content (NUL bytes)",
+            details={"path": str(p), "suffix": suffix, "bytes": len(prefix)},
+        )
+    text = prefix.decode("utf-8", errors="replace")
+    if truncated:
+        marker = f"\n[TRUNCATED — showing first {max_bytes} bytes of {st.st_size}-byte file]"
+        budget = (max_chars if max_chars is not None else len(text) + len(marker)) - len(marker)
+        text = text[: max(0, budget)] + marker
+    elif max_chars is not None and len(text) > max_chars:
         text = text[:max_chars]
-
     return text
 
 
@@ -553,7 +562,6 @@ _NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_. -]*$")
 
 
 # ── Constants ──────────────────────────────────────────────────────────────
-READ_PREFIX_BYTES_DEFAULT = 8000
 
 
 # ── Environment variable secret name detection ───────────────────────────────
@@ -586,17 +594,11 @@ def is_secret_env_name(name: str) -> bool:
 
 
 def validate_name(name: str, field: str = "name") -> str:
-    """Validate that ``name`` is a safe identifier.
-
-    @param name - value to validate
-    @param field - field name used in error messages
-    @throws SecurityError if the name is invalid
-    @returns the validated name string
-    """
-    if not isinstance(name, str) or not name:
-        raise SecurityError(f"{field} must be a non-empty string")
+    """Validate that name is a safe identifier."""
+    if not isinstance(name, str) or not name or len(name) > 255:
+        raise ValidationError(f"{field} must be a non-empty string <= 255 chars")
     if not _NAME_RE.fullmatch(name):
-        raise SecurityError(
+        raise ValidationError(
             f"{field} '{name}' contains invalid characters; "
             "only letters, digits, underscore, hyphen, and dot are allowed"
         )

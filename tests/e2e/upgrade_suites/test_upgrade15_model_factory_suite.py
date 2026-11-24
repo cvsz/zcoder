@@ -71,7 +71,7 @@ def test_llamacpp_runtime_adapter(monkeypatch):
 
     import pytest
 
-    with pytest.raises(RuntimeError, match="llama.cpp inference server is unavailable"):
+    with pytest.raises(RuntimeError, match=r"(?:llama\.cpp|Ollama) inference server is unavailable"):
         runtime.chat_complete("qwen2.5-coder:7b-gguf", "def subtract(a, b):")
 
 

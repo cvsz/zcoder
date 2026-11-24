@@ -32,11 +32,12 @@ from zcoder.agent.orchestration.adapter import ProviderAdapter
 from zcoder.agent.orchestration.anthropic import AnthropicAdapter
 from zcoder.agent.orchestration.gemini import GeminiAdapter
 from zcoder.agent.orchestration.local import LocalAdapter
+from zcoder.agent.orchestration.nvidia import NVIDIAAdapter
 from zcoder.agent.orchestration.ollama import OllamaAdapter
 from zcoder.agent.orchestration.openai_compatible import OpenAICompatibleAdapter
 from zcoder.agent.orchestration.registry import AdapterRegistry
 from zcoder.core.exceptions import APIError, RateLimitError, TransientAPIError, ZCoderError
-from zcoder.core.resilience import CircuitBreaker, retry
+from zcoder.core.resilience import CircuitBreaker, retry, urlopen_json
 from zcoder.core.utils import sampling_kwargs
 
 # ── Adapter registry ---------------------------------------------------------
@@ -49,6 +50,7 @@ _ADAPTER_REGISTRY.register("anthropic", AnthropicAdapter())
 _ADAPTER_REGISTRY.register("gemini", GeminiAdapter())
 _ADAPTER_REGISTRY.register("ollama", OllamaAdapter())
 _ADAPTER_REGISTRY.register("local", LocalAdapter())
+_ADAPTER_REGISTRY.register("nvidia", NVIDIAAdapter())
 
 
 def _get_adapter(provider: str) -> ProviderAdapter:
@@ -350,3 +352,6 @@ def cmd_route_list(extra_table: dict | None = None):
     for name, desc in sorted(table.items()):
         print(f"  \033[1m{name:<14}\033[0m {desc}")
     print()
+
+
+__all__ = ["urlopen_json", "_call", "_post", "classify", "route_and_call"]
