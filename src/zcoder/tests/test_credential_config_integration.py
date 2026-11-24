@@ -13,6 +13,7 @@ from zcoder.credentials.credential_seam import (
     CredentialKey,
     CredentialProvider,
     CredentialRecord,
+    CredentialRecordInfo,
     CredentialRef,
     ResolvedCredential,
     credentialRef,
@@ -111,9 +112,9 @@ class TestMockCredentialProvider:
         def readRecord(self, key: CredentialKey) -> CredentialRecord | None:
             return self._records.get(str(key))
 
-        def describeRecord(self, key: CredentialKey) -> CredentialInfo:
+        def describeRecord(self, key: CredentialKey) -> CredentialRecordInfo:
             record = self._records.get(str(key))
-            return CredentialInfo(
+            return CredentialRecordInfo(
                 configured=record is not None and bool(record.value),
                 kind=record.kind if record else None,
                 writable=True,
@@ -265,7 +266,7 @@ class TestEnvConfigLoading:
         try:
             config = _settings_mod.Config()
             assert config.get("model") == "zcoder-flash"
-            assert config.get("provider") == "openai_compatible"
+            assert config.get("provider") == "ollama"
             assert config.get("base_url") == "http://localhost:11434"
         finally:
             _settings_mod.CONFIG_PATH = original_path

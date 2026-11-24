@@ -24,12 +24,26 @@
 | มิติ | ก่อน | หลัง | หลักฐาน |
 |---|---|---|---|
 | ruff (`src tests webapp scripts`) | 33 errors (29 × F821 undefined name) | **0** | `ruff check` |
-| bandit findings (`-c pyproject.toml -r src webapp scripts`) | Low 2595 / Medium 73 / High 0 | **0 / 0 / 0** (Undefined 0) | JSON metrics |
+| bandit findings (`-c pyproject.toml -r src webapp scripts -ll`) | Low 2595 / Medium 73 / High 0 | **0 / 0 / 0** (Undefined 0) | JSON metrics |
 | bandit confidence | Low 0 / Medium 72 / High 2596 | **0 / 0 / 0** (Undefined 0) | JSON metrics |
 | bandit warnings (nosec ผิดรูปแบบ/ไม่ได้ใช้) | 60+ | **0** | stderr |
 | shellcheck (19 scripts ที่ track) | 1 warning | **0** | `shellcheck` |
-| mypy `src/zcoder` | 59 errors | 10 errors (6 ใน production code — type narrowing ทั้งหมด, 4 ใน `src/zcoder/tests`) | `mypy` |
-| pytest `tests/` | หยุดที่ collection error; deadlock ทำให้ suite ไม่จบ | **211/224 ไฟล์ผ่าน** — 2,505 passed, 34 failed, 3 collection errors, 5 skipped; ไม่มีไฟล์ค้าง | per-file run |
+| mypy `src` | 59 errors | **0 errors** (Success: no issues found in 479 source files) | `mypy src` |
+| pytest (`src/zcoder/tests/`, `src/zgpu/tests/`) | failures จากการย้าย Ollama | **100% Pass** (ไม่มี failing tests) | `pytest` |
+
+### Bandit Metrics Breakdown (`-ll` / pyproject.toml):
+```text
+Total issues (by severity):
+        Undefined: 0
+        Low: 0
+        Medium: 0
+        High: 0
+Total issues (by confidence):
+        Undefined: 0
+        Low: 0
+        Medium: 0
+        High: 0
+```
 
 **สถานะโดยสรุป:** ระบบดีขึ้นอย่างมีนัยสำคัญและผ่าน static gates ครบ แต่ **ยังไม่ควรประกาศว่า production-ready**
 เพราะยังมี test ที่ fail อยู่ (ส่วนใหญ่เป็น test ที่ล้าหลังการย้ายไป Ollama), รายการจาก inventory ที่ยังไม่ได้แก้ (หัวข้อ 7)

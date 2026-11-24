@@ -232,7 +232,7 @@ class TestGuardedToolExecutor:
             return ToolOutput(text="never", diff=None)
 
         tool = _FakeTool("slow-tool")
-        tool.execute = slow_execute  # type: ignore
+        tool.execute = slow_execute
         context = ToolContext()
 
         result = await executor.execute(tool, context, {}, timeout=0.1)

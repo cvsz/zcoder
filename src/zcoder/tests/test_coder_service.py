@@ -12,8 +12,8 @@ class TestCoderInit:
     def test_default_init(self):
         coder = Coder()
         assert coder.model == "zcoder-flash"
-        assert coder.provider == "local"
-        assert coder.base_url == "http://127.0.0.1:8080/v1"
+        assert coder.provider == "ollama"
+        assert coder.base_url == "http://127.0.0.1:11434/v1"
         assert coder.temperature == 0.3
         assert coder.max_tokens == 4096
 

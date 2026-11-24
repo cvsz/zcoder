@@ -16,7 +16,7 @@ class TestConfigDefaults:
         monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
         monkeypatch.setattr(_settings_mod, "CONFIG_PATH", str(tmp_path / ".zcoder-config.json"))
         config = _settings_mod.Config()
-        assert config.get("provider") == "openai_compatible"
+        assert config.get("provider") == "ollama"
         assert config.get("model") == "zcoder-flash"
         assert config.get("base_url") == "http://localhost:11434"
         assert config.get("api_key") == ""

@@ -10,7 +10,7 @@ Provides:
 
 from __future__ import annotations
 
-import asyncio
+import inspect
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -47,7 +47,7 @@ class StreamableLLMProvider:
         """
         stream = (
             await self._provider.generate_stream(options)
-            if asyncio.iscoroutinefunction(self._provider.generate_stream)
+            if inspect.iscoroutinefunction(self._provider.generate_stream)
             else self._provider.generate_stream(options)
         )
         async for chunk in stream:  # type: ignore[union-attr]

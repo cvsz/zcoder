@@ -16,16 +16,16 @@ from zcoder.session.event import (
 from zcoder.session.logger import SessionEventStore
 
 
-class TestAgent:
-    """Test agent implementation for testing."""
+class MockAgent:
+    """Mock agent implementation for testing."""
 
     def __init__(self, session_id: str = "test-session", agent_id: str = "test-agent"):
         self.session_id = session_id
         self.agent_id = agent_id
-        self.services = {}
+        self.services: dict[str, Any] = {}
         self.running = False
         self._interrupted = False
-        self.calls = []
+        self.calls: list[str] = []
 
     @property
     def name(self) -> str:
@@ -65,13 +65,13 @@ class TestBaseAgent:
     """Tests for BaseAgent base class."""
 
     def test_create_base_agent(self):
-        agent = TestAgent(session_id="s1", agent_id="agent-1")
+        agent = MockAgent(session_id="s1", agent_id="agent-1")
         assert agent.session_id == "s1"
         assert agent.agent_id == "agent-1"
         assert agent.is_running() is False
 
     def test_start_stop(self):
-        agent = TestAgent(session_id="s1", agent_id="agent-1")
+        agent = MockAgent(session_id="s1", agent_id="agent-1")
 
         async def run_test():
             await agent.start()
@@ -83,7 +83,7 @@ class TestBaseAgent:
         asyncio.run(run_test())
 
     def test_interrupt(self):
-        agent = TestAgent(session_id="s1", agent_id="agent-1")
+        agent = MockAgent(session_id="s1", agent_id="agent-1")
         agent.running = True
         agent._interrupted = False
 
@@ -91,13 +91,13 @@ class TestBaseAgent:
         assert agent._interrupted is True
 
     def test_register_service(self):
-        agent = TestAgent(session_id="s1", agent_id="agent-1")
+        agent = MockAgent(session_id="s1", agent_id="agent-1")
 
         agent.register_service("llm", "my-llm-service")
         assert agent.get_service("llm") == "my-llm-service"
 
     def test_get_service_missing(self):
-        agent = TestAgent(session_id="s1", agent_id="agent-1")
+        agent = MockAgent(session_id="s1", agent_id="agent-1")
 
         with pytest.raises(AgentError) as exc_info:
             agent.get_service("nonexistent")
