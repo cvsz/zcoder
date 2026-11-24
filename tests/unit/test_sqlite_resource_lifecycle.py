@@ -83,6 +83,9 @@ def test_store_connections_are_closed(
 
     monkeypatch.setattr(sqlite_helper.sqlite3, "connect", recording_connect)
 
+    # Clean up prior unclosed connection warnings from other test suites
+    _unclosed_database_warnings()
+
     store = factory(tmp_path)
     del store
     assert connections, "store did not open any SQLite connection"

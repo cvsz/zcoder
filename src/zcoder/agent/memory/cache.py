@@ -150,7 +150,7 @@ class MemoryCache:
 # and was never revisited, so it silently rejected Fable 5 / Mythos 5 calls
 # that the platform has accepted since launch. Not supported on Claude
 # Sonnet 5 or Claude Opus 5 (use the top-level `system` field instead).
-MID_SYSTEM_SUPPORTED_MODELS = {"zcoder-flash", "zcoder-pro"}
+MID_SYSTEM_SUPPORTED_MODELS = {"claude-fable-5", "claude-mythos-5", "claude-opus-4-8"}
 
 
 class SystemMessagePlacementError(ValueError):

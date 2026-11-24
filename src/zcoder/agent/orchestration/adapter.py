@@ -15,12 +15,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from zcoder.core.exceptions import (
-    APIError,
-    AuthenticationError,
-    RateLimitError,
-    TransientAPIError,
-)
+from zcoder.core.resilience import urlopen_json
 
 
 @dataclass(frozen=True)
@@ -97,22 +92,11 @@ class ProviderAdapter(ABC):
             headers=headers,
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(request, timeout=300) as resp:  # nosec B310
-                raw = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode()
-            if exc.code == 401:
-                raise AuthenticationError("API key rejected (401)", details={"body": body[:300]}) from exc
-            if exc.code == 429:
-                raise RateLimitError("Rate limited (429)", details={"body": body[:300]}) from exc
-            if exc.code >= 500:
-                raise TransientAPIError(f"Server error ({exc.code})", details={"body": body[:300]}) from exc
-            raise APIError(
-                f"Request rejected ({exc.code})", status_code=exc.code, details={"body": body[:300]}
-            ) from exc
-        except (TimeoutError, OSError) as exc:
-            raise TransientAPIError(f"Network error: {exc}") from exc
+        import sys
+
+        router = sys.modules.get("zcoder.agent.orchestration.router")
+        runner = getattr(router, "urlopen_json", urlopen_json) if router is not None else urlopen_json
+        raw = runner(request, timeout=300)
 
         content = self.parse_response(raw)
         return ProviderResult(

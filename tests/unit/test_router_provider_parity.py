@@ -147,9 +147,9 @@ def test_resolve_base_url_cli_wins(monkeypatch):
     )
 
 
-def test_default_compatible_gateway_uses_loopback_llama_server(monkeypatch):
+def test_default_compatible_gateway_uses_loopback_ollama_server(monkeypatch):
     monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
-    assert providers.resolve_base_url("openai_compatible") == "http://127.0.0.1:8080/v1"
+    assert providers.resolve_base_url("openai_compatible") == "http://127.0.0.1:11434/v1"
 
 
 def test_resolve_base_url_env_gateway(monkeypatch):
@@ -179,7 +179,7 @@ def test_resolve_base_url_rejects_malformed_gateway(url):
 
 def test_openai_compatible_defaults_to_local_gateway(monkeypatch):
     monkeypatch.delenv("ZCODER_BASE_URL", raising=False)
-    assert providers.resolve_base_url("openai_compatible") == "http://127.0.0.1:8080/v1"
+    assert providers.resolve_base_url("openai_compatible") == "http://127.0.0.1:11434/v1"
     assert (
         providers.resolve_base_url("openai_compatible", "http://localhost:1234/v1")
         == "http://localhost:1234/v1"

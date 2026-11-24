@@ -310,7 +310,7 @@ class _RejectRedirects(urllib.request.HTTPRedirectHandler):
 def _load_sectors() -> list[dict]:
     """Load sectors from config/models.yaml (same source used by scripts/model-server)."""
     try:
-        import yaml  # type: ignore
+        import yaml
     except Exception:
         return []
     try:
