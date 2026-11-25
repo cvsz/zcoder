@@ -199,6 +199,6 @@ async def test_mcp_sse_endpoint() -> None:
         lines = iter(stream.iter_lines())
         first_line = await anyio.to_thread.run_sync(next, lines)
         assert first_line == "event: endpoint"
-        async with anyio.fail_after(5):
+        with anyio.fail_after(5):
             second_line = await anyio.to_thread.run_sync(next, lines)
         assert second_line.startswith("data: /mcp/messages/")
