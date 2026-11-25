@@ -40,6 +40,8 @@ ZCoder เวอร์ชัน 1.60.0 ได้รับการปรับ�
 | 7 | `src/zcoder/agent/orchestration/cancellation.py` | bandit B110 try/except/pass (callback failures must not prevent cancellation) | เพิ่ม `# nosec B110` พร้อมเหตุผล |
 | 8 | `src/zcoder/lifecycle/lifecycle.py` | bandit B110 try/except/pass (cleanup failures must not prevent other cleanup) | เพิ่ม `# nosec B110` พร้อมเหตุผล |
 | 9 | `src/zcoder/agent/plugin/auth.py` | bandit B105 hardcoded password (false positive on event type names `auth.token.refresh/validate`) | เพิ่ม `# nosec B105` พร้อมเหตุผล |
+| 10 | `src/zcoder/infrastructure/stores/postgres.py` | mypy error: Unused `# type: ignore[assignment]` comment on `psycopg = None` | ลบ `# type: ignore[assignment]` ที่ไม่จำเป็น (mypy ตรวจพบว่าไม่มีการใช้งาน) |
+| 11 | `tests/unit/test_mcp_server.py` | pytest failure: `async with anyio.fail_after(5)` — `fail_after` is a sync context manager in this anyio version, causes `TypeError` | เปลี่ยน `async with` เป็น `with` ให้สอดคล้องกับ API ของ anyio |
 
 ### 2.2 การอัปเกรดสถาปัตยกรรม (Architecture Upgrades)
 
@@ -159,7 +161,7 @@ Total issues (by confidence):
 
 ZCoder เวอร์ชัน 1.60.0 พร้อมใช้งานจริงในระดับองค์กรแล้ว ทุกระบบย่อยทำงานประสานกันอย่างสมบูรณ์ ผ่านเกณฑ์คุณภาพ ความมั่นคงปลอดภัย และประสิทธิภาพครบถ้วน โดยไม่มีข้อผิดพลาดหรือคำเตือนเหลืออยู่แม้แต่รายการเดียว
 
-**ไฟล์ที่แก้ไขในรอบนี้ (9 ไฟล์):**
+**ไฟล์ที่แก้ไขในรอบนี้ (11 ไฟล์):**
 1. `src/zcoder/infrastructure/stores/postgres.py`
 2. `src/zcoder/services/coder.py`
 3. `src/zcoder/agent/codeagent/session_projection.py`
@@ -169,5 +171,7 @@ ZCoder เวอร์ชัน 1.60.0 พร้อมใช้งานจร�
 7. `src/zcoder/agent/orchestration/cancellation.py`
 8. `src/zcoder/lifecycle/lifecycle.py`
 9. `src/zcoder/agent/plugin/auth.py`
+10. `src/zcoder/infrastructure/stores/postgres.py` (mypy unused type: ignore removal)
+11. `tests/unit/test_mcp_server.py` (anyio.fail_after async→sync fix)
 
 ---

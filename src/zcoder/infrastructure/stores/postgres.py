@@ -54,7 +54,7 @@ try:
 
     _PG_AVAILABLE = True
 except ImportError:
-    psycopg = None  # type: ignore[assignment]
+    psycopg = None
     if not _PSYCOPG2_AVAILABLE:
         _PG_AVAILABLE = False
 
