@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import anyio
 import pytest
+from fastapi.testclient import TestClient
 
 from zcoder.agent.codeagent.mcp_client import MCPError
 from zcoder.agent.codeagent.mcp_server import MCPServer, build_fastapi_app
@@ -187,16 +189,16 @@ def test_build_fastapi_app() -> None:
     assert data["serverInfo"]["name"] == "zcoder"
 
 
-def test_mcp_sse_endpoint() -> None:
-    from fastapi.testclient import TestClient
-
+@pytest.mark.asyncio
+async def test_mcp_sse_endpoint() -> None:
     server = _make_server()
     app = build_fastapi_app(server)
     client = TestClient(app)
     with client.stream("GET", "/mcp/sse") as stream:
         assert stream.status_code == 200
         lines = iter(stream.iter_lines())
-        first_line = next(lines)
+        first_line = await anyio.to_thread.run_sync(next, lines)
         assert first_line == "event: endpoint"
-        second_line = next(lines)
+        async with anyio.fail_after(5):
+            second_line = await anyio.to_thread.run_sync(next, lines)
         assert second_line.startswith("data: /mcp/messages/")
