@@ -49,8 +49,8 @@ except ImportError:
     _PSYCOPG2_AVAILABLE = False
 
 try:
-    import psycopg
-    import psycopg.pool
+    import psycopg  # noqa: F401 — runtime availability check
+    import psycopg.pool  # noqa: F401 — runtime availability check
 
     _PG_AVAILABLE = True
 except ImportError:

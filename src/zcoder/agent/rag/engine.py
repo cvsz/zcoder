@@ -242,7 +242,8 @@ class SearchCache:
             }
 
 
-_search_cache = SearchCache()
+# Module-level cache instance for repeat queries.
+_search_cache: SearchCache = SearchCache()  # noqa: F841
 
 
 # ── Vector Similarity Scoring ───────────────────────────────────────────
@@ -420,12 +421,12 @@ def cmd_rag_cache_query(name: str, query: str, api_key: str, model: str, k: int 
             f"Index not found for tenant '{tenant_id or '(none)'}': {name}\n"
             "  Run --rag-index with the same --rag-tenant to build it."
         )
-        return
+        return None
     # Perform vector-enhanced retrieval
     chunks = retrieve(idx, query, k=k, use_vector=True)
     if not chunks:
         print("No relevant chunks found.")
-        return
+        return None
     print(f"Retrieved {len(chunks)} chunk(s) (vector + BM25 hybrid search). Generating answer …\n")
     # Generate answer using the chunks
     from zcoder.services.coder import Coder
@@ -491,7 +492,7 @@ def cmd_rag_query(name: str, query: str, api_key: str, model: str, k: int = 5, t
     chunks = retrieve(idx, query, k)
     if not chunks:
         print("No relevant chunks found.")
-        return
+        return None
     print(f"Retrieved {len(chunks)} chunk(s). Generating answer …\n")
     print(generate(query, chunks, api_key, model))
 

@@ -245,7 +245,6 @@ def process_audio_for_ml(
 
     # Determine confidence based on Whisper segments
     segments = transcribe_result.get("segments", [])
-    confidence = 0.0
     if segments:
         # Average confidence from segments if available
         conf_values = []

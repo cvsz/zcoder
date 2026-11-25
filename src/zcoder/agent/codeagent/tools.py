@@ -749,7 +749,7 @@ def _skill(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
                 raise ToolError(f"unknown skill: {name}")
             return ToolOutput(f"Skill '{name}' activated.\n\n{skill.body}")
     except ImportError:
-        pass
+        pass  # Skills module not installed or available
     return ToolOutput(f"Skill '{name}' requested (no registry available).")
 
 

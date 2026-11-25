@@ -539,7 +539,6 @@ def check_file_size(path_or_file: Any, max_bytes: int) -> None:
     @throws SecurityError if the file is too large
     """
     size = 0
-    name = "unknown"
     try:
         if hasattr(path_or_file, "seek") and hasattr(path_or_file, "tell"):
             name = getattr(path_or_file, "name", "unknown")

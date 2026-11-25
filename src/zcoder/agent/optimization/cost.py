@@ -467,7 +467,7 @@ def _log_spend(model: str, in_tok: int, out_tok: int, cost: float, prompt_previe
         }
         SPEND_LOG.write_text(json.dumps(list(existing_entries.values())[-5000:], indent=2))
     except Exception:
-        pass
+        pass  # Best-effort spend log persistence; non-critical
 
 
 @dataclass

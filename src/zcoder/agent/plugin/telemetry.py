@@ -146,7 +146,7 @@ class TelemetryPlugin:
             try:
                 await self._flush_task
             except asyncio.CancelledError:
-                pass
+                pass  # Flush task cancelled on shutdown
 
 
 @dataclass

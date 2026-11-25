@@ -132,7 +132,7 @@ class TestEngineeringOrchestrator:
         task = orchestrator.create_task("Test task")
         orchestrator.start_task(task.id)
 
-        for status in TaskStatus:
+        for status in list(TaskStatus):
             orchestrator.update_task_status(task.id, status)
             assert task.status == status
             assert store.tasks[task.id].status == status

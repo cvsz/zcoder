@@ -237,16 +237,16 @@ class Workspace:
             try:
                 shutil.rmtree(str(target), ignore_errors=True)
             except OSError:
-                pass
+                pass  # Ignore error removing worktree dir
             try:
                 self._git("worktree", "prune")
             except ToolError:
-                pass
+                pass  # Ignore error pruning worktree
         if branch is not None:
             try:
                 self._git("branch", "-D", branch)
             except ToolError:
-                pass
+                pass  # Ignore error deleting worktree branch
         self._worktree_path = None
         self._worktree_branch = None
         return f"removed worktree {branch}"

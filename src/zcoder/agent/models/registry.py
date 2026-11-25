@@ -470,18 +470,18 @@ def route_parallel(
             )
 
     # Execute calls in parallel using ThreadPoolExecutor
-    import concurrent.futures
+    from concurrent.futures import Future, as_completed
 
     with TPExecutor(max_workers=len(provider_models)) as executor:
         future_to_idx: dict[
-            concurrent.futures.Future[tuple[str, str, str, float]],
+            Future[tuple[str, str, str, float]],
             int,
         ] = {}
         for idx, (provider, model_id, input_tokens, output_tokens) in enumerate(provider_models):
             future = executor.submit(call_single, provider, model_id, input_tokens, output_tokens)
             future_to_idx[future] = idx
 
-        for future in concurrent.futures.as_completed(future_to_idx):
+        for future in as_completed(future_to_idx):
             idx = future_to_idx[future]
             try:
                 result = future.result()

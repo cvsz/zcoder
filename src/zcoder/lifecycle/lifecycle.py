@@ -130,7 +130,7 @@ class LifecycleController:
                 continue
         if self._cancelled:
             raise asyncio.CancelledError(f"LifecycleController '{self._name}' was cancelled")
-        if self._exception:
+        if self._exception is not None:
             raise self._exception
 
     def check_cancelled(self) -> None:

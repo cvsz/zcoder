@@ -41,7 +41,6 @@ from zcoder.agent.codeagent.workspace import IGNORED_DIRS, ToolError, Workspace
 
 logger = logging.getLogger("zcoder.mcp.server")
 
-_MCP_VERSION = "2024-11-05"
 _PROTOCOL_VERSION = "2024-11-05"
 _SERVER_NAME = "zcoder"
 _SERVER_VERSION = "1.0.0"
@@ -64,8 +63,8 @@ _AGENT_ONLY_TOOLS = frozenset(
 )
 
 # Read-only tools safe to expose without authentication gating beyond the MCP
-# host's own transport security.
-_READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "LS", "TodoWrite"})
+# host's own transport security.  Used by external consumers via mcp_server._READ_ONLY_TOOLS.
+_READ_ONLY_TOOLS: frozenset[str] = frozenset({"Read", "Glob", "Grep", "LS", "TodoWrite"})  # noqa: F841
 
 
 def _tool_to_mcp(tool: Tool) -> dict[str, Any]:
@@ -306,8 +305,6 @@ class MCPServer:
 
     async def set_logging_level(self, level: str) -> None:
         """Set logging level (F13-15)."""
-        import logging
-
         level_map = {
             "debug": logging.DEBUG,
             "info": logging.INFO,
@@ -322,9 +319,7 @@ class MCPServer:
     async def handle_cancellation(self, request_id: str, reason: str | None = None) -> None:
         """Handle cancellation notification (F13-13)."""
         # Log the cancellation
-        import logging
-
-        logging.getLogger("zcoder.mcp.server").info(
+        logger.info(
             f"Request {request_id} cancelled: {reason or 'no reason'}"
         )
 

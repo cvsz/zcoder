@@ -111,7 +111,7 @@ class MicrophoneProvider(AudioInputProvider):
 
             self._buffer_lock = threading.Lock()
         except ImportError:
-            pass
+            pass  # Optional dependency not installed
 
     @property
     def name(self) -> str:

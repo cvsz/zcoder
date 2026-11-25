@@ -108,14 +108,14 @@ class AgentRegistry:
             try:
                 os.replace(self._path, corrupt)
             except OSError:
-                pass
+                pass  # Ignore failure to preserve corrupted file
             return {}
         if not isinstance(data, dict):
             corrupt = self._path.with_suffix(self._path.suffix + ".corrupt")
             try:
                 os.replace(self._path, corrupt)
             except OSError:
-                pass
+                pass  # Ignore failure to preserve corrupted file
             return {}
         return dict(data)
 
@@ -133,7 +133,7 @@ class AgentRegistry:
             try:
                 os.unlink(tmp)
             except OSError:
-                pass
+                pass  # Ignore cleanup error for temporary file
             raise
 
     def reload(self) -> None:

@@ -730,7 +730,6 @@ class SubagentRegistry:
                     resolved = safe_resolve(f, base)
                 except Exception:  # nosec B112
                     continue
-                    continue
                 if resolved is None:
                     continue
                 self._load_one(resolved, plugin=None)
@@ -747,7 +746,6 @@ class SubagentRegistry:
                 try:
                     resolved = safe_resolve(Path(entry["path"]), plugin_dir)  # nosec
                 except Exception:  # nosec B112
-                    continue
                     continue
                 if resolved is None:
                     continue
@@ -2330,13 +2328,11 @@ def cmd_code_slash(
                     resolved = safe_resolve(f, base)
                 except Exception:  # nosec B112
                     continue
-                    continue
                 if resolved is None:
                     continue  # nosec
                 try:
                     check_file_size(resolved, MAX_COMMAND_BYTES)
                 except Exception:  # nosec B112
-                    continue
                     continue
                 content = resolved.read_text()
                 print(f"\033[94mℹ Running custom command: /{cmd}\033[0m\n")
@@ -2360,13 +2356,11 @@ def cmd_code_slash(
                     resolved = safe_resolve(Path(entry["path"]), plugin_dir)
                 except Exception:  # nosec B112
                     continue
-                    continue  # nosec
                 if resolved is None:
                     continue
                 try:
                     check_file_size(resolved, MAX_COMMAND_BYTES)
                 except Exception:  # nosec B112
-                    continue
                     continue
                 content = resolved.read_text()
                 print(f"\033[94mℹ Running plugin command: /{entry['name']}\033[0m\n")

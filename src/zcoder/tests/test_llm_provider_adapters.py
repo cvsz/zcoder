@@ -82,7 +82,9 @@ class TestGeminiAdapter:
         adapter = GeminiAdapter(api_key="test-key-123")
         assert adapter.api_key == "test-key-123"
         assert adapter.provider_name == "gemini"
-        assert "generativelanguage.googleapis.com" in adapter.base_url
+        from urllib.parse import urlparse
+
+        assert urlparse(adapter.base_url).hostname == "generativelanguage.googleapis.com"
         assert adapter.timeout == 60.0
 
     def test_constructor_with_env_key(self, monkeypatch):

@@ -698,7 +698,7 @@ def trace_model_call(
                 if tokens > 0:
                     metrics_registry.perf_token_usage.inc(tokens)
             except (ValueError, TypeError):
-                pass
+                pass  # Ignore invalid non-numeric token values
 
 
 @contextmanager

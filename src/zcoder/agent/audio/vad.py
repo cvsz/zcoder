@@ -142,7 +142,7 @@ class SileroVAD(VAD):
             import librosa
 
             audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=16000)
-            sample_rate = 16000
+            _sample_rate = 16000  # noqa: F841 — resampled rate for documentation
 
         # Convert to float32 if needed
         if audio_data.dtype != np.float32:
@@ -217,7 +217,7 @@ class WebRTCVAD(VAD):
             import librosa
 
             audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=16000)
-            sample_rate = 16000
+            _sample_rate = 16000  # noqa: F841 — resampled rate for documentation
 
         # Convert to int16
         if audio_data.dtype != np.int16:

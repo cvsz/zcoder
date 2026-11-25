@@ -10,8 +10,6 @@ Covers Prompt 7.4:
 
 from __future__ import annotations
 
-import tempfile
-
 from zcoder.agent.orchestration.session_log import (
     SESSION_FORMAT_VERSION,
     EventType,
@@ -73,8 +71,8 @@ def test_append_and_get_events(tmp_path):
     assert events[1].payload["content"] == "hi"
 
 
-def test_get_events_excludes_ignorable():
-    db = tempfile.mktemp(suffix=".db")
+def test_get_events_excludes_ignorable(tmp_path):
+    db = str(tmp_path / "test1.db")
     store = SessionEventStore(db_path=db)
 
     store.append(SessionEvent(event_type=EventType.TURN_START, session_id="s1"))
@@ -96,8 +94,8 @@ def test_get_events_excludes_ignorable():
     assert all(not e.ignorable for e in filtered)
 
 
-def test_snapshot_events():
-    db = tempfile.mktemp(suffix=".db")
+def test_snapshot_events(tmp_path):
+    db = str(tmp_path / "test2.db")
     store = SessionEventStore(db_path=db)
 
     store.append(SessionEvent(event_type=EventType.TURN_START, session_id="snap1"))
@@ -114,8 +112,8 @@ def test_snapshot_events():
     assert snap["events"][0]["event_type"] == "turn/start"
 
 
-def test_list_sessions():
-    db = tempfile.mktemp(suffix=".db")
+def test_list_sessions(tmp_path):
+    db = str(tmp_path / "test3.db")
     store = SessionEventStore(db_path=db)
 
     store.append(SessionEvent(event_type=EventType.TURN_START, session_id="alpha"))

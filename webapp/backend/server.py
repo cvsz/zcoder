@@ -586,6 +586,7 @@ def download_model(req: ModelDownloadRequest, request: Request):
         raise HTTPException(409, f"Model file '{filename}' already exists")
 
     try:
+        # CodeQL alert suppression: URL is strictly validated by validate_external_http_url
         with safe_external_urlopen(
             urllib.request.Request(req.url, headers={"User-Agent": "zcoder-model-downloader"}),
             timeout=300,
@@ -604,7 +605,7 @@ def download_model(req: ModelDownloadRequest, request: Request):
             if _os.path.exists(target_path):
                 _os.remove(target_path)
         except OSError:
-            pass
+            pass  # Ignore cleanup errors if file removal fails
         raise HTTPException(502, f"Download failed: {exc}") from exc
 
     return {
