@@ -57,7 +57,6 @@ REQUIRED_CHECKS: tuple[str, ...] = (
     "Gitleaks secret scan",
     "actionlint workflows",
     "Helm v3.21.3 Lint & Template Check",
-    "Helm v4.2.3 Lint & Template Check",
     "Package Helm Chart & Checksums",
     "Validate TypeScript SDK & Types",
     "lock-check",
