@@ -233,7 +233,9 @@ async def cmd_permissions(agent: Any, args: list[str]) -> None:
             return
         pattern = args[1]
         decision = args[2]
-        _reason = " ".join(args[3:]) if len(args) > 3 else ""  # noqa: F841 — parsed for future permission audit log
+        _reason = (
+            " ".join(args[3:]) if len(args) > 3 else ""
+        )  # noqa: F841 — parsed for future permission audit log
         # We need to call this through the agent's permission system
         if hasattr(agent, "notice"):
             agent.notice(f"Adding permission: {pattern} -> {decision}")

@@ -319,9 +319,7 @@ class MCPServer:
     async def handle_cancellation(self, request_id: str, reason: str | None = None) -> None:
         """Handle cancellation notification (F13-13)."""
         # Log the cancellation
-        logger.info(
-            f"Request {request_id} cancelled: {reason or 'no reason'}"
-        )
+        logger.info(f"Request {request_id} cancelled: {reason or 'no reason'}")
 
     # ------------------------------------------------------------------ JSON-RPC dispatch
 
