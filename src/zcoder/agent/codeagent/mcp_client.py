@@ -588,7 +588,9 @@ class MCPClient:
                 async with self._session_lock:
                     try:
                         await self.discover(name)
-                    except Exception:  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                    except (
+                        Exception
+                    ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
                         pass  # keep old capabilities on discovery failure
             elif method.startswith("notifications/"):
                 # Other notifications are ignored for now.
@@ -661,7 +663,9 @@ class MCPClient:
             if self._connected.get(name):
                 try:
                     await self.discover(name)
-                except Exception:  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                except (
+                    Exception
+                ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
                     pass
         return dict(self._capabilities)
 
@@ -798,12 +802,16 @@ class MCPClient:
             if not self._connected.get(name):
                 try:
                     await self.disconnect(name)
-                except Exception:  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                except (
+                    Exception
+                ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
                     pass
                 try:
                     await self.connect(name)
                     await self.discover(name)
-                except Exception:  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
+                except (
+                    Exception
+                ):  # nosec B110 — graceful degradation on discovery failure  # nosec B110 — graceful degradation on transport failure
                     pass
 
     async def aclose(self) -> None:

@@ -55,7 +55,9 @@ HOOK_EVENTS = frozenset(
 
 # Events that can block (exit code 2 prevents the action).
 # Used by hook_runner to decide whether to await a hook script's exit code.
-_BLOCKING_EVENTS: frozenset[str] = frozenset({"PreToolUse", "UserPromptSubmit", "Elicitation", "WorktreeCreate"})  # noqa: F841
+_BLOCKING_EVENTS: frozenset[str] = frozenset(
+    {"PreToolUse", "UserPromptSubmit", "Elicitation", "WorktreeCreate"}
+)  # noqa: F841
 
 
 @dataclass
