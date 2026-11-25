@@ -383,7 +383,7 @@ class SessionProjectionRegistry:
                     expected_seq = base_seq + index
                     if getattr(event, "event_id", None) != expected_seq:
                         raise ValueError(
-                            f"session projection {key!r} cannot restore across " f"missing seq {expected_seq}"
+                            f"session projection {key!r} cannot restore across missing seq {expected_seq}"
                         )
                     state = defn.apply(state, event)
 

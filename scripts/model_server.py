@@ -193,10 +193,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
     try:
         with urllib.request.urlopen(ollama_req, timeout=3.0) as resp:  # nosec B310
             if resp.status == 200:
-                print(
-                    f"[start] {sector.name}: Ollama is running on {OLLAMA_BASE_URL} "
-                    f"(model {sector.model})"
-                )
+                print(f"[start] {sector.name}: Ollama is running on {OLLAMA_BASE_URL} (model {sector.model})")
                 # Ollama ไม่มี per-process pid — ใช้ sentinel pid=0 บอก 'external'
                 write_pid(sector.pidfile, 0)
                 return
@@ -210,8 +207,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
         )
     if not os.path.exists(sector.model_path):
         raise ModelServerError(
-            f"GGUF model not found: {sector.model_path}\n"
-            f"ตรวจสอบว่าไฟล์ {sector.model} อยู่ใน /zdata/models/ แล้ว"
+            f"GGUF model not found: {sector.model_path}\nตรวจสอบว่าไฟล์ {sector.model} อยู่ใน /zdata/models/ แล้ว"
         )
 
     os.makedirs(sector.run_dir, exist_ok=True)
@@ -241,8 +237,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
             raise ModelServerError(f"{sector.name}: Ollama exited during startup; see {sector.logfile}")
         if health_ok(sector, timeout=2.0):
             print(
-                f"[start] {sector.name}: running on {sector.base_url} "
-                f"(pid {proc.pid}, model {sector.model})"
+                f"[start] {sector.name}: running on {sector.base_url} (pid {proc.pid}, model {sector.model})"
             )
             return
         time.sleep(1.0)
@@ -360,9 +355,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(status_sector(sector))
             elif args.command == "health":
                 ok = health_ok(sector, timeout=3.0)
-                print(
-                    f"[health] {sector.name}: {'OK' if ok else 'FAIL'} " f"({sector.base_url}{HEALTH_PATH})"
-                )
+                print(f"[health] {sector.name}: {'OK' if ok else 'FAIL'} ({sector.base_url}{HEALTH_PATH})")
                 if not ok:
                     failures += 1
         except ModelServerError as exc:

@@ -612,5 +612,5 @@ def cmd_optimize_prompt(prompt: str, model: str = "claude-sonnet-5") -> str:
     savings = original_tokens - optimized_tokens
     print(f"Original tokens: {original_tokens:,}")
     print(f"Optimized tokens: {optimized_tokens:,}")
-    print(f"Savings: {savings:,} tokens ({round(savings/original_tokens*100,2)}%)")
+    print(f"Savings: {savings:,} tokens ({round(savings / original_tokens * 100, 2)}%)")
     return optimized

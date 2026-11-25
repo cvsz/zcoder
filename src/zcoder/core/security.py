@@ -113,7 +113,7 @@ class CredentialRef(str):
     @classmethod
     def parse(cls, value: str) -> CredentialRef:
         if not is_credential_ref_name(value):
-            raise ValueError(f'credential ref "{value}" must match ' f"{REF_PATTERN.pattern!r}")
+            raise ValueError(f'credential ref "{value}" must match {REF_PATTERN.pattern!r}')
         return cast(CredentialRef, brandString(value))
 
 
@@ -267,9 +267,7 @@ def credentialKey(scope: str, id: str) -> CredentialKey:
     """
     for segment in [scope, id]:
         if not KEY_SEGMENT_PATTERN.match(segment):
-            raise ValueError(
-                f'credential key segment "{segment}" must match ' f"{KEY_SEGMENT_PATTERN.pattern!r}"
-            )
+            raise ValueError(f'credential key segment "{segment}" must match {KEY_SEGMENT_PATTERN.pattern!r}')
     return cast(CredentialKey, brandString(f"{scope}/{id}"))
 
 
@@ -620,5 +618,5 @@ def validate_url(url: str, allowed_schemes: tuple[str, ...] = ("https",)) -> Non
         raise SecurityError(f"invalid URL: {url}") from exc
     if parsed.scheme not in allowed_schemes:
         raise SecurityError(
-            f"URL scheme '{parsed.scheme}' not allowed; " f"permitted schemes: {', '.join(allowed_schemes)}"
+            f"URL scheme '{parsed.scheme}' not allowed; permitted schemes: {', '.join(allowed_schemes)}"
         )

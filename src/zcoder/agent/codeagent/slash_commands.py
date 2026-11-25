@@ -123,7 +123,9 @@ async def handle_slash_command(agent: Any, text: str) -> bool:
 
     # Create context
     context = SlashCommandContext(
-        agent=text, args=args, raw=text  # We'll pass the agent via a different mechanism
+        agent=text,
+        args=args,
+        raw=text,  # We'll pass the agent via a different mechanism
     )
 
     # Actually, we need to pass the agent properly
@@ -724,41 +726,55 @@ async def cmd_debug(agent: Any, args: list[str]) -> None:
         print(msg)
 
         # Register additional commands
-        SlashCommand(
-            name="voice",
-            description="Voice input (not yet implemented)",
-            handler=cmd_voice,
-        ),
-        SlashCommand(
-            name="version",
-            description="Show version information",
-            handler=cmd_version,
-        ),
-        SlashCommand(
-            name="init",
-            description="Initialize project with ZCoder configuration",
-            handler=cmd_init,
-        ),
-        SlashCommand(
-            name="doctor",
-            description="Run health checks and diagnostics",
-            handler=cmd_doctor,
-        ),
-        SlashCommand(
-            name="logout",
-            description="Log out from the current session",
-            handler=cmd_logout,
-        ),
-        SlashCommand(
-            name="auth",
-            description="Authentication management",
-            handler=cmd_auth,
-        ),
-        SlashCommand(
-            name="debug",
-            description="Debug information",
-            handler=cmd_debug,
-        ),
+        (
+            SlashCommand(
+                name="voice",
+                description="Voice input (not yet implemented)",
+                handler=cmd_voice,
+            ),
+        )
+        (
+            SlashCommand(
+                name="version",
+                description="Show version information",
+                handler=cmd_version,
+            ),
+        )
+        (
+            SlashCommand(
+                name="init",
+                description="Initialize project with ZCoder configuration",
+                handler=cmd_init,
+            ),
+        )
+        (
+            SlashCommand(
+                name="doctor",
+                description="Run health checks and diagnostics",
+                handler=cmd_doctor,
+            ),
+        )
+        (
+            SlashCommand(
+                name="logout",
+                description="Log out from the current session",
+                handler=cmd_logout,
+            ),
+        )
+        (
+            SlashCommand(
+                name="auth",
+                description="Authentication management",
+                handler=cmd_auth,
+            ),
+        )
+        (
+            SlashCommand(
+                name="debug",
+                description="Debug information",
+                handler=cmd_debug,
+            ),
+        )
 
 
 def register_builtin_commands() -> None:

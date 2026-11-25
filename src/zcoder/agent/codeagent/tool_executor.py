@@ -87,7 +87,7 @@ class ToolOutputError(Exception):
     """Thrown when a tool body or post-policy value violates its declared output."""
 
     def __init__(self, tool_name: str, violations: list[str]):
-        super().__init__(f'tool {tool_name!r} returned invalid output: {"; ".join(violations)}')
+        super().__init__(f"tool {tool_name!r} returned invalid output: {'; '.join(violations)}")
         self.tool_name = tool_name
         self.violations = violations
         self.code = "INVALID_TOOL_OUTPUT"
