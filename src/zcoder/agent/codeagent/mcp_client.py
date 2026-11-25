@@ -243,7 +243,7 @@ class StdioTransport(_BaseTransport):
             try:
                 self._writer.close()
             except OSError:
-                pass
+                pass  # Ignore error closing writer
         if self._proc:
             try:
                 self._proc.terminate()
@@ -252,7 +252,7 @@ class StdioTransport(_BaseTransport):
                 try:
                     self._proc.kill()
                 except OSError:
-                    pass
+                    pass  # Ignore error killing terminated process
 
 
 class HTTPTransport(_BaseTransport):
@@ -413,7 +413,7 @@ class SSETransport(_BaseTransport):
             try:
                 await self._listen_task
             except asyncio.CancelledError:
-                pass
+                pass  # Listen task cancelled on close
             self._listen_task = None
         if self._client:
             await self._client.aclose()

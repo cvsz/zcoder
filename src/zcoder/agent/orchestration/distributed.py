@@ -21,6 +21,7 @@ import heapq
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import total_ordering
 from typing import Any
 
 
@@ -55,6 +56,7 @@ class TaskStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+@total_ordering
 @dataclass
 class DistributedTask:
     """A unit of work distributable across workers."""

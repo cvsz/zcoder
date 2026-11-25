@@ -148,7 +148,7 @@ def remove_pidfile(pidfile: str) -> None:
     try:
         os.remove(pidfile)
     except FileNotFoundError:
-        pass
+        pass  # File already removed
 
 
 def health_ok(sector: Sector, timeout: float = 3.0) -> bool:
@@ -201,7 +201,7 @@ def start_sector(sector: Sector, start_timeout: int) -> None:
                 write_pid(sector.pidfile, 0)
                 return
     except (OSError, urllib.error.URLError, ValueError):
-        pass
+        pass  # Server is not responding or PID is invalid
 
     if not os.path.exists(sector.binary):
         raise ModelServerError(
@@ -277,7 +277,7 @@ def stop_sector(sector: Sector, stop_timeout: int) -> None:
     try:
         os.kill(pid, signal.SIGKILL)
     except ProcessLookupError:
-        pass
+        pass  # Process has already terminated
     except OSError as exc:
         raise ModelServerError(f"{sector.name}: cannot kill pid {pid}: {exc}") from exc
 

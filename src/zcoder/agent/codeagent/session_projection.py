@@ -56,8 +56,9 @@ class ProjectionDefinition[K, S]:
         return self.state_schema(state)
 
 
-# SessionHeader type alias for compatibility with deepseek-harness
-SessionHeader = dict[str, Any]
+# SessionHeader type alias for compatibility with deepseek-harness.
+# Re-exported for external consumers.
+SessionHeader = dict[str, Any]  # noqa: F841
 
 
 @dataclass
@@ -169,7 +170,7 @@ class SessionProjectionRegistry:
                         f"with stateVersion {definition.state_version}"
                     )
                 existing.refs += 1
-                registration = existing
+                _registration = existing  # noqa: F841 — kept for debugging/future use
 
         handle: ProjectionHandle[Any] = ProjectionHandle(self, key)
         return handle

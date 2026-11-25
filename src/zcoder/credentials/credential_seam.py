@@ -228,8 +228,8 @@ class CredentialProvider:
         pass
 
 
-# Service Definition aliases for convenience.
-CredentialService = CredentialProvider
+# Service Definition aliases for convenience.  Re-exported for plugin consumers.
+CredentialService = CredentialProvider  # noqa: F841
 
 # ── CredentialPattern constants ──────────────────────────────────────────
 

@@ -35,7 +35,7 @@ class PoolMetrics:
     cache_misses: int = 0
 
 
-@dataclass
+@dataclass(eq=False)
 class PooledConnection:
     """A pooled connection to a model API."""
 

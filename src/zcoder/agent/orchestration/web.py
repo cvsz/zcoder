@@ -161,8 +161,8 @@ class WebFetchTool:
         import re
 
         text = html
-        text = re.sub(r"<script.*?</script>", "", text, flags=re.S | re.I)
-        text = re.sub(r"<style.*?</style>", "", text, flags=re.S | re.I)
+        text = re.sub(r"<script(?:\s+[^>]*)?>.*?</script\s*>", "", text, flags=re.S | re.I)
+        text = re.sub(r"<style(?:\s+[^>]*)?>.*?</style\s*>", "", text, flags=re.S | re.I)
         text = re.sub(r"<[^>]+>", "\n", text)
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()

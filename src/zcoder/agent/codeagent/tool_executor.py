@@ -21,11 +21,11 @@ from typing import Any, TypeVar
 
 # ── Types ─────────────────────────────────────────────────────────────────────
 
-T = TypeVar("T")
+T = TypeVar("T")  # noqa: F841 — generic type var re-exported for typed consumers
 
 ToolCallId = str
 ContentBlock = dict[str, Any]
-JsonValue = Any
+JsonValue = Any  # noqa: F841 — type alias re-exported for typed consumers
 
 
 # ── Error types ───────────────────────────────────────────────────────────────

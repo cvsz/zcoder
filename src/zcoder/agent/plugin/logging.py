@@ -247,7 +247,7 @@ class FileLoggingPlugin(LoggingPlugin):
             try:
                 self._file_handle.close()
             except OSError:
-                pass
+                pass  # Ignore error closing file handle on shutdown
             self._file_handle = None
 
     def log(self, record: LogRecord) -> None:

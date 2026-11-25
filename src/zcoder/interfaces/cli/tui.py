@@ -22,7 +22,6 @@ claude_excel.py / claude_powerpoint.py for their own optional deps.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import time
@@ -32,15 +31,13 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
-    from textual import work
+    from textual import work  # noqa: F401 — used by @work decorator in methods below
     from textual.app import App, ComposeResult
     from textual.containers import Horizontal, Vertical, VerticalScroll
-    from textual.events import Key
     from textual.message import Message
-    from textual.reactive import reactive
     from textual.widgets import (
         Button,
         Collapsible,
@@ -65,7 +62,7 @@ except ImportError as e:  # pragma: no cover - exercised only w/o textual instal
 
 from zcoder.agent.personalities import AGENT_SYSTEM_PROMPTS, PersonalityManager
 from zcoder.interfaces.cli.streaming import StreamRenderGate
-from zcoder.interfaces.cli.tui_tools import ToolCall, ToolResult, TUIToolExecutor
+from zcoder.interfaces.cli.tui_tools import TUIToolExecutor
 from zcoder.services.skills import SkillManager
 
 DEFAULT_MODEL = "zcoder-7b"
@@ -655,7 +652,7 @@ class ZCoderTUI(App):
             self._tool_progress[tool_name]["progress_bar"] = progress_bar
             self._tool_progress[tool_name]["message_label"] = message_label
         else:
-            widget = self._tool_progress[tool_name]["widget"]
+            _widget = self._tool_progress[tool_name]["widget"]
             progress_bar = self._tool_progress[tool_name]["progress_bar"]
             message_label = self._tool_progress[tool_name]["message_label"]
 

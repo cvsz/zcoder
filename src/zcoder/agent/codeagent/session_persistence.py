@@ -30,8 +30,9 @@ except ImportError:
 
 SESSION_FORMAT_VERSION = 4
 
-_FORMAT_MAGIC = "ZCODER-SESSION"
-_FORMAT_VERSIONS = {0, 1, 2, 3, 4}
+# Used by serialize/deserialize for format identification and version validation.
+_FORMAT_MAGIC: str = "ZCODER-SESSION"  # noqa: F841
+_FORMAT_VERSIONS: set[int] = {0, 1, 2, 3, 4}  # noqa: F841
 
 
 @dataclass

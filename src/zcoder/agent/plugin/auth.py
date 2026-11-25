@@ -19,7 +19,7 @@ from zcoder.agent.plugin.events import HookEvent
 from zcoder.agent.plugin.hook_bus import HookBus, HookContext, HookResult
 from zcoder.agent.plugin.tier import PluginTier
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 # ─── Authentication event types ──────────────────────────────────────────────

@@ -195,7 +195,7 @@ class TestShutdownManager:
             try:
                 await ctrl.wait()
             except asyncio.CancelledError:
-                pass
+                pass  # Expected cancellation during test
 
         task = asyncio.create_task(cancellable_task())
         ctrl.register_task(task)

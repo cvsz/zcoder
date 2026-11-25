@@ -184,7 +184,7 @@ class TaskOffloader:
             try:
                 os.replace(self._path, corrupt)
             except OSError:
-                pass
+                pass  # Ignore failure to preserve corrupted file
             return {}
         tasks: dict[str, OffloadedTask] = {}
         entries = data.values() if isinstance(data, dict) else data
@@ -227,7 +227,7 @@ class TaskOffloader:
             try:
                 os.unlink(tmp)
             except OSError:
-                pass
+                pass  # Ignore cleanup error for temporary file
             raise
 
     def reload(self) -> None:

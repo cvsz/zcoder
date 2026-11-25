@@ -15,6 +15,8 @@ except Exception:
     VERSION = "0+unknown"
 
 if __name__ == "__main__":
-    from zcoder.main import main  # noqa: E402
+    from zcoder.main import (
+        main,  # noqa: E402  # Not a self-import: this is repo-root launcher importing zcoder.main subpackage
+    )
 
-    main()  # noqa: F405
+    main()

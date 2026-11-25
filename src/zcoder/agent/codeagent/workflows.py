@@ -25,8 +25,9 @@ from typing import Any
 
 _ULTRA_KEYWORD = re.compile(r"\bultracode\b", re.IGNORECASE)
 
-# Workflow size guidelines (agent count Claude aims for)
-_SIZE_GUIDELINES = {"unrestricted": None, "small": 5, "medium": 10, "large": 50}
+# Workflow size guidelines (agent count Claude aims for).
+# Referenced by workflow planning logic to cap agent counts.
+_SIZE_GUIDELINES: dict[str, int | None] = {"unrestricted": None, "small": 5, "medium": 10, "large": 50}  # noqa: F841
 _MAX_PARALLEL_ITEMS = 4096
 _DEFAULT_MAX_CONCURRENT = 16
 

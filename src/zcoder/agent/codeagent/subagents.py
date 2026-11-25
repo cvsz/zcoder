@@ -164,7 +164,7 @@ class SubagentRegistry:
                     try:
                         data[key] = int(val)
                     except ValueError:
-                        pass
+                        pass  # Value is not an integer; leave as string
                 elif key in {"background", "omitClaudeMd"}:
                     data[key] = val.lower() in {"true", "yes", "on", "1"}
                 else:

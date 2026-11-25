@@ -92,8 +92,8 @@ def extract_title(html_content: str) -> str | None:
 def extract_text(html_content: str) -> str:
     """Extract readable text from HTML content."""
     # Remove script and style elements
-    text = re.sub(r"<script[^>]*>.*?</script>", "", html_content, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<script(?:\s+[^>]*)?>.*?</script\s*>", "", html_content, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style(?:\s+[^>]*)?>.*?</style\s*>", "", text, flags=re.DOTALL | re.IGNORECASE)
 
     # Remove HTML tags
     text = re.sub(r"<[^>]+>", " ", text)
@@ -149,7 +149,7 @@ def fetch_url(url: str, max_bytes: int = WEB_FETCH_MAX_BYTES) -> WebFetchResult:
                     try:
                         charset = content_type.split("charset=")[1].split(";")[0].strip().strip("\"'")
                     except Exception:
-                        pass
+                        pass  # Default charset remains utf-8
 
                 try:
                     content = raw.decode(charset, errors="replace")

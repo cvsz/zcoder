@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 TeamId = str
 TeamTaskId = str
-TeamMessageId = str
+TeamMessageId = str  # noqa: F841 — type alias re-exported for external consumers
 SessionId = str
 
 TeamMemberPhase = Literal["provisioning", "active", "failed"]

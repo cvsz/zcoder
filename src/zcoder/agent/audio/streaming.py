@@ -226,7 +226,7 @@ class AudioStreamMixer:
             try:
                 await self._mixing_task
             except asyncio.CancelledError:
-                pass
+                pass  # Task cancelled as part of shutdown
 
     async def _mix_loop(self) -> None:
         while not self._closed:
@@ -237,7 +237,7 @@ class AudioStreamMixer:
                     if chunk:
                         chunks.append(chunk)
                 except TimeoutError:
-                    pass
+                    pass  # Stream timeout is expected when waiting for chunk
 
             if chunks:
                 # Simple mixing: sum all chunks
@@ -247,12 +247,12 @@ class AudioStreamMixer:
                         mixed_data += chunk.data.astype(np.float32)
 
                 # Normalize
-                mixed_data = mixed_data / len(chunks)
-                mixed_data = np.clip(mixed_data, -32768, 32767).astype(np.int16)
+                mixed_data = (mixed_data / len(chunks)).astype(np.float32)
+                int_data = np.clip(mixed_data, -32768, 32767).astype(np.int16)
+                _ = int_data
 
                 # Here we would output the mixed chunk
                 # For now, just acknowledge
-                pass
 
             await asyncio.sleep(0.01)
 

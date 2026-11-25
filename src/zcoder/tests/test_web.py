@@ -59,8 +59,8 @@ class TestWebConfig:
             token="a" * 32,
             extra_hosts=("example.com", "192.168.1.1"),
         )
-        assert "example.com" in config.allowed_hosts
-        assert "192.168.1.1" in config.allowed_hosts
+        assert any(h == "example.com" for h in config.allowed_hosts)
+        assert any(h == "192.168.1.1" for h in config.allowed_hosts)
 
     def test_extra_origins(self):
         config = WebConfig(
@@ -68,7 +68,7 @@ class TestWebConfig:
             token="a" * 32,
             extra_origins=("https://example.com",),
         )
-        assert "https://example.com" in config.allowed_origins
+        assert any(o == "https://example.com" for o in config.allowed_origins)
 
     def test_allowed_hosts_includes_loopback(self):
         config = WebConfig(root=Path("/tmp"), token="a" * 32, host="127.0.0.1")
