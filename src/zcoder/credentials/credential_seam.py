@@ -51,7 +51,7 @@ class CredentialRef(str):
     @classmethod
     def parse(cls, value: str) -> CredentialRef:
         if not is_credential_ref_name(value):
-            raise ValueError(f'credential ref "{value}" does not match ' f"{_REF_PATTERN.pattern!r}")
+            raise ValueError(f'credential ref "{value}" does not match {_REF_PATTERN.pattern!r}')
         return cast(CredentialRef, brandString(value))
 
     def __str__(self) -> str:

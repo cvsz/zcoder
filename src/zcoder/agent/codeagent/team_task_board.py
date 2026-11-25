@@ -267,7 +267,7 @@ class TeamTaskBoard:
             if active >= self.max_tasks:
                 raise TeamError(f"Team task limit {self.max_tasks} reached", "TEAM_TASK_LIMIT")
 
-            task_id = f'task-{state["next_task_number"]}'
+            task_id = f"task-{state['next_task_number']}"
             if any(t["id"] == task_id for t in state["tasks"]):
                 raise TeamError("Team task id space exhausted", "TEAM_TASK_LIMIT")
 
@@ -353,7 +353,7 @@ class TeamTaskBoard:
             if current["revision"] != expected_revision:
                 raise TeamError(
                     f'stale team task "{current["id"]}" revision {expected_revision}; '
-                    f'current revision is {current["revision"]}',
+                    f"current revision is {current['revision']}",
                     "TEAM_TASK_STALE_REVISION",
                 )
             if current["status"] == "deleted":

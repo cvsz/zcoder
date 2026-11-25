@@ -162,9 +162,7 @@ class WorkflowEngine:
 
         # Execute the script: it should define main()
         try:
-            exec(
-                compile(script, "<workflow>", "exec"), ns
-            )  # nosec B102 — user-provided workflow script (documented feature)
+            exec(compile(script, "<workflow>", "exec"), ns)  # nosec B102 — user-provided workflow script (documented feature)
         except Exception:
             return WorkflowRun(
                 name="workflow",

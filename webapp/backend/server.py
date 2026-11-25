@@ -157,7 +157,7 @@ def _init_sessions_db() -> None:
                 updated_at REAL NOT NULL
             )
             """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated_at " "ON sessions(updated_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at)")
 
 
 def _save_session_to_db(session_id: str, history: list[dict]) -> None:
@@ -166,7 +166,7 @@ def _save_session_to_db(session_id: str, history: list[dict]) -> None:
 
     with sqlite_connection(SESSION_DB_PATH) as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO sessions (session_id, history, updated_at) " "VALUES (?, ?, ?)",
+            "INSERT OR REPLACE INTO sessions (session_id, history, updated_at) VALUES (?, ?, ?)",
             (session_id, _json.dumps(history, ensure_ascii=False), time.time()),
         )
 
@@ -191,7 +191,7 @@ def _list_sessions_from_db() -> list[dict]:
 
     with sqlite_connection(SESSION_DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT session_id, history, updated_at FROM sessions " "ORDER BY updated_at DESC LIMIT ?",
+            "SELECT session_id, history, updated_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
             (_SESSION_LIMIT,),
         ).fetchall()
     out = []

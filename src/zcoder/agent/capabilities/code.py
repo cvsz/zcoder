@@ -485,9 +485,7 @@ class HooksEngine:
             try:
                 data = json.loads(settings_path.read_text())
                 return cls(data.get("hooks", {}))
-            except (
-                Exception
-            ):  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
+            except Exception:  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
                 pass
         return cls()
 
@@ -534,15 +532,13 @@ class HooksEngine:
             if not cmd:
                 continue
             try:
-                result = (
-                    subprocess.run(  # nosec B603  # shell_command_argv returns an argv list, no shell=True
-                        shell_command_argv(cmd),
-                        input=stdin_data,
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                        env=env,
-                    )
+                result = subprocess.run(  # nosec B603  # shell_command_argv returns an argv list, no shell=True
+                    shell_command_argv(cmd),
+                    input=stdin_data,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    env=env,
                 )
                 if result.returncode == 2:
                     msg = result.stdout.strip() or result.stderr.strip()
@@ -721,9 +717,7 @@ class SubagentRegistry:
         if self.dir.exists():
             try:
                 base = self.dir.resolve()
-            except (
-                Exception
-            ):  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
+            except Exception:  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
                 base = self.dir
             for f in self.dir.glob("*.md"):
                 try:
@@ -892,9 +886,7 @@ class SkillsRegistry:
         if self.dir.exists():
             try:
                 base = self.dir.resolve()
-            except (
-                Exception
-            ):  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
+            except Exception:  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
                 base = self.dir
             for skill_dir in self.dir.iterdir():
                 name = skill_dir.name
@@ -960,9 +952,7 @@ class TodoManager:
         if TODO_FILE.exists():
             try:  # nosec
                 self._todos = json.loads(TODO_FILE.read_text())
-            except (
-                Exception
-            ):  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
+            except Exception:  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
                 # TODO file may be corrupt; start with empty list.
                 pass
         TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1611,9 +1601,7 @@ class CodeAgent:
                         for i, line in enumerate(f.read_text().splitlines(), 1):
                             if re.search(pattern, line):  # nosec
                                 results.append(f"{f.relative_to(cwd)}:{i}: {line.strip()}")
-                    except (
-                        Exception
-                    ):  # nosec B110 — skip unreadable session files  # nosec B110 — skip unreadable file  # nosec B112 — graceful degradation  # nosec B110 — graceful degradation
+                    except Exception:  # nosec B110 — skip unreadable session files  # nosec B110 — skip unreadable file  # nosec B112 — graceful degradation  # nosec B110 — graceful degradation
                         # File may be unreadable or binary; skip it.
                         pass
                 return "\n".join(results)
@@ -2317,9 +2305,7 @@ def cmd_code_slash(
         if d.exists():
             try:
                 base = d.resolve()
-            except (
-                Exception
-            ):  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
+            except Exception:  # nosec B110 — skip unreadable session files  # nosec B110 — graceful degradation
                 base = d
             for f in d.rglob("*.md"):
                 if f.stem != cmd:

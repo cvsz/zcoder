@@ -727,7 +727,7 @@ def _ask_user(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
         raise ToolError("question is required")
     options = args.get("options")
     if isinstance(options, list) and options:
-        opts = "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options))
+        opts = "\n".join(f"  {i + 1}. {o}" for i, o in enumerate(options))
         return ToolOutput(f"Question: {question}\n{opts}")
     return ToolOutput(f"Question: {question}")
 
@@ -761,9 +761,7 @@ def _web_fetch(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     if not isinstance(url, str) or not url.strip():
         raise ToolError("url is required")
     try:
-        with urllib.request.urlopen(
-            url, timeout=30
-        ) as resp:  # nosec B310 — WebFetch tool intentionally opens user-supplied URL
+        with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 — WebFetch tool intentionally opens user-supplied URL
             data = resp.read().decode("utf-8", errors="replace")
     except Exception as exc:
         return ToolOutput(f"Failed to fetch {url}: {exc}")
@@ -781,9 +779,7 @@ def _web_search(ctx: ToolContext, args: dict[str, Any]) -> ToolOutput:
     try:
         url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(
-            req, timeout=30
-        ) as resp:  # nosec B310 — WebSearch tool intentionally opens search-engine URL
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 — WebSearch tool intentionally opens search-engine URL
             data = resp.read().decode("utf-8", errors="replace")
         import re
 
