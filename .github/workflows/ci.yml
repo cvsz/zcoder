@@ -41,6 +41,10 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             git fetch --no-tags origin "$BASE_REF"
             changed_files="$(git diff --name-only --diff-filter=ACMR "origin/$BASE_REF...HEAD" -- '*.py')"
+          elif [[ "$EVENT_BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            # Tag push or initial push: compare against origin/main base
+            git fetch --no-tags origin main
+            changed_files="$(git diff --name-only --diff-filter=ACMR "origin/main...HEAD" -- '*.py')"
           else
             changed_files="$(git diff --name-only --diff-filter=ACMR "$EVENT_BEFORE...HEAD" -- '*.py')"
           fi
