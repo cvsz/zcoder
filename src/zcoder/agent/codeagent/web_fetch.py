@@ -149,7 +149,7 @@ def fetch_url(url: str, max_bytes: int = WEB_FETCH_MAX_BYTES) -> WebFetchResult:
                     try:
                         charset = content_type.split("charset=")[1].split(";")[0].strip().strip("\"'")
                     except Exception:
-                        pass  # Default charset remains utf-8
+                        pass  # nosec B110 — charset parse is best-effort; default charset remains utf-8
 
                 try:
                     content = raw.decode(charset, errors="replace")
