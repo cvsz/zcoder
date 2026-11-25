@@ -99,3 +99,4 @@ run/*.pid
 # External skills submodules / clones
 NVIDIA_skills/
 skills/nvidia/
+open_alerts.json
