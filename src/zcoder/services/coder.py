@@ -86,7 +86,13 @@ class Coder:
         parsed_url = urllib.parse.urlsplit(self.base_url)
         if (
             parsed_url.scheme != "http"
-            or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}  # nosec B104
+            or parsed_url.hostname
+            not in {
+                "127.0.0.1",
+                "localhost",
+                "::1",
+                "0.0.0.0",
+            }  # nosec B104 — loopback allowlist check, not a server bind
             or parsed_url.username
             or parsed_url.password
             or parsed_url.query

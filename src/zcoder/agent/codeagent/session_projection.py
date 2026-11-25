@@ -328,7 +328,7 @@ class SessionProjectionRegistry:
                     continue
                 try:
                     state = registration.def_.validate_state(row.get("val"))
-                except Exception:
+                except Exception:  # nosec B112 — invalid checkpoint row is intentionally skipped
                     continue
                 values[key] = registration.def_.wire.view(state)
             return values
@@ -370,7 +370,10 @@ class SessionProjectionRegistry:
                     )
 
                 if usable:
-                    assert row is not None
+                    if row is None:  # nosec B101 — defensive invariant; guarded by `usable` flag above
+                        raise ValueError(
+                            f"session projection {key!r} marked usable but checkpoint row is None"
+                        )
                     state = defn.validate_state(row.get("val"))
                     from_seq = row_seq
                 else:
@@ -542,7 +545,7 @@ def session_stats_apply(state: SessionStatsState, event: SessionEvent) -> Sessio
                 "turn": data.get("turn", 0),
                 "step": data.get("step", 0),
                 "start_time": event_time,
-                "first_token_time": None,
+                "first_token_time": None,  # nosec B105 — `None` sentinel, not a password; bandit false positive
             },
             pending_calls=dict(state.pending_calls),
         )

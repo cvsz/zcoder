@@ -36,7 +36,7 @@ class AbortSignal:
             try:
                 cb()
             except Exception:
-                # Callback failures must not prevent cancellation.
+                # nosec B110 — callback failures must not prevent cancellation.
                 pass
 
     def on_abort(self, callback: Callable) -> None:

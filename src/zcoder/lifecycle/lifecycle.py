@@ -148,7 +148,7 @@ class LifecycleController:
             try:
                 callback()
             except Exception:
-                # Cleanup failures must not prevent other cleanup.
+                # nosec B110 — cleanup failures must not prevent other cleanup.
                 pass
         self._cleanup_callbacks.clear()
 

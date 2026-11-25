@@ -26,8 +26,8 @@ _logger = logging.getLogger(__name__)
 
 AUTH_EVENT_LOGIN = "auth.login"
 AUTH_EVENT_LOGOUT = "auth.logout"
-AUTH_EVENT_TOKEN_REFRESH = "auth.token.refresh"
-AUTH_EVENT_TOKEN_VALIDATE = "auth.token.validate"
+AUTH_EVENT_TOKEN_REFRESH = "auth.token.refresh"  # nosec B105 — event type name, not a password
+AUTH_EVENT_TOKEN_VALIDATE = "auth.token.validate"  # nosec B105 — event type name, not a password
 AUTH_EVENT_PERMISSION_CHECK = "auth.permission.check"
 AUTH_EVENT_SESSION_CREATE = "auth.session.create"
 AUTH_EVENT_SESSION_REVOKE = "auth.session.revoke"

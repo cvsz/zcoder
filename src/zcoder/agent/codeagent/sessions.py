@@ -800,7 +800,7 @@ class SessionTitleProjection:
                     )
                     return title_value
             except Exception:
-                pass  # Fall through to heuristic
+                pass  # nosec B110 — LLM title generation is best-effort; fall through to heuristic title below
 
         # Heuristic: use first user message
         for msg in messages:
