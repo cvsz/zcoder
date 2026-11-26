@@ -1,6 +1,6 @@
 services:
-  zpostgressql:
-    container_name: zpostgressql
+  zpostgresql:
+    container_name: zpostgresql
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: zcoder
@@ -8,9 +8,9 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
       POSTGRES_DB: zcoder_db
     volumes:
-      - zpostgressql_data:/var/lib/postgresql/data
+      - zpostgresql_data:/var/lib/postgresql/data
     networks:
-      - zpostgressql_network
+      - zpostgresql_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zcoder -d zcoder_db"]
       interval: 10s
@@ -31,7 +31,7 @@ services:
     volumes:
       - zredis_data:/data
     networks:
-      - zpostgressql_network
+      - zpostgresql_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -63,7 +63,7 @@ services:
       start_period: 30s
     networks:
       - default
-      - zpostgressql_network
+      - zpostgresql_network
     init: true
     restart: unless-stopped
     # Deliberately no published ports. ZCoder shares this network namespace
@@ -84,7 +84,7 @@ services:
       ZCODER_NVIDIA_MODELS: ${ZCODER_NVIDIA_MODELS:-}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-${NVIDIA_API_KEY_1:-${NVIDIA_API_KEY_2:-}}}
       NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      ZCODER_POSTGRES_HOST: zpostgressql
+      ZCODER_POSTGRES_HOST: zpostgresql
       ZCODER_POSTGRES_PORT: "5432"
       ZCODER_POSTGRES_PASSWORD_FILE: /run/secrets/zcoder_postgres_password
       ZCODER_REDIS_HOST: zredis
@@ -103,7 +103,7 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
-      zpostgressql:
+      zpostgresql:
         condition: service_healthy
       zredis:
         condition: service_healthy
@@ -119,12 +119,12 @@ services:
 
 volumes:
   zcoder-home:
-  zpostgressql_data:
+  zpostgresql_data:
   zredis_data:
   ollama_data:
 
 networks:
-  zpostgressql_network:
+  zpostgresql_network:
 
 secrets:
   zcoder_postgres_password:

@@ -16,7 +16,7 @@ umask 077
 PROJECT_DIR="${HOME}/zcoder"
 BACKUP_VOLUME="zpitr_base_backups"
 WAL_VOLUME="zpitr_wal_archive"
-SOURCE_CONTAINER="zpostgressql"
+SOURCE_CONTAINER="zpostgresql"
 LOCK_FILE="/tmp/zcoder-pitr-restore-smoke.lock"
 
 TEST_CONTAINER=""

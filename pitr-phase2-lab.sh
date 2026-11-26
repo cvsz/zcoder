@@ -9,7 +9,7 @@ command -v docker >/dev/null || die "Docker CLI is required."
 command -v date >/dev/null || die "date is required."
 docker info >/dev/null 2>&1 || die "Docker daemon is unavailable."
 
-IMAGE="$(docker inspect zpostgressql --format '{{.Image}}')" ||
+IMAGE="$(docker inspect zpostgresql --format '{{.Image}}')" ||
     die "Cannot resolve the existing PostgreSQL image."
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"

@@ -41,7 +41,7 @@ zcoder -p "Review this source file" --file src/example.py
 ## Local persistence
 
 - SQLite is the default for a single-user installation.
-- PostgreSQL-backed commands use the shared Docker container `zpostgressql`
+- PostgreSQL-backed commands use the shared Docker container `zpostgresql`
   and the isolated `zcoder_db` database.
 - Local artifacts and runtime state are stored under the configured ZCoder
   data directory.

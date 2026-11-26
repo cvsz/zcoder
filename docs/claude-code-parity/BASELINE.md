@@ -34,7 +34,7 @@
 | Web/API | FastAPI + Uvicorn |
 | Database | SQLite (default) / PostgreSQL 15 (enterprise) |
 | ORM | psycopg2 / psycopg3 + raw SQL |
-| Queue/Jobs | Custom PostgreSQL-backed (zpostgressql) |
+| Queue/Jobs | Custom PostgreSQL-backed (zpostgresql) |
 | Local AI | llama.cpp / Ollama / vLLM (loopback) |
 | Observability | Prometheus + OpenTelemetry + Structured JSON logs |
 | MCP | stdio + HTTP/SSE transports |
@@ -171,8 +171,8 @@ No circular dependencies verified by architecture tests.
 ## 5. Database & Infrastructure
 
 ### PostgreSQL (Enterprise)
-- **Container:** zpostgressql (PostgreSQL 15 Alpine)
-- **Network:** zpostgressql_network
+- **Container:** zpostgresql (PostgreSQL 15 Alpine)
+- **Network:** zpostgresql_network
 - **Database:** zcoder_db
 - **Role:** zcoder
 - **Credentials:** File-based secrets (~/.config/zcoder/postgresql.password)

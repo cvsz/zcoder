@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     command: ["daemon"]
     environment:
-      PGHOST: zpostgressql
+      PGHOST: zpostgresql
       PGPORT: "5432"
       PGUSER: zcoder
       PGDATABASE: zcoder_db
@@ -19,7 +19,7 @@ services:
       - zpitr_base_backups:/var/backups/base_backups
       - ./docs/evidence:/app/evidence
     networks:
-      - zpostgressql_network
+      - zpostgresql_network
     restart: unless-stopped
 
 volumes:
@@ -29,7 +29,7 @@ volumes:
     name: zpitr_base_backups
 
 networks:
-  zpostgressql_network:
+  zpostgresql_network:
     external: true
 
 secrets:

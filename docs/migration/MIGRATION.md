@@ -38,11 +38,11 @@ export ZCODER_MODELS_DIR=/zdata/models
 A typo in the PostgreSQL host name was fixed:
 
 ```bash
-# Old (typo)
+# Old (legacy)
 export ZCODER_POSTGRES_HOST=zpostgressql
 
-# New (correct)
-export ZCODER_POSTGRES_HOST=zpostgressql
+# New (canonical)
+export ZCODER_POSTGRES_HOST=zpostgresql
 ```
 
 ### Checking compatibility
@@ -190,7 +190,7 @@ format:
 
 ```yaml
 services:
-  zpostgressql:
+  zpostgresql:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: zcoder
@@ -208,11 +208,11 @@ services:
     environment:
       ZCODER_BASE_URL: http://127.0.0.1:11434/v1
       ZCODER_MODEL: ${ZCODER_MODEL:-zcoder-pro}
-      ZCODER_POSTGRES_HOST: zpostgressql
+      ZCODER_POSTGRES_HOST: zpostgresql
       ...
     depends_on:
       - ollama
-      - zpostgressql
+      - zpostgresql
       - zredis
 ```
 
@@ -221,7 +221,7 @@ services:
 ### v1.60.0
 - Default model changed to `zcoder-flash`
 - Default models directory changed to `/zdata/models`
-- PostgreSQL host configured as `zpostgressql`
+- PostgreSQL host configured as `zpostgresql`
 - Added Delete tool
 - Added DatabaseQuery and APICall tools
 - Added session projection features (token usage, cost tracking, analytics)

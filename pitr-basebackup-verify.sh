@@ -27,19 +27,19 @@ docker inspect "$CONTAINER" \
   fail "zPITR is not running"
 
 log "Checking PostgreSQL availability"
-docker compose exec -T zpostgressql \
+docker compose exec -T zpostgresql \
   pg_isready -U zcoder -d zcoder_db ||
   fail "PostgreSQL is unavailable"
 
 log "Checking source database size"
-docker compose exec -T zpostgressql \
+docker compose exec -T zpostgresql \
   psql -X -U zcoder -d zcoder_db -c \
   "SELECT current_database(),
           pg_size_pretty(pg_database_size(current_database()))
      AS database_size;"
 
 log "Checking WAL streaming"
-docker compose exec -T zpostgressql \
+docker compose exec -T zpostgresql \
   psql -X -U zcoder -d zcoder_db -c "
     SELECT pid, application_name, state,
            sent_lsn, write_lsn, flush_lsn

@@ -36,7 +36,7 @@ docker compose -f docker-compose.zpitr.yml exec -T zpitr \
 
 echo
 echo "===== 4. POSTGRESQL RECOVERY CONFIGURATION ====="
-docker compose exec -T zpostgressql \
+docker compose exec -T zpostgresql \
   psql -X -U zcoder -d zcoder_db -c "
     SELECT name, setting
     FROM pg_settings
@@ -52,7 +52,7 @@ docker compose exec -T zpostgressql \
 
 echo
 echo "===== 5. REPLICATION STATUS ====="
-docker compose exec -T zpostgressql \
+docker compose exec -T zpostgresql \
   psql -X -U zcoder -d zcoder_db -c "
     SELECT pid, application_name, client_addr, state,
            sent_lsn, write_lsn, flush_lsn

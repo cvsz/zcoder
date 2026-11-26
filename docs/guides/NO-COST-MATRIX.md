@@ -13,7 +13,7 @@ ZCoder CLI / API
       |
       +---- SQLite (single-user default)
       |
-      +---- PostgreSQL container zpostgressql (shared local service)
+      +---- PostgreSQL container zpostgresql (shared local service)
 ```
 
 ## Runtime and persistence
@@ -23,7 +23,7 @@ ZCoder CLI / API
 | Inference | Ollama with GGUF models | Loopback endpoint at `127.0.0.1:11434/v1` by default |
 | Model selection | `ZCODER_MODEL` | Defaults to `zcoder-pro` / `zcoder-flash` |
 | Single-user persistence | SQLite | Default for the local installation |
-| Shared PostgreSQL | Docker container `zpostgressql` | Applications use separate databases and roles |
+| Shared PostgreSQL | Docker container `zpostgresql` | Applications use separate databases and roles |
 | ZCoder PostgreSQL database | `zcoder_db` | Provisioned by `make postgres-setup` |
 | Artifacts | Local filesystem | Subject to filesystem permissions and available disk space |
 | Telemetry | Configured local collector or local storage | Configure endpoints and retention explicitly |

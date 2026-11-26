@@ -129,7 +129,7 @@ make postgres-status
 make postgres-setup
 
 # Check connection
-docker exec -it zpostgressql psql -U zcoder -d zcoder_db -c "SELECT 1"
+docker exec -it zpostgresql psql -U zcoder -d zcoder_db -c "SELECT 1"
 ```
 
 ### Symptom: Redis connection fails
@@ -215,7 +215,7 @@ export ZCODER_MODEL=zcoder-flash
 export ZCODER_CTX_SIZE=4096
 
 # Enable PostgreSQL for session persistence
-export ZCODER_POSTGRES_HOST=zpostgressql
+export ZCODER_POSTGRES_HOST=zpostgresql
 ```
 
 ## 8. Build and installation issues

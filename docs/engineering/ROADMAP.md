@@ -36,7 +36,7 @@ llama-server binary ถูกยกเลิกแล้วตั้งแต่
   client.
 - The local client rejects non-loopback URLs and HTTP redirects.
 - PostgreSQL-backed API, worker, and integration-test commands use the
-  shared `zpostgressql` container and the `zpostgressql_network` bridge.
+  shared `zpostgresql` container and the `zpostgresql_network` bridge.
 
 ## Remaining implementation
 

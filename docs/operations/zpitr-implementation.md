@@ -9,7 +9,7 @@
 
 ## 1. บทนำและวัตถุประสงค์ (Executive Summary & Mission)
 
-ระบบ **zPITR** ถูกออกแบบขึ้นเพื่อแก้ปัญหาช่องว่างด้านความพร้อมใช้งานและการกู้คืนข้อมูลของฐานข้อมูล PostgreSQL 16 (ทั้งบน Docker `zpostgressql` และ Remote Environment `zwslcore`) เพื่อให้บรรลุเป้าหมายสำคัญ 2 ประการ:
+ระบบ **zPITR** ถูกออกแบบขึ้นเพื่อแก้ปัญหาช่องว่างด้านความพร้อมใช้งานและการกู้คืนข้อมูลของฐานข้อมูล PostgreSQL 16 (ทั้งบน Docker `zpostgresql` และ Remote Environment `zwslcore`) เพื่อให้บรรลุเป้าหมายสำคัญ 2 ประการ:
 
 1. **Enterprise Operational Durability**:
    - การสำรองข้อมูลระดับฐานข้อมูลอย่างต่อเนื่อง (Continuous WAL Streaming & Archiving) ควบคู่กับ Periodical Base Backups
@@ -25,9 +25,9 @@
 
 ```mermaid
 flowchart TD
-    subgraph PrimaryNetwork ["zpostgressql_network (Docker Network)"]
+    subgraph PrimaryNetwork ["zpostgresql_network (Docker Network)"]
         direction TB
-        subgraph PrimaryDB ["zpostgressql Container (PostgreSQL 16)"]
+        subgraph PrimaryDB ["zpostgresql Container (PostgreSQL 16)"]
             PGCore["PostgreSQL 16 Engine"]
             WALEngine["WAL Generator (wal_level=replica)"]
             PGCore --> WALEngine
@@ -45,7 +45,7 @@ flowchart TD
         end
 
         subgraph TestEnvironment ["Isolated Test Sandbox"]
-            IsolatedPG["zpostgressql-drill Container<br/>(Target for Replay & Verify)"]
+            IsolatedPG["zpostgresql-drill Container<br/>(Target for Replay & Verify)"]
         end
     end
 
@@ -336,7 +336,7 @@ def main():
         "evidence_ref": f"ZPITR-REHEARSAL/{args.drill_id}",
         "evidence_sha256": args.evidence_hash,
         "details": {
-            "wal_source": "zpostgressql",
+            "wal_source": "zpostgresql",
             "restore_target": "isolated-sandbox",
             "method": "pg_receivewal+basebackup",
         },
@@ -367,7 +367,7 @@ services:
       dockerfile: Dockerfile
     command: ["daemon"]
     environment:
-      PGHOST: zpostgressql
+      PGHOST: zpostgresql
       PGPORT: "5432"
       PGUSER: zcoder
       PGDATABASE: zcoder_db
@@ -380,7 +380,7 @@ services:
       - zpitr_base_backups:/var/backups/base_backups
       - ./docs/evidence:/app/evidence
     networks:
-      - zpostgressql_network
+      - zpostgresql_network
     restart: unless-stopped
 
 volumes:
@@ -390,7 +390,7 @@ volumes:
     name: zpitr_base_backups
 
 networks:
-  zpostgressql_network:
+  zpostgresql_network:
     external: true
 
 secrets:
